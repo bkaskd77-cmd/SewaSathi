@@ -56,7 +56,7 @@ export default function Home() {
     <main className="relative min-h-dvh">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[380px] bg-gradient-to-b from-primary/[0.07] to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[380px] bg-gradient-to-b from-gold/[0.16] to-transparent"
       />
 
       <div className="container relative max-w-3xl py-14 sm:py-20">
@@ -69,12 +69,12 @@ export default function Home() {
 
         <FadeIn delay={0.05}>
           <h1 className="text-balance font-display text-display-lg sm:text-display-xl">
-            Sewa<span className="text-sindoor">[X]</span>
+            Sewa<span className="text-gold-ink">[X]</span>
           </h1>
           <p className="mt-3 text-pretty text-body-lg text-muted-foreground">
-            Jade carries trust, madder red marks the one action that commits
-            you, turmeric means hurry. Every primitive below reads from the same
-            tokens.
+            Deep emerald carries trust, warm gold marks the one action that
+            commits you, burnt orange means hurry. Every primitive below reads
+            from the same tokens.
           </p>
           <p className="mt-1 text-body-md text-muted-foreground" lang="ne">
             नेपालका लागि घरायसी सेवा।
@@ -125,7 +125,7 @@ export default function Home() {
                         {stat.icon ? (
                           <Star
                             aria-hidden="true"
-                            className="size-4 fill-warning text-warning"
+                            className="size-4 fill-gold text-gold"
                           />
                         ) : null}
                         {stat.v}
@@ -152,7 +152,7 @@ export default function Home() {
         {/* --- primitives --------------------------------------------- */}
         <Section label="Buttons">
           <FadeIn delay={0.05} className="flex flex-wrap items-center gap-3">
-            <Button variant="sindoor" size="lg">
+            <Button variant="gold" size="lg">
               Book now
             </Button>
             <Button>Confirm</Button>
@@ -173,7 +173,8 @@ export default function Home() {
             <Badge variant="urgent">Emergency</Badge>
             <Badge variant="info">Scheduled · 2–4 pm</Badge>
             <Badge>Top rated</Badge>
-            <Badge variant="sindoor">New</Badge>
+            <Badge variant="gold">New</Badge>
+            <Badge variant="gold-subtle">Premium</Badge>
             <Badge variant="outline">Carpentry</Badge>
             <Badge variant="muted">Draft</Badge>
           </FadeIn>

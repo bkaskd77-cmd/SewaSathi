@@ -9,18 +9,18 @@ import { cn } from "@/lib/utils";
 /**
  * Sewa[X] button.
  *
- * `sindoor` is the brand accent and is deliberately scarce — one per screen,
+ * `gold` is the brand accent and is deliberately scarce — one per screen,
  * on the action that commits the customer (book, confirm, pay). Everything
  * else uses `default` (jade) or a quieter variant, so the red keeps meaning
  * something when it appears.
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:border-transparent disabled:bg-muted disabled:text-muted-foreground/70 disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        sindoor: "bg-sindoor text-sindoor-foreground hover:bg-sindoor/90",
+        gold: "bg-gold text-gold-foreground hover:bg-gold/90",
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:

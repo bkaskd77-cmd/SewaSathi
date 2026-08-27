@@ -14,141 +14,164 @@
  * any component pulled in with `npx shadcn add <name>` inherits this theme
  * with no edits. Tokens below `--radius` are Sewa[X] additions.
  *
- * Identity: deep jade carries trust and verification and does the structural
- * work; madder red is the single accent, spent on one action per screen;
- * turmeric marks urgency and indigo marks information. Ground is white
- * warmed very slightly, never a dark canvas — most of Nepal books these
- * services outdoors in daylight.
+ * BRAND (fixed — these four are the identity, do not drift):
+ *   Deep Emerald  #0F6B5B  primary
+ *   Warm Gold     #D6A84B  accent
+ *   Ivory         #FFF8E7  background
+ *   Deep Slate    #24323A  text
+ *
+ * Two measured constraints shape everything else:
+ *   1. White on Warm Gold is 2.20:1 — unreadable. Gold fills therefore carry
+ *      Deep Slate ink (6.02:1), never white.
+ *   2. Warm Gold as text on Ivory is 2.07:1. So gold is a FILL, a border or
+ *      an icon — never small text on the ground. Anything text-sized in the
+ *      gold family uses `--gold-ink`, a darker bronze that clears 6.7:1 on
+ *      both ivory and a gold wash while still reading as the same colour.
+ *
+ * The same ink/fill split applies to `--warning` and `--destructive`, for the
+ * same reason: a light hue can be a fill or it can be text, not both.
  */
 
 @layer base {
   :root {
     /* --- surfaces --- */
-    --background: 30 33% 99%;
-    --foreground: 320 12% 9%;
+    --background: 42 100% 95.3%; /* Ivory #FFF8E7 */
+    --foreground: 202 23% 18.4%; /* Deep Slate #24323A */
 
+    /* White cards lift off the ivory ground without needing a shadow. */
     --card: 0 0% 100%;
-    --card-foreground: 320 12% 9%;
+    --card-foreground: 202 23% 18.4%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 320 12% 9%;
+    --popover-foreground: 202 23% 18.4%;
 
     /* --- brand --- */
-    --primary: 168 79% 20%;
-    --primary-foreground: 150 40% 98%;
+    --primary: 169.6 75.4% 23.9%; /* Deep Emerald #0F6B5B */
+    --primary-foreground: 42 70% 98%;
 
-    --secondary: 30 20% 95%;
-    --secondary-foreground: 320 12% 16%;
+    --secondary: 42 44% 90%;
+    --secondary-foreground: 202 23% 18.4%;
 
-    /* Madder red. One per screen — the booking action, nothing else. */
-    --sindoor: 355 64% 47%;
-    --sindoor-foreground: 0 0% 100%;
+    /* Warm Gold #D6A84B. Fill only — see `--gold-ink` for text. */
+    --gold: 40.1 62.9% 56.7%;
+    --gold-foreground: 202 23% 18.4%;
+    --gold-ink: 38 78% 26%;
 
     /* --- neutral roles --- */
-    --muted: 30 18% 96%;
-    --muted-foreground: 320 6% 42%;
+    --muted: 42 46% 92%;
+    --muted-foreground: 202 13% 38%;
 
     /* shadcn semantics: `accent` is the subtle hover/active surface, not the
-       brand accent. The brand accent is `--sindoor`. */
-    --accent: 30 24% 94%;
-    --accent-foreground: 320 12% 16%;
+       brand accent. The brand accent is `--gold`. */
+    --accent: 42 52% 89%;
+    --accent-foreground: 202 23% 18.4%;
 
     /* --- status --- */
-    --destructive: 0 68% 44%;
+    --destructive: 0 66% 44%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-ink: 0 66% 44%;
 
-    --success: 162 68% 26%;
+    --success: 166 68% 26%;
     --success-foreground: 0 0% 100%;
+    --success-ink: 166 68% 26%;
 
-    /* Turmeric. */
-    --warning: 39 84% 50%;
-    --warning-foreground: 39 90% 10%;
+    /* Burnt orange, pushed well off gold's hue so urgency never reads as
+       brand decoration. */
+    --warning: 22 78% 42%;
+    --warning-foreground: 0 0% 100%;
+    --warning-ink: 22 82% 30%;
 
-    /* Indigo. */
-    --info: 230 47% 32%;
+    --info: 205 56% 32%;
     --info-foreground: 0 0% 100%;
+    --info-ink: 205 56% 32%;
 
     /* --- lines & focus --- */
-    --border: 28 16% 89%;
-    --input: 28 16% 86%;
-    --ring: 168 79% 28%;
+    --border: 40 32% 86%;
+    --input: 40 30% 80%;
+    --ring: 169.6 70% 30%;
 
     /* --- data viz --- */
-    --chart-1: 168 79% 26%;
-    --chart-2: 355 64% 52%;
-    --chart-3: 230 47% 40%;
-    --chart-4: 39 84% 50%;
-    --chart-5: 280 30% 46%;
+    --chart-1: 169.6 75.4% 27%;
+    --chart-2: 40.1 62.9% 50%;
+    --chart-3: 205 56% 38%;
+    --chart-4: 22 78% 46%;
+    --chart-5: 280 26% 46%;
 
     --radius: 0.625rem;
 
-    /* Elevation, tinted warm so shadows read as depth rather than grey haze. */
-    --shadow-color: 320 14% 14%;
-    --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.06);
+    /* Elevation tinted with the slate hue so shadows sit with the ink rather
+       than muddying the ivory. */
+    --shadow-color: 202 30% 16%;
+    --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.07);
     --shadow-md:
-      0 4px 12px -2px hsl(var(--shadow-color) / 0.08),
+      0 4px 12px -2px hsl(var(--shadow-color) / 0.09),
       0 2px 4px -2px hsl(var(--shadow-color) / 0.05);
     --shadow-lg:
-      0 12px 32px -8px hsl(var(--shadow-color) / 0.14),
-      0 4px 8px -4px hsl(var(--shadow-color) / 0.06);
+      0 12px 32px -8px hsl(var(--shadow-color) / 0.16),
+      0 4px 8px -4px hsl(var(--shadow-color) / 0.07);
     --shadow-glow:
-      0 0 0 1px hsl(var(--primary) / 0.12),
-      0 8px 32px -8px hsl(var(--primary) / 0.28);
+      0 0 0 1px hsl(var(--primary) / 0.14),
+      0 8px 32px -8px hsl(var(--primary) / 0.3);
   }
 
   /*
-   * Dark theme. Not the product's centre of gravity, but it exists and is
-   * held to the same contrast standard — jade and madder both lighten so
-   * they keep their lift against a dark ground.
+   * Dark theme. Ivory inverts to a deep slate ground drawn from the text
+   * colour, so the two themes stay in one hue family. Emerald lightens to
+   * keep its lift; gold barely moves, since it already works on dark.
    */
   .dark {
-    --background: 320 14% 8%;
-    --foreground: 30 14% 94%;
+    --background: 202 24% 9.5%;
+    --foreground: 42 28% 93%;
 
-    --card: 320 13% 11%;
-    --card-foreground: 30 14% 94%;
+    --card: 202 21% 13%;
+    --card-foreground: 42 28% 93%;
 
-    --popover: 320 14% 10%;
-    --popover-foreground: 30 14% 94%;
+    --popover: 202 22% 12%;
+    --popover-foreground: 42 28% 93%;
 
-    --primary: 166 58% 45%;
-    --primary-foreground: 168 60% 7%;
+    --primary: 168 56% 46%;
+    --primary-foreground: 170 62% 8%;
 
-    --secondary: 320 8% 18%;
-    --secondary-foreground: 30 14% 94%;
+    --secondary: 202 16% 19%;
+    --secondary-foreground: 42 28% 93%;
 
-    --sindoor: 355 78% 63%;
-    --sindoor-foreground: 355 60% 10%;
+    --gold: 40 72% 62%;
+    --gold-foreground: 40 60% 10%;
+    --gold-ink: 40 80% 70%;
 
-    --muted: 320 8% 17%;
-    --muted-foreground: 30 8% 66%;
+    --muted: 202 16% 18%;
+    --muted-foreground: 202 12% 66%;
 
-    --accent: 320 8% 20%;
-    --accent-foreground: 30 14% 94%;
+    --accent: 202 16% 21%;
+    --accent-foreground: 42 28% 93%;
 
-    --destructive: 0 70% 60%;
+    --destructive: 0 68% 60%;
     --destructive-foreground: 0 60% 10%;
+    --destructive-ink: 0 80% 74%;
 
-    --success: 162 54% 44%;
-    --success-foreground: 162 60% 7%;
+    --success: 166 54% 45%;
+    --success-foreground: 166 60% 7%;
+    --success-ink: 166 54% 52%;
 
-    --warning: 39 86% 58%;
-    --warning-foreground: 39 90% 10%;
+    --warning: 26 82% 58%;
+    --warning-foreground: 26 70% 9%;
+    --warning-ink: 26 85% 66%;
 
-    --info: 228 62% 66%;
-    --info-foreground: 230 60% 10%;
+    --info: 205 62% 62%;
+    --info-foreground: 205 60% 10%;
+    --info-ink: 205 62% 68%;
 
-    --border: 320 8% 21%;
-    --input: 320 8% 24%;
-    --ring: 166 58% 45%;
+    --border: 202 15% 22%;
+    --input: 202 15% 26%;
+    --ring: 168 56% 46%;
 
-    --chart-1: 166 58% 50%;
-    --chart-2: 355 78% 66%;
-    --chart-3: 228 62% 66%;
-    --chart-4: 39 86% 60%;
-    --chart-5: 280 44% 68%;
+    --chart-1: 168 56% 50%;
+    --chart-2: 40 72% 62%;
+    --chart-3: 205 62% 62%;
+    --chart-4: 26 82% 60%;
+    --chart-5: 280 40% 68%;
 
-    --shadow-color: 320 40% 2%;
+    --shadow-color: 202 60% 2%;
     --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.5);
     --shadow-md:
       0 4px 12px -2px hsl(var(--shadow-color) / 0.6),

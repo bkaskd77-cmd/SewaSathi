@@ -6,8 +6,8 @@ import { extendTailwindMerge } from "tailwind-merge";
  * it wholesale (`text-body-sm`, `text-display-lg`, …), and without this
  * declaration those get mistaken for text *colours* — so a component that
  * sets both a size and a colour silently loses the colour to whichever came
- * last. That is how `text-sindoor-foreground` disappeared off the booking
- * button and left dark ink on madder red at 3.26:1.
+ * last. That is how `text-gold-foreground` would silently disappear off
+ * the booking button, leaving unreadable ink on Warm Gold.
  *
  * Every custom step in tailwind.config.ts `fontSize` must be listed here.
  */

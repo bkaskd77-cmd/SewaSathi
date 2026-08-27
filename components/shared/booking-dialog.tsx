@@ -26,7 +26,7 @@ export function BookingDialog() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="sindoor">Book now</Button>
+        <Button variant="gold">Book now</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -61,7 +61,7 @@ export function BookingDialog() {
           <DialogClose asChild>
             <Button variant="ghost">Not now</Button>
           </DialogClose>
-          <Button variant="sindoor">Confirm booking</Button>
+          <Button variant="gold">Confirm booking</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

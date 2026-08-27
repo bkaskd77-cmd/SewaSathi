@@ -36,25 +36,32 @@ const config: Config = {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
         },
-        sindoor: {
-          DEFAULT: "hsl(var(--sindoor))",
-          foreground: "hsl(var(--sindoor-foreground))",
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          foreground: "hsl(var(--gold-foreground))",
+          // Text-safe bronze. Warm Gold itself is 2.07:1 on ivory, so
+          // anything text-sized in the gold family must use this.
+          ink: "hsl(var(--gold-ink))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          ink: "hsl(var(--destructive-ink))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
+          ink: "hsl(var(--success-ink))",
         },
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
+          ink: "hsl(var(--warning-ink))",
         },
         info: {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
+          ink: "hsl(var(--info-ink))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
