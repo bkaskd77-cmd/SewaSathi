@@ -7,6 +7,7 @@ import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  categoryCtaLabel,
   categoryName,
   triageProblem,
   type TriageResult,
@@ -182,6 +183,7 @@ function TriageSkeleton() {
 function TriageCard({ result }: { result: TriageResult }) {
   const urgency = URGENCY_META[result.urgency];
   const name = categoryName(result.category);
+  const ctaLabel = categoryCtaLabel(result.category);
   const [low, high] = result.priceRangeNPR;
 
   return (
@@ -209,7 +211,7 @@ function TriageCard({ result }: { result: TriageResult }) {
 
       <Button variant="gold" className={cn("btn-tactile mt-4")} asChild>
         <Link href={`/services/${result.category}?urgency=${result.urgency}`}>
-          Find {name.toLowerCase()} professionals
+          Find {ctaLabel} professionals
           <ArrowRight aria-hidden="true" />
         </Link>
       </Button>

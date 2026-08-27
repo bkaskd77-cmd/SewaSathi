@@ -47,6 +47,38 @@ nothing else; if the shape feels wrong, change the caller instead.
 Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in
 Phase 5). Every mock file states in a comment what replaces it and when.
 
+## Auth
+
+Phone + OTP only. There is no email/password path anywhere in this product and
+adding one would be a product decision, not a convenience.
+
+- `lib/auth/otp.ts` is the **only** file that talks to an SMS provider. Swapping
+  Supabase's default sender for Sparrow SMS or Aakash SMS means reimplementing
+  `sendOtp`/`verifyOtp` behind the same signatures — nothing else should know
+  which gateway is in play.
+- `lib/auth/routes.ts` is the single source of truth for public / protected /
+  provider routes. `middleware.ts` reads it; so should anything else that
+  guards.
+- Redirect intent travels as `?next=`. Always run it through `safeRedirect()` —
+  it comes off the query string and an unchecked value is an open redirect.
+- Never import `@/lib/supabase/client` into anything the header renders. It
+  pulls ~70 KB of supabase-js into the landing bundle. Sign-out is a server
+  action for exactly this reason.
+
+## Schema
+
+`supabase/migrations/`, applied in filename order. If it is not in a migration
+file it does not exist — nothing gets clicked into the dashboard.
+
+`types/supabase.ts` is hand-written to match. Regenerate it with
+`supabase gen types` when you have network to the project, and keep it in the
+same commit as the migration that changed it.
+
+RLS gotcha: a policy on `profiles` that queries `profiles` to check the
+caller's role recurses into itself and Postgres raises "infinite recursion
+detected in policy". `public.is_admin()` is `security definer` to break that
+cycle.
+
 ## Above-the-fold and entrance animations
 
 Never let a motion library own the visibility of content. `motion`/`m`

@@ -1,4 +1,4 @@
-export type { Database, Json } from "./supabase";
+export type { Database, Json, PreferredLanguage, UserRole } from "./supabase";
 
 /**
  * Service categories SajiloKaam launches with. The union is the source of truth

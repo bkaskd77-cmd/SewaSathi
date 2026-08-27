@@ -1,12 +1,13 @@
 /**
- * Generated Supabase database types.
+ * Database types.
  *
- * Placeholder until the schema exists (Phase 3 onward). Regenerate with:
+ * Hand-written to match supabase/migrations/ — the generator needs network
+ * access to the project, which this environment does not have. Regenerate
+ * (and let the generator win) with:
  *
- *   npx supabase gen types typescript --project-id <ref> > types/supabase.ts
+ *   npx supabase gen types typescript --project-id sfjsoyzosprwpnrtynpp > types/supabase.ts
  *
- * Once real types land here, every `createClient()` call in lib/supabase picks
- * them up automatically — the clients are already generic over `Database`.
+ * If you change a migration, change this file in the same commit.
  */
 export type Json =
   | string
@@ -16,11 +17,55 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type UserRole = "customer" | "provider" | "admin";
+export type PreferredLanguage = "en" | "ne";
+
 export type Database = {
   public: {
-    Tables: Record<string, never>;
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          full_name: string | null;
+          phone: string | null;
+          preferred_language: PreferredLanguage;
+          role: UserRole;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          full_name?: string | null;
+          phone?: string | null;
+          preferred_language?: PreferredLanguage;
+          role?: UserRole;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          full_name?: string | null;
+          phone?: string | null;
+          preferred_language?: PreferredLanguage;
+          role?: UserRole;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      is_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

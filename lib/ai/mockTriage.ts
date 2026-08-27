@@ -353,3 +353,14 @@ export function triageProblem(input: string): TriageResult {
 export function categoryName(slug: string): string {
   return SERVICE_CATEGORIES.find((c) => c.slug === slug)?.name ?? "Home repair";
 }
+
+/**
+ * Short lower-case label for inline sentences. Never derive this by
+ * lower-casing `name` — "AC Servicing & Gas Refill" becomes "ac servicing &
+ * gas refill", which breaks the acronym and overflows the button.
+ */
+export function categoryCtaLabel(slug: string): string {
+  return (
+    SERVICE_CATEGORIES.find((c) => c.slug === slug)?.ctaLabel ?? "home repair"
+  );
+}

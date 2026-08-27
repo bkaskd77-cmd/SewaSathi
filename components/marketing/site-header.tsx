@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
+import { AccountMenu, SignedOutCta } from "@/components/marketing/account-menu";
 import { LanguageToggle } from "@/components/marketing/language-toggle";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -16,7 +17,13 @@ const NAV = [
   { href: "#for-professionals", label: "For Professionals" },
 ];
 
-export function SiteHeader() {
+/**
+ * `accountName` comes from the server (see lib/auth/session.ts) so the correct
+ * header renders in the first HTML — a client-side session check would flash
+ * "Book a service" at someone who is already signed in.
+ */
+export function SiteHeader({ accountName }: { accountName?: string | null }) {
+  const signedIn = accountName !== null && accountName !== undefined;
   const [condensed, setCondensed] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
@@ -111,13 +118,34 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
+            {signedIn ? (
+              <>
+                <Link
+                  href="/bookings"
+                  onClick={() => setMenuOpen(false)}
+                  className="py-2.5 text-body-md font-medium hover:text-primary"
+                >
+                  Bookings
+                </Link>
+                <Link
+                  href="/account"
+                  onClick={() => setMenuOpen(false)}
+                  className="py-2.5 text-body-md font-medium hover:text-primary"
+                >
+                  Account
+                </Link>
+              </>
+            ) : null}
+
             <div className="mt-3 flex items-center gap-3 sm:hidden">
               <LanguageToggle />
-              <Button variant="gold" asChild className="flex-1">
-                <Link href="#hero-search" onClick={() => setMenuOpen(false)}>
-                  Book a service
-                </Link>
-              </Button>
+              {signedIn ? (
+                <div className="flex-1">
+                  <AccountMenu name={accountName} />
+                </div>
+              ) : (
+                <SignedOutCta className="flex-1" />
+              )}
             </div>
           </nav>
         </div>

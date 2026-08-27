@@ -1,0 +1,71 @@
+import Link from "next/link";
+
+import { Wordmark } from "@/components/marketing/wordmark";
+
+/**
+ * Frame shared by every auth screen. Narrow, centred, no site nav — nothing
+ * on these pages should compete with the one thing being asked for.
+ */
+export function AuthShell({
+  title,
+  lead,
+  children,
+  footer,
+}: {
+  title: string;
+  lead?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <main className="relative flex min-h-dvh flex-col">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-gold/[0.16] to-transparent"
+      />
+
+      <div className="container relative flex flex-1 flex-col">
+        <div className="py-6">
+          <Wordmark />
+        </div>
+
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-16">
+          <h1 className="text-balance font-display text-display-md">{title}</h1>
+          {lead ? (
+            <p className="mt-2 text-pretty text-body-md text-muted-foreground">
+              {lead}
+            </p>
+          ) : null}
+
+          <div className="mt-7">{children}</div>
+
+          {footer ? <div className="mt-6">{footer}</div> : null}
+        </div>
+
+        {/*
+          prefetch={false}: these pages arrive with the legal copy, and until
+          then Next's prefetch 404s in the console on every auth screen.
+        */}
+        <p className="pb-6 text-center text-caption text-muted-foreground">
+          By continuing you agree to our{" "}
+          <Link
+            href="/legal/terms"
+            prefetch={false}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/legal/privacy"
+            prefetch={false}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            privacy policy
+          </Link>
+          .
+        </p>
+      </div>
+    </main>
+  );
+}

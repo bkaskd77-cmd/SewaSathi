@@ -8,18 +8,12 @@ import type { Database } from "@/types/supabase";
  * Refresh the Supabase auth session on every request and write the rotated
  * tokens back onto the response.
  *
- * Not yet mounted — Phase 3 adds a root `middleware.ts` that calls this:
+ * Called from the root `middleware.ts`, which also does the route guarding.
+ * Returns the refreshed response together with the user, so the caller does
+ * not have to build a second client just to ask who is signed in.
  *
- *   export async function middleware(request: NextRequest) {
- *     return updateSession(request);
- *   }
- *
- *   export const config = {
- *     matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
- *   };
- *
- * Without this, server-rendered pages read an expired token and users get
- * logged out at seemingly random moments.
+ * Without this refresh, server-rendered pages read an expired token and users
+ * get logged out at seemingly random moments.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -52,7 +46,9 @@ export async function updateSession(request: NextRequest) {
 
   // Touching the user is what triggers the refresh. Do it before anything
   // else writes to the response.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return { response, user };
 }

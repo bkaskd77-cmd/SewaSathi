@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getSessionProfile } from "@/lib/auth/session";
 import { SERVICE_CATEGORIES } from "@/lib/config/services";
 import { CATEGORY_BOOKINGS_THIS_WEEK } from "@/lib/mock/categoryStats";
 import { site } from "@/lib/config/site";
@@ -120,10 +121,12 @@ const FAQS = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const profile = await getSessionProfile();
+
   return (
     <>
-      <SiteHeader />
+      <SiteHeader accountName={profile?.fullName ?? null} />
 
       <main id="main">
         {/* ---------------- hero ---------------- */}
