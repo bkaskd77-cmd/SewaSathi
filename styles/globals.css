@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /*
- * Sewa[X] design tokens.
+ * SajiloKaam design tokens.
  *
  * Every colour in the app resolves through one of the variables below, so
  * changing a value here restyles the entire product. Values are raw HSL
@@ -12,7 +12,7 @@
  *
  * The `--background ... --ring` block uses the shadcn/ui token contract, so
  * any component pulled in with `npx shadcn add <name>` inherits this theme
- * with no edits. Tokens below `--radius` are Sewa[X] additions.
+ * with no edits. Tokens below `--radius` are SajiloKaam additions.
  *
  * BRAND (fixed — these four are the identity, do not drift):
  *   Deep Emerald  #0F6B5B  primary
@@ -203,6 +203,69 @@
 }
 
 @layer utilities {
+  /*
+   * Above-the-fold entrance.
+   *
+   * The hero must never depend on JavaScript to become visible — a
+   * framer-motion `initial={{opacity:0}}` leaves the headline blank until
+   * hydration, which on a mid-range Android over 3G is seconds of empty
+   * screen and a wrecked LCP. This runs off the first paint instead.
+   * Below-the-fold sections still use <Reveal>, where the cost is fine.
+   */
+  .animate-rise {
+    animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-rise {
+      animation: none;
+    }
+  }
+
+  /*
+   * Scroll reveal, progressive-enhancement style.
+   *
+   * Default is VISIBLE. Only once the inline script in the document head has
+   * confirmed JavaScript is running does `.js` appear on <html> and the
+   * pre-reveal state apply — so a failed or slow bundle leaves a fully
+   * readable page instead of a blank one below the hero. The `.js` class is
+   * set before first paint, so there is no flash of visible content either.
+   */
+  .reveal {
+    opacity: 1;
+  }
+
+  .js .reveal:not(.is-revealed) {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .js .reveal.is-revealed {
+    animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .js .reveal:not(.is-revealed) {
+      opacity: 1;
+      transform: none;
+    }
+
+    .js .reveal.is-revealed {
+      animation: none;
+    }
+  }
+
   .text-balance {
     text-wrap: balance;
   }

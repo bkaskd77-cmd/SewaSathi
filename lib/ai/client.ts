@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { serverEnv } from "@/lib/env";
 
 /**
- * The model Sewa[X] runs triage on.
+ * The model SajiloKaam runs triage on.
  *
  * Triage decides urgency and a price band from a free-text or photographed
  * description — a judgement call where being wrong is expensive (a mis-scoped

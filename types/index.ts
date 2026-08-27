@@ -1,7 +1,7 @@
 export type { Database, Json } from "./supabase";
 
 /**
- * Service categories Sewa[X] launches with. The union is the source of truth
+ * Service categories SajiloKaam launches with. The union is the source of truth
  * for the UI; the database enum added in a later phase must mirror it.
  */
 export const SERVICE_CATEGORIES = [

@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Tailwind theme for Sewa[X].
+ * Tailwind theme for SajiloKaam.
  *
  * This file maps design tokens (defined as CSS variables in styles/globals.css)
  * onto Tailwind's scale. Nothing here hardcodes a colour value — the token file

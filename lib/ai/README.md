@@ -1,6 +1,6 @@
 # `lib/ai`
 
-Claude helpers for Sewa[X].
+Claude helpers for SajiloKaam.
 
 Right now this only holds the client factory and the model constant — the env
 var is wired so Phase 4 can start immediately. The triage prompt, the structured

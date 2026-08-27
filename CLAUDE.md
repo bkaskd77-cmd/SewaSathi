@@ -1,4 +1,4 @@
-# Sewa[X] — working notes
+# SajiloKaam — working notes
 
 AI-native home services platform for Nepal. Next.js 14 (App Router) · Tailwind ·
 shadcn-style primitives · Supabase · Claude · Vercel.
@@ -26,6 +26,29 @@ text-sized. Never use `text-gold` — it is 2.07:1 on ivory. Use `text-gold-ink`
 
 Every new component gets a contrast pass in both themes before it ships;
 4.5:1 minimum.
+
+## Component library
+
+`components/ui` — Button · Badge · Card · Input · Label · Dialog · **Accordion**
+(added Phase 2 for the landing FAQ). `components/marketing` holds the
+landing-page sections; `lib/config/` holds brand strings and the category list.
+
+## Above-the-fold and entrance animations
+
+Never let a motion library own the visibility of content. `motion`/`m`
+components render `opacity: 0` into the **server HTML**, so anything wrapped in
+one is invisible until the JS bundle lands — on a patchy Nepali connection that
+is a blank page.
+
+- Hero / above the fold: `.animate-rise`, pure CSS, runs off first paint.
+- Below the fold: `<Reveal>` — CSS plus one IntersectionObserver. Default state
+  is visible; the pre-reveal style is gated on `.js`, which an inline script in
+  `app/layout.tsx` sets before first paint.
+- Framer Motion is still available via `MotionProvider` (dynamically imported,
+  so pages that don't use it pay nothing). Use `m.*`, never `motion.*`.
+
+Lighthouse on the landing page must stay ≥ 90 for performance and 100 for
+accessibility. `/design-system` scores SEO 60 on purpose — it is `noindex`.
 
 ## Gotchas
 

@@ -1,5 +1,5 @@
 /**
- * Environment access for Sewa[X].
+ * Environment access for SajiloKaam.
  *
  * Deliberately lazy: reading a missing variable throws at the call site, not at
  * import time. That keeps `next build` green on a fresh clone with no

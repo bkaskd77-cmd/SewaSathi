@@ -1,0 +1,42 @@
+import Link from "next/link";
+
+import { site } from "@/lib/config/site";
+import { cn } from "@/lib/utils";
+
+/**
+ * The brand mark. Two-tone: "Sajilo" in ink, "Kaam" in gold.
+ *
+ * Gold is 2.07:1 on ivory, so the accent word uses `gold-ink` — the
+ * text-safe bronze from the token set. See CLAUDE.md.
+ */
+export function Wordmark({
+  className,
+  asLink = true,
+}: {
+  className?: string;
+  asLink?: boolean;
+}) {
+  const inner = (
+    <span
+      className={cn(
+        "font-display text-display-sm font-bold tracking-tight",
+        className,
+      )}
+    >
+      {site.wordmark.lead}
+      <span className="text-gold-ink">{site.wordmark.accent}</span>
+    </span>
+  );
+
+  if (!asLink) return inner;
+
+  return (
+    <Link
+      href="/"
+      className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+      aria-label={`${site.name} — home`}
+    >
+      {inner}
+    </Link>
+  );
+}

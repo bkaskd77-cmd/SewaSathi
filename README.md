@@ -1,12 +1,11 @@
-# Sewa[X]
+# SajiloKaam
 
 AI-native home services platform for Nepal — plumbing, electrical, cleaning,
 appliance repair, carpentry, pest control and similar household work.
 
-**Status: Phase 0 — foundation.** The scaffold, design token system and deploy
-pipeline are in place. There are no feature screens yet; the placeholder
-homepage exists so you can confirm the fonts, colour tokens, dark mode and
-service wiring are all live at a real URL.
+**Status: Phase 2 — landing page live.** Foundation, design system and the public
+marketing homepage are built. `/design-system` holds the internal component
+reference. Auth, AI triage and booking are still ahead.
 
 ---
 
@@ -150,7 +149,7 @@ npm run ui:add -- button   # add a shadcn primitive
 
 ## Roadmap
 
-Phase 0 foundation ✅ · 1 design system · 2 landing page · 3 phone + OTP auth ·
+Phase 0 foundation ✅ · 1 design system ✅ · 2 landing page ✅ · 3 phone + OTP auth ·
 4 AI problem triage · 5 categories & provider discovery · 6 booking flow ·
 7 payments (eSewa, Khalti, cash) · 8 live order tracking · 9 reviews & trust
 score · 10 provider dashboard · 11 admin dashboard · 12 AMC subscriptions ·

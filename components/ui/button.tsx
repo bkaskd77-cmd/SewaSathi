@@ -7,7 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 /**
- * Sewa[X] button.
+ * SajiloKaam button.
  *
  * `gold` is the brand accent and is deliberately scarce — one per screen,
  * on the action that commits the customer (book, confirm, pay). Everything
