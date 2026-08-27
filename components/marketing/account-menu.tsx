@@ -98,11 +98,23 @@ export function AccountMenu({ name }: { name: string }) {
   );
 }
 
-/** Logged-out state: the primary action stays the primary action. */
+/**
+ * Logged-out state.
+ *
+ * "Book a service" stays the primary action — most first-time visitors want to
+ * describe a problem, not create an account. But sign-in needs its own visible
+ * door: /login existed with nothing linking to it, so the only way in was to
+ * type the URL.
+ */
 export function SignedOutCta({ className }: { className?: string }) {
   return (
-    <Button variant="gold" asChild className={cn("btn-tactile", className)}>
-      <Link href="#hero-search">Book a service</Link>
-    </Button>
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <Button variant="ghost" asChild>
+        <Link href="/login">Sign in</Link>
+      </Button>
+      <Button variant="gold" asChild className="btn-tactile">
+        <Link href="#hero-search">Book a service</Link>
+      </Button>
+    </div>
   );
 }

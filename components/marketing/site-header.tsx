@@ -81,13 +81,9 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
             <LanguageToggle />
           </div>
           <ThemeToggle />
-          <Button
-            variant="gold"
-            asChild
-            className="btn-tactile hidden sm:inline-flex"
-          >
-            <Link href="#hero-search">Book a service</Link>
-          </Button>
+          <div className="hidden sm:block">
+            {signedIn ? <AccountMenu name={accountName} /> : <SignedOutCta />}
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -135,7 +131,15 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
                   Account
                 </Link>
               </>
-            ) : null}
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="py-2.5 text-body-md font-medium hover:text-primary"
+              >
+                Sign in
+              </Link>
+            )}
 
             <div className="mt-3 flex items-center gap-3 sm:hidden">
               <LanguageToggle />
@@ -144,7 +148,13 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
                   <AccountMenu name={accountName} />
                 </div>
               ) : (
-                <SignedOutCta className="flex-1" />
+                // Just the primary action here — "Sign in" is already a row in
+                // the menu above, and repeating it reads as two different doors.
+                <Button variant="gold" asChild className="btn-tactile flex-1">
+                  <Link href="#hero-search" onClick={() => setMenuOpen(false)}>
+                    Book a service
+                  </Link>
+                </Button>
               )}
             </div>
           </nav>
