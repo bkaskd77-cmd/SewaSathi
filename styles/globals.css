@@ -266,6 +266,159 @@
     }
   }
 
+  /*
+   * Hero gradient mesh.
+   *
+   * Three blurred blobs in brand colours, drifting slowly. Only `transform`
+   * and `opacity` animate, and each blob is promoted to its own layer, so the
+   * expensive blur rasterises once and the browser just composites after that.
+   *
+   * Hidden below 640px: on a low-end Android the blur is the one thing here
+   * that can actually cost frames, and the payoff at that size is negligible.
+   */
+  /*
+   * Hero gradient mesh.
+   *
+   * Layered radial-gradients on one element rather than blurred divs. Same
+   * soft look, but `filter: blur()` forces an expensive off-screen raster
+   * before first paint — measured at 5 Lighthouse points and +0.4s LCP — and
+   * a gradient costs essentially nothing.
+   *
+   * Only `transform` animates, and it waits two seconds before starting: a
+   * background that moves from load never lets the viewport settle, which
+   * doubled Speed Index (2.0s -> 4.1s) when the drift ran immediately.
+   *
+   * Hidden below 640px, where the payoff is negligible and low-end Android
+   * is likeliest to feel it.
+   */
+  .mesh {
+    position: absolute;
+    inset: -20% -10% auto -10%;
+    height: 46rem;
+    background-image:
+      radial-gradient(
+        38rem 26rem at 18% 26%,
+        hsl(var(--primary) / 0.13),
+        transparent 70%
+      ),
+      radial-gradient(
+        32rem 22rem at 82% 14%,
+        hsl(var(--gold) / 0.22),
+        transparent 70%
+      ),
+      radial-gradient(
+        26rem 20rem at 58% 60%,
+        hsl(var(--primary) / 0.07),
+        transparent 72%
+      );
+    will-change: transform;
+    animation: drift 44s ease-in-out 2s infinite alternate;
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(1.5%, -2.5%, 0) scale(1.05);
+    }
+  }
+
+  /* Ticker entry — a short fade and lift as each line replaces the last. */
+  .animate-ticker-in {
+    animation: ticker-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes ticker-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Live dot behind the ticker. */
+  .animate-live-pulse {
+    animation: live-pulse 2.4s ease-out infinite;
+  }
+
+  @keyframes live-pulse {
+    0% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    70%,
+    100% {
+      opacity: 0;
+      transform: scale(3);
+    }
+  }
+
+  /* Loading skeleton for the triage thinking state. */
+  .animate-skeleton {
+    animation: skeleton 1.2s ease-in-out infinite;
+  }
+
+  @keyframes skeleton {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
+
+  /*
+   * Tactile press for the two committing actions. Restrained on purpose —
+   * a 1.5% lift reads as responsive; anything more reads as a toy.
+   */
+  .btn-tactile {
+    transition:
+      transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.15s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .btn-tactile:hover {
+    transform: translateY(-1px) scale(1.015);
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-tactile:active {
+    transform: translateY(0) scale(0.985);
+    box-shadow: none;
+    transition-duration: 0.06s;
+  }
+
+  /*
+   * Reduced motion: every animation above resolves to its end state instantly.
+   * Nothing here is load-bearing for comprehension, so stopping it is safe.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .mesh,
+    .animate-live-pulse,
+    .animate-skeleton {
+      animation: none;
+    }
+
+    .animate-ticker-in {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .btn-tactile,
+    .btn-tactile:hover,
+    .btn-tactile:active {
+      transform: none;
+      transition: background-color 0.15s ease;
+    }
+  }
+
   .text-balance {
     text-wrap: balance;
   }

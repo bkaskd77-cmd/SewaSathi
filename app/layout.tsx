@@ -5,7 +5,6 @@ import {
   Plus_Jakarta_Sans,
 } from "next/font/google";
 
-import { MotionProvider } from "@/components/shared/motion-provider";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { site } from "@/lib/config/site";
 import "@/styles/globals.css";
@@ -103,7 +102,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <MotionProvider>{children}</MotionProvider>
+          {children}
         </ThemeProvider>
       </body>
     </html>

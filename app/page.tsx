@@ -9,10 +9,12 @@ import {
   Timer,
 } from "lucide-react";
 
+import { ActivityTicker } from "@/components/marketing/activity-ticker";
 import { SiteFooter } from "@/components/marketing/footer";
 import { ProblemSearch } from "@/components/marketing/problem-search";
 import { Section, SectionHeading } from "@/components/marketing/section";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { CountUp } from "@/components/shared/count-up";
 import { Reveal } from "@/components/shared/reveal";
 import {
   Accordion,
@@ -24,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SERVICE_CATEGORIES } from "@/lib/config/services";
+import { CATEGORY_BOOKINGS_THIS_WEEK } from "@/lib/mock/categoryStats";
 import { site } from "@/lib/config/site";
 
 /**
@@ -35,26 +38,45 @@ import { site } from "@/lib/config/site";
  * interactive immediately.
  */
 
-// PLACEHOLDER DATA — swap for real figures once we have them. Nothing here is
-// load-bearing; the icons and copy are.
-const TRUST_ITEMS = [
+// PLACEHOLDER DATA — swap for real figures once we have them. Replaced in
+// Phase 9 by live aggregates (verified-pro count, mean rating, review count).
+// Items with a `value` count up on scroll; the rest just reveal.
+const TRUST_ITEMS: {
+  Icon: typeof BadgeCheck;
+  value?: number;
+  decimals?: number;
+  suffix?: string;
+  label: string;
+  detail: string;
+}[] = [
   {
     Icon: BadgeCheck,
+    value: 1200,
+    suffix: "+",
     label: "ID-verified professionals",
-    detail: "Every pro checked",
+    detail: "Every pro checked in person",
   },
   {
     Icon: ReceiptText,
     label: "Upfront pricing",
     detail: "Agreed before work starts",
   },
-  { Icon: Star, label: "Rated 4.8 / 5", detail: "by 10,000+ households" },
+  {
+    Icon: Star,
+    value: 4.8,
+    decimals: 1,
+    label: "Average rating",
+    detail: "from 10,000+ households",
+  },
   {
     Icon: MapPin,
     label: "Kathmandu Valley",
     detail: "Ktm · Lalitpur · Bhaktapur",
   },
 ];
+
+// The three highest-intent searches carry the most visual weight in the grid.
+const FEATURED_SLUGS = ["plumbing", "electrical", "home-cleaning"];
 
 const STEPS = [
   {
@@ -111,10 +133,18 @@ export default function Home() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-gradient-to-b from-gold/[0.18] to-transparent"
           />
+          {/*
+            Drifting mesh, brand colours only, kept at low opacity so it never
+            touches text contrast. Hidden under 640px — see `.mesh`.
+          */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-24 top-10 hidden size-96 rounded-full bg-primary/[0.06] blur-3xl lg:block"
-          />
+            className="pointer-events-none absolute inset-0 hidden overflow-hidden sm:block"
+          >
+            <span className="mesh -left-20 top-[-8rem] size-[30rem] bg-primary/[0.10]" />
+            <span className="mesh right-[-6rem] top-[-4rem] size-[26rem] bg-gold/[0.16] [animation-delay:-9s] [animation-duration:32s]" />
+            <span className="mesh bottom-[-12rem] left-1/3 size-[24rem] bg-primary/[0.07] [animation-delay:-17s] [animation-duration:38s]" />
+          </div>
 
           <div className="container relative pb-12 pt-12 sm:pb-16 sm:pt-18">
             <div className="max-w-3xl">
@@ -152,23 +182,37 @@ export default function Home() {
         <div className="border-y border-border bg-card/60">
           <div className="container">
             <ul className="grid grid-cols-2 gap-x-6 gap-y-5 py-6 lg:grid-cols-4">
-              {TRUST_ITEMS.map(({ Icon, label, detail }) => (
-                <li key={label} className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <Icon aria-hidden="true" className="size-[18px]" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-body-sm font-semibold leading-tight">
-                      {label}
-                    </p>
-                    <p className="mt-0.5 text-caption text-muted-foreground">
-                      {detail}
-                    </p>
-                  </div>
-                </li>
-              ))}
+              {TRUST_ITEMS.map(
+                ({ Icon, label, detail, value, decimals, suffix }) => (
+                  <li key={label} className="flex items-start gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <Icon aria-hidden="true" className="size-[18px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-body-sm font-semibold leading-tight">
+                        {value !== undefined ? (
+                          <>
+                            <span className="font-display text-lg font-bold">
+                              <CountUp
+                                value={value}
+                                decimals={decimals}
+                                suffix={suffix}
+                              />
+                            </span>{" "}
+                          </>
+                        ) : null}
+                        {label}
+                      </p>
+                      <p className="mt-0.5 text-caption text-muted-foreground">
+                        {detail}
+                      </p>
+                    </div>
+                  </li>
+                ),
+              )}
             </ul>
           </div>
+          <ActivityTicker />
         </div>
 
         {/* ---------------- categories ---------------- */}
@@ -181,29 +225,93 @@ export default function Home() {
             />
           </Reveal>
 
-          <ul className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-            {SERVICE_CATEGORIES.map(({ slug, name, descriptor, Icon }, i) => (
-              <li key={slug}>
-                <Reveal delay={Math.min(i * 0.03, 0.24)}>
-                  <Card className="group h-full transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-md">
-                    <Link
-                      href={`/services/${slug}`}
-                      className="flex h-full flex-col gap-2 rounded-lg p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                        <Icon aria-hidden="true" className="size-5" />
-                      </span>
-                      <span className="mt-1 text-body-sm font-semibold leading-snug">
-                        {name}
-                      </span>
-                      <span className="text-caption text-muted-foreground">
-                        {descriptor}
-                      </span>
-                    </Link>
-                  </Card>
-                </Reveal>
-              </li>
-            ))}
+          {/*
+            Bento: the three highest-intent categories get double-width cards on
+            desktop, the rest sit in a tighter row beneath. Under 640px the
+            whole thing collapses to two even columns, so no card is left
+            orphaned in a half-width gap.
+          */}
+          {/*
+            Bento on a 12-column grid, sized so every row fills exactly:
+              row 1  3 featured x 4 = 12   (the highest-intent searches)
+              row 2  4 regular  x 3 = 12
+              row 3  3 + 3 + 6      = 12   (the last card takes the slack)
+            Without that last span the tenth card sits alone on its own row.
+            Under 640px it is two even columns, with the featured cards and
+            the trailing card full-width so nothing is left half-orphaned.
+          */}
+          <ul className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-12">
+            {SERVICE_CATEGORIES.map(({ slug, name, descriptor, Icon }, i) => {
+              const featured = FEATURED_SLUGS.includes(slug);
+              const last = i === SERVICE_CATEGORIES.length - 1;
+              const booked = CATEGORY_BOOKINGS_THIS_WEEK[slug];
+
+              const span = featured
+                ? "col-span-2 lg:col-span-4"
+                : last
+                  ? "col-span-2 lg:col-span-6"
+                  : "col-span-1 lg:col-span-3";
+
+              return (
+                <li key={slug} className={span}>
+                  <Reveal delay={Math.min(i * 0.03, 0.24)} className="h-full">
+                    <Card className="group h-full overflow-hidden transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                      <Link
+                        href={`/services/${slug}`}
+                        className="flex h-full flex-col rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <div
+                          className={
+                            featured
+                              ? "flex flex-1 flex-col gap-2 p-5 sm:p-7"
+                              : "flex flex-1 flex-col gap-2 p-4"
+                          }
+                        >
+                          <span
+                            className={
+                              (featured
+                                ? "size-12 rounded-xl "
+                                : "size-10 rounded-lg ") +
+                              "grid place-items-center bg-primary/10 text-primary transition-[transform,background-color,color] duration-200 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:bg-primary group-hover:text-primary-foreground"
+                            }
+                          >
+                            <Icon
+                              aria-hidden="true"
+                              className={featured ? "size-6" : "size-5"}
+                            />
+                          </span>
+
+                          <span
+                            className={
+                              (featured
+                                ? "font-display text-body-lg sm:text-display-sm "
+                                : "text-body-sm ") +
+                              "mt-1 font-semibold leading-snug transition-transform duration-200 group-hover:-translate-y-px"
+                            }
+                          >
+                            {name}
+                          </span>
+
+                          <span
+                            className={
+                              (featured ? "text-body-sm " : "text-caption ") +
+                              "text-muted-foreground"
+                            }
+                          >
+                            {descriptor}
+                          </span>
+
+                          {/* Mock booking volume — see lib/mock/categoryStats.ts */}
+                          <span className="mt-auto pt-3 text-caption tabular-nums text-muted-foreground/80 transition-transform duration-200 group-hover:-translate-y-px">
+                            {booked} booked this week
+                          </span>
+                        </div>
+                      </Link>
+                    </Card>
+                  </Reveal>
+                </li>
+              );
+            })}
           </ul>
         </Section>
 

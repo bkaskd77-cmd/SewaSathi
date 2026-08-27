@@ -74,7 +74,11 @@ export function SiteHeader() {
             <LanguageToggle />
           </div>
           <ThemeToggle />
-          <Button variant="gold" asChild className="hidden sm:inline-flex">
+          <Button
+            variant="gold"
+            asChild
+            className="btn-tactile hidden sm:inline-flex"
+          >
             <Link href="#hero-search">Book a service</Link>
           </Button>
           <Button

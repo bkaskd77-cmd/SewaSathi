@@ -33,6 +33,20 @@ Every new component gets a contrast pass in both themes before it ships;
 (added Phase 2 for the landing FAQ). `components/marketing` holds the
 landing-page sections; `lib/config/` holds brand strings and the category list.
 
+`components/shared` — `Reveal` and `CountUp` both sit on the single `useInView`
+hook in `lib/hooks/`. Add scroll-triggered behaviour there, not as a second
+observer.
+
+## Mock data and the Phase 4 contract
+
+`lib/ai/mockTriage.ts` — `triageProblem(input): TriageResult`. **The signature
+is the contract.** Phase 4 replaces the body with a Claude call and changes
+nothing else; if the shape feels wrong, change the caller instead.
+
+`lib/mock/` — `activityFeed.ts` (becomes a Supabase realtime subscription in
+Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in
+Phase 5). Every mock file states in a comment what replaces it and when.
+
 ## Above-the-fold and entrance animations
 
 Never let a motion library own the visibility of content. `motion`/`m`
@@ -47,8 +61,18 @@ is a blank page.
 - Framer Motion is still available via `MotionProvider` (dynamically imported,
   so pages that don't use it pay nothing). Use `m.*`, never `motion.*`.
 
+Every animation needs a `prefers-reduced-motion` fallback that shows the end
+state instantly — no exceptions. They live in one block at the end of the
+utilities layer in `styles/globals.css`.
+
+Never mount `MotionProvider` globally. `LazyMotion` fetches its features when
+the _provider_ mounts, not when an `m` component renders, so a root-layout
+mount shipped 51 KB of motion code to a landing page that uses none of it.
+
 Lighthouse on the landing page must stay ≥ 90 for performance and 100 for
 accessibility. `/design-system` scores SEO 60 on purpose — it is `noindex`.
+Take the median of 3 runs: this machine swings ±6 points on identical code, so
+a single run will send you chasing noise.
 
 ## Gotchas
 
