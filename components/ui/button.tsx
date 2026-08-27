@@ -15,7 +15,18 @@ import { cn } from "@/lib/utils";
  * something when it appears.
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:border-transparent disabled:bg-muted disabled:text-muted-foreground/70 disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  [
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold ring-offset-background",
+    // Transform is in the transition list for the press below. `.btn-tactile`
+    // overrides both with its own curve where a button needs the lift too.
+    "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    // Every button acknowledges the press. Faster on the way down than the
+    // way back, which is what makes it read as pressed rather than animated.
+    "active:scale-[0.98] active:duration-75 motion-reduce:active:scale-100",
+    "disabled:pointer-events-none disabled:border-transparent disabled:bg-muted disabled:text-muted-foreground/70 disabled:shadow-none",
+    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  ].join(" "),
   {
     variants: {
       variant: {
@@ -28,7 +39,7 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-primary underline-offset-4 hover:underline active:scale-100",
       },
       size: {
         sm: "h-9 px-3.5 text-body-sm",

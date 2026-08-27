@@ -80,6 +80,12 @@ export async function verifyOtp(
 /** Provider wording is for us, not for someone standing in a wet kitchen. */
 function friendlyError(message: string): string {
   const m = message.toLowerCase();
+  // Supabase returns one message — "Token has expired or is invalid" — for
+  // both a mistyped code and a stale one, so picking either word is a coin
+  // flip that sends people down the wrong path. Cover both, briefly.
+  if (m.includes("expired") && m.includes("invalid")) {
+    return "That code didn't work. Check it, or ask for a new one.";
+  }
   if (m.includes("expired")) {
     return "That code has expired. Request a new one.";
   }

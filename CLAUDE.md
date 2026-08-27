@@ -79,6 +79,37 @@ caller's role recurses into itself and Postgres raises "infinite recursion
 detected in policy". `public.is_admin()` is `security definer` to break that
 cycle.
 
+## Motion — the standing rule
+
+Every screen ships with considered motion. Not decoration: motion whose job is
+to make state changes legible.
+
+Baseline for every phase:
+
+- **Route transitions** — brief fade or slide, never a hard cut. Implemented
+  with `template.tsx` (it remounts on navigation, so a CSS entrance runs) not a
+  motion library. **Client navigations only.** On a cold load every page in the
+  group is inside that wrapper, so a fade from `opacity: 0` leaves the browser
+  nothing contentful to paint: /login had no first-contentful-paint at all and
+  Lighthouse scored it 0. The module-level flag in `app/(auth)/template.tsx` is
+  what keeps the first paint unanimated — same rule as the hero.
+- **Every state change animates in** — loading, success, error, empty→filled.
+  Nothing appears.
+- **Every interactive element** has hover, active/press, focus and disabled
+  states with real transitions. The press state lives on the `Button` base so
+  it is never forgotten.
+- **Lists and grids stagger** their entrance 40–60ms apart, capped so a long
+  list does not crawl (`Math.min(i * 0.05, 0.25)`).
+- **Skeletons for anything async** — never a blank gap, never a bare spinner.
+
+Restraint:
+
+- 150–300ms. Ease-out for entrances.
+- No bounce or spring unless it earns it.
+- `prefers-reduced-motion` always honoured — end state, instantly.
+- CSS first. Framer Motion only where CSS genuinely cannot do it.
+- Never delay interactivity for an animation.
+
 ## Above-the-fold and entrance animations
 
 Never let a motion library own the visibility of content. `motion`/`m`

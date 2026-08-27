@@ -60,13 +60,14 @@ export function OnboardingForm({ next }: { next: string }) {
       .update({ full_name: trimmed, preferred_language: language })
       .eq("id", user.id);
 
-    setSaving(false);
-
     if (updateError) {
+      setSaving(false);
       setError("We couldn't save that. Check your connection and try again.");
       return;
     }
 
+    // Stays `saving` through the navigation, like /login does. Dropping back
+    // to the idle label while the next screen loads reads as a failed tap.
     router.replace(next);
     router.refresh();
   }

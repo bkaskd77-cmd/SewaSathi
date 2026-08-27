@@ -32,13 +32,16 @@ export function PhoneForm({ next }: { next: string }) {
     setError(null);
     setSending(true);
     const outcome = await sendOtp(check.e164);
-    setSending(false);
 
     if (!outcome.ok) {
+      setSending(false);
       setError(outcome.message);
       return;
     }
 
+    // Deliberately stays `sending` through the navigation. Flipping the label
+    // back to "Send code" while /verify is still loading reads as if the tap
+    // did nothing — the two screens are one flow, so the button waits.
     const params = new URLSearchParams({ phone: check.e164, next });
     router.push(`/verify?${params.toString()}`);
   }

@@ -373,6 +373,81 @@
   }
 
   /*
+   * Route transition for the auth group. Driven by app/(auth)/template.tsx,
+   * which Next remounts on every navigation — so /login to /verify reads as
+   * one flow moving forward rather than two unrelated pages.
+   */
+  .animate-route-in {
+    animation: route-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes route-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* A digit landing in an OTP box. Short and small — it confirms the keypress
+     registered, it is not a celebration. */
+  .animate-digit-in {
+    animation: digit-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes digit-in {
+    0% {
+      transform: scale(0.84);
+    }
+    60% {
+      transform: scale(1.04);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  /* One shake, not a wobble. Rejection should read as "no", then stop. */
+  .animate-shake {
+    animation: shake 0.3s ease-out both;
+  }
+
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    22% {
+      transform: translateX(-5px);
+    }
+    52% {
+      transform: translateX(4px);
+    }
+    78% {
+      transform: translateX(-2px);
+    }
+  }
+
+  /* Success, and anything else that should arrive rather than appear. */
+  .animate-pop-in {
+    animation: pop-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /*
    * Tactile press for the two committing actions. Restrained on purpose —
    * a 1.5% lift reads as responsive; anything more reads as a toy.
    */
@@ -401,8 +476,17 @@
   @media (prefers-reduced-motion: reduce) {
     .mesh,
     .animate-live-pulse,
-    .animate-skeleton {
+    .animate-skeleton,
+    .animate-digit-in,
+    .animate-shake {
       animation: none;
+    }
+
+    .animate-route-in,
+    .animate-pop-in {
+      animation: none;
+      opacity: 1;
+      transform: none;
     }
 
     .animate-ticker-in {

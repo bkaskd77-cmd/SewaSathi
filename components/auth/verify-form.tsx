@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,27 @@ import { formatE164ForDisplay } from "@/lib/auth/phone";
 
 const RESEND_SECONDS = 60;
 
+// Long enough to read "Verified", short enough that nobody wonders whether the
+// tap landed. The session already exists by this point — this holds the screen,
+// not the sign-in.
+const SUCCESS_HOLD_MS = 700;
+
 export function VerifyForm({ phone, next }: { phone: string; next: string }) {
   const router = useRouter();
   const [code, setCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  // Bumped on every failed attempt so the shake re-fires; a boolean would only
+  // animate the first time, because the class never leaves the DOM in between.
+  const [errorNonce, setErrorNonce] = React.useState(0);
   const [notice, setNotice] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
+  const [status, setStatus] = React.useState<"idle" | "checking" | "success">(
+    "idle",
+  );
   const [secondsLeft, setSecondsLeft] = React.useState(RESEND_SECONDS);
   const [showHelp, setShowHelp] = React.useState(false);
+
+  const busy = status !== "idle";
+  const succeeded = status === "success";
 
   React.useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -39,16 +53,17 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
   const submit = React.useCallback(
     async (value: string) => {
       if (value.length !== 6 || busy) return;
-      setBusy(true);
+      setStatus("checking");
       setError(null);
       setNotice(null);
 
       const outcome = await verifyOtp(phone, value);
 
       if (!outcome.ok) {
-        setBusy(false);
+        setStatus("idle");
         setCode("");
         setError(outcome.message);
+        setErrorNonce((n) => n + 1);
         return;
       }
 
@@ -56,20 +71,27 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
       const destination = outcome.isNewUser
         ? `/onboarding?next=${encodeURIComponent(next)}`
         : next;
-      router.replace(destination);
-      router.refresh();
+
+      // Land on "verified" first. Jumping straight to the next screen the
+      // instant the API returns reads as if something else happened.
+      setStatus("success");
+      window.setTimeout(() => {
+        router.replace(destination);
+        router.refresh();
+      }, SUCCESS_HOLD_MS);
     },
     [busy, next, phone, router],
   );
 
   async function resend() {
-    setBusy(true);
+    setStatus("checking");
     setError(null);
     const outcome = await sendOtp(phone);
-    setBusy(false);
+    setStatus("idle");
 
     if (!outcome.ok) {
       setError(outcome.message);
+      setErrorNonce((n) => n + 1);
       setSecondsLeft(outcome.retryAfterSeconds ?? RESEND_SECONDS);
       return;
     }
@@ -89,6 +111,8 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
         onComplete={submit}
         disabled={busy}
         invalid={Boolean(error)}
+        errorNonce={errorNonce}
+        success={succeeded}
         autoFocus
       />
 
@@ -105,16 +129,28 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
         ) : null}
       </div>
 
-      <Button
-        type="button"
-        variant="gold"
-        size="lg"
-        className="btn-tactile mt-2 w-full"
-        disabled={code.length !== 6 || busy}
-        onClick={() => submit(code)}
-      >
-        {busy ? "Checking…" : "Verify and continue"}
-      </Button>
+      {succeeded ? (
+        // Not a button: there is nothing left to press. Same box as the button
+        // it replaces, so the layout does not move underneath the swap.
+        <div
+          role="status"
+          className="animate-pop-in mt-2 flex h-13 w-full items-center justify-center gap-2 rounded-md bg-success px-7 text-body-md font-semibold text-success-foreground"
+        >
+          <Check aria-hidden="true" className="size-5" />
+          Verified — taking you in…
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="gold"
+          size="lg"
+          className="btn-tactile mt-2 w-full"
+          disabled={code.length !== 6 || busy}
+          onClick={() => submit(code)}
+        >
+          {status === "checking" ? "Checking…" : "Verify and continue"}
+        </Button>
+      )}
 
       <div className="mt-5 flex flex-col items-center gap-2">
         <Button
