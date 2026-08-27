@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import {
+  Fraunces,
   Noto_Sans_Devanagari,
   Plus_Jakarta_Sans,
-  Sora,
 } from "next/font/google";
 
 import { ThemeProvider } from "@/components/shared/theme-provider";
@@ -14,10 +14,14 @@ const sans = Plus_Jakarta_Sans({
   variable: "--font-sans",
 });
 
-const display = Sora({
+// Fraunces carries the brand voice in headings — a soft serif with enough
+// character to read as made-in-Nepal rather than imported template. Body copy
+// stays on the grotesk, which holds up better at small sizes on cheap Android.
+const display = Fraunces({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
+  axes: ["SOFT", "WONK"],
 });
 
 // Nepali copy renders in Devanagari; `:lang(ne)` in globals.css picks this up.
@@ -38,8 +42,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfefc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1413" },
+    { media: "(prefers-color-scheme: light)", color: "#fdfcfb" },
+    { media: "(prefers-color-scheme: dark)", color: "#171316" },
   ],
 };
 

@@ -134,6 +134,7 @@ const config: Config = {
       },
       spacing: {
         // Layout rhythm steps used by page shells and section padding.
+        13: "3.25rem",
         18: "4.5rem",
         22: "5.5rem",
         30: "7.5rem",

@@ -14,73 +14,76 @@
  * any component pulled in with `npx shadcn add <name>` inherits this theme
  * with no edits. Tokens below `--radius` are Sewa[X] additions.
  *
- * Palette: "Deep Jade" primary (trust, verification, competence) with a
- * "Sindoor" crimson brand accent drawn from Nepal's flag. Neutrals carry a
- * faint green cast so greys sit with the primary instead of fighting it.
+ * Identity: deep jade carries trust and verification and does the structural
+ * work; madder red is the single accent, spent on one action per screen;
+ * turmeric marks urgency and indigo marks information. Ground is white
+ * warmed very slightly, never a dark canvas — most of Nepal books these
+ * services outdoors in daylight.
  */
 
 @layer base {
   :root {
     /* --- surfaces --- */
-    --background: 150 20% 99%;
-    --foreground: 175 30% 9%;
+    --background: 30 33% 99%;
+    --foreground: 320 12% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 175 30% 9%;
+    --card-foreground: 320 12% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 175 30% 9%;
+    --popover-foreground: 320 12% 9%;
 
     /* --- brand --- */
-    --primary: 172 66% 22%;
-    --primary-foreground: 150 40% 97%;
+    --primary: 168 79% 20%;
+    --primary-foreground: 150 40% 98%;
 
-    --secondary: 168 24% 94%;
-    --secondary-foreground: 174 40% 16%;
+    --secondary: 30 20% 95%;
+    --secondary-foreground: 320 12% 16%;
 
-    /* Sindoor crimson: reserved for a single call-to-action per screen. */
-    --sindoor: 348 76% 47%;
+    /* Madder red. One per screen — the booking action, nothing else. */
+    --sindoor: 355 64% 47%;
     --sindoor-foreground: 0 0% 100%;
 
     /* --- neutral roles --- */
-    --muted: 165 18% 95%;
-    --muted-foreground: 172 12% 38%;
+    --muted: 30 18% 96%;
+    --muted-foreground: 320 6% 42%;
 
     /* shadcn semantics: `accent` is the subtle hover/active surface, not the
        brand accent. The brand accent is `--sindoor`. */
-    --accent: 168 26% 93%;
-    --accent-foreground: 174 40% 16%;
+    --accent: 30 24% 94%;
+    --accent-foreground: 320 12% 16%;
 
     /* --- status --- */
-    --destructive: 4 74% 46%;
+    --destructive: 0 68% 44%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 58% 30%;
+    --success: 162 68% 26%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 42%;
-    --warning-foreground: 0 0% 100%;
+    /* Turmeric. */
+    --warning: 39 84% 50%;
+    --warning-foreground: 39 90% 10%;
 
-    --info: 199 78% 34%;
+    /* Indigo. */
+    --info: 230 47% 32%;
     --info-foreground: 0 0% 100%;
 
     /* --- lines & focus --- */
-    --border: 168 18% 88%;
-    --input: 168 18% 86%;
-    --ring: 172 66% 32%;
+    --border: 28 16% 89%;
+    --input: 28 16% 86%;
+    --ring: 168 79% 28%;
 
     /* --- data viz --- */
-    --chart-1: 172 66% 28%;
-    --chart-2: 348 76% 52%;
-    --chart-3: 199 78% 40%;
-    --chart-4: 38 88% 48%;
-    --chart-5: 268 44% 48%;
+    --chart-1: 168 79% 26%;
+    --chart-2: 355 64% 52%;
+    --chart-3: 230 47% 40%;
+    --chart-4: 39 84% 50%;
+    --chart-5: 280 30% 46%;
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
-    /* Elevation. Tinted with the primary hue so shadows read as depth in the
-       same colour family rather than as flat grey haze. */
-    --shadow-color: 174 40% 12%;
+    /* Elevation, tinted warm so shadows read as depth rather than grey haze. */
+    --shadow-color: 320 14% 14%;
     --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.06);
     --shadow-md:
       0 4px 12px -2px hsl(var(--shadow-color) / 0.08),
@@ -93,55 +96,59 @@
       0 8px 32px -8px hsl(var(--primary) / 0.28);
   }
 
+  /*
+   * Dark theme. Not the product's centre of gravity, but it exists and is
+   * held to the same contrast standard — jade and madder both lighten so
+   * they keep their lift against a dark ground.
+   */
   .dark {
-    --background: 178 30% 6%;
-    --foreground: 160 14% 94%;
+    --background: 320 14% 8%;
+    --foreground: 30 14% 94%;
 
-    --card: 177 26% 9%;
-    --card-foreground: 160 14% 94%;
+    --card: 320 13% 11%;
+    --card-foreground: 30 14% 94%;
 
-    --popover: 177 28% 8%;
-    --popover-foreground: 160 14% 94%;
+    --popover: 320 14% 10%;
+    --popover-foreground: 30 14% 94%;
 
-    /* Jade lightens on dark so it keeps its lift against a near-black ground. */
-    --primary: 168 58% 48%;
-    --primary-foreground: 177 44% 7%;
+    --primary: 166 58% 45%;
+    --primary-foreground: 168 60% 7%;
 
-    --secondary: 176 18% 16%;
-    --secondary-foreground: 160 14% 94%;
+    --secondary: 320 8% 18%;
+    --secondary-foreground: 30 14% 94%;
 
-    --sindoor: 348 82% 62%;
-    --sindoor-foreground: 348 60% 10%;
+    --sindoor: 355 78% 63%;
+    --sindoor-foreground: 355 60% 10%;
 
-    --muted: 176 18% 15%;
-    --muted-foreground: 168 12% 63%;
+    --muted: 320 8% 17%;
+    --muted-foreground: 30 8% 66%;
 
-    --accent: 176 18% 18%;
-    --accent-foreground: 160 14% 94%;
+    --accent: 320 8% 20%;
+    --accent-foreground: 30 14% 94%;
 
-    --destructive: 4 72% 58%;
-    --destructive-foreground: 4 60% 10%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 60% 10%;
 
-    --success: 152 52% 46%;
-    --success-foreground: 152 60% 8%;
+    --success: 162 54% 44%;
+    --success-foreground: 162 60% 7%;
 
-    --warning: 38 88% 56%;
-    --warning-foreground: 38 70% 10%;
+    --warning: 39 86% 58%;
+    --warning-foreground: 39 90% 10%;
 
-    --info: 199 72% 56%;
-    --info-foreground: 199 70% 9%;
+    --info: 228 62% 66%;
+    --info-foreground: 230 60% 10%;
 
-    --border: 176 16% 19%;
-    --input: 176 16% 22%;
-    --ring: 168 58% 48%;
+    --border: 320 8% 21%;
+    --input: 320 8% 24%;
+    --ring: 166 58% 45%;
 
-    --chart-1: 168 58% 52%;
-    --chart-2: 348 82% 64%;
-    --chart-3: 199 72% 58%;
-    --chart-4: 38 88% 58%;
-    --chart-5: 268 60% 68%;
+    --chart-1: 166 58% 50%;
+    --chart-2: 355 78% 66%;
+    --chart-3: 228 62% 66%;
+    --chart-4: 39 86% 60%;
+    --chart-5: 280 44% 68%;
 
-    --shadow-color: 180 60% 2%;
+    --shadow-color: 320 40% 2%;
     --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.5);
     --shadow-md:
       0 4px 12px -2px hsl(var(--shadow-color) / 0.6),
