@@ -1,0 +1,92 @@
+[
+  {
+    "key": "kathmandu-4",
+    "city": "Kathmandu",
+    "ward": "Ward 4",
+    "name": "Baluwatar"
+  },
+  {
+    "key": "kathmandu-7",
+    "city": "Kathmandu",
+    "ward": "Ward 7",
+    "name": "Chabahil"
+  },
+  {
+    "key": "kathmandu-10",
+    "city": "Kathmandu",
+    "ward": "Ward 10",
+    "name": "New Baneshwor"
+  },
+  {
+    "key": "kathmandu-14",
+    "city": "Kathmandu",
+    "ward": "Ward 14",
+    "name": "Kalanki"
+  },
+  {
+    "key": "kathmandu-16",
+    "city": "Kathmandu",
+    "ward": "Ward 16",
+    "name": "Swayambhu"
+  },
+  {
+    "key": "kathmandu-26",
+    "city": "Kathmandu",
+    "ward": "Ward 26",
+    "name": "Thamel"
+  },
+  {
+    "key": "kathmandu-31",
+    "city": "Kathmandu",
+    "ward": "Ward 31",
+    "name": "Koteshwor"
+  },
+  {
+    "key": "kathmandu-32",
+    "city": "Kathmandu",
+    "ward": "Ward 32",
+    "name": "Sinamangal"
+  },
+  {
+    "key": "lalitpur-3",
+    "city": "Lalitpur",
+    "ward": "Ward 3",
+    "name": "Kupondole"
+  },
+  {
+    "key": "lalitpur-4",
+    "city": "Lalitpur",
+    "ward": "Ward 4",
+    "name": "Jhamsikhel"
+  },
+  {
+    "key": "lalitpur-10",
+    "city": "Lalitpur",
+    "ward": "Ward 10",
+    "name": "Satdobato"
+  },
+  {
+    "key": "lalitpur-14",
+    "city": "Lalitpur",
+    "ward": "Ward 14",
+    "name": "Ekantakuna"
+  },
+  {
+    "key": "bhaktapur-4",
+    "city": "Bhaktapur",
+    "ward": "Ward 4",
+    "name": "Dattatreya"
+  },
+  {
+    "key": "bhaktapur-6",
+    "city": "Bhaktapur",
+    "ward": "Ward 6",
+    "name": "Kamalbinayak"
+  },
+  {
+    "key": "bhaktapur-9",
+    "city": "Bhaktapur",
+    "ward": "Ward 9",
+    "name": "Sallaghari"
+  }
+]

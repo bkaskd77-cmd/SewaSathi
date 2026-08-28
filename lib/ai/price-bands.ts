@@ -1,18 +1,20 @@
-import { KEYWORD_RULES } from "@/lib/ai/mockTriage";
-import { SERVICE_CATEGORIES } from "@/lib/config/services";
+import "server-only";
+
+import { CATEGORY_SEED, type Category } from "@/lib/config/services";
+import { getCategories } from "@/lib/data/categories";
 
 /**
  * The price bands Claude is given as reference data.
  *
- * A model asked to price a plumbing job in Kathmandu with no reference will
- * invent a number, and the number it invents is not what our providers charge.
- * These are our published rates, so they go into the prompt.
+ * A model asked to price a Kathmandu plumbing job with no reference invents a
+ * plausible number that is not what our providers charge. These are our
+ * published rates, so they go into the prompt.
  *
- * The bounds are derived from `KEYWORD_RULES` rather than retyped — the two
- * would otherwise drift the first time someone repriced one and not the other.
- * The notes are written by hand because a range alone does not tell the model
- * that a gas refill sits at the top of the AC band and a filter clean at the
- * bottom.
+ * Phase 5 moved the bounds into the `categories` table: repricing a category
+ * there reprices the catalogue, the category page and this prompt together.
+ * The notes are still written here by hand, because a range alone does not
+ * tell the model that a gas refill sits at the top of the AC band and a filter
+ * clean at the bottom.
  */
 
 /** What moves a job within its band. Keep short — this is prompt budget. */
@@ -47,28 +49,26 @@ export type PriceBand = {
   note: string;
 };
 
-/** Widest low-high across every keyword rule for a category. */
-function boundsFor(slug: string): [number, number] | null {
-  const rules = KEYWORD_RULES.filter((rule) => rule.category === slug);
-  if (rules.length === 0) return null;
-  return [
-    Math.min(...rules.map((rule) => rule.priceRangeNPR[0])),
-    Math.max(...rules.map((rule) => rule.priceRangeNPR[1])),
-  ];
+function toBand(category: Category): PriceBand {
+  return {
+    slug: category.slug,
+    name: category.nameEn,
+    low: category.basePriceMin,
+    high: category.basePriceMax,
+    note: BAND_NOTES[category.slug] ?? "",
+  };
 }
 
-export const PRICE_BANDS: PriceBand[] = SERVICE_CATEGORIES.flatMap(
-  ({ slug, name }) => {
-    const bounds = boundsFor(slug);
-    if (!bounds) return [];
-    return [
-      {
-        slug,
-        name,
-        low: bounds[0],
-        high: bounds[1],
-        note: BAND_NOTES[slug] ?? "",
-      },
-    ];
-  },
-);
+/**
+ * Bands as authored. Used where the database cannot be waited on — the price
+ * clamp has to work even if the categories read failed.
+ */
+export const FALLBACK_PRICE_BANDS: PriceBand[] = [...CATEGORY_SEED]
+  .sort((a, b) => a.sortOrder - b.sortOrder)
+  .map(toBand);
+
+export async function getPriceBands(): Promise<PriceBand[]> {
+  const categories = await getCategories();
+  if (categories.length === 0) return FALLBACK_PRICE_BANDS;
+  return [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map(toBand);
+}

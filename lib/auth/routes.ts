@@ -26,6 +26,10 @@ export const PROTECTED_ROUTES = [
   "/bookings",
   "/account",
   "/onboarding",
+  // Booking requires an account: the professional needs a name and a number to
+  // arrive at. Being on this list is what makes /login send them back here
+  // with the provider and urgency still in the URL.
+  "/book",
 ] as const;
 
 /** Requires a session AND profiles.role = 'provider'. */

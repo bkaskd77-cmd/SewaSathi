@@ -1,6 +1,7 @@
 import { SiteFooter } from "@/components/marketing/footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { getSessionProfile } from "@/lib/auth/session";
+import { getLocale } from "@/lib/i18n/server";
 
 /**
  * Frame for the signed-in pages.
@@ -15,6 +16,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const profile = await getSessionProfile();
+  const locale = getLocale();
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -25,6 +27,7 @@ export default async function AppLayout({
       */}
       <SiteHeader
         accountName={profile ? (profile.fullName ?? "Account") : null}
+        locale={locale}
       />
 
       <main id="main" className="container flex-1 py-10 sm:py-14">

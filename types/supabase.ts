@@ -22,6 +22,9 @@ export type PreferredLanguage = "en" | "ne";
 export type Urgency = "emergency" | "soon" | "routine";
 /** Which path produced a triage row — see supabase/migrations. */
 export type TriageSource = "claude" | "cache" | "fallback";
+export type Availability = "now" | "today" | "scheduled";
+export type IdDocumentStatus = "verified" | "pending" | "not_submitted";
+export type VerificationCheck = "id" | "background" | "skill";
 
 export type Database = {
   public: {
@@ -57,6 +60,171 @@ export type Database = {
             columns: ["id"];
             isOneToOne: true;
             referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      categories: {
+        Row: {
+          slug: string;
+          name_en: string;
+          name_ne: string;
+          descriptor: string;
+          description: string;
+          cta_label: string;
+          base_price_min: number;
+          base_price_max: number;
+          icon: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          slug: string;
+          name_en: string;
+          name_ne: string;
+          descriptor: string;
+          description: string;
+          cta_label: string;
+          base_price_min: number;
+          base_price_max: number;
+          icon: string;
+          sort_order: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
+        Relationships: [];
+      };
+      providers: {
+        Row: {
+          id: string;
+          profile_id: string | null;
+          display_name: string;
+          bio: string;
+          photo_url: string | null;
+          service_areas: string[];
+          years_experience: number;
+          is_verified: boolean;
+          verified_at: string | null;
+          id_document_status: IdDocumentStatus;
+          checks: VerificationCheck[];
+          availability: Availability;
+          /** Generated column — availability = 'now'. Never written directly. */
+          is_available: boolean;
+          is_active: boolean;
+          base_rate: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id?: string | null;
+          display_name: string;
+          bio?: string;
+          photo_url?: string | null;
+          service_areas?: string[];
+          years_experience?: number;
+          is_verified?: boolean;
+          verified_at?: string | null;
+          id_document_status?: IdDocumentStatus;
+          checks?: VerificationCheck[];
+          availability?: Availability;
+          is_active?: boolean;
+          base_rate: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["providers"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "providers_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      provider_categories: {
+        Row: { provider_id: string; category_slug: string };
+        Insert: { provider_id: string; category_slug: string };
+        Update: Partial<{ provider_id: string; category_slug: string }>;
+        Relationships: [
+          {
+            foreignKeyName: "provider_categories_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "provider_categories_category_slug_fkey";
+            columns: ["category_slug"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["slug"];
+          },
+        ];
+      };
+      provider_stats: {
+        Row: {
+          provider_id: string;
+          rating_avg: number;
+          rating_count: number;
+          jobs_completed: number;
+          completion_rate: number;
+          avg_response_minutes: number;
+          last_active_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: string;
+          rating_avg?: number;
+          rating_count?: number;
+          jobs_completed?: number;
+          completion_rate?: number;
+          avg_response_minutes?: number;
+          last_active_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_stats"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "provider_stats_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: true;
+            referencedRelation: "providers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      provider_reviews: {
+        Row: {
+          id: string;
+          provider_id: string;
+          author_name: string;
+          rating: number;
+          comment: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider_id: string;
+          author_name: string;
+          rating: number;
+          comment: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_reviews"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "provider_reviews_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers";
             referencedColumns: ["id"];
           },
         ];

@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getSessionProfile } from "@/lib/auth/session";
+import { getLocale } from "@/lib/i18n/server";
 import { SERVICE_CATEGORIES } from "@/lib/config/services";
 import { CATEGORY_BOOKINGS_THIS_WEEK } from "@/lib/mock/categoryStats";
 import { site } from "@/lib/config/site";
@@ -123,10 +124,11 @@ const FAQS = [
 
 export default async function Home() {
   const profile = await getSessionProfile();
+  const locale = getLocale();
 
   return (
     <>
-      <SiteHeader accountName={profile?.fullName ?? null} />
+      <SiteHeader accountName={profile?.fullName ?? null} locale={locale} />
 
       <main id="main">
         {/* ---------------- hero ---------------- */}
@@ -244,77 +246,85 @@ export default async function Home() {
             the trailing card full-width so nothing is left half-orphaned.
           */}
           <ul className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-12">
-            {SERVICE_CATEGORIES.map(({ slug, name, descriptor, Icon }, i) => {
-              const featured = FEATURED_SLUGS.includes(slug);
-              const last = i === SERVICE_CATEGORIES.length - 1;
-              const booked = CATEGORY_BOOKINGS_THIS_WEEK[slug];
+            {SERVICE_CATEGORIES.map(
+              ({ slug, name, nameNe, descriptor, Icon }, i) => {
+                const featured = FEATURED_SLUGS.includes(slug);
+                const last = i === SERVICE_CATEGORIES.length - 1;
+                const booked = CATEGORY_BOOKINGS_THIS_WEEK[slug];
 
-              const span = featured
-                ? "col-span-2 lg:col-span-4"
-                : last
-                  ? "col-span-2 lg:col-span-6"
-                  : "col-span-1 lg:col-span-3";
+                const span = featured
+                  ? "col-span-2 lg:col-span-4"
+                  : last
+                    ? "col-span-2 lg:col-span-6"
+                    : "col-span-1 lg:col-span-3";
 
-              return (
-                <li key={slug} className={span}>
-                  <Reveal delay={Math.min(i * 0.03, 0.24)} className="h-full">
-                    <Card className="group h-full overflow-hidden transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-                      <Link
-                        href={`/services/${slug}`}
-                        className="flex h-full flex-col rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        <div
-                          className={
-                            featured
-                              ? "flex flex-1 flex-col gap-2 p-5 sm:p-7"
-                              : "flex flex-1 flex-col gap-2 p-4"
-                          }
+                return (
+                  <li key={slug} className={span}>
+                    <Reveal delay={Math.min(i * 0.03, 0.24)} className="h-full">
+                      <Card className="group h-full overflow-hidden transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+                        <Link
+                          href={`/services/${slug}`}
+                          className="flex h-full flex-col rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
-                          <span
+                          <div
                             className={
-                              (featured
-                                ? "size-12 rounded-xl "
-                                : "size-10 rounded-lg ") +
-                              "grid place-items-center bg-primary/10 text-primary transition-[transform,background-color,color] duration-200 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:bg-primary group-hover:text-primary-foreground"
+                              featured
+                                ? "flex flex-1 flex-col gap-2 p-5 sm:p-7"
+                                : "flex flex-1 flex-col gap-2 p-4"
                             }
                           >
-                            <Icon
-                              aria-hidden="true"
-                              className={featured ? "size-6" : "size-5"}
-                            />
-                          </span>
+                            <span
+                              className={
+                                (featured
+                                  ? "size-12 rounded-xl "
+                                  : "size-10 rounded-lg ") +
+                                "grid place-items-center bg-primary/10 text-primary transition-[transform,background-color,color] duration-200 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:bg-primary group-hover:text-primary-foreground"
+                              }
+                            >
+                              <Icon
+                                aria-hidden="true"
+                                className={featured ? "size-6" : "size-5"}
+                              />
+                            </span>
 
-                          <span
-                            className={
-                              (featured
-                                ? "font-display text-body-lg sm:text-display-sm "
-                                : "text-body-sm ") +
-                              "mt-1 font-semibold leading-snug transition-transform duration-200 group-hover:-translate-y-px"
-                            }
-                          >
-                            {name}
-                          </span>
+                            <span
+                              className={
+                                (featured
+                                  ? "font-display text-body-lg sm:text-display-sm "
+                                  : "text-body-sm ") +
+                                "mt-1 font-semibold leading-snug transition-transform duration-200 group-hover:-translate-y-px"
+                              }
+                            >
+                              {/* The language toggle writes a cookie; the
+                                server re-renders and the names change. */}
+                              {locale === "ne" ? (
+                                <span lang="ne">{nameNe}</span>
+                              ) : (
+                                name
+                              )}
+                            </span>
 
-                          <span
-                            className={
-                              (featured ? "text-body-sm " : "text-caption ") +
-                              "text-muted-foreground"
-                            }
-                          >
-                            {descriptor}
-                          </span>
+                            <span
+                              className={
+                                (featured ? "text-body-sm " : "text-caption ") +
+                                "text-muted-foreground"
+                              }
+                            >
+                              {descriptor}
+                            </span>
 
-                          {/* Mock booking volume — see lib/mock/categoryStats.ts */}
-                          <span className="mt-auto pt-3 text-caption tabular-nums text-muted-foreground/80 transition-transform duration-200 group-hover:-translate-y-px">
-                            {booked} booked this week
-                          </span>
-                        </div>
-                      </Link>
-                    </Card>
-                  </Reveal>
-                </li>
-              );
-            })}
+                            {/* Mock booking volume — see lib/mock/categoryStats.ts */}
+                            <span className="mt-auto pt-3 text-caption tabular-nums text-muted-foreground/80 transition-transform duration-200 group-hover:-translate-y-px">
+                              {booked} booked this week
+                            </span>
+                          </div>
+                        </Link>
+                      </Card>
+                    </Reveal>
+                  </li>
+                );
+              },
+            )}
           </ul>
         </Section>
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import type { TriageResult, Urgency } from "@/lib/ai/mockTriage";
 import type { Hazard } from "@/lib/ai/safety";
-import { PRICE_BANDS } from "@/lib/ai/price-bands";
+import { FALLBACK_PRICE_BANDS, type PriceBand } from "@/lib/ai/price-bands";
 
 /**
  * What we will accept back from the model.
@@ -14,9 +14,17 @@ import { PRICE_BANDS } from "@/lib/ai/price-bands";
  * reach the person who typed "tap leaking".
  */
 
-const SLUGS = PRICE_BANDS.map((band) => band.slug) as [string, ...string[]];
+// The enum is built from the authored categories rather than the table: a
+// category the code has never heard of cannot be rendered or routed to, so
+// accepting one from the model would only push the failure downstream.
+const SLUGS = FALLBACK_PRICE_BANDS.map((band) => band.slug) as [
+  string,
+  ...string[],
+];
 
-const BAND_BY_SLUG = new Map(PRICE_BANDS.map((band) => [band.slug, band]));
+const FALLBACK_BAND_BY_SLUG = new Map(
+  FALLBACK_PRICE_BANDS.map((band) => [band.slug, band]),
+);
 
 export const triageResponseSchema = z.object({
   category: z.enum(SLUGS),
@@ -67,7 +75,9 @@ function roundNpr(value: number): number {
  */
 export function parseTriageResponse(
   raw: string,
+  bands: PriceBand[] = FALLBACK_PRICE_BANDS,
 ): { result: TriageResult; hazard: Hazard | null } | null {
+  const bandBySlug = new Map(bands.map((band) => [band.slug, band]));
   const candidate = extractJson(raw);
   if (candidate === null) return null;
 
@@ -75,7 +85,7 @@ export function parseTriageResponse(
   if (!parsed.success) return null;
 
   const { category, urgency, priceRangeNPR, explanation, hazard } = parsed.data;
-  const band = BAND_BY_SLUG.get(category);
+  const band = bandBySlug.get(category) ?? FALLBACK_BAND_BY_SLUG.get(category);
   if (!band) return null;
 
   const [rawLow, rawHigh] = priceRangeNPR;

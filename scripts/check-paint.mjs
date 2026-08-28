@@ -23,7 +23,8 @@ import process from "node:process";
 
 import { chromium } from "playwright-core";
 
-const PAGES = ["/", "/login"];
+/** The pages a visitor actually lands on cold. */
+const PAGES = ["/", "/login", "/services", "/services/plumbing"];
 const FCP_TIMEOUT_MS = 8000;
 
 /** Where a Chromium might be. First hit wins; PERF_CHROME_PATH beats all. */

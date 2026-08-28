@@ -1,0 +1,122 @@
+[
+  {
+    "slug": "plumbing",
+    "nameEn": "Plumbing",
+    "nameNe": "प्लम्बिङ",
+    "descriptor": "Leaks, blocked drains, fittings",
+    "description": "Taps, pipes, drains, tanks and the pump that stopped working.",
+    "ctaLabel": "plumbing",
+    "basePriceMin": 900,
+    "basePriceMax": 4500,
+    "icon": "Wrench",
+    "sortOrder": 1
+  },
+  {
+    "slug": "electrical",
+    "nameEn": "Electrical",
+    "nameNe": "बिजुली मर्मत",
+    "descriptor": "Wiring, switches, inverters",
+    "description": "Switches, sockets, MCBs, inverters and the light that will not come on.",
+    "ctaLabel": "electrical",
+    "basePriceMin": 800,
+    "basePriceMax": 4000,
+    "icon": "Zap",
+    "sortOrder": 2
+  },
+  {
+    "slug": "home-cleaning",
+    "nameEn": "Home Cleaning",
+    "nameNe": "घर सरसफाइ",
+    "descriptor": "Deep clean, kitchen, bathrooms",
+    "description": "Deep cleans, kitchens, bathrooms and the flat you are moving out of.",
+    "ctaLabel": "home cleaning",
+    "basePriceMin": 1500,
+    "basePriceMax": 5000,
+    "icon": "Sparkles",
+    "sortOrder": 3
+  },
+  {
+    "slug": "appliance-repair",
+    "nameEn": "Appliance Repair",
+    "nameNe": "उपकरण मर्मत",
+    "descriptor": "Fridge, washing machine, geyser",
+    "description": "Fridges, washing machines, geysers, microwaves and televisions.",
+    "ctaLabel": "appliance repair",
+    "basePriceMin": 1200,
+    "basePriceMax": 4000,
+    "icon": "WashingMachine",
+    "sortOrder": 4
+  },
+  {
+    "slug": "carpentry",
+    "nameEn": "Carpentry",
+    "nameNe": "सिकर्मी काम",
+    "descriptor": "Doors, furniture, fittings",
+    "description": "Doors, cupboards, hinges, shelves and furniture that needs rebuilding.",
+    "ctaLabel": "carpentry",
+    "basePriceMin": 1000,
+    "basePriceMax": 3500,
+    "icon": "Hammer",
+    "sortOrder": 5
+  },
+  {
+    "slug": "pest-control",
+    "nameEn": "Pest Control",
+    "nameNe": "किरा नियन्त्रण",
+    "descriptor": "Cockroaches, termites, bed bugs",
+    "description": "Cockroaches, termites, bed bugs and rodents, treated flat by flat.",
+    "ctaLabel": "pest control",
+    "basePriceMin": 2000,
+    "basePriceMax": 6000,
+    "icon": "Bug",
+    "sortOrder": 6
+  },
+  {
+    "slug": "painting",
+    "nameEn": "Painting",
+    "nameNe": "रङरोगन",
+    "descriptor": "Interior, exterior, touch-ups",
+    "description": "Interior and exterior painting, damp patches and touch-ups.",
+    "ctaLabel": "painting",
+    "basePriceMin": 4000,
+    "basePriceMax": 25000,
+    "icon": "PaintRoller",
+    "sortOrder": 7
+  },
+  {
+    "slug": "ac-servicing",
+    "nameEn": "AC Servicing & Gas Refill",
+    "nameNe": "एसी सर्भिसिङ",
+    "descriptor": "Servicing, gas top-up, install",
+    "description": "Servicing, gas top-ups and installation for split and window units.",
+    "ctaLabel": "AC servicing",
+    "basePriceMin": 1800,
+    "basePriceMax": 5500,
+    "icon": "AirVent",
+    "sortOrder": 8
+  },
+  {
+    "slug": "water-tank-cleaning",
+    "nameEn": "Water Tank Cleaning",
+    "nameNe": "पानी ट्यांकी सफाइ",
+    "descriptor": "Tanks, sumps, overhead drums",
+    "description": "Overhead drums, underground sumps and the water that started smelling.",
+    "ctaLabel": "water tank cleaning",
+    "basePriceMin": 1500,
+    "basePriceMax": 4000,
+    "icon": "Droplets",
+    "sortOrder": 9
+  },
+  {
+    "slug": "movers-packers",
+    "nameEn": "Movers & Packers",
+    "nameNe": "सामान सार्ने सेवा",
+    "descriptor": "Shifting flats, offices, storage",
+    "description": "Shifting a flat or an office, packing, loading and storage.",
+    "ctaLabel": "moving & packing",
+    "basePriceMin": 5000,
+    "basePriceMax": 20000,
+    "icon": "Truck",
+    "sortOrder": 10
+  }
+]

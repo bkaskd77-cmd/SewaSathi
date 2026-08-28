@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react";
 
 import { AccountMenu, SignedOutCta } from "@/components/marketing/account-menu";
 import { LanguageToggle } from "@/components/marketing/language-toggle";
+import type { Locale } from "@/lib/i18n/locale";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,13 @@ const NAV = [
  * header renders in the first HTML — a client-side session check would flash
  * "Book a service" at someone who is already signed in.
  */
-export function SiteHeader({ accountName }: { accountName?: string | null }) {
+export function SiteHeader({
+  accountName,
+  locale = "en",
+}: {
+  accountName?: string | null;
+  locale?: Locale;
+}) {
   const signedIn = accountName !== null && accountName !== undefined;
   const [condensed, setCondensed] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -78,7 +85,7 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
 
         <div className="ml-auto flex items-center gap-2">
           <div className="hidden sm:block">
-            <LanguageToggle />
+            <LanguageToggle locale={locale} />
           </div>
           <ThemeToggle />
           <div className="hidden sm:block">
@@ -142,7 +149,7 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
             )}
 
             <div className="mt-3 flex items-center gap-3 sm:hidden">
-              <LanguageToggle />
+              <LanguageToggle locale={locale} />
               {signedIn ? (
                 <div className="flex-1">
                   <AccountMenu name={accountName} />

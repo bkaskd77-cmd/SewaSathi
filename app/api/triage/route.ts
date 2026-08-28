@@ -13,7 +13,8 @@ import {
   triageProblem as keywordTriage,
   type TriageResult,
 } from "@/lib/ai/mockTriage";
-import { TRIAGE_SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { getTriagePrompt } from "@/lib/ai/prompt";
+import { getPriceBands } from "@/lib/ai/price-bands";
 import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
@@ -122,6 +123,13 @@ async function askClaude(
     data: string;
   } | null,
 ): Promise<{ result: TriageResult; hazard: Hazard | null } | null> {
+  // Both read the same `categories` table, so the bands in the prompt and the
+  // bands the answer is clamped to are the same numbers.
+  const [systemPrompt, bands] = await Promise.all([
+    getTriagePrompt(),
+    getPriceBands(),
+  ]);
+
   const content: Anthropic.ContentBlockParam[] = [];
 
   if (image) {
@@ -148,7 +156,7 @@ async function askClaude(
       system: [
         {
           type: "text",
-          text: TRIAGE_SYSTEM_PROMPT,
+          text: systemPrompt,
           // The prompt is byte-identical on every request, so it caches.
           cache_control: { type: "ephemeral" },
         },
@@ -164,7 +172,7 @@ async function askClaude(
     .join("")
     .trim();
 
-  return raw ? parseTriageResponse(raw) : null;
+  return raw ? parseTriageResponse(raw, bands) : null;
 }
 
 export async function POST(request: NextRequest) {

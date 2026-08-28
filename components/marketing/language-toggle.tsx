@@ -1,24 +1,44 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Languages } from "lucide-react";
 
+import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 
 /**
  * Language switch.
  *
- * Visual only for now — it holds local state and nothing else. Real i18n
- * (next-intl or similar) lands in a later phase; when it does, replace the
- * `useState` with the locale router and this component's markup can stay.
+ * Writes a cookie and refreshes, so the server re-renders with the chosen
+ * language. Today that changes category names and nothing else — the rest of
+ * the interface is still English until we pick a translation approach (see
+ * CLAUDE.md). Doing it this way rather than with a locale router means the
+ * decision stays open: when it is made, this component's markup survives and
+ * only the handler changes.
+ *
+ * A cookie rather than local state because the strings are rendered on the
+ * server. A year is fine — it is a preference, not a session.
  */
-const LOCALES = [
+const LOCALES: Array<{ code: Locale; label: string; full: string }> = [
   { code: "en", label: "EN", full: "English" },
   { code: "ne", label: "ने", full: "नेपाली" },
-] as const;
+];
 
-export function LanguageToggle() {
-  const [locale, setLocale] = React.useState<"en" | "ne">("en");
+export function LanguageToggle({ locale = "en" }: { locale?: Locale }) {
+  const router = useRouter();
+  // Optimistic: the button state changes on tap, the server catches up on the
+  // refresh. Waiting for a round trip to highlight a two-item toggle feels
+  // broken on a slow connection.
+  const [selected, setSelected] = React.useState<Locale>(locale);
+
+  React.useEffect(() => setSelected(locale), [locale]);
+
+  const choose = (next: Locale) => {
+    setSelected(next);
+    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  };
 
   return (
     <div
@@ -35,12 +55,13 @@ export function LanguageToggle() {
           key={l.code}
           type="button"
           role="radio"
-          aria-checked={locale === l.code}
+          aria-checked={selected === l.code}
           aria-label={l.full}
-          onClick={() => setLocale(l.code)}
+          lang={l.code}
+          onClick={() => choose(l.code)}
           className={cn(
             "rounded-full px-2.5 py-1 text-caption font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
-            locale === l.code
+            selected === l.code
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground",
           )}

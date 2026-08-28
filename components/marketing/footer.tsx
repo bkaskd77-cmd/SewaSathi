@@ -23,10 +23,10 @@ const COLUMNS = [
   {
     heading: "Services",
     links: [
-      { label: "Plumbing", href: "/services/plumbing", soon: true },
-      { label: "Electrical", href: "/services/electrical", soon: true },
-      { label: "Home cleaning", href: "/services/home-cleaning", soon: true },
-      { label: "All services", href: "/services", soon: true },
+      { label: "Plumbing", href: "/services/plumbing" },
+      { label: "Electrical", href: "/services/electrical" },
+      { label: "Home cleaning", href: "/services/home-cleaning" },
+      { label: "All services", href: "/services" },
     ],
   },
   {

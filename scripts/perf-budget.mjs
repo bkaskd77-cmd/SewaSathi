@@ -21,6 +21,13 @@ export const BUDGET = {
   routes: {
     "/": 140,
     "/login": 190,
+    // The discovery routes. `/services/[slug]` carries the only client-side
+    // JavaScript in this group — the filter bar — and that is what the ceiling
+    // is really watching: if it grows, something turned a Server Component
+    // into a Client Component.
+    "/services": 110,
+    "/services/[slug]": 125,
+    "/services/[slug]/[providerId]": 120,
   },
 
   /** No route may exceed this, in kB — catches pages nobody budgeted for. */

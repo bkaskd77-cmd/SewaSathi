@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:paint": "node scripts/check-paint.mjs",
+    "seed:sql": "node scripts/generate-seed-sql.mjs",
     "verify": "npm run lint && npm run typecheck && npm run build && npm run check:paint",
     "ui:add": "shadcn add"
   },
@@ -51,7 +52,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

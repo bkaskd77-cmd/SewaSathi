@@ -100,6 +100,56 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
 Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in
 Phase 5). Every mock file states in a comment what replaces it and when.
 
+## Services and discovery
+
+`categories` is the single source of truth for the ten services — the landing
+grid, `/services`, the category pages and the price bands in the triage prompt
+all read from it, so repricing happens once.
+
+The authored copy is `lib/data/seed/*.json`. It seeds the tables
+(`npm run seed:sql` regenerates the seed migration) **and** it is the fallback
+every read falls back to when Supabase is unconfigured or unreachable. That is
+why a fresh clone with no keys still renders the whole product. Edit the JSON,
+re-run `seed:sql`, apply the migration — never edit the generated SQL.
+
+`lib/data/` is the boundary: `categories.ts`, `providers.ts` (list, one, counts,
+reviews) and `ranking.ts`. Pages never touch Supabase directly.
+
+**The ranking weights are a product decision and they live in one place** —
+`RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
+reasoning next to each number. Rating goes through a Bayesian average
+(`bayesianRating`, prior 20 ratings at 4.5) before it is weighted, which is what
+stops a 5.0 from three jobs outranking a 4.8 from two hundred. Emergency gives
+availability and response 0.65 between them. Change the numbers there, nowhere
+else.
+
+Filters live in the URL. The list is a Server Component inside `Suspense`, so a
+filtered view is a shareable link, the only client JavaScript on the page is the
+filter bar, and changing a filter shows skeletons rather than freezing the old
+list. Nothing outside `Suspense` may await the provider query — that was the
+first version and the skeletons could never appear.
+
+`/book` is a Phase 6 placeholder, and it is in `PROTECTED_ROUTES` on purpose:
+that is what makes a signed-out customer come back to _their booking_ after
+logging in rather than to the homepage.
+
+## Language
+
+The header toggle writes a `sajilokaam-locale` cookie and refreshes; the server
+reads it (`lib/i18n/server.ts`) and renders category names from `name_ne`. That
+is all it does today, deliberately.
+
+`lib/i18n/locale.ts` is constants and types only — the toggle is a Client
+Component and `next/headers` cannot be bundled for the browser.
+
+**Before extending this**, decide the approach once. The recommendation is
+next-intl with `[locale]` segments, message catalogues per namespace, and
+Nepali as a first-class locale rather than a translation layer bolted on: it
+gives locale-aware routing and metadata, keeps strings out of components, and
+handles plurals and dates, which hand-rolled cookies never will. Retrofitting
+it across twenty screens costs a week; doing it before Phase 6 adds screens
+costs a day.
+
 ## Auth
 
 Phone + OTP only. There is no email/password path anywhere in this product and
