@@ -3,38 +3,46 @@ import Link from "next/link";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { site } from "@/lib/config/site";
 
+/**
+ * `soon` marks a page that has not shipped yet.
+ *
+ * The link stays — the footer is the site map and these are real destinations —
+ * but Next must not prefetch it, or every page carrying the footer fires a
+ * dozen 404s into the console before anyone clicks anything. Delete the flag
+ * in the phase that adds the page.
+ */
 const COLUMNS = [
   {
     heading: "Company",
     links: [
-      { label: "About us", href: "/about" },
-      { label: "Careers", href: "/careers" },
-      { label: "Contact", href: "/contact" },
+      { label: "About us", href: "/about", soon: true },
+      { label: "Careers", href: "/careers", soon: true },
+      { label: "Contact", href: "/contact", soon: true },
     ],
   },
   {
     heading: "Services",
     links: [
-      { label: "Plumbing", href: "/services/plumbing" },
-      { label: "Electrical", href: "/services/electrical" },
-      { label: "Home cleaning", href: "/services/home-cleaning" },
-      { label: "All services", href: "/services" },
+      { label: "Plumbing", href: "/services/plumbing", soon: true },
+      { label: "Electrical", href: "/services/electrical", soon: true },
+      { label: "Home cleaning", href: "/services/home-cleaning", soon: true },
+      { label: "All services", href: "/services", soon: true },
     ],
   },
   {
     heading: "Support",
     links: [
-      { label: "Help centre", href: "/help" },
+      { label: "Help centre", href: "/help", soon: true },
       { label: "Track a booking", href: "/bookings" },
-      { label: "Report a problem", href: "/help/complaint" },
+      { label: "Report a problem", href: "/help/complaint", soon: true },
     ],
   },
   {
     heading: "Legal",
     links: [
-      { label: "Terms of service", href: "/legal/terms" },
-      { label: "Privacy policy", href: "/legal/privacy" },
-      { label: "Refund policy", href: "/legal/refunds" },
+      { label: "Terms of service", href: "/legal/terms", soon: true },
+      { label: "Privacy policy", href: "/legal/privacy", soon: true },
+      { label: "Refund policy", href: "/legal/refunds", soon: true },
     ],
   },
 ];
@@ -66,6 +74,7 @@ export function SiteFooter() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
+                      prefetch={"soon" in link ? false : undefined}
                       className="rounded-sm text-body-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
                       {link.label}

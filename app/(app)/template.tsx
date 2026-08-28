@@ -1,7 +1,7 @@
 import { RouteTransition } from "@/components/shared/route-transition";
 
-/** /login to /verify to /onboarding as one flow. See RouteTransition. */
-export default function AuthTemplate({
+/** Same entrance as the auth flow, so moving around signed in feels the same. */
+export default function AppTemplate({
   children,
 }: {
   children: React.ReactNode;

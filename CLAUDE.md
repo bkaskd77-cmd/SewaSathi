@@ -137,6 +137,45 @@ accessibility. `/design-system` scores SEO 60 on purpose — it is `noindex`.
 Take the median of 3 runs: this machine swings ±6 points on identical code, so
 a single run will send you chasing noise.
 
+## Performance guard
+
+Numbers in a summary are not a guard. Two things run automatically:
+
+- **Bundle budget** — `npm run build` is `scripts/check-bundle-budget.mjs`,
+  which runs `next build` and then fails on the printed route table. Ceilings
+  live in `scripts/perf-budget.mjs`: `/` 140 kB, `/login` 190 kB, any route
+  200 kB, shared 95 kB. Vercel runs `npm run build`, so a regression cannot
+  deploy. Raising a ceiling is a decision — move it in the commit that needs
+  it and say why.
+- **Paint check** — `npm run check:paint` loads `/` and `/login` in a real
+  Chromium and fails if either never records a first-contentful-paint. That is
+  the signature of content hidden behind an entrance animation, and it has now
+  happened twice. It is not in `next build` because Vercel's builder has no
+  browser; `.github/workflows/ci.yml` runs it on every push, and
+  `npm run verify` runs the whole set locally.
+
+Both are proven by breaking them on purpose, not by passing once. Lighthouse
+is still the periodic check — the bar and the median-of-3 rule are unchanged.
+
+## Signed-in pages
+
+`app/(app)/` holds them: site header and footer, page content in the middle.
+`/bookings` and `/account` are placeholders with real empty states — Phase 6
+fills the first, Phase 10 makes the second editable — but they exist now
+because the account menu links to them and a 404 from your own menu reads as
+a broken product.
+
+`components/shared/empty-state.tsx` is the shape: quiet, no warning colour, and
+always an action. A screen that says "nothing here" and offers no way forward
+is a dead end.
+
+`components/shared/route-transition.tsx` is the one route entrance, used by
+both `template.tsx` files.
+
+Footer links to pages that do not exist yet carry `soon: true`, which sets
+`prefetch={false}`. Without it every page with a footer fired a dozen 404s into
+the console. Delete the flag in the phase that ships the page.
+
 ## Gotchas
 
 - `cn()` extends tailwind-merge with our custom type scale. Any new step added
