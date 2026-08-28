@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SearchX } from "lucide-react";
 
+import { DataSourceBadge } from "@/components/services/data-source-badge";
 import { ProviderCard } from "@/components/services/provider-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,14 @@ export type ListParams = {
 export async function ProviderList({
   params,
   clearHref,
+  debug = false,
 }: {
   params: ListParams;
   /** Where "search everywhere" goes when a ward comes up empty. */
   clearHref: string;
+  /** Show the data-source line. Inside this component because the reads it
+      reports happen here, after the page shell has already streamed. */
+  debug?: boolean;
 }) {
   const providers = await listProviders({
     category: params.category,
@@ -113,6 +118,8 @@ export async function ProviderList({
           </li>
         ))}
       </ul>
+
+      <DataSourceBadge enabled={debug} />
     </>
   );
 }

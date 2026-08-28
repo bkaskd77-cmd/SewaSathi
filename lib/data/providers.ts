@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import providerSeed from "@/lib/data/seed/providers.json";
 import reviewSeed from "@/lib/data/seed/reviews.json";
+import { markDataSource } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -178,6 +179,7 @@ const SELECT =
 export const listProviders = cache(
   async (filters: ProviderFilters): Promise<Provider[]> => {
     if (!hasSupabaseConfig()) {
+      markDataSource("providers", "seed");
       return seedProviders().filter((p) => matches(p, filters));
     }
 
@@ -199,9 +201,11 @@ export const listProviders = cache(
 
       const { data, error } = await query;
       if (error || !data) {
+        markDataSource("providers", "seed");
         return seedProviders().filter((p) => matches(p, filters));
       }
 
+      markDataSource("providers", "database");
       const providers = (data as unknown as ProviderRow[]).map(fromRow);
       // Rating lives in the stats table, so it is filtered here rather than in
       // the query — one fewer join condition to get wrong.
@@ -209,6 +213,7 @@ export const listProviders = cache(
         ? providers.filter((p) => p.stats.ratingAvg >= (filters.minRating ?? 0))
         : providers;
     } catch {
+      markDataSource("providers", "seed");
       return seedProviders().filter((p) => matches(p, filters));
     }
   },
@@ -217,6 +222,7 @@ export const listProviders = cache(
 export const getProvider = cache(
   async (id: string): Promise<Provider | null> => {
     if (!hasSupabaseConfig()) {
+      markDataSource("providers", "seed");
       return seedProviders().find((p) => p.id === id) ?? null;
     }
 
@@ -230,10 +236,14 @@ export const getProvider = cache(
         .maybeSingle();
 
       if (error || !data) {
+        markDataSource("providers", "seed");
         return seedProviders().find((p) => p.id === id) ?? null;
       }
+
+      markDataSource("providers", "database");
       return fromRow(data as unknown as ProviderRow);
     } catch {
+      markDataSource("providers", "seed");
       return seedProviders().find((p) => p.id === id) ?? null;
     }
   },
@@ -245,7 +255,10 @@ export const getProviderReviews = cache(
       (review) => review.providerId === providerId,
     ).sort((a, b) => a.daysAgo - b.daysAgo);
 
-    if (!hasSupabaseConfig()) return fallback;
+    if (!hasSupabaseConfig()) {
+      markDataSource("reviews", "seed");
+      return fallback;
+    }
 
     try {
       const { data, error } = await createClient()
@@ -255,8 +268,12 @@ export const getProviderReviews = cache(
         .order("created_at", { ascending: false })
         .limit(10);
 
-      if (error || !data || data.length === 0) return fallback;
+      if (error || !data || data.length === 0) {
+        markDataSource("reviews", "seed");
+        return fallback;
+      }
 
+      markDataSource("reviews", "database");
       return data.map((row) => ({
         id: row.id as string,
         providerId: row.provider_id as string,
@@ -272,6 +289,7 @@ export const getProviderReviews = cache(
         ),
       }));
     } catch {
+      markDataSource("reviews", "seed");
       return fallback;
     }
   },
@@ -283,6 +301,7 @@ export const getCategoryCounts = cache(
     const counts: Record<string, number> = {};
 
     if (!hasSupabaseConfig()) {
+      markDataSource("providers", "seed");
       for (const provider of seedProviders()) {
         for (const slug of provider.categories) {
           counts[slug] = (counts[slug] ?? 0) + 1;
@@ -297,12 +316,15 @@ export const getCategoryCounts = cache(
         .select("category_slug");
 
       if (error || !data) throw new Error("no counts");
+
+      markDataSource("providers", "database");
       for (const row of data) {
         const slug = row.category_slug as string;
         counts[slug] = (counts[slug] ?? 0) + 1;
       }
       return counts;
     } catch {
+      markDataSource("providers", "seed");
       for (const provider of seedProviders()) {
         for (const slug of provider.categories) {
           counts[slug] = (counts[slug] ?? 0) + 1;

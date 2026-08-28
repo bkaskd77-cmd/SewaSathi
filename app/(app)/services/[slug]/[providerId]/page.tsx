@@ -10,6 +10,10 @@ import {
   Star,
 } from "lucide-react";
 
+import {
+  DataSourceBadge,
+  dataDebugEnabled,
+} from "@/components/services/data-source-badge";
 import { ProviderAvatar } from "@/components/services/provider-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -362,6 +366,8 @@ export default async function ProviderProfilePage({
           </ul>
         )}
       </section>
+
+      <DataSourceBadge enabled={dataDebugEnabled(searchParams)} />
 
       {/*
         Sticky on mobile: this is the action the page exists for, and on a

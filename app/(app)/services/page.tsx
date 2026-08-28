@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import {
+  DataSourceBadge,
+  dataDebugEnabled,
+} from "@/components/services/data-source-badge";
 import { Card } from "@/components/ui/card";
 import { categoryIcon } from "@/lib/config/services";
 import { getCategories } from "@/lib/data/categories";
@@ -24,7 +28,11 @@ export const metadata: Metadata = {
  * three, because "we have everything" is exactly the claim this market has
  * heard too many times.
  */
-export default async function ServicesPage() {
+export default async function ServicesPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const [categories, counts, locale] = await Promise.all([
     getCategories(),
     getCategoryCounts(),
@@ -98,6 +106,8 @@ export default async function ServicesPage() {
           );
         })}
       </ul>
+
+      <DataSourceBadge enabled={dataDebugEnabled(searchParams)} />
     </div>
   );
 }

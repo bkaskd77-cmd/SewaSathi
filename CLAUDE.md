@@ -115,6 +115,13 @@ re-run `seed:sql`, apply the migration — never edit the generated SQL.
 `lib/data/` is the boundary: `categories.ts`, `providers.ts` (list, one, counts,
 reviews) and `ranking.ts`. Pages never touch Supabase directly.
 
+**The fallback is a blind spot, so it announces itself.** The seed and the
+tables hold the same rows, which means a broken query renders a page that looks
+perfect. Every read records which path it took (`lib/data/source.ts`) and
+`?debug=data` prints it — `categories: database · providers: seed`. Same rule
+as the triage badge: dev, or the query param on any deployment. If you add a
+read to `lib/data/`, call `markDataSource` on both branches.
+
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
 reasoning next to each number. Rating goes through a Bayesian average

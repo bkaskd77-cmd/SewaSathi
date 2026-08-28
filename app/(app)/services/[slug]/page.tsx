@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Sparkles } from "lucide-react";
 
+import { dataDebugEnabled } from "@/components/services/data-source-badge";
 import { ProviderFilters } from "@/components/services/provider-filters";
 import {
   ProviderList,
@@ -179,7 +180,11 @@ export default async function CategoryPage({
       </div>
 
       <Suspense key={listKey} fallback={<ProviderListSkeleton />}>
-        <ProviderList params={listParams} clearHref={clearHref} />
+        <ProviderList
+          params={listParams}
+          clearHref={clearHref}
+          debug={dataDebugEnabled(searchParams)}
+        />
       </Suspense>
     </div>
   );
