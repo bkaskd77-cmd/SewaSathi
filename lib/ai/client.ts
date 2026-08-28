@@ -7,12 +7,25 @@ import { serverEnv } from "@/lib/env";
 /**
  * The model SajiloKaam runs triage on.
  *
- * Triage decides urgency and a price band from a free-text or photographed
- * description — a judgement call where being wrong is expensive (a mis-scoped
- * emergency, a quote a provider can't honour), so this runs on the strongest
- * model rather than the cheapest.
+ * Triage is a short classification with a price band attached, on a public
+ * endpoint that pays per call and has to answer inside ten seconds — Sonnet is
+ * the right shape for it. Thinking is left off for the same reason: the whole
+ * job is one paragraph of judgement, and latency here is the product.
+ *
+ * The safety path does not depend on the model being clever: lib/ai/safety.ts
+ * enforces it server-side whatever comes back.
  */
-export const TRIAGE_MODEL = "claude-opus-5";
+export const TRIAGE_MODEL = "claude-sonnet-4-6";
+
+/** Enough for the JSON object and no more — the reply is four fields. */
+export const TRIAGE_MAX_TOKENS = 400;
+
+/**
+ * Wall clock for one call. The route falls back to the keyword matcher when
+ * this expires, so it is a promise to the user rather than a client setting:
+ * an answer arrives within ten seconds, always.
+ */
+export const TRIAGE_TIMEOUT_MS = 9_500;
 
 let cached: Anthropic | null = null;
 

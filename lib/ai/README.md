@@ -1,20 +1,44 @@
 # `lib/ai`
 
-Claude helpers for SajiloKaam.
+Triage. The feature the product is built around.
 
-Right now this only holds the client factory and the model constant — the env
-var is wired so Phase 4 can start immediately. The triage prompt, the structured
-output schema (category, urgency, cost band, DIY verdict), and the image-input
-path all land in Phase 4.
+| file               | what it is                                                          |
+| ------------------ | ------------------------------------------------------------------- |
+| `triage.ts`        | What the browser calls. Posts to `/api/triage`, falls back locally. |
+| `client.ts`        | Anthropic client, model, token cap, timeout. `server-only`.         |
+| `prompt.ts`        | The system prompt, generated from the categories and price bands.   |
+| `price-bands.ts`   | Reference prices for the prompt, derived from `mockTriage`'s rules. |
+| `triage-schema.ts` | Zod validation, price clamp. Anything invalid returns null.         |
+| `safety.ts`        | The hazard floor. Pure, runs on the server and in the browser.      |
+| `mockTriage.ts`    | The keyword matcher — now the fallback, not the product.            |
 
-Notes for whoever writes that code:
+The route is `app/api/triage/route.ts`. The key never leaves the server.
 
-- Everything here is `server-only`. `ANTHROPIC_API_KEY` must never be sent to
-  the browser, so triage runs in a Route Handler or Server Action.
-- Use structured outputs (`output_config.format`) to get the triage result back
-  as validated JSON. Assistant prefill is rejected on current models.
-- Leave adaptive thinking on and tune `output_config.effort` instead — a triage
-  call is short, so `medium` is usually enough.
-- Photos come in as `{ type: "image", source: { type: "base64", ... } }`
-  content blocks. Supabase Storage holds the upload; pass the bytes, not a
-  signed URL that expires mid-request.
+## Rules
+
+**Never let a failure reach the user as an error.** Timeout, 500, bad JSON,
+invented category, rate limit: all of them end at `triageProblem` in
+`mockTriage.ts`. Someone who typed "tap leaking" gets an answer.
+
+**Never weaken the safety floor.** `applySafetyFloor` runs on every result from
+every source. The prompt asks Claude for the same behaviour, but the guard is
+what makes it a guarantee. If you add a hazard word, add it there — not only to
+the prompt.
+
+**The price bands are ours, not the model's.** They live in `price-bands.ts`,
+derived from `KEYWORD_RULES` so repricing happens in one place, and the route
+clamps the answer back into the band.
+
+**`TriageResult` is the contract.** The hero renders it and Phase 5 will route
+on it. Adding a field means changing both.
+
+## Things that were considered and not done
+
+- **Streaming.** The object is small and has to clear validation, the clamp and
+  the safety floor before anyone sees it. A skeleton is the better trade.
+- **Structured outputs (`output_config.format`).** Would remove the JSON
+  parsing. Worth revisiting once it can be verified against this model from a
+  machine that can reach the API — the fallback would be a 400 on every call,
+  so it was not worth guessing at.
+- **Storing the photo.** Not needed for triage, and it changes what this
+  product holds about people. `triage_logs.had_photo` is a boolean.

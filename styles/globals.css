@@ -469,6 +469,23 @@
     transition-duration: 0.06s;
   }
 
+  /* Leaving. Pairs with .animate-pop-in — the photo thumbnail goes out the
+     way it came in, so removing it reads as a reversal rather than a glitch. */
+  .animate-pop-out {
+    animation: pop-out 0.16s ease-out both;
+  }
+
+  @keyframes pop-out {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
   /*
    * Reduced motion: every animation above resolves to its end state instantly.
    * Nothing here is load-bearing for comprehension, so stopping it is safe.
@@ -487,6 +504,12 @@
       animation: none;
       opacity: 1;
       transform: none;
+    }
+
+    /* Not `animation: none` — this one's end state is gone, and the element
+       unmounts on a timer that must keep matching what is on screen. */
+    .animate-pop-out {
+      animation: pop-out 0.01s linear both;
     }
 
     .animate-ticker-in {

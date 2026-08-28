@@ -33,15 +33,49 @@ Every new component gets a contrast pass in both themes before it ships;
 (added Phase 2 for the landing FAQ). `components/marketing` holds the
 landing-page sections; `lib/config/` holds brand strings and the category list.
 
+`lib/utils/image.ts` compresses a photo in the browser before it is uploaded
+(1500px longest edge, JPEG, well under 1 MB). It is imported dynamically by the
+hero — most visitors never attach a photo and should not download it.
+
 `components/shared` — `Reveal` and `CountUp` both sit on the single `useInView`
 hook in `lib/hooks/`. Add scroll-triggered behaviour there, not as a second
 observer.
 
-## Mock data and the Phase 4 contract
+## Triage
 
-`lib/ai/mockTriage.ts` — `triageProblem(input): TriageResult`. **The signature
-is the contract.** Phase 4 replaces the body with a Claude call and changes
-nothing else; if the shape feels wrong, change the caller instead.
+`TriageResult` is the contract and it has not changed since Phase 2: category
+slug, urgency, price range, explanation. Everything below can be rebuilt as
+long as that shape and the ten category slugs hold.
+
+The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
+(`claude-sonnet-4-6`, no thinking, `temperature: 0`, 400 max tokens) →
+`lib/ai/triage-schema.ts` validates → `lib/ai/safety.ts` → the card.
+
+- **It always answers.** Missing key, timeout (9.5s), provider 500, unparseable
+  JSON, a category we don't sell — every one of those ends at
+  `lib/ai/mockTriage.ts`, which is why the keyword matcher is still here. Never
+  delete it, and never let a failure path return an error to the hero.
+- **The prompt is generated**, not hand-maintained: `lib/ai/prompt.ts` builds it
+  from the category list and `lib/ai/price-bands.ts`, whose bounds come from
+  `KEYWORD_RULES`. Repricing a category in the matcher reprices it in the
+  prompt. The prompt is byte-identical per request, so it prefix-caches.
+- **The price is clamped** to the published band for the chosen category. The
+  band is in the prompt; the clamp is for when the model ignores it.
+- **The safety floor is server-side and runs on every path** — model, cache and
+  fallback. Gas, burning, sparking, live wire, shock, in English, Romanized
+  Nepali or Devanagari: urgency becomes `emergency` and the explanation is
+  prefixed with what to do right now. The prompt asks for this too; the guard
+  is what makes it true. An AC gas refill is deliberately not a gas leak.
+- **Rate limit** 12/min and 60/hour, per user id when signed in, per IP
+  otherwise. **Cache** 10 minutes, text only, 500 entries. Both are in-process,
+  so on Vercel they are per-instance: a soft cost ceiling, not a security
+  control. Swap in Upstash behind the same signatures when it matters.
+- **Not streamed.** The response is one small object that has to pass schema
+  validation, the price clamp and the safety floor before anyone sees it.
+  Streaming would mean showing fields we haven't finished checking.
+- **Every triage is logged** to `triage_logs` (text, photo yes/no, category,
+  urgency, latency, source, hazard). The photo is never stored. This is the
+  only record of whether the bands are right — Phase 9 reads it.
 
 `lib/mock/` — `activityFeed.ts` (becomes a Supabase realtime subscription in
 Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in

@@ -1,15 +1,19 @@
 /**
- * MOCK — swap for Claude API in Phase 4, signature must not change.
+ * The keyword matcher. No longer the product — the fallback underneath it.
  *
- * `triageProblem` is the contract. Phase 4 replaces the body with a call to
- * Claude (see lib/ai/client.ts) and returns the same shape, so every caller —
- * currently the hero search — keeps working untouched. If you find yourself
- * wanting to change the signature, change the caller instead.
+ * Phase 4 moved real triage to Claude (lib/ai/triage.ts calls /api/triage).
+ * This file stayed, because the user must always get an answer: when the API
+ * key is missing, the call times out, the model returns something that fails
+ * validation, or the rate limit bites, `triageProblem` here is what answers.
+ * It returns the same `TriageResult`, so nothing downstream can tell.
  *
- * The keyword table below is a stand-in for classification, not a fallback for
- * it. It is deliberately generous about phrasing because people describe these
+ * It is deliberately generous about phrasing because people describe these
  * problems in whatever words they have: "no water", "dhara chaina", "tap not
- * coming". Real triage handles that properly; this gets the demo honest.
+ * coming".
+ *
+ * `KEYWORD_RULES` is also the source of the price bands quoted to Claude
+ * (lib/ai/price-bands.ts). The bands in the prompt are derived from these
+ * numbers rather than copied, so the two cannot drift apart.
  */
 
 import { SERVICE_CATEGORIES } from "@/lib/config/services";
@@ -24,7 +28,7 @@ export type TriageResult = {
   explanation: string;
 };
 
-type Rule = {
+export type KeywordRule = {
   category: string;
   keywords: string[];
   urgency: Urgency;
@@ -32,7 +36,7 @@ type Rule = {
   explanation: string;
 };
 
-const RULES: Rule[] = [
+export const KEYWORD_RULES: KeywordRule[] = [
   {
     category: "plumbing",
     keywords: [
@@ -307,7 +311,14 @@ const URGENT_MARKERS = [
   "quickly",
 ];
 
-const FALLBACK: TriageResult = {
+/**
+ * The answer when nothing else fits.
+ *
+ * Also quoted to Claude as the "nothing fits" result, so a request we do not
+ * cover comes back as this rather than as an invented category the router
+ * cannot resolve.
+ */
+export const GENERIC_RESULT: TriageResult = {
   category: "plumbing",
   urgency: "soon",
   priceRangeNPR: [900, 4000],
@@ -318,12 +329,12 @@ const FALLBACK: TriageResult = {
 export function triageProblem(input: string): TriageResult {
   const text = input.toLowerCase().trim();
 
-  if (!text) return FALLBACK;
+  if (!text) return GENERIC_RESULT;
 
   // Longest keyword wins, so "ac not cooling" beats a bare "not working".
-  let best: { rule: Rule; score: number } | null = null;
+  let best: { rule: KeywordRule; score: number } | null = null;
 
-  for (const rule of RULES) {
+  for (const rule of KEYWORD_RULES) {
     for (const keyword of rule.keywords) {
       if (!text.includes(keyword)) continue;
       const score = keyword.length;
@@ -334,7 +345,9 @@ export function triageProblem(input: string): TriageResult {
   const isUrgent = URGENT_MARKERS.some((marker) => text.includes(marker));
 
   if (!best) {
-    return isUrgent ? { ...FALLBACK, urgency: "emergency" } : FALLBACK;
+    return isUrgent
+      ? { ...GENERIC_RESULT, urgency: "emergency" }
+      : GENERIC_RESULT;
   }
 
   const { rule } = best;
