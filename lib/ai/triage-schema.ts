@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { TriageResult, Urgency } from "@/lib/ai/mockTriage";
+import type { Hazard } from "@/lib/ai/safety";
 import { PRICE_BANDS } from "@/lib/ai/price-bands";
 
 /**
@@ -22,6 +23,10 @@ export const triageResponseSchema = z.object({
   urgency: z.enum(["emergency", "soon", "routine"]),
   priceRangeNPR: z.tuple([z.number().finite(), z.number().finite()]),
   explanation: z.string().trim().min(10).max(400),
+  // Optional so a response in the old four-key shape still validates rather
+  // than dropping to the fallback — a missing hazard reads as "none", which is
+  // the same thing the text guard would conclude on its own.
+  hazard: z.enum(["gas", "burning", "live-wire", "none"]).optional(),
 });
 
 /**
@@ -60,14 +65,16 @@ function roundNpr(value: number): number {
  * when it does, an invented 40,000 quote for a leaking tap is exactly the kind
  * of thing that ends up in a screenshot.
  */
-export function parseTriageResponse(raw: string): TriageResult | null {
+export function parseTriageResponse(
+  raw: string,
+): { result: TriageResult; hazard: Hazard | null } | null {
   const candidate = extractJson(raw);
   if (candidate === null) return null;
 
   const parsed = triageResponseSchema.safeParse(candidate);
   if (!parsed.success) return null;
 
-  const { category, urgency, priceRangeNPR, explanation } = parsed.data;
+  const { category, urgency, priceRangeNPR, explanation, hazard } = parsed.data;
   const band = BAND_BY_SLUG.get(category);
   if (!band) return null;
 
@@ -79,12 +86,18 @@ export function parseTriageResponse(raw: string): TriageResult | null {
   const clampedHigh = roundNpr(Math.min(Math.max(high, band.low), band.high));
 
   return {
-    category,
-    urgency: urgency as Urgency,
-    priceRangeNPR: [clampedLow, Math.max(clampedLow, clampedHigh)] as [
-      number,
-      number,
-    ],
-    explanation: explanation.replace(/\s+/g, " ").trim(),
+    result: {
+      category,
+      urgency: urgency as Urgency,
+      priceRangeNPR: [clampedLow, Math.max(clampedLow, clampedHigh)] as [
+        number,
+        number,
+      ],
+      explanation: explanation.replace(/\s+/g, " ").trim(),
+    },
+    // The urgency the model chose is not adjusted here. The hazard is passed
+    // up as a signal and applySafetyFloor decides what it does — one place
+    // makes that decision, whatever the source.
+    hazard: hazard && hazard !== "none" ? hazard : null,
   };
 }

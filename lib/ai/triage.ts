@@ -28,15 +28,40 @@ export type TriageImage = {
 
 export type TriageSource = "claude" | "cache" | "fallback";
 
+/**
+ * Why this answer came from where it did. Server reasons come back in the
+ * response; the two below it are the ones only the browser can know.
+ */
+export type TriageReason =
+  | "ok"
+  | "cache-hit"
+  | "no-api-key"
+  | "timeout"
+  | "provider-error"
+  | "unparseable"
+  | "unreachable"
+  | "rejected";
+
 export type TriageOutcome = {
   result: TriageResult;
   source: TriageSource;
+  reason: TriageReason;
+  /** Present only when Claude answered. For the dev badge. */
+  model?: string | null;
 };
 
-function localFallback(text: string): TriageOutcome {
+function localFallback(
+  text: string,
+  reason: TriageReason,
+  photoUnseen = false,
+): TriageOutcome {
   return {
-    result: applySafetyFloor(text, keywordTriage(text)).result,
+    // Same floor as the server applies, including the note when a photo was
+    // attached and nothing ever looked at it — which is precisely what this
+    // path means.
+    result: applySafetyFloor(text, keywordTriage(text), { photoUnseen }).result,
     source: "fallback",
+    reason,
   };
 }
 
@@ -47,7 +72,7 @@ export async function triageProblem(
   const text = input.trim();
   const image = options.image ?? null;
 
-  if (!text && !image) return localFallback("");
+  if (!text && !image) return localFallback("", "rejected");
 
   try {
     const response = await fetch("/api/triage", {
@@ -60,20 +85,28 @@ export async function triageProblem(
       signal: options.signal,
     });
 
-    if (!response.ok) return localFallback(text);
+    if (!response.ok) return localFallback(text, "rejected", Boolean(image));
 
     const payload = (await response.json()) as {
       result?: TriageResult;
       source?: TriageSource;
+      reason?: TriageReason;
+      model?: string | null;
     };
 
-    if (!payload.result) return localFallback(text);
-    return { result: payload.result, source: payload.source ?? "claude" };
+    if (!payload.result)
+      return localFallback(text, "unparseable", Boolean(image));
+    return {
+      result: payload.result,
+      source: payload.source ?? "claude",
+      reason: payload.reason ?? "ok",
+      model: payload.model ?? null,
+    };
   } catch (error) {
     // An abort is the caller replacing this run with a newer one, not a
     // failure — it must not paint a fallback result over the new query.
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    return localFallback(text);
+    return localFallback(text, "unreachable", Boolean(image));
   }
 }

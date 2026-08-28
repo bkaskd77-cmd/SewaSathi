@@ -11,7 +11,7 @@ import {
   categoryName,
   triageProblem,
   type TriageImage,
-  type TriageResult,
+  type TriageOutcome,
 } from "@/lib/ai/triage";
 import { cn, formatNpr } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ type Photo = TriageImage & { previewUrl: string };
 export function ProblemSearch() {
   const [query, setQuery] = React.useState("");
   const [thinking, setThinking] = React.useState(false);
-  const [result, setResult] = React.useState<TriageResult | null>(null);
+  const [outcome, setOutcome] = React.useState<TriageOutcome | null>(null);
   const [photo, setPhoto] = React.useState<Photo | null>(null);
   const [photoLeaving, setPhotoLeaving] = React.useState(false);
   const [photoBusy, setPhotoBusy] = React.useState(false);
@@ -96,7 +96,7 @@ export function ProblemSearch() {
       if (!trimmed && !image) {
         runIdRef.current++;
         setThinking(false);
-        setResult(null);
+        setOutcome(null);
         return;
       }
 
@@ -107,7 +107,7 @@ export function ProblemSearch() {
       setThinking(true);
 
       try {
-        const outcome = await triageProblem(trimmed, {
+        const next = await triageProblem(trimmed, {
           image: image
             ? { mediaType: image.mediaType, data: image.data }
             : null,
@@ -115,7 +115,7 @@ export function ProblemSearch() {
         });
         if (runId !== runIdRef.current) return;
 
-        setResult(outcome.result);
+        setOutcome(next);
         setThinking(false);
         // The photo has been read. Keeping it on screen implies it will be
         // sent again with the next question, which it will not.
@@ -136,7 +136,7 @@ export function ProblemSearch() {
       runIdRef.current++;
       abortRef.current?.abort();
       setThinking(false);
-      setResult(null);
+      setOutcome(null);
       return;
     }
 
@@ -311,7 +311,7 @@ export function ProblemSearch() {
           readers once, rather than every frame of the thinking state. */}
       <div aria-live="polite" aria-atomic="true">
         {thinking ? <TriageSkeleton /> : null}
-        {!thinking && result ? <TriageCard result={result} /> : null}
+        {!thinking && outcome ? <TriageCard outcome={outcome} /> : null}
       </div>
     </div>
   );
@@ -336,7 +336,8 @@ function TriageSkeleton() {
   );
 }
 
-function TriageCard({ result }: { result: TriageResult }) {
+function TriageCard({ outcome }: { outcome: TriageOutcome }) {
+  const result = outcome.result;
   const urgency = URGENCY_META[result.urgency];
   const name = categoryName(result.category);
   const ctaLabel = categoryCtaLabel(result.category);
@@ -393,6 +394,80 @@ function TriageCard({ result }: { result: TriageResult }) {
           </Link>
         </Button>
       </div>
+
+      <TriagePathBadge outcome={outcome} />
     </div>
+  );
+}
+
+/**
+ * Which path served this result — Claude, the cache, or the keyword fallback.
+ *
+ * Exists because a silent fallback is indistinguishable from a working
+ * product: with no API key every triage still answers, and the only way to
+ * tell was to read the server log.
+ *
+ * Hidden from ordinary visitors. It shows in development, and in any
+ * environment when the page is opened with `?debug=triage` — which is how it
+ * can be checked on a deployment whose branch is production. Read after mount
+ * rather than during render, so the server and client HTML agree.
+ */
+function useTriageDebug(): boolean {
+  const [enabled, setEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      setEnabled(true);
+      return;
+    }
+    setEnabled(
+      new URLSearchParams(window.location.search).get("debug") === "triage",
+    );
+  }, []);
+
+  return enabled;
+}
+
+const PATH_LABEL: Record<TriageOutcome["source"], string> = {
+  claude: "Claude",
+  cache: "cache",
+  fallback: "keyword fallback",
+};
+
+/** Plain English for the reason codes — this is a debugging aid, not a log. */
+const REASON_LABEL: Record<string, string> = {
+  ok: "",
+  "cache-hit": "same question within 10 min",
+  "no-api-key": "ANTHROPIC_API_KEY not set",
+  timeout: "model took over 9.5s",
+  "provider-error": "the API returned an error",
+  unparseable: "the reply failed validation",
+  unreachable: "the request never arrived",
+  rejected: "rate limited or refused",
+};
+
+function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
+  const show = useTriageDebug();
+  if (!show) return null;
+
+  const reason = REASON_LABEL[outcome.reason] ?? outcome.reason;
+
+  return (
+    <p
+      data-testid="triage-path"
+      className={cn(
+        "animate-pop-in mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-dashed border-border pt-3 text-caption",
+        outcome.source === "fallback"
+          ? "text-warning-ink"
+          : "text-muted-foreground",
+      )}
+    >
+      <span className="font-semibold uppercase tracking-wide">dev</span>
+      <span>
+        served by {PATH_LABEL[outcome.source]}
+        {outcome.model ? ` (${outcome.model})` : ""}
+      </span>
+      {reason ? <span>· {reason}</span> : null}
+    </p>
   );
 }

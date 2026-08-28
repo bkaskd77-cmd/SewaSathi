@@ -14,7 +14,7 @@ import {
   type TriageResult,
 } from "@/lib/ai/mockTriage";
 import { TRIAGE_SYSTEM_PROMPT } from "@/lib/ai/prompt";
-import { applySafetyFloor } from "@/lib/ai/safety";
+import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
 import { readTriageCache, writeTriageCache } from "@/lib/server/triage-cache";
@@ -64,6 +64,19 @@ const requestSchema = z
 
 type TriageSource = "claude" | "cache" | "fallback";
 
+/**
+ * Why the answer came from where it did. Returned to the client and shown by
+ * the dev-only badge — "the product looks like it works but no AI is running"
+ * should be one glance to diagnose, not a log dive.
+ */
+type TriageReason =
+  | "ok"
+  | "cache-hit"
+  | "no-api-key"
+  | "timeout"
+  | "provider-error"
+  | "unparseable";
+
 function badRequest(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -108,7 +121,7 @@ async function askClaude(
     mediaType: "image/jpeg" | "image/png" | "image/webp";
     data: string;
   } | null,
-): Promise<TriageResult | null> {
+): Promise<{ result: TriageResult; hazard: Hazard | null } | null> {
   const content: Anthropic.ContentBlockParam[] = [];
 
   if (image) {
@@ -197,23 +210,30 @@ export async function POST(request: NextRequest) {
   const cached = !image && text ? readTriageCache(text) : null;
 
   let source: TriageSource = cached ? "cache" : "fallback";
+  let reason: TriageReason = cached ? "cache-hit" : "no-api-key";
   let result = cached;
+  let visionHazard: Hazard | null = null;
 
   if (!result && hasAnthropicConfig()) {
+    reason = "unparseable";
     try {
       const answer = await askClaude(text, image);
       if (answer) {
-        result = answer;
+        result = answer.result;
+        visionHazard = answer.hazard;
         source = "claude";
-        if (!image && text) writeTriageCache(text, answer);
+        reason = "ok";
+        if (!image && text) writeTriageCache(text, answer.result);
       }
     } catch (error) {
       // Timeout, rate limit at the provider, a 500, a network blip — all the
-      // same from here: the keyword matcher answers instead.
-      console.error(
-        "[triage] Claude call failed, falling back:",
-        error instanceof Error ? error.message : error,
-      );
+      // same from here: the keyword matcher answers instead. The reason is
+      // kept only so the dev badge can say which one it was.
+      const message = error instanceof Error ? error.message : String(error);
+      reason = /timeout|timed out|aborted/i.test(message)
+        ? "timeout"
+        : "provider-error";
+      console.error("[triage] Claude call failed, falling back:", message);
     }
   }
 
@@ -223,7 +243,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Runs on every path, including the cache and the fallback. See lib/ai/safety.
-  const { result: safeResult, hazard } = applySafetyFloor(text, result);
+  //
+  // The model's hazard read is passed in only when the model actually
+  // answered. When a photo was attached and it did not, `photoUnseen` says so
+  // — nobody looked at that picture, and the result should admit it.
+  const {
+    result: safeResult,
+    hazard,
+    via,
+    cautioned,
+  } = applySafetyFloor(text, result, {
+    visionHazard: source === "claude" ? visionHazard : null,
+    photoUnseen: Boolean(image) && source !== "claude",
+  });
 
   const latencyMs = Date.now() - startedAt;
 
@@ -235,11 +267,21 @@ export async function POST(request: NextRequest) {
     source,
     model: source === "claude" ? TRIAGE_MODEL : null,
     latencyMs,
-    hazard,
+    // Prefixed with how it was spotted, so the text guard and the vision read
+    // can be audited apart later without a schema change.
+    hazard: hazard ? `${via}:${hazard}` : cautioned ? "unseen-photo" : null,
   });
 
   return NextResponse.json(
-    { result: safeResult, source, latencyMs },
+    {
+      result: safeResult,
+      source,
+      latencyMs,
+      // For the dev-only badge. Nothing here is secret and nothing here is
+      // rendered to an ordinary visitor.
+      reason,
+      model: source === "claude" ? TRIAGE_MODEL : null,
+    },
     { headers: { "cache-control": "no-store" } },
   );
 }

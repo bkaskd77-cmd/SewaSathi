@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { Hazard } from "@/lib/ai/safety";
 import type { TriageResult } from "@/lib/ai/mockTriage";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -29,7 +28,13 @@ export type TriageLogEntry = {
   source: "claude" | "cache" | "fallback";
   model: string | null;
   latencyMs: number;
-  hazard: Hazard | null;
+  /**
+   * How the safety floor fired, as "<detector>:<hazard>" — "text:gas",
+   * "vision:burning" — or "unseen-photo" when a photo was attached and never
+   * looked at. Free text rather than an enum so the two detectors can be
+   * compared later without a schema change.
+   */
+  hazard: string | null;
 };
 
 export function canLogTriage(): boolean {

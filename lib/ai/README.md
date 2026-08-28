@@ -2,15 +2,16 @@
 
 Triage. The feature the product is built around.
 
-| file               | what it is                                                          |
-| ------------------ | ------------------------------------------------------------------- |
-| `triage.ts`        | What the browser calls. Posts to `/api/triage`, falls back locally. |
-| `client.ts`        | Anthropic client, model, token cap, timeout. `server-only`.         |
-| `prompt.ts`        | The system prompt, generated from the categories and price bands.   |
-| `price-bands.ts`   | Reference prices for the prompt, derived from `mockTriage`'s rules. |
-| `triage-schema.ts` | Zod validation, price clamp. Anything invalid returns null.         |
-| `safety.ts`        | The hazard floor. Pure, runs on the server and in the browser.      |
-| `mockTriage.ts`    | The keyword matcher — now the fallback, not the product.            |
+| file               | what it is                                                              |
+| ------------------ | ----------------------------------------------------------------------- |
+| `triage.ts`        | What the browser calls. Posts to `/api/triage`, falls back locally.     |
+| `client.ts`        | Anthropic client, model, token cap, timeout. `server-only`.             |
+| `prompt.ts`        | The system prompt, generated from the categories and price bands.       |
+| `price-bands.ts`   | Reference prices for the prompt, derived from `mockTriage`'s rules.     |
+| `triage-schema.ts` | Zod validation, price clamp. Anything invalid returns null.             |
+| `safety.ts`        | The hazard floor. Pure, runs on the server and in the browser.          |
+| —                  | Text guard + the model's one-way `hazard` read + the unseen-photo note. |
+| `mockTriage.ts`    | The keyword matcher — now the fallback, not the product.                |
 
 The route is `app/api/triage/route.ts`. The key never leaves the server.
 
@@ -24,6 +25,11 @@ invented category, rate limit: all of them end at `triageProblem` in
 every source. The prompt asks Claude for the same behaviour, but the guard is
 what makes it a guarantee. If you add a hazard word, add it there — not only to
 the prompt.
+
+**The vision hazard is one-way.** The model's `hazard` key can escalate a
+result and add the safety line. Nothing may use it to lower urgency or remove a
+line the text guard added; if you find yourself writing that branch, stop. A
+false positive costs one unnecessary sentence. The other error costs more.
 
 **The price bands are ours, not the model's.** They live in `price-bands.ts`,
 derived from `KEYWORD_RULES` so repricing happens in one place, and the route

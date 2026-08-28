@@ -68,6 +68,23 @@ export function detectHazard(input: string): Hazard | null {
   return null;
 }
 
+/**
+ * The line for a photo we never managed to look at.
+ *
+ * Not a hazard claim — a statement that we could not check. It goes on the
+ * categories where a gas or electrical hazard actually lives, so a photo of a
+ * sofa awaiting a clean does not come back with a warning about flames.
+ */
+export const UNSEEN_PHOTO_CAUTION =
+  "We couldn't look at your photo just now, so check it yourself: if you can smell gas, or see sparking, scorching or a bare wire, switch off at the mains, don't light a flame, and call us instead of booking.";
+
+const HAZARD_PRONE_CATEGORIES = new Set([
+  "electrical",
+  "plumbing",
+  "appliance-repair",
+  "ac-servicing",
+]);
+
 /** Does this explanation already open with something to do right now? */
 function leadsWithSafety(explanation: string): boolean {
   const opening = explanation.slice(0, 140).toLowerCase();
@@ -76,25 +93,72 @@ function leadsWithSafety(explanation: string): boolean {
   );
 }
 
+/** How a hazard was spotted. Recorded so the two paths can be audited apart. */
+export type HazardVia = "text" | "vision";
+
+export type SafetyOutcome = {
+  result: TriageResult;
+  hazard: Hazard | null;
+  via: HazardVia | null;
+  /** True when we added the "couldn't see your photo" line instead. */
+  cautioned: boolean;
+};
+
 /**
- * Force the safety path onto a result when the description warrants it.
+ * Force the safety path onto a result when the description or the photo
+ * warrants it. Safe to call on everything — a result with no hazard comes back
+ * untouched.
  *
- * Returns the result unchanged when there is no hazard, so it is safe to call
- * on everything.
+ * `visionHazard` is the model's read of the photo, and it is strictly one-way:
+ * it can raise a result to emergency and add the safety line, and there is no
+ * branch anywhere that lets it lower one. The text guard wins when both fire,
+ * because it is deterministic.
+ *
+ * The text guard cannot see a photo, and the panic case is exactly the person
+ * who photographs a sparking switchboard and types nothing — hence the second
+ * input, and hence `photoUnseen`, for when we never got a look at all.
  */
 export function applySafetyFloor(
   input: string,
   result: TriageResult,
-): { result: TriageResult; hazard: Hazard | null } {
-  const hazard = detectHazard(input);
-  if (!hazard) return { result, hazard: null };
+  options: { visionHazard?: Hazard | null; photoUnseen?: boolean } = {},
+): SafetyOutcome {
+  const textHazard = detectHazard(input);
+  const hazard = textHazard ?? options.visionHazard ?? null;
+  const via: HazardVia | null = textHazard
+    ? "text"
+    : options.visionHazard
+      ? "vision"
+      : null;
 
-  const explanation = leadsWithSafety(result.explanation)
-    ? result.explanation
-    : `${LEAD_LINE[hazard]} ${result.explanation}`;
+  if (hazard) {
+    const explanation = leadsWithSafety(result.explanation)
+      ? result.explanation
+      : `${LEAD_LINE[hazard]} ${result.explanation}`;
 
-  return {
-    result: { ...result, urgency: "emergency", explanation },
-    hazard,
-  };
+    return {
+      result: { ...result, urgency: "emergency", explanation },
+      hazard,
+      via,
+      cautioned: false,
+    };
+  }
+
+  // A photo arrived and nothing looked at it. Say so, on the categories where
+  // the thing we failed to check could be dangerous. Urgency is left alone —
+  // "we did not see it" is not evidence of a hazard, and treating it as one
+  // would make every outage an emergency.
+  if (options.photoUnseen && HAZARD_PRONE_CATEGORIES.has(result.category)) {
+    return {
+      result: {
+        ...result,
+        explanation: `${UNSEEN_PHOTO_CAUTION} ${result.explanation}`,
+      },
+      hazard: null,
+      via: null,
+      cautioned: true,
+    };
+  }
+
+  return { result, hazard: null, via: null, cautioned: false };
 }

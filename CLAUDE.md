@@ -66,6 +66,16 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   Nepali or Devanagari: urgency becomes `emergency` and the explanation is
   prefixed with what to do right now. The prompt asks for this too; the guard
   is what makes it true. An AC gas refill is deliberately not a gas leak.
+- **The photo has its own hazard read**, because the text guard cannot see one
+  and the panic case is somebody photographing a sparking board and typing
+  nothing. Claude returns a fifth key, `hazard`, and it is **one-way**: it can
+  raise a result to emergency and add the safety line, never lower one. The
+  text guard wins when both fire — it is the deterministic half.
+- **A photo nobody looked at says so.** If the call fails or times out with an
+  image attached, the answer opens with "we couldn't look at your photo" plus
+  what to check, on the categories where a hazard could live (electrical,
+  plumbing, appliance, AC). Urgency is not raised — not seeing something is not
+  evidence of a hazard — and a cleaning job gets no warning about flames.
 - **Rate limit** 12/min and 60/hour, per user id when signed in, per IP
   otherwise. **Cache** 10 minutes, text only, 500 entries. Both are in-process,
   so on Vercel they are per-instance: a soft cost ceiling, not a security
@@ -74,8 +84,17 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   validation, the price clamp and the safety floor before anyone sees it.
   Streaming would mean showing fields we haven't finished checking.
 - **Every triage is logged** to `triage_logs` (text, photo yes/no, category,
-  urgency, latency, source, hazard). The photo is never stored. This is the
-  only record of whether the bands are right — Phase 9 reads it.
+  urgency, latency, source, hazard). The photo is never stored. `hazard` is
+  written as `text:gas`, `vision:burning` or `unseen-photo`, so the two
+  detectors can be compared later. This is the only record of whether the bands
+  are right — Phase 9 reads it.
+- **The dev badge.** A silent fallback is indistinguishable from a working
+  product — with no API key every triage still answers. The card carries a
+  small line saying which path served it and why (`no ANTHROPIC_API_KEY`,
+  `timeout`, `the reply failed validation`…). It shows in development, and
+  anywhere with `?debug=triage` on the URL, because this branch deploys to
+  production and a strict production check would hide it exactly where it is
+  needed. Ordinary visitors never see it.
 
 `lib/mock/` — `activityFeed.ts` (becomes a Supabase realtime subscription in
 Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in
