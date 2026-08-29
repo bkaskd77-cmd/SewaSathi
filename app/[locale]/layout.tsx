@@ -33,10 +33,16 @@ const display = Fraunces({
   variable: "--font-display",
 });
 
-// Nepali copy renders in Devanagari; `:lang(ne)` in globals.css picks this up,
-// and on /ne that is the whole document. Still not preloaded — an English
-// visitor should not pay for a face they will never see, and `display: swap`
-// means the Nepali page paints in the fallback rather than not at all.
+// Nepali copy renders in Devanagari. The rule that applies it is scoped to
+// `:root[lang="ne"]` in globals.css, so an English page never pulls this file
+// — it was 119 kB, the largest asset on the page, and it was being downloaded
+// to render two glyphs in the language toggle.
+//
+// On /ne it is still 119 kB of the 207 kB the page spends on type, and worth
+// about six Lighthouse points on mobile. Dropping to a single weight halves it
+// (see the note in CLAUDE.md); doing better than that means self-hosting a
+// glyph-subset built from messages/ne.json, which is a real build step and a
+// decision for a later phase.
 const nepali = Noto_Sans_Devanagari({
   subsets: ["devanagari"],
   weight: ["400", "600"],

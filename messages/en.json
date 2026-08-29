@@ -291,7 +291,15 @@
         }
       }
     },
-    "ward": "Ward {n}"
+    "ward": "Ward {n}",
+    "searchLabel": "Search services",
+    "searchPlaceholder": "plumber, carpenter, leaking tap…",
+    "searchSubmit": "Search",
+    "searchClear": "Clear",
+    "searchResults": "{n} of {total} services match “{query}”",
+    "searchEmptyTitle": "Nothing matches “{query}”",
+    "searchEmptyBody": "We may not cover it yet, or it may go by another name here. Describe the problem on the home page instead and we’ll work out who you need.",
+    "searchEmptyAction": "Describe the problem"
   },
   "auth": {
     "login": {

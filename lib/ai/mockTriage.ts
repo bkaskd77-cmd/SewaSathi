@@ -17,14 +17,16 @@
  * the generic result would have had a fallback in name only. `includes` on a
  * lower-cased string works unchanged — Devanagari has no case.
  *
- * `KEYWORD_RULES` is also the source of the price bands quoted to Claude
- * (lib/ai/price-bands.ts). The bands in the prompt are derived from these
- * numbers rather than copied, so the two cannot drift apart.
+ * The trade words people type — मिस्त्री, कालिगड, plumber, धारा — are not in
+ * the lists below. They live in lib/data/synonyms.ts, shared with the catalogue
+ * search, and are folded in as rules further down. A word somebody turned out
+ * to use gets added in one place and both surfaces learn it.
  */
 
 import type { Locale } from "@/i18n/routing";
 import type { TriageCopy } from "@/lib/ai/copy";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
+import { CATEGORY_ALIASES } from "@/lib/data/synonyms";
 
 export type Urgency = "emergency" | "soon" | "routine";
 
@@ -51,7 +53,7 @@ export type KeywordRule = {
   explanationKey: string;
 };
 
-export const KEYWORD_RULES: KeywordRule[] = [
+const PROBLEM_RULES: KeywordRule[] = [
   {
     category: "plumbing",
     keywords: [
@@ -418,6 +420,36 @@ export const GENERIC_RULE = {
   priceRangeNPR: [900, 4000] as [number, number],
   explanationKey: "generic",
 };
+
+/**
+ * The rule a trade word points at.
+ *
+ * An alias names a *trade*, not a problem — "मिस्त्री" says who you want, not
+ * what broke. So it borrows the pricing and wording of that category's ordinary
+ * rule, never its emergency one: somebody typing "plumber" has not told us
+ * anything is on fire, and answering as though they had would be a lie in the
+ * one direction this product must not lie.
+ */
+function defaultRuleFor(category: string): KeywordRule | undefined {
+  return PROBLEM_RULES.find(
+    (rule) => rule.category === category && rule.urgency !== "emergency",
+  );
+}
+
+/**
+ * Trade words folded in as rules of their own.
+ *
+ * Doing it here rather than as a second lookup means the existing
+ * longest-match-wins scan handles them with no new branching — and it is what
+ * makes "फर्निचर मर्मत" resolve to carpentry rather than to the bare "मर्मत"
+ * it contains.
+ */
+const ALIAS_RULES: KeywordRule[] = CATEGORY_ALIASES.flatMap((alias) => {
+  const base = defaultRuleFor(alias.categories[0]);
+  return base ? [{ ...base, keywords: [alias.term.toLowerCase()] }] : [];
+});
+
+export const KEYWORD_RULES: KeywordRule[] = [...PROBLEM_RULES, ...ALIAS_RULES];
 
 export function triageProblem(input: string, copy: TriageCopy): TriageResult {
   const text = input.toLowerCase().trim();

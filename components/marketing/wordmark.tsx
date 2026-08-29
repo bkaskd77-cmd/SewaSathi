@@ -19,7 +19,11 @@ export function Wordmark({
 }) {
   const t = useTranslations("common");
   const inner = (
+    // lang="en": the wordmark is a name, not a word, and it stays in the
+    // brand serif on a Nepali page rather than being swapped for the
+    // Devanagari face along with the headings around it.
     <span
+      lang="en"
       className={cn(
         "font-display text-display-sm font-bold tracking-tight",
         className,

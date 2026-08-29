@@ -196,8 +196,51 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Devanagari runs get the Nepali face automatically, at any nesting depth. */
-  :lang(ne) {
+  /*
+   * The Devanagari face, on the pages that are actually in Devanagari.
+   *
+   * Scoped to the document language, not to `:lang(ne)` anywhere. The bare
+   * selector cost every English page a 119 kB webfont download — the largest
+   * asset on the page, larger than all the JavaScript put together — to render
+   * the two glyphs in the language toggle and one line of tagline. Those now
+   * fall back to whatever Devanagari face the device already has, which is
+   * every Android, iOS and Windows machine in this market.
+   *
+   * On /ne the whole document is Devanagari and the webfont is worth its
+   * weight, so it applies to everything — except the runs explicitly marked as
+   * English (the other-language tagline, the wordmark), which keep the brand
+   * Latin faces.
+   */
+  :root[lang="ne"] body {
+    @apply font-nepali;
+  }
+
+  /*
+   * Fraunces carries no Devanagari, so on a Nepali page the display face has
+   * to lose to the Nepali one — otherwise every heading falls back per
+   * character to whatever the device happens to have, which is the one place
+   * the type would visibly break. Specificity, not layer order, is what makes
+   * this beat the `font-display` utility.
+   */
+  :root[lang="ne"] .font-display:not(:lang(en)) {
+    font-family: var(--font-nepali), var(--font-sans), sans-serif;
+  }
+
+  /*
+   * Runs deliberately marked as English keep the brand Latin faces — but not
+   * at the cost of the display face. Without the `:not`, this selector outranks
+   * the `font-display` utility and the wordmark came out in the body grotesk
+   * on every Nepali page.
+   */
+  :root[lang="ne"] :lang(en):not(.font-display) {
+    @apply font-sans;
+  }
+
+  /* The escape hatch, for Devanagari that has to be the brand face on an
+     otherwise English page. Nothing uses it yet; it exists so that reaching
+     for the webfont is a deliberate act rather than a side effect of a
+     `lang` attribute. */
+  .font-devanagari {
     @apply font-nepali;
   }
 }

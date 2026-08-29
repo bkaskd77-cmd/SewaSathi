@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, SearchX } from "lucide-react";
 
+import { CategorySearch } from "@/components/services/category-search";
 import {
   DataSourceBadge,
   dataDebugEnabled,
 } from "@/components/services/data-source-badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { categoryCopy, categoryIcon } from "@/lib/config/services";
 import { getCategories } from "@/lib/data/categories";
 import { getCategoryCounts } from "@/lib/data/providers";
+import { matchCategories } from "@/lib/data/synonyms";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -40,12 +44,61 @@ export default async function ServicesPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const [categories, counts, locale, t] = await Promise.all([
+  const [all, counts, locale, t] = await Promise.all([
     getCategories(),
     getCategoryCounts(),
     getLocale() as Promise<Locale>,
     getTranslations("services"),
   ]);
+
+  const raw = searchParams.q;
+  const query = ((Array.isArray(raw) ? raw[0] : raw) ?? "").trim().slice(0, 80);
+
+  /*
+    Two ways to match, because people arrive with two different words.
+
+    The alias table covers what they call the trade — मिस्त्री, plumber,
+    फर्निचर मर्मत. The display copy covers what we call it, which is what
+    somebody types after reading the page. Neither alone is enough: our own
+    formal names are not what anyone searches for, and the alias table would
+    otherwise have to repeat every category name in both languages.
+  */
+  const matched = query ? matchCategories(query) : [];
+  const needle = query.toLowerCase();
+
+  const copyMatches = (category: (typeof all)[number]) => {
+    const copy = categoryCopy(category, locale);
+    return (
+      category.slug.includes(needle) ||
+      copy.name.toLowerCase().includes(needle) ||
+      copy.descriptor.toLowerCase().includes(needle) ||
+      copy.description.toLowerCase().includes(needle)
+    );
+  };
+
+  /*
+    Results are ordered by relevance, not by the catalogue's own sort order.
+    `matchCategories` already ranks by how specific the matched word was, so
+    "फर्निचर मर्मत" leads with carpentry rather than with whichever of the
+    ambiguous "मर्मत" categories happens to sort first. A copy-only match sorts
+    after every alias match, and keeps the catalogue order among themselves.
+  */
+  const categories = query
+    ? all
+        .filter(
+          (category) =>
+            matched.includes(category.slug) || copyMatches(category),
+        )
+        .map((category, index) => {
+          const rank = matched.indexOf(category.slug);
+          return {
+            category,
+            rank: rank === -1 ? matched.length + index : rank,
+          };
+        })
+        .sort((a, b) => a.rank - b.rank)
+        .map(({ category }) => category)
+    : all;
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -59,7 +112,43 @@ export default async function ServicesPage({
         </p>
       </header>
 
-      <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <CategorySearch query={query || null} />
+
+      {query ? (
+        <p
+          aria-live="polite"
+          className="mt-3 text-caption text-muted-foreground"
+        >
+          {t("searchResults", {
+            n: String(categories.length),
+            total: String(all.length),
+            query,
+          })}
+        </p>
+      ) : null}
+
+      {query && categories.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            icon={SearchX}
+            title={t("searchEmptyTitle", { query })}
+            description={t("searchEmptyBody")}
+            action={
+              <Link
+                href="/#hero-search"
+                className={buttonVariants({
+                  variant: "gold",
+                  className: "btn-tactile",
+                })}
+              >
+                {t("searchEmptyAction")}
+              </Link>
+            }
+          />
+        </div>
+      ) : null}
+
+      <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((category, index) => {
           const Icon = categoryIcon(category.icon);
           const count = counts[category.slug] ?? 0;

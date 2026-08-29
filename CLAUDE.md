@@ -190,6 +190,23 @@ an explicit choice writes the `sajilokaam-locale` cookie and wins after that.
   say. `/design-system` is English in both locales on purpose — a developer
   surface, `noindex`, and no customer reads it.
 
+**The interface word and the search word are different words.** The interface
+says प्राविधिक and सिकर्मी काम; people type मिस्त्री, कालिगड, plumber, धारा,
+फर्निचर मर्मत. `lib/data/synonyms.ts` is the one table that maps what they type
+to what we sell, and both surfaces read it — the catalogue search on
+`/services` and the keyword matcher in `lib/ai/mockTriage.ts`, which folds each
+alias in as a rule of its own so longest-match-wins already handles
+"फर्निचर मर्मत" beating the bare "मर्मत" inside it. A generalist word is
+genuinely ambiguous, so an alias lists several categories most-likely-first:
+search shows all of them, triage takes the head. An alias only ever borrows a
+category's _ordinary_ rule, never its emergency one — "plumber" is not a report
+that anything is on fire. Add a word people turn out to use in that file and
+both surfaces learn it.
+
+`/services` search is a plain `<form method="get">` with no client component at
+all, so a filtered catalogue is a shareable URL and the page still works on a
+phone that never finishes loading a bundle.
+
 Triage answers in the reader's language: the client sends `locale` with the
 request, the prompt's one language instruction comes from `ANSWER_LANGUAGE` in
 `lib/ai/copy.ts`, and the response cache is keyed by locale as well as text.
@@ -284,6 +301,28 @@ utilities layer in `styles/globals.css`.
 Never mount `MotionProvider` globally. `LazyMotion` fetches its features when
 the _provider_ mounts, not when an `m` component renders, so a root-layout
 mount shipped 51 KB of motion code to a landing page that uses none of it.
+
+**Type is the biggest thing on the page, not JavaScript.** Fonts were 207 kB
+against ~90 kB of script, and the Devanagari face alone was 119 kB — the single
+largest asset, downloaded on _English_ pages to render two glyphs in the
+language toggle. The rule that applies it is scoped to `:root[lang="ne"]`
+(styles/globals.css), so English pages never fetch it: mobile Lighthouse on `/`
+went 90 → 97. Before reaching for a JavaScript optimisation, check what the
+fonts are doing — TBT on the landing page is 40 ms, so script execution is not
+what is costing points.
+
+`/ne` still carries all 119 kB and sits at 90. Dropping Noto Sans Devanagari to
+a single weight halves the file and measures 95, at the cost of synthesised
+bold on every Nepali heading — a type decision, not a performance one, so it
+has not been taken. The option that gets both is a self-hosted glyph subset
+built from `messages/ne.json`; that is a build step, and a later phase.
+
+**`buttonVariants` for a button that is only a button.** `components/ui/button`
+is `"use client"` — it needs Radix's Slot for `asChild`. A Server Component that
+just wants the look (a submit button in a GET form, a link styled as a button)
+imports `components/ui/button-variants` instead, which has no React in it.
+Importing the component put 12 kB of Slot and cva runtime on `/services` for
+one search box, and the bundle budget is what caught it.
 
 Lighthouse on the landing page must stay ≥ 90 for performance and 100 for
 accessibility. `/design-system` scores SEO 60 on purpose — it is `noindex`.
