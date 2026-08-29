@@ -18,28 +18,44 @@ export function DataSourceBadge({ enabled }: { enabled: boolean }) {
 
   const sources = readDataSources();
   const rows = (Object.keys(sources) as Array<keyof typeof sources>).filter(
-    (key) => sources[key] !== "unread",
+    (key) => sources[key].source !== "unread",
   );
 
   if (rows.length === 0) return null;
 
-  const anySeed = rows.some((key) => sources[key] === "seed");
+  const anySeed = rows.some((key) => sources[key].source === "seed");
 
   return (
-    <p
+    <div
       data-testid="data-source"
       className={cn(
-        "animate-pop-in mt-8 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border pt-3 text-caption",
+        "animate-pop-in mt-8 border-t border-dashed border-border pt-3 text-caption",
         anySeed ? "text-warning-ink" : "text-muted-foreground",
       )}
     >
-      <span className="font-semibold uppercase tracking-wide">dev</span>
-      {rows.map((key) => (
-        <span key={key}>
-          {key}: <strong className="font-semibold">{sources[key]}</strong>
-        </span>
-      ))}
-    </p>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-semibold uppercase tracking-wide">dev</span>
+        {rows.map((key) => (
+          <span key={key}>
+            {key}:{" "}
+            <strong className="font-semibold">{sources[key].source}</strong>
+          </span>
+        ))}
+      </p>
+
+      {/*
+        The reason, when there is one. "providers: seed" on its own sent us
+        guessing at RLS and at missing columns for a day; the Postgres code is
+        what actually names the problem.
+      */}
+      {rows
+        .filter((key) => sources[key].detail)
+        .map((key) => (
+          <p key={key} className="mt-1 break-words font-mono text-[0.68rem]">
+            {key}: {sources[key].detail}
+          </p>
+        ))}
+    </div>
   );
 }
 

@@ -3,7 +3,11 @@ import "server-only";
 import { cache } from "react";
 
 import { CATEGORY_SEED, type Category } from "@/lib/config/services";
-import { markDataSource } from "@/lib/data/source";
+import {
+  describeError,
+  markDataSource,
+  rethrowFrameworkSignal,
+} from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -68,7 +72,7 @@ function fromRow(row: CategoryRow): Category {
  */
 export const getCategories = cache(async (): Promise<Category[]> => {
   if (!hasSupabaseConfig()) {
-    markDataSource("categories", "seed");
+    markDataSource("categories", "seed", "no Supabase URL or anon key");
     return CATEGORY_SEED;
   }
 
@@ -82,15 +86,20 @@ export const getCategories = cache(async (): Promise<Category[]> => {
       .order("sort_order");
 
     if (error || !data || data.length === 0) {
-      markDataSource("categories", "seed");
+      markDataSource(
+        "categories",
+        "seed",
+        error ? describeError(error) : "query returned 0 rows",
+      );
       return CATEGORY_SEED;
     }
 
     markDataSource("categories", "database");
     return (data as CategoryRow[]).map(fromRow);
-  } catch {
+  } catch (thrown) {
+    rethrowFrameworkSignal(thrown);
     // Unreachable database. The catalogue is not worth a 500.
-    markDataSource("categories", "seed");
+    markDataSource("categories", "seed", describeError(thrown));
     return CATEGORY_SEED;
   }
 });

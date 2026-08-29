@@ -4,7 +4,11 @@ import { cache } from "react";
 
 import providerSeed from "@/lib/data/seed/providers.json";
 import reviewSeed from "@/lib/data/seed/reviews.json";
-import { markDataSource } from "@/lib/data/source";
+import {
+  describeError,
+  markDataSource,
+  rethrowFrameworkSignal,
+} from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -179,7 +183,7 @@ const SELECT =
 export const listProviders = cache(
   async (filters: ProviderFilters): Promise<Provider[]> => {
     if (!hasSupabaseConfig()) {
-      markDataSource("providers", "seed");
+      markDataSource("providers", "seed", "no Supabase URL or anon key");
       return seedProviders().filter((p) => matches(p, filters));
     }
 
@@ -201,7 +205,11 @@ export const listProviders = cache(
 
       const { data, error } = await query;
       if (error || !data) {
-        markDataSource("providers", "seed");
+        markDataSource(
+          "providers",
+          "seed",
+          error ? describeError(error) : "query returned no data",
+        );
         return seedProviders().filter((p) => matches(p, filters));
       }
 
@@ -212,8 +220,9 @@ export const listProviders = cache(
       return filters.minRating
         ? providers.filter((p) => p.stats.ratingAvg >= (filters.minRating ?? 0))
         : providers;
-    } catch {
-      markDataSource("providers", "seed");
+    } catch (thrown) {
+      rethrowFrameworkSignal(thrown);
+      markDataSource("providers", "seed", describeError(thrown));
       return seedProviders().filter((p) => matches(p, filters));
     }
   },
@@ -222,7 +231,7 @@ export const listProviders = cache(
 export const getProvider = cache(
   async (id: string): Promise<Provider | null> => {
     if (!hasSupabaseConfig()) {
-      markDataSource("providers", "seed");
+      markDataSource("providers", "seed", "no Supabase URL or anon key");
       return seedProviders().find((p) => p.id === id) ?? null;
     }
 
@@ -236,14 +245,19 @@ export const getProvider = cache(
         .maybeSingle();
 
       if (error || !data) {
-        markDataSource("providers", "seed");
+        markDataSource(
+          "providers",
+          "seed",
+          error ? describeError(error) : "no row for that id",
+        );
         return seedProviders().find((p) => p.id === id) ?? null;
       }
 
       markDataSource("providers", "database");
       return fromRow(data as unknown as ProviderRow);
-    } catch {
-      markDataSource("providers", "seed");
+    } catch (thrown) {
+      rethrowFrameworkSignal(thrown);
+      markDataSource("providers", "seed", describeError(thrown));
       return seedProviders().find((p) => p.id === id) ?? null;
     }
   },
@@ -256,7 +270,7 @@ export const getProviderReviews = cache(
     ).sort((a, b) => a.daysAgo - b.daysAgo);
 
     if (!hasSupabaseConfig()) {
-      markDataSource("reviews", "seed");
+      markDataSource("reviews", "seed", "no Supabase URL or anon key");
       return fallback;
     }
 
@@ -269,7 +283,11 @@ export const getProviderReviews = cache(
         .limit(10);
 
       if (error || !data || data.length === 0) {
-        markDataSource("reviews", "seed");
+        markDataSource(
+          "reviews",
+          "seed",
+          error ? describeError(error) : "query returned 0 rows",
+        );
         return fallback;
       }
 
@@ -288,8 +306,9 @@ export const getProviderReviews = cache(
           ),
         ),
       }));
-    } catch {
-      markDataSource("reviews", "seed");
+    } catch (thrown) {
+      rethrowFrameworkSignal(thrown);
+      markDataSource("reviews", "seed", describeError(thrown));
       return fallback;
     }
   },
@@ -301,7 +320,7 @@ export const getCategoryCounts = cache(
     const counts: Record<string, number> = {};
 
     if (!hasSupabaseConfig()) {
-      markDataSource("providers", "seed");
+      markDataSource("providers", "seed", "no Supabase URL or anon key");
       for (const provider of seedProviders()) {
         for (const slug of provider.categories) {
           counts[slug] = (counts[slug] ?? 0) + 1;
@@ -315,7 +334,8 @@ export const getCategoryCounts = cache(
         .from("provider_categories")
         .select("category_slug");
 
-      if (error || !data) throw new Error("no counts");
+      if (error) throw error;
+      if (!data) throw new Error("provider_categories returned no data");
 
       markDataSource("providers", "database");
       for (const row of data) {
@@ -323,8 +343,9 @@ export const getCategoryCounts = cache(
         counts[slug] = (counts[slug] ?? 0) + 1;
       }
       return counts;
-    } catch {
-      markDataSource("providers", "seed");
+    } catch (thrown) {
+      rethrowFrameworkSignal(thrown);
+      markDataSource("providers", "seed", describeError(thrown));
       for (const provider of seedProviders()) {
         for (const slug of provider.categories) {
           counts[slug] = (counts[slug] ?? 0) + 1;
