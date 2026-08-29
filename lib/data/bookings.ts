@@ -3,67 +3,75 @@ import "server-only";
 import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
-import { AREA_KEYS } from "@/lib/config/areas";
-import { CATEGORY_SEED } from "@/lib/config/services";
+import { isValidSlot } from "@/lib/booking/schedule";
+import {
+  customerCanCancel,
+  isBookingStatus,
+  type BookingStatus,
+} from "@/lib/booking/status";
+import { getCategory } from "@/lib/data/categories";
+import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Bookings — the first thing in this product that is a promise to a person.
+ * Bookings.
  *
  * Everything here goes through the RLS-scoped client, never the service role.
- * The policy on `bookings` is what actually guarantees a customer can only
- * read and write their own; doing the check in TypeScript as well would be a
- * second source of truth that can drift from the first.
+ * The policies on `bookings` are what actually guarantee a customer touches
+ * only their own; repeating that check in TypeScript would be a second source
+ * of truth that can drift from the first.
  *
- * Two rules this module exists to enforce:
+ * What this module is responsible for that the database cannot be:
  *
- * - **The quote is frozen at booking time.** `quoted_min`/`quoted_max` are
- *   written from the category's band as it stands now, and every screen reads
- *   them back from the row rather than from `categories`. Repricing a service
- *   next month must not rewrite what somebody already agreed to.
- * - **The customer's contact details are copied, not joined.** Changing your
- *   account phone number later must not redirect a professional who is already
- *   on the way.
+ * - Rejecting a booking for an inactive category or an unavailable provider,
+ *   because "is this still for sale" is a product question.
+ * - Rejecting a time we would not have offered, using the same slot function
+ *   the picker renders from.
+ * - Freezing the quote onto the row.
+ *
+ * What it deliberately leaves to the database: who may read what, and which
+ * status may follow which. Both are enforced by policy and trigger, so no code
+ * path — including a future one nobody has written yet — can go around them.
  */
 
-export type BookingStatus =
-  | "pending"
-  | "confirmed"
-  | "on_the_way"
-  | "completed"
-  | "cancelled";
-
 export type Urgency = "emergency" | "soon" | "routine";
+export type PaymentMethod = "cash" | "esewa" | "khalti";
 
 export type Booking = {
   id: string;
   reference: string;
   categorySlug: string;
   providerId: string | null;
+  addressId: string;
   status: BookingStatus;
   urgency: Urgency;
-  /** Null means "as soon as possible" — the default, and the common case. */
+  description: string;
+  photoUrl: string | null;
+  /** Null means as soon as possible — the default and the common case. */
   scheduledFor: string | null;
-  areaKey: string;
-  addressLine: string;
-  landmark: string | null;
-  contactPhone: string;
-  contactName: string;
-  notes: string | null;
   quotedMin: number;
   quotedMax: number;
-  finalPrice: number | null;
+  finalAmount: number | null;
+  paymentMethod: PaymentMethod;
+  paymentStatus: string;
   createdAt: string;
+  acceptedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
 };
 
-/** Field errors keyed to the form. Values are message-catalogue keys. */
+/** Field errors keyed to the flow's steps. Values are message-catalogue keys. */
 export type BookingErrors = Partial<
   Record<
-    "addressLine" | "landmark" | "notes" | "scheduledFor" | "area" | "form",
+    | "description"
+    | "category"
+    | "provider"
+    | "address"
+    | "scheduledFor"
+    | "payment"
+    | "form",
     string
   >
 >;
@@ -72,16 +80,14 @@ export type CreateBookingResult =
   | { ok: true; reference: string; id: string }
   | { ok: false; errors: BookingErrors };
 
-const CATEGORY_SLUGS = CATEGORY_SEED.map((c) => c.slug);
-
 /**
- * Unambiguous down a phone line: no 0/O, no 1/I. Somebody is going to read
- * this out to a professional standing at the wrong gate.
+ * Unambiguous down a phone line: no 0/O, no 1/I. Somebody is going to read one
+ * of these out to a professional standing at the wrong gate.
  */
 const REFERENCE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 function makeReference(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
   let out = "";
   // Indexed rather than iterated: the tsconfig target predates downlevel
   // iteration of typed arrays, and this is not worth moving it for.
@@ -91,83 +97,61 @@ function makeReference(): string {
   return `SK-${out}`;
 }
 
-const schema = z.object({
-  category: z.string().refine((v) => CATEGORY_SLUGS.includes(v)),
-  provider: z.string().uuid().nullable().optional(),
-  urgency: z.enum(["emergency", "soon", "routine"]).default("routine"),
-  area: z.string().refine((v) => AREA_KEYS.includes(v)),
-  addressLine: z.string().trim().min(4).max(160),
-  landmark: z.string().trim().max(120).optional(),
-  notes: z.string().trim().max(600).optional(),
-  /** Empty string means ASAP, which is a choice and not a missing value. */
-  scheduledFor: z.string().trim().optional(),
-});
-
 export type BookingInput = {
   category: string;
   provider?: string | null;
   urgency?: string;
-  area: string;
-  addressLine: string;
-  landmark?: string;
-  notes?: string;
-  scheduledFor?: string;
+  addressId: string;
+  description: string;
+  photoUrl?: string | null;
+  /** ISO instant of a chosen slot, or empty for as-soon-as-possible. */
+  scheduledFor?: string | null;
+  paymentMethod?: string;
+  triageLogId?: string | null;
 };
 
-/**
- * A scheduled slot has to be in the future and inside the window we can
- * actually staff. Thirty days is not a policy decision so much as a guard: a
- * date picker with no ceiling collects bookings for next year.
- */
-function parseScheduledFor(value: string | undefined): {
-  ok: boolean;
-  iso: string | null;
-} {
-  if (!value) return { ok: true, iso: null };
-  const when = new Date(value);
-  if (Number.isNaN(when.getTime())) return { ok: false, iso: null };
+const schema = z.object({
+  category: z.string().min(1),
+  provider: z.string().uuid().nullish(),
+  urgency: z.enum(["emergency", "soon", "routine"]).default("routine"),
+  addressId: z.string().uuid(),
+  description: z.string().trim().min(4).max(1000),
+  photoUrl: z.string().url().max(2000).nullish(),
+  paymentMethod: z.enum(["cash", "esewa", "khalti"]).default("cash"),
+  triageLogId: z.string().uuid().nullish(),
+});
 
-  const now = Date.now();
-  // A small grace window, because the customer's clock is not ours and a slot
-  // chosen thirty seconds ago should not be rejected as "in the past".
-  if (when.getTime() < now - 5 * 60_000) return { ok: false, iso: null };
-  if (when.getTime() > now + 30 * 24 * 60 * 60_000)
-    return { ok: false, iso: null };
-
-  return { ok: true, iso: when.toISOString() };
-}
+const COLUMNS =
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, payment_method, payment_status, created_at, accepted_at, completed_at, cancelled_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
+  const status = row.status as string;
   return {
     id: row.id as string,
     reference: row.reference as string,
     categorySlug: row.category_slug as string,
     providerId: (row.provider_id as string | null) ?? null,
-    status: row.status as BookingStatus,
+    addressId: row.address_id as string,
+    status: isBookingStatus(status) ? status : "pending",
     urgency: row.urgency as Urgency,
+    description: row.description as string,
+    photoUrl: (row.photo_url as string | null) ?? null,
     scheduledFor: (row.scheduled_for as string | null) ?? null,
-    areaKey: row.area_key as string,
-    addressLine: row.address_line as string,
-    landmark: (row.landmark as string | null) ?? null,
-    contactPhone: row.contact_phone as string,
-    contactName: row.contact_name as string,
-    notes: (row.notes as string | null) ?? null,
     quotedMin: row.quoted_min as number,
     quotedMax: row.quoted_max as number,
-    finalPrice: (row.final_price as number | null) ?? null,
+    finalAmount: (row.final_amount as number | null) ?? null,
+    paymentMethod: row.payment_method as PaymentMethod,
+    paymentStatus: row.payment_status as string,
     createdAt: row.created_at as string,
+    acceptedAt: (row.accepted_at as string | null) ?? null,
     completedAt: (row.completed_at as string | null) ?? null,
     cancelledAt: (row.cancelled_at as string | null) ?? null,
   };
 }
 
-const COLUMNS =
-  "id, reference, category_slug, provider_id, status, urgency, scheduled_for, area_key, address_line, landmark, contact_phone, contact_name, notes, quoted_min, quoted_max, final_price, created_at, completed_at, cancelled_at";
-
 export async function createBooking(
   input: BookingInput,
-  customer: { id: string; fullName: string | null; phone: string | null },
-  quote: { min: number; max: number },
+  customerId: string,
   locale: Locale,
 ): Promise<CreateBookingResult> {
   const errors: BookingErrors = {};
@@ -176,26 +160,39 @@ export async function createBooking(
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const field = issue.path[0];
-      if (field === "addressLine") errors.addressLine = "addressTooShort";
-      if (field === "landmark") errors.landmark = "landmarkTooLong";
-      if (field === "notes") errors.notes = "notesTooLong";
-      if (field === "area") errors.area = "pickArea";
-      // A bad category or provider id cannot come from the form; it is a
-      // crafted POST, and there is no field to hang the message on.
-      if (field === "category" || field === "provider") errors.form = "badRequest";
+      if (field === "description") errors.description = "describeTheProblem";
+      if (field === "addressId") errors.address = "pickAddress";
+      if (field === "paymentMethod") errors.payment = "pickPayment";
+      if (field === "category" || field === "provider" || field === "photoUrl") {
+        errors.form = "badRequest";
+      }
     }
   }
 
-  const when = parseScheduledFor(input.scheduledFor);
-  if (!when.ok) errors.scheduledFor = "timeOutOfRange";
+  // A time we would not have offered is refused with the same function the
+  // picker renders from, so the list and the validator cannot drift apart.
+  const scheduledFor = input.scheduledFor?.trim() || null;
+  if (scheduledFor && !isValidSlot(scheduledFor)) {
+    errors.scheduledFor = "timeUnavailable";
+  }
 
-  // Nobody can be reached without a number, and the account is where it comes
-  // from. This is unreachable through the UI — the phone is how you sign in —
-  // but a booking with no way to call the customer is not a booking.
-  if (!customer.phone) errors.form = "noPhoneOnAccount";
+  if (Object.keys(errors).length > 0 || !parsed.success) {
+    return { ok: false, errors };
+  }
 
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
-  if (!parsed.success || !customer.phone) return { ok: false, errors };
+  // Is this still something we sell? The category could have been retired
+  // between the triage that suggested it and the confirm button.
+  const category = await getCategory(parsed.data.category);
+  if (!category) return { ok: false, errors: { category: "categoryUnavailable" } };
+
+  // Is the chosen professional still taking work? Booking someone who has gone
+  // unavailable is a job that sits pending until it times out.
+  if (parsed.data.provider) {
+    const provider = await getProvider(parsed.data.provider);
+    if (!provider || !provider.categories.includes(category.slug)) {
+      return { ok: false, errors: { provider: "providerUnavailable" } };
+    }
+  }
 
   if (!hasSupabaseConfig()) {
     console.warn("[bookings] no Supabase config — booking not stored");
@@ -204,28 +201,27 @@ export async function createBooking(
 
   const supabase = createClient();
 
-  // One retry, because the only way this collides is the 1-in-a-billion
-  // reference clash, and a customer should never see that as an error.
+  // One retry, because the only way this collides is a reference clash, and a
+  // customer should never see that as an error.
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const reference = makeReference();
     try {
       const { data, error } = await supabase
         .from("bookings")
         .insert({
-          reference,
-          customer_id: customer.id,
+          reference: makeReference(),
+          customer_id: customerId,
           provider_id: parsed.data.provider || null,
-          category_slug: parsed.data.category,
+          category_slug: category.slug,
+          address_id: parsed.data.addressId,
+          description: parsed.data.description,
+          photo_url: parsed.data.photoUrl || null,
           urgency: parsed.data.urgency,
-          scheduled_for: when.iso,
-          area_key: parsed.data.area,
-          address_line: parsed.data.addressLine,
-          landmark: parsed.data.landmark || null,
-          contact_phone: customer.phone,
-          contact_name: customer.fullName?.trim() || "—",
-          notes: parsed.data.notes || null,
-          quoted_min: quote.min,
-          quoted_max: quote.max,
+          scheduled_for: scheduledFor,
+          // Frozen here, on purpose. See the note at the top of the file.
+          quoted_min: category.basePriceMin,
+          quoted_max: category.basePriceMax,
+          payment_method: parsed.data.paymentMethod,
+          triage_log_id: parsed.data.triageLogId || null,
           locale,
         })
         .select("id, reference")
@@ -240,7 +236,7 @@ export async function createBooking(
       }
 
       // 23505 is unique_violation — the reference clashed. Anything else is
-      // real and should not be retried.
+      // real and must not be retried.
       if (error && (error as { code?: string }).code !== "23505") {
         console.error(`[bookings] insert failed — ${describeError(error)}`);
         return { ok: false, errors: { form: "saveFailed" } };
@@ -258,10 +254,8 @@ export async function createBooking(
 /**
  * The signed-in customer's bookings, newest first.
  *
- * No seed fallback, unlike categories and providers. An empty list is a real
- * and correct answer for a new customer, and inventing rows for somebody's own
- * booking history would be a lie about their own life rather than a gap in a
- * catalogue.
+ * No seed fallback, unlike categories and providers: an empty list is a real
+ * and correct answer for a new customer.
  */
 export async function listBookings(): Promise<Booking[]> {
   if (!hasSupabaseConfig()) return [];
@@ -277,7 +271,9 @@ export async function listBookings(): Promise<Booking[]> {
       console.error(`[bookings] list failed — ${describeError(error)}`);
       return [];
     }
-    return (data ?? []).map((row) => rowToBooking(row as Record<string, unknown>));
+    return (data ?? []).map((row) =>
+      rowToBooking(row as Record<string, unknown>),
+    );
   } catch (thrown) {
     console.error(`[bookings] list threw — ${describeError(thrown)}`);
     return [];
@@ -285,7 +281,9 @@ export async function listBookings(): Promise<Booking[]> {
 }
 
 /** One booking, by id or by the reference a customer reads off a screen. */
-export async function getBooking(idOrReference: string): Promise<Booking | null> {
+export async function getBooking(
+  idOrReference: string,
+): Promise<Booking | null> {
   if (!hasSupabaseConfig()) return null;
 
   const isUuid =
@@ -311,12 +309,45 @@ export async function getBooking(idOrReference: string): Promise<Booking | null>
   }
 }
 
+export type StatusEvent = {
+  fromStatus: string | null;
+  toStatus: string;
+  changedByRole: string;
+  createdAt: string;
+};
+
+/** What happened to this booking, oldest first. Phase 11 reads this too. */
+export async function getBookingHistory(
+  bookingId: string,
+): Promise<StatusEvent[]> {
+  if (!hasSupabaseConfig()) return [];
+  try {
+    const { data, error } = await createClient()
+      .from("booking_status_history")
+      .select("from_status, to_status, changed_by_role, created_at")
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: true });
+
+    if (error || !data) return [];
+    return data.map((row) => ({
+      fromStatus: (row.from_status as string | null) ?? null,
+      toStatus: row.to_status as string,
+      changedByRole: row.changed_by_role as string,
+      createdAt: row.created_at as string,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Cancel, which is the only status change a customer may make.
+ * Cancel — the only status change a customer may make.
  *
- * The RLS policy is what enforces "only while pending or confirmed" — the
- * `.in()` here makes the failure legible rather than letting the policy return
- * a silent zero-row update.
+ * Three things have to agree for this to work, and all three are deliberate:
+ * the RLS policy restricts which rows may be updated at all, the transition
+ * trigger rejects an illegal target status, and `customerCanCancel` here keeps
+ * the button off the screen in the first place. The check below makes a
+ * refusal legible instead of letting the policy return a silent zero rows.
  */
 export async function cancelBooking(
   id: string,
@@ -325,16 +356,20 @@ export async function cancelBooking(
   if (!hasSupabaseConfig()) return { ok: false };
 
   try {
-    const { data, error } = await createClient()
+    const supabase = createClient();
+
+    const current = await getBooking(id);
+    if (!current) return { ok: false };
+    if (!customerCanCancel(current.status)) return { ok: false };
+
+    const { data, error } = await supabase
       .from("bookings")
       .update({
         status: "cancelled",
-        cancelled_at: new Date().toISOString(),
         cancelled_by: "customer",
         cancellation_reason: reason?.trim().slice(0, 300) || null,
       })
       .eq("id", id)
-      .in("status", ["pending", "confirmed"])
       .select("id");
 
     if (error) {

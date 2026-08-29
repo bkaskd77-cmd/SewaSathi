@@ -102,6 +102,42 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];
       };
+      addresses: {
+        Row: {
+          id: string;
+          profile_id: string;
+          label: string;
+          area_key: string;
+          city: string;
+          ward_number: number;
+          tole: string;
+          landmark: string;
+          directions_note: string | null;
+          lat: number | null;
+          lng: number | null;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          label?: string;
+          area_key: string;
+          city: string;
+          ward_number: number;
+          tole: string;
+          landmark: string;
+          directions_note?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["addresses"]["Insert"]>;
+        Relationships: [];
+      };
       bookings: {
         Row: {
           id: string;
@@ -109,26 +145,29 @@ export type Database = {
           customer_id: string;
           provider_id: string | null;
           category_slug: string;
-          status: string;
+          address_id: string;
+          description: string;
+          photo_url: string | null;
           urgency: string;
           scheduled_for: string | null;
-          area_key: string;
-          address_line: string;
-          landmark: string | null;
-          contact_phone: string;
-          contact_name: string;
-          notes: string | null;
+          status: string;
           quoted_min: number;
           quoted_max: number;
-          final_price: number | null;
-          payment_method: string | null;
+          final_amount: number | null;
+          payment_method: string;
+          payment_status: string;
+          triage_log_id: string | null;
           locale: string;
-          cancelled_by: string | null;
-          cancellation_reason: string | null;
           created_at: string;
           updated_at: string;
+          accepted_at: string | null;
+          en_route_at: string | null;
+          started_at: string | null;
           completed_at: string | null;
           cancelled_at: string | null;
+          no_provider_found_at: string | null;
+          cancelled_by: string | null;
+          cancellation_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -136,28 +175,57 @@ export type Database = {
           customer_id: string;
           provider_id?: string | null;
           category_slug: string;
-          status?: string;
+          address_id: string;
+          description: string;
+          photo_url?: string | null;
           urgency?: string;
           scheduled_for?: string | null;
-          area_key: string;
-          address_line: string;
-          landmark?: string | null;
-          contact_phone: string;
-          contact_name: string;
-          notes?: string | null;
+          status?: string;
           quoted_min: number;
           quoted_max: number;
-          final_price?: number | null;
-          payment_method?: string | null;
+          final_amount?: number | null;
+          payment_method?: string;
+          payment_status?: string;
+          triage_log_id?: string | null;
           locale?: string;
-          cancelled_by?: string | null;
-          cancellation_reason?: string | null;
           created_at?: string;
           updated_at?: string;
+          accepted_at?: string | null;
+          en_route_at?: string | null;
+          started_at?: string | null;
           completed_at?: string | null;
           cancelled_at?: string | null;
+          no_provider_found_at?: string | null;
+          cancelled_by?: string | null;
+          cancellation_reason?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
+        Relationships: [];
+      };
+      booking_status_history: {
+        Row: {
+          id: string;
+          booking_id: string;
+          from_status: string | null;
+          to_status: string;
+          changed_by: string | null;
+          changed_by_role: string;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          from_status?: string | null;
+          to_status: string;
+          changed_by?: string | null;
+          changed_by_role?: string;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["booking_status_history"]["Insert"]
+        >;
         Relationships: [];
       };
       provider_leads: {
