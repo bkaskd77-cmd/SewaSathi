@@ -434,5 +434,42 @@
     "contents": "Contents",
     "draftTitle": "First draft — not yet reviewed by a lawyer",
     "draftBody": "This document describes how SajiloKaam actually works today, but it has not been checked against Nepali consumer, privacy or e-commerce law. We are showing it rather than hiding it, because a page you cannot read is worse than a page marked as unfinished. It will be replaced by a reviewed version before launch."
+  },
+  "join": {
+    "eyebrow": "For Professionals",
+    "title": "Join as a professional",
+    "lead": "Tell us what you do and where you work. We will call you back to talk it through — there is nothing to pay and nothing to sign here.",
+    "benefits": {
+      "payouts": "Paid out weekly",
+      "hours": "You choose your own hours",
+      "verification": "Verification is free"
+    },
+    "nameLabel": "Your name",
+    "namePlaceholder": "e.g. Ramesh Tamang",
+    "phoneLabel": "Mobile number",
+    "tradeLabel": "What do you do?",
+    "tradePlaceholder": "Choose your trade",
+    "areaLabel": "Where do you work?",
+    "areaPlaceholder": "Choose your main area",
+    "yearsLabel": "Years of experience",
+    "noteLabel": "Anything else? (optional)",
+    "notePlaceholder": "Tools you own, other trades, when you are free",
+    "submit": "Send my details",
+    "submitting": "Sending…",
+    "successTitle": "Got it — we will call you",
+    "successBody": "Someone from our team will ring the number you gave us, usually within two working days. Keep your citizenship or licence handy for that call.",
+    "privacyNote": "We use these details only to contact you about joining. Nothing is published until you are verified and you have agreed to it.",
+    "errors": {
+      "nameTooShort": "Please enter your name.",
+      "pickTrade": "Choose the trade you work in.",
+      "pickArea": "Choose the area you mainly work in.",
+      "yearsRange": "Enter a number between 0 and 60.",
+      "saveFailed": "We couldn't save that just now. Try again, or call us instead.",
+      "enterMobile": "Enter your mobile number.",
+      "landline": "That's a landline. We can only text a mobile.",
+      "prefix": "Mobile numbers here start 97 or 98.",
+      "tooShort": "Too short — a mobile number is 10 digits.",
+      "tooLong": "Too long — a mobile number is 10 digits."
+    }
   }
 }

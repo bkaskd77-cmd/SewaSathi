@@ -102,6 +102,36 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];
       };
+      provider_leads: {
+        Row: {
+          id: string;
+          full_name: string;
+          phone: string;
+          category_slug: string;
+          area_key: string;
+          years_experience: number;
+          note: string | null;
+          locale: string;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          full_name: string;
+          phone: string;
+          category_slug: string;
+          area_key: string;
+          years_experience: number;
+          note?: string | null;
+          locale?: string;
+          status?: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_leads"]["Insert"]
+        >;
+        Relationships: [];
+      };
       providers: {
         Row: {
           id: string;
