@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/navigation";
 import { site } from "@/lib/config/site";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ export function Wordmark({
   className?: string;
   asLink?: boolean;
 }) {
+  const t = useTranslations("common");
   const inner = (
     <span
       className={cn(
@@ -34,7 +36,7 @@ export function Wordmark({
     <Link
       href="/"
       className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
-      aria-label={`${site.name} — home`}
+      aria-label={t("wordmarkHome", { name: site.name })}
     >
       {inner}
     </Link>

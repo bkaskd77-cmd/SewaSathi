@@ -19,7 +19,7 @@ import process from "node:process";
 const ROOT = process.cwd();
 const OUT = path.join(
   ROOT,
-  "supabase/migrations/20260829000002_services_seed.sql",
+  "supabase/migrations/20260830000002_services_seed.sql",
 );
 
 const read = (file) =>
@@ -52,16 +52,27 @@ lines.push(`-- GENERATED FILE — do not edit.
 lines.push("-- Categories ------------------------------------------------\n");
 for (const c of categories) {
   lines.push(
-    `insert into public.categories (slug, name_en, name_ne, descriptor, description, cta_label, base_price_min, base_price_max, icon, sort_order)
-values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.description)}, ${q(c.ctaLabel)}, ${c.basePriceMin}, ${c.basePriceMax}, ${q(c.icon)}, ${c.sortOrder})
+    `insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
+values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.descriptorNe)}, ${q(c.description)}, ${q(c.descriptionNe)}, ${q(c.ctaLabel)}, ${q(c.ctaLabelNe)}, ${c.basePriceMin}, ${c.basePriceMax}, ${q(c.icon)}, ${c.sortOrder})
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
-  descriptor = excluded.descriptor, description = excluded.description,
-  cta_label = excluded.cta_label,
+  descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
+  description = excluded.description, description_ne = excluded.description_ne,
+  cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
   icon = excluded.icon, sort_order = excluded.sort_order;\n`,
   );
 }
+
+lines.push(`
+-- Every category now carries its Nepali copy, so the columns added in
+-- 20260830000001 can stop being nullable. Kept here rather than in that
+-- migration because this is the file that fills them.
+alter table public.categories
+  alter column descriptor_ne set not null,
+  alter column description_ne set not null,
+  alter column cta_label_ne set not null;
+`);
 
 lines.push(
   "\n-- Providers (development data) -------------------------------\n",

@@ -9,14 +9,22 @@
  *
  * It is deliberately generous about phrasing because people describe these
  * problems in whatever words they have: "no water", "dhara chaina", "tap not
- * coming".
+ * coming", "पानी आएन".
+ *
+ * Devanagari is in the lists for a reason that only became true with the
+ * Nepali locale: this is what answers when the API key is missing or the
+ * network is gone, and a Nepali reader whose every description fell through to
+ * the generic result would have had a fallback in name only. `includes` on a
+ * lower-cased string works unchanged — Devanagari has no case.
  *
  * `KEYWORD_RULES` is also the source of the price bands quoted to Claude
  * (lib/ai/price-bands.ts). The bands in the prompt are derived from these
  * numbers rather than copied, so the two cannot drift apart.
  */
 
-import { SERVICE_CATEGORIES } from "@/lib/config/services";
+import type { Locale } from "@/i18n/routing";
+import type { TriageCopy } from "@/lib/ai/copy";
+import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 
 export type Urgency = "emergency" | "soon" | "routine";
 
@@ -33,7 +41,14 @@ export type KeywordRule = {
   keywords: string[];
   urgency: Urgency;
   priceRangeNPR: [number, number];
-  explanation: string;
+  /**
+   * Key into the `fallback` namespace of the message catalogue.
+   *
+   * The sentence itself is not stored here because this path answers in
+   * whatever language the person is reading — an English explanation is not a
+   * fallback for a Nepali reader, it is a second failure.
+   */
+  explanationKey: string;
 };
 
 export const KEYWORD_RULES: KeywordRule[] = [
@@ -48,11 +63,16 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "flood",
       "water everywhere",
       "overflowing",
+      "ग्यास चुहि",
+      "ग्यासको गन्ध",
+      "सिलिन्डर चुहि",
+      "फुट्यो",
+      "पानी पोखि",
+      "बाढी",
     ],
     urgency: "emergency",
     priceRangeNPR: [1500, 4500],
-    explanation:
-      "This can cause damage fast, so we'll push you to the front of the queue and send whoever is closest.",
+    explanationKey: "plumbing-emergency",
   },
   {
     category: "plumbing",
@@ -65,11 +85,15 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "faucet",
       "pipe",
       "water coming",
+      "चुहि",
+      "चुहावट",
+      "धारा चुहि",
+      "टपक",
+      "पाइप",
     ],
     urgency: "soon",
     priceRangeNPR: [900, 2200],
-    explanation:
-      "Most leaks are a washer or a joint — usually a single visit, and the plumber will carry the parts.",
+    explanationKey: "plumbing-leak",
   },
   {
     category: "plumbing",
@@ -84,11 +108,16 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "commode",
       "sewage",
       "bathroom smell",
+      "जाम भयो",
+      "जाम",
+      "ढल",
+      "कमोड",
+      "शौचालय",
+      "बेसिन",
     ],
     urgency: "soon",
     priceRangeNPR: [1200, 3000],
-    explanation:
-      "Blockages get worse if you keep using the fixture. A plumber will clear it and check what caused it.",
+    explanationKey: "plumbing-blockage",
   },
   {
     category: "plumbing",
@@ -98,11 +127,16 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "dhara",
       "motor not working",
       "pump",
+      "पानी आएन",
+      "पानी आएको छैन",
+      "धारा आएन",
+      "मोटर चलेन",
+      "पम्प",
+      "pani aayena",
     ],
     urgency: "soon",
     priceRangeNPR: [1000, 2800],
-    explanation:
-      "Usually the pump, the inlet valve or an airlock. The plumber will trace it back from the tank.",
+    explanationKey: "plumbing-water",
   },
   {
     category: "electrical",
@@ -115,11 +149,17 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "smoke",
       "shock",
       "electric shock",
+      "आगो",
+      "धुवाँ",
+      "स्पार्क",
+      "पोलेको गन्ध",
+      "जलेको गन्ध",
+      "करेन्ट लाग्यो",
+      "सर्ट भयो",
     ],
     urgency: "emergency",
     priceRangeNPR: [1500, 4000],
-    explanation:
-      "Treat this as urgent — switch off at the mains if you safely can. We'll dispatch the nearest electrician.",
+    explanationKey: "electrical-emergency",
   },
   {
     category: "electrical",
@@ -138,11 +178,21 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "tripping",
       "inverter",
       "battery",
+      "बत्ती गयो",
+      "बत्ती गएन",
+      "बत्ती बलेन",
+      "बिजुली गयो",
+      "स्विच",
+      "सकेट",
+      "एमसीबी",
+      "फ्युज",
+      "इन्भर्टर",
+      "वायरिङ",
+      "batti gayo",
     ],
     urgency: "soon",
     priceRangeNPR: [800, 2500],
-    explanation:
-      "An electrician will find whether it's the circuit, the fitting or the supply before quoting anything larger.",
+    explanationKey: "electrical-fault",
   },
   {
     category: "ac-servicing",
@@ -155,11 +205,14 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "cooling",
       "gas refill",
       "gas top",
+      "एसी",
+      "चिसो भएन",
+      "चिसो दिएन",
+      "ग्यास भर्न",
     ],
     urgency: "soon",
     priceRangeNPR: [1800, 5500],
-    explanation:
-      "Weak cooling is usually a dirty filter or low gas. Servicing is cheaper; a refill costs more.",
+    explanationKey: "ac-cooling",
   },
   {
     category: "appliance-repair",
@@ -176,11 +229,17 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "not working",
       "not starting",
       "appliance",
+      "फ्रिज",
+      "वासिङ मेसिन",
+      "गिजर",
+      "माइक्रोवेभ",
+      "टिभी",
+      "बिग्रियो",
+      "चलेको छैन",
     ],
     urgency: "soon",
     priceRangeNPR: [1200, 4000],
-    explanation:
-      "The technician diagnoses on site and tells you the part cost before doing any work.",
+    explanationKey: "appliance",
   },
   {
     category: "pest-control",
@@ -198,11 +257,17 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "ants",
       "pest",
       "insects",
+      "साङ्लो",
+      "धमिरा",
+      "उडुस",
+      "मुसा",
+      "लामखुट्टे",
+      "कमिला",
+      "किरा",
     ],
     urgency: "soon",
     priceRangeNPR: [2000, 6000],
-    explanation:
-      "Priced by the size of the flat and the treatment. Most jobs need one visit plus a follow-up.",
+    explanationKey: "pest",
   },
   {
     category: "home-cleaning",
@@ -217,11 +282,16 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "kitchen clean",
       "bathroom clean",
       "sofa",
+      "सरसफाइ",
+      "घर सफा",
+      "सफाइ",
+      "सफा गर्न",
+      "धुलो",
+      "ghar safa",
     ],
     urgency: "routine",
     priceRangeNPR: [1500, 5000],
-    explanation:
-      "Cleaning is booked by hours and flat size, so you'll see the exact price before confirming.",
+    explanationKey: "cleaning",
   },
   {
     category: "carpentry",
@@ -238,11 +308,17 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "carpenter",
       "lock",
       "window",
+      "ढोका",
+      "दराज",
+      "कब्जा",
+      "फर्निचर",
+      "सिकर्मी",
+      "ताल्चा",
+      "झ्याल",
     ],
     urgency: "routine",
     priceRangeNPR: [1000, 3500],
-    explanation:
-      "A carpenter will look at whether it's a repair or a replacement, and price the two separately.",
+    explanationKey: "carpentry",
   },
   {
     category: "painting",
@@ -256,11 +332,15 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "damp patch",
       "peeling",
       "whitewash",
+      "रङरोगन",
+      "रङ लगाउन",
+      "पेन्ट",
+      "भित्ता",
+      "ओसिलो",
     ],
     urgency: "routine",
     priceRangeNPR: [4000, 25000],
-    explanation:
-      "Painting is quoted per square foot after a site visit — the range is wide until someone measures.",
+    explanationKey: "painting",
   },
   {
     category: "water-tank-cleaning",
@@ -272,11 +352,14 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "dirty water",
       "smelly water",
       "algae",
+      "ट्यांकी",
+      "ट्यांकी सफा",
+      "पानी गन्हा",
+      "सम्प",
     ],
     urgency: "routine",
     priceRangeNPR: [1500, 4000],
-    explanation:
-      "Tanks are priced by capacity. Most households do this twice a year.",
+    explanationKey: "tank",
   },
   {
     category: "movers-packers",
@@ -290,11 +373,14 @@ export const KEYWORD_RULES: KeywordRule[] = [
       "relocate",
       "transport",
       "new flat",
+      "सामान सार्न",
+      "घर सर्न",
+      "प्याकिङ",
+      "सिफ्ट",
     ],
     urgency: "routine",
     priceRangeNPR: [5000, 20000],
-    explanation:
-      "Quoted on distance, floor level and how much you're moving — a survey call settles it in minutes.",
+    explanationKey: "movers",
   },
 ];
 
@@ -309,6 +395,14 @@ const URGENT_MARKERS = [
   "tonight",
   "now",
   "quickly",
+  "अहिल्यै",
+  "तुरुन्त",
+  "आजै",
+  "हतार",
+  "छिटो",
+  "abhi",
+  "aaja",
+  "turunta",
 ];
 
 /**
@@ -318,18 +412,23 @@ const URGENT_MARKERS = [
  * cover comes back as this rather than as an invented category the router
  * cannot resolve.
  */
-export const GENERIC_RESULT: TriageResult = {
+export const GENERIC_RULE = {
   category: "plumbing",
-  urgency: "soon",
-  priceRangeNPR: [900, 4000],
-  explanation:
-    "We'll match you with the right professional — tell them the details and they'll confirm the price before starting.",
+  urgency: "soon" as Urgency,
+  priceRangeNPR: [900, 4000] as [number, number],
+  explanationKey: "generic",
 };
 
-export function triageProblem(input: string): TriageResult {
+export function triageProblem(input: string, copy: TriageCopy): TriageResult {
   const text = input.toLowerCase().trim();
+  const generic = (urgency: Urgency = GENERIC_RULE.urgency): TriageResult => ({
+    category: GENERIC_RULE.category,
+    urgency,
+    priceRangeNPR: GENERIC_RULE.priceRangeNPR,
+    explanation: copy.explanations[GENERIC_RULE.explanationKey],
+  });
 
-  if (!text) return GENERIC_RESULT;
+  if (!text) return generic();
 
   // Longest keyword wins, so "ac not cooling" beats a bare "not working".
   let best: { rule: KeywordRule; score: number } | null = null;
@@ -344,11 +443,7 @@ export function triageProblem(input: string): TriageResult {
 
   const isUrgent = URGENT_MARKERS.some((marker) => text.includes(marker));
 
-  if (!best) {
-    return isUrgent
-      ? { ...GENERIC_RESULT, urgency: "emergency" }
-      : GENERIC_RESULT;
-  }
+  if (!best) return generic(isUrgent ? "emergency" : GENERIC_RULE.urgency);
 
   const { rule } = best;
 
@@ -358,13 +453,18 @@ export function triageProblem(input: string): TriageResult {
     urgency:
       isUrgent && rule.urgency !== "emergency" ? "emergency" : rule.urgency,
     priceRangeNPR: rule.priceRangeNPR,
-    explanation: rule.explanation,
+    explanation: copy.explanations[rule.explanationKey],
   };
 }
 
 /** Display name for a category slug, for rendering triage results. */
-export function categoryName(slug: string): string {
-  return SERVICE_CATEGORIES.find((c) => c.slug === slug)?.name ?? "Home repair";
+export function categoryName(
+  slug: string,
+  locale: Locale,
+  fallback: string,
+): string {
+  const category = SERVICE_CATEGORIES.find((c) => c.slug === slug);
+  return category ? categoryCopy(category, locale).name : fallback;
 }
 
 /**
@@ -372,8 +472,11 @@ export function categoryName(slug: string): string {
  * lower-casing `name` — "AC Servicing & Gas Refill" becomes "ac servicing &
  * gas refill", which breaks the acronym and overflows the button.
  */
-export function categoryCtaLabel(slug: string): string {
-  return (
-    SERVICE_CATEGORIES.find((c) => c.slug === slug)?.ctaLabel ?? "home repair"
-  );
+export function categoryCtaLabel(
+  slug: string,
+  locale: Locale,
+  fallback: string,
+): string {
+  const category = SERVICE_CATEGORIES.find((c) => c.slug === slug);
+  return category ? categoryCopy(category, locale).ctaLabel : fallback;
 }

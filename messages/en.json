@@ -1,0 +1,425 @@
+{
+  "meta": {
+    "homeTitle": "SajiloKaam — Verified home help across the Kathmandu Valley.",
+    "homeDescription": "Describe what's broken and get matched with an ID-verified plumber, electrician, cleaner or repair professional — with the price agreed before anyone starts work.",
+    "servicesTitle": "All services",
+    "servicesDescription": "Plumbers, electricians, cleaners and more across Kathmandu, Lalitpur and Bhaktapur — with published price bands and verified professionals.",
+    "categoryTitle": "{category} professionals",
+    "categoryDescription": "{description} Verified professionals across the Kathmandu Valley, {low}–{high}.",
+    "categoryNotFound": "Service not found",
+    "providerTitle": "{name} — {category}",
+    "providerNotFound": "Professional not found",
+    "loginTitle": "Sign in",
+    "loginDescription": "Sign in to SajiloKaam with your mobile number.",
+    "verifyTitle": "Enter your code",
+    "onboardingTitle": "Tell us your name",
+    "bookTitle": "Book a professional",
+    "bookingsTitle": "Your bookings",
+    "accountTitle": "Account",
+    "fallbackProfessional": "Professional"
+  },
+  "common": {
+    "language": "Language",
+    "english": "English",
+    "nepali": "Nepali",
+    "colourTheme": "Colour theme",
+    "themeLight": "Light",
+    "themeSystem": "System",
+    "themeDark": "Dark",
+    "wordmarkHome": "{name} — home",
+    "supportPhone": "+977 9800 000 000",
+    "callSupport": "Call +977 9800 000 000",
+    "from": "from",
+    "typicalRange": "typical range",
+    "priceSeparator": "–",
+    "currencyPrefix": "Rs"
+  },
+  "nav": {
+    "main": "Main",
+    "mobile": "Mobile",
+    "services": "Services",
+    "howItWorks": "How it works",
+    "forProfessionals": "For Professionals",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "bookings": "Bookings",
+    "account": "Account",
+    "signIn": "Sign in",
+    "logOut": "Log out",
+    "bookService": "Book a service"
+  },
+  "home": {
+    "badge": "Now serving the Kathmandu Valley",
+    "heading": "A verified professional at your door, usually within the hour.",
+    "lead": "Tell us what’s wrong. You’ll see the price and who is coming before anyone sets off.",
+    "trust": {
+      "verified": {
+        "label": "ID-verified professionals",
+        "detail": "Every pro checked in person"
+      },
+      "pricing": {
+        "label": "Upfront pricing",
+        "detail": "Agreed before work starts"
+      },
+      "rating": {
+        "label": "Average rating",
+        "detail": "from 10,000+ households"
+      },
+      "coverage": {
+        "label": "Kathmandu Valley",
+        "detail": "Ktm · Lalitpur · Bhaktapur"
+      }
+    },
+    "servicesEyebrow": "Services",
+    "servicesTitle": "Ten trades, one number to call",
+    "servicesLead": "Every category is staffed by professionals we've checked ourselves, with published rates so you know the cost before you book.",
+    "bookedThisWeek": "{n} booked this week",
+    "stepsEyebrow": "How it works",
+    "stepsTitle": "Four steps, no phone tag",
+    "stepsLead": "The part most people worry about — what it will cost — is settled before anyone is dispatched.",
+    "steps": {
+      "describe": {
+        "title": "Describe the problem",
+        "body": "Type it in your own words, or pick a category. No forms, no jargon."
+      },
+      "match": {
+        "title": "Get matched, with a price",
+        "body": "We find a verified pro nearby and show you the price before anyone is sent."
+      },
+      "track": {
+        "title": "Track it live",
+        "body": "See when your professional accepts, sets off, and arrives at your door."
+      },
+      "pay": {
+        "title": "Pay when it's done",
+        "body": "eSewa, Khalti or cash — after the work is finished, not before."
+      }
+    },
+    "prosEyebrow": "For Professionals",
+    "prosTitle": "Steady work, paid out weekly.",
+    "prosLead": "Get jobs near you without chasing customers or haggling over rates. You set your hours, we handle the booking, the price and the payment.",
+    "prosPayouts": "Weekly payouts",
+    "prosHours": "Choose your own hours",
+    "prosVerification": "Free verification",
+    "prosCta": "Join as a professional",
+    "faqEyebrow": "Questions",
+    "faqTitle": "What people ask before their first booking",
+    "faq": {
+      "notHome": {
+        "q": "What if I'm not home when the professional arrives?",
+        "a": "You'll get a call and an SMS when they set off, so you know roughly when to expect them. If your plans change, reschedule from the booking screen up to an hour before — there's no charge. If nobody is home and we weren't told, a small visit fee applies to cover the trip."
+      },
+      "price": {
+        "q": "How is the price decided?",
+        "a": "Every category has a published rate for common jobs, and you see the estimate before you confirm. If the professional finds the job is bigger than described — a burst pipe rather than a dripping tap — they'll explain why and you approve the revised price before they carry on. Nothing gets added to your bill without your say-so."
+      },
+      "cash": {
+        "q": "Can I pay in cash?",
+        "a": "Yes. Cash on completion is fully supported, alongside eSewa and Khalti. You always pay after the job is done. We never ask for payment in advance, and no professional should ever ask you to send money outside the app."
+      },
+      "badWork": {
+        "q": "What if the work isn't done properly?",
+        "a": "Report it from the booking within 48 hours and we'll send someone back to put it right at no extra cost. If it still isn't resolved, we refund the job. Repeat complaints affect a professional's trust score, which is why the scores on their profiles are worth reading."
+      },
+      "checks": {
+        "q": "How do you check the professionals?",
+        "a": "Government ID and a citizenship or licence check before anyone takes a job, plus a skills assessment for the trade they're registering in. Their completion rate and rating come from real finished bookings, not self-reported claims."
+      }
+    }
+  },
+  "footer": {
+    "company": "Company",
+    "about": "About us",
+    "careers": "Careers",
+    "contact": "Contact",
+    "services": "Services",
+    "allServices": "All services",
+    "support": "Support",
+    "help": "Help centre",
+    "trackBooking": "Track a booking",
+    "reportProblem": "Report a problem",
+    "legal": "Legal",
+    "terms": "Terms of service",
+    "privacy": "Privacy policy",
+    "refunds": "Refund policy",
+    "payWith": "Pay with",
+    "cashOnCompletion": "Cash on completion",
+    "copyright": "© {year} {name}. Kathmandu, Nepal."
+  },
+  "triage": {
+    "inputLabel": "What’s broken today?",
+    "placeholder": "Tap is leaking, AC not cooling, need someone to clean the flat…",
+    "submit": "Find help",
+    "addPhoto": "Add a photo",
+    "replacePhoto": "Replace the photo",
+    "removePhoto": "Remove the photo",
+    "photoAlt": "The photo you added",
+    "photoAdded": "Photo added — we’ll read it with your description.",
+    "photoShrinking": "Shrinking the photo…",
+    "photoFailed": "That photo didn't work. Try another.",
+    "commonLabel": "Common:",
+    "quickPicks": {
+      "leak": "Water leak",
+      "power": "Power cut",
+      "today": "Need it today"
+    },
+    "reading": "Reading your description…",
+    "resultLead": "Here’s what we think you need",
+    "findProfessionals": "Find {category} professionals",
+    "urgency": {
+      "emergency": "Emergency",
+      "soon": "Needed soon",
+      "routine": "Routine"
+    },
+    "debug": {
+      "tag": "dev",
+      "servedBy": "served by {path}",
+      "claude": "Claude",
+      "cache": "cache",
+      "fallback": "keyword fallback",
+      "reason": {
+        "cache-hit": "same question within 10 min",
+        "no-api-key": "ANTHROPIC_API_KEY not set",
+        "timeout": "model took over 9.5s",
+        "provider-error": "the API returned an error",
+        "unparseable": "the reply failed validation",
+        "unreachable": "the request never arrived",
+        "rejected": "rate limited or refused"
+      }
+    }
+  },
+  "services": {
+    "eyebrow": "Services",
+    "catalogueTitle": "Everything we send someone for",
+    "catalogueLead": "Ten trades across Kathmandu, Lalitpur and Bhaktapur. Every price below is the band our professionals actually quote inside — the exact figure comes after they have seen the job.",
+    "available": "{count, plural, =0 {Coming to your area soon} one {{n} professional available} other {{n} professionals available}}",
+    "breadcrumb": "Breadcrumb",
+    "showingFor": "Showing {category} professionals {where}",
+    "nearYou": "near you",
+    "inArea": "in {area}",
+    "typicalRangeLabel": "Typical range",
+    "priceConfirmedAfter": "price confirmed after the professional sees the job",
+    "urgency": {
+      "emergency": "needed now",
+      "soon": "needed soon",
+      "routine": "no rush"
+    },
+    "professionals": "Professionals",
+    "resultCount": "{count, plural, one {{n} professional} other {{n} professionals}} {where}",
+    "coveringArea": "covering {area}",
+    "inTheValley": "in the Valley",
+    "sortedForSpeedTitle": "Sorted for speed.",
+    "sortedForSpeedBody": "Because you said this is urgent, whoever can come soonest is first — not whoever has the highest rating.",
+    "emptyAreaTitle": "Nobody free in {area} right now",
+    "emptyAreaBody": "Professionals travel across the Valley, and someone one ward over can usually still come today.",
+    "emptyFiltersTitle": "No one matches those filters",
+    "emptyFiltersBody": "Try loosening a filter — availability and minimum rating are the two that cut a list down fastest.",
+    "searchWholeValley": "Search the whole Valley",
+    "filters": {
+      "region": "Filter professionals",
+      "heading": "Filter",
+      "area": "Area",
+      "anywhere": "Anywhere in the Valley",
+      "availability": "Availability",
+      "anyTime": "Any time",
+      "availableNow": "Available now",
+      "today": "Today",
+      "rating": "Rating",
+      "anyRating": "Any rating",
+      "ratingFrom": "{value} and up",
+      "startingPrice": "Starting price",
+      "anyPrice": "Any price",
+      "upTo": "Up to {price}",
+      "sortBy": "Sort by",
+      "sortRelevance": "Best match",
+      "sortRating": "Highest rated",
+      "sortPrice": "Lowest price",
+      "sortJobs": "Most jobs done",
+      "verifiedOnly": "Verified only",
+      "clear": "Clear"
+    },
+    "card": {
+      "more": "+{n} more",
+      "idVerified": "ID verified",
+      "verificationInProgress": "Verification in progress",
+      "yearsExperience": "{n} years’ experience",
+      "rating": "Rating",
+      "jobsDone": "Jobs done",
+      "respondsIn": "Responds in",
+      "minutes": "~{n} min",
+      "book": "Book {name}",
+      "viewProfile": "View profile"
+    },
+    "availability": {
+      "now": "Available now",
+      "today": "Available today",
+      "scheduled": "By appointment"
+    },
+    "availabilityLong": {
+      "now": "Available now — usually accepts within the hour",
+      "today": "Available today",
+      "scheduled": "By appointment, usually within a few days"
+    },
+    "profile": {
+      "specialisations": "{trades} · {n} years",
+      "verifiedProfessional": "Verified professional",
+      "completion": "Completion",
+      "startingRate": "starting rate",
+      "starting": "starting",
+      "about": "About",
+      "whatWeChecked": "What we checked",
+      "notCompleted": "not completed",
+      "documentsPending": "Their documents are with our verification team now.",
+      "whereTheyWork": "Where they work",
+      "reviews": "Reviews",
+      "noReviews": "No written reviews yet — this professional is new to the platform. Their rating comes from {n} completed jobs.",
+      "ratingOutOf": "{rating} out of 5",
+      "daysAgo": "{count, plural, one {{n} day ago} other {{n} days ago}}",
+      "monthsAgo": "{count, plural, one {{n} month ago} other {{n} months ago}}",
+      "checks": {
+        "id": {
+          "label": "Government ID",
+          "detail": "Citizenship or licence seen in person and matched to their face."
+        },
+        "background": {
+          "label": "Background check",
+          "detail": "Police record check through our verification partner."
+        },
+        "skill": {
+          "label": "Skill assessment",
+          "detail": "Practical test in this trade, marked by a senior professional."
+        }
+      }
+    },
+    "ward": "Ward {n}"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in with your mobile",
+      "lead": "No passwords. We text you a code and you're in.",
+      "mobileLabel": "Mobile number",
+      "placeholder": "98XX XXX XXX",
+      "send": "Send code",
+      "sending": "Sending code…",
+      "smsNote": "We’ll text you a 6-digit code. Standard SMS rates apply."
+    },
+    "verify": {
+      "title": "Enter your code",
+      "lead": "We've sent a 6-digit code by SMS. It expires in a few minutes.",
+      "checking": "Checking…",
+      "verifyAndContinue": "Verify and continue",
+      "verified": "Verified — taking you in…",
+      "newCodeSent": "New code sent.",
+      "resendIn": "Resend code in {seconds}s",
+      "resend": "Resend the code",
+      "wrongNumber": "Wrong number? Change it",
+      "noCode": "Didn’t get the code?",
+      "helpCoverage": "Delivery to NTC and Ncell can take up to a minute in poor coverage. Move somewhere with signal and wait a little.",
+      "helpDigit": "Check the number above is right — one wrong digit is enough.",
+      "sentTo": "Code sent to {phone}",
+      "otpLabel": "Verification code",
+      "otpDigit": "Digit {index} of 6",
+      "helpCall": "Still nothing? Call us on <phone>+977 9800 000 000</phone> and we’ll book it for you over the phone."
+    },
+    "onboarding": {
+      "title": "Almost there",
+      "lead": "Two quick things, so your professional knows who they're visiting.",
+      "nameLabel": "Your name",
+      "namePlaceholder": "e.g. Anita Shrestha",
+      "languageLegend": "Preferred language",
+      "languageEnHint": "Interface in English",
+      "languageNeHint": "Interface in Nepali",
+      "saving": "Saving…",
+      "continue": "Continue"
+    },
+    "errors": {
+      "nameTooShort": "Please enter your name so your professional knows who to ask for.",
+      "sessionExpired": "Your session expired. Please sign in again.",
+      "saveFailed": "We couldn't save that. Check your connection and try again.",
+      "enterMobile": "Enter your mobile number.",
+      "landline": "That's a landline. We can only text a mobile.",
+      "prefix": "Mobile numbers here start 97 or 98.",
+      "tooShort": "Too short — a mobile number is 10 digits.",
+      "tooLong": "Too long — a mobile number is 10 digits.",
+      "tooManyRequests": "Too many requests. Wait a moment before trying again.",
+      "codeExpiredOrInvalid": "That code didn't work. Check it, or ask for a new one.",
+      "codeExpired": "That code has expired. Request a new one.",
+      "codeInvalid": "That code isn't right. Check it and try again.",
+      "smsFailed": "We couldn't send the code just now. Try again in a moment.",
+      "requestNewCode": "That didn't work. Please request a new code.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "terms": "By continuing you agree to our <terms>terms</terms> and <privacy>privacy policy</privacy>."
+  },
+  "booking": {
+    "book": {
+      "title": "Book a professional",
+      "lead": "Dates, addresses and payment arrive in the next release. Everything you chose is held below — nothing has been lost.",
+      "yourRequest": "Your request",
+      "service": "Service",
+      "professional": "Professional",
+      "urgency": "Urgency",
+      "whatYouToldUs": "What you told us",
+      "emptyTitle": "Booking opens shortly",
+      "emptyBody": "Until then we can take this over the phone — call and quote the professional's name, and we'll arrange the visit for you.",
+      "backTo": "Back to {category}"
+    },
+    "bookings": {
+      "title": "Your bookings",
+      "leadNamed": "Everything you book, {name}, in one place — upcoming first, then past jobs.",
+      "lead": "Everything you book in one place — upcoming first, then past jobs.",
+      "emptyTitle": "No bookings yet",
+      "emptyBody": "Once you book a professional, the job shows up here with its time, status and agreed price — and you can call them from it.",
+      "browse": "Browse services",
+      "phoneNote": "Booked over the phone? Call <phone>+977 9800 000 000</phone> and we’ll add it to your account."
+    },
+    "account": {
+      "title": "Account",
+      "lead": "What we know about you, and what your professional sees when you book.",
+      "name": "Name",
+      "nameUnset": "Not set yet",
+      "mobile": "Mobile",
+      "mobileUnset": "Not on file",
+      "language": "Language",
+      "changeNote": "Need to change something? Call <phone>+977 9800 000 000</phone> and we’ll update it — editing here arrives with addresses and payment."
+    }
+  },
+  "safety": {
+    "gas": "Don't light a flame or touch any switch — open the windows, close the cylinder valve if you can reach it, and step outside.",
+    "burning": "Switch off at the mains if you can reach it safely, and don't use that switch or socket again until it has been checked.",
+    "liveWire": "Switch off at the mains and keep everyone away from the wire until an electrician has been.",
+    "unseenPhoto": "We couldn't look at your photo just now, so check it yourself: if you can smell gas, or see sparking, scorching or a bare wire, switch off at the mains, don't light a flame, and call us instead of booking."
+  },
+  "fallback": {
+    "genericCategory": "Home repair",
+    "genericCtaLabel": "home repair",
+    "generic": "We'll match you with the right professional — tell them the details and they'll confirm the price before starting.",
+    "plumbing-emergency": "This can cause damage fast, so we'll push you to the front of the queue and send whoever is closest.",
+    "plumbing-leak": "Most leaks are a washer or a joint — usually a single visit, and the plumber will carry the parts.",
+    "plumbing-blockage": "Blockages get worse if you keep using the fixture. A plumber will clear it and check what caused it.",
+    "plumbing-water": "Usually the pump, the inlet valve or an airlock. The plumber will trace it back from the tank.",
+    "electrical-emergency": "Treat this as urgent — switch off at the mains if you safely can. We'll dispatch the nearest electrician.",
+    "electrical-fault": "An electrician will find whether it's the circuit, the fitting or the supply before quoting anything larger.",
+    "ac-cooling": "Weak cooling is usually a dirty filter or low gas. Servicing is cheaper; a refill costs more.",
+    "appliance": "The technician diagnoses on site and tells you the part cost before doing any work.",
+    "pest": "Priced by the size of the flat and the treatment. Most jobs need one visit plus a follow-up.",
+    "cleaning": "Cleaning is booked by hours and flat size, so you'll see the exact price before confirming.",
+    "carpentry": "A carpenter will look at whether it's a repair or a replacement, and price the two separately.",
+    "painting": "Painting is quoted per square foot after a site visit — the range is wide until someone measures.",
+    "tank": "Tanks are priced by capacity. Most households do this twice a year.",
+    "movers": "Quoted on distance, floor level and how much you're moving — a survey call settles it in minutes."
+  },
+  "notFound": {
+    "title": "That page isn’t here",
+    "body": "The link may be old, or the address may have a typo in it. Everything we do is one tap away — start from the services list.",
+    "action": "See all services"
+  },
+  "activity": {
+    "cleaning": "{name} in {area} booked a home cleaning — {minutes} min ago",
+    "plumberArrived": "{name}’s plumber arrived in {area} — {minutes} min ago",
+    "electrician": "{name} in {area} booked an electrician — {minutes} min ago",
+    "acDone": "{name}’s AC servicing in {area} was completed — {minutes} min ago",
+    "pestControl": "{name} in {area} booked pest control — {minutes} min ago",
+    "ratedCarpenter": "{name} in {area} rated a carpenter 5 stars — {minutes} min ago"
+  }
+}

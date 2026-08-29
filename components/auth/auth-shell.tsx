@@ -1,6 +1,7 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import { Wordmark } from "@/components/marketing/wordmark";
+import { Link } from "@/i18n/navigation";
 
 /**
  * Frame shared by every auth screen. Narrow, centred, no site nav — nothing
@@ -17,6 +18,8 @@ export function AuthShell({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const t = useTranslations("auth");
+
   return (
     <main className="relative flex min-h-dvh flex-col">
       <div
@@ -46,24 +49,33 @@ export function AuthShell({
           prefetch={false}: these pages arrive with the legal copy, and until
           then Next's prefetch 404s in the console on every auth screen.
         */}
+        {/*
+          One message with the links inside it, not three fragments. Nepali
+          puts the verb last, so "By continuing you agree to our … and …" has
+          no prefix/link/suffix shape to reuse — the sentence has to be able to
+          reorder around its own links.
+        */}
         <p className="pb-6 text-center text-caption text-muted-foreground">
-          By continuing you agree to our{" "}
-          <Link
-            href="/legal/terms"
-            prefetch={false}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            terms
-          </Link>{" "}
-          and{" "}
-          <Link
-            href="/legal/privacy"
-            prefetch={false}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            privacy policy
-          </Link>
-          .
+          {t.rich("terms", {
+            terms: (chunks) => (
+              <Link
+                href="/legal/terms"
+                prefetch={false}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link
+                href="/legal/privacy"
+                prefetch={false}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </div>
     </main>

@@ -23,8 +23,23 @@ import process from "node:process";
 
 import { chromium } from "playwright-core";
 
-/** The pages a visitor actually lands on cold. */
-const PAGES = ["/", "/login", "/services", "/services/plumbing"];
+/**
+ * The pages a visitor actually lands on cold — in both languages.
+ *
+ * The Nepali paths are here for the same reason the English ones are: the
+ * locale layout is a second place an entrance animation could hide the first
+ * paint, and /ne is a real front door, not a translation of one.
+ */
+const PAGES = [
+  "/",
+  "/login",
+  "/services",
+  "/services/plumbing",
+  "/ne",
+  "/ne/login",
+  "/ne/services",
+  "/ne/services/plumbing",
+];
 const FCP_TIMEOUT_MS = 8000;
 
 /** Where a Chromium might be. First hit wins; PERF_CHROME_PATH beats all. */
@@ -172,7 +187,7 @@ async function main() {
   for (const { path, status, fcp } of results) {
     const state = fcp > 0 ? "ok  " : "FAIL";
     const value = fcp === null ? "no FCP" : `FCP ${Math.round(fcp)}ms`;
-    console.log(`  ${state}  ${path.padEnd(10)} HTTP ${status}  ${value}`);
+    console.log(`  ${state}  ${path.padEnd(24)} HTTP ${status}  ${value}`);
   }
 
   if (failures.length > 0) {

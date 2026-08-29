@@ -1,3 +1,4 @@
+import type { SafetyCopy } from "@/lib/ai/copy";
 import type { TriageResult } from "@/lib/ai/mockTriage";
 
 /**
@@ -14,18 +15,13 @@ import type { TriageResult } from "@/lib/ai/mockTriage";
  * answer. A false positive costs one unnecessary safety sentence. A false
  * negative costs something we are not willing to pay.
  *
- * Pure and dependency-free so the client fallback path can run it too.
+ * Pure and dependency-free so the client fallback path can run it too. The
+ * wording is passed in (see lib/ai/copy.ts) rather than held here: these lines
+ * exist in both languages, and a person reading Nepali who is told in English
+ * not to light a flame has not been told anything.
  */
 
 export type Hazard = "gas" | "burning" | "live-wire";
-
-const LEAD_LINE: Record<Hazard, string> = {
-  gas: "Don't light a flame or touch any switch — open the windows, close the cylinder valve if you can reach it, and step outside.",
-  burning:
-    "Switch off at the mains if you can reach it safely, and don't use that switch or socket again until it has been checked.",
-  "live-wire":
-    "Switch off at the mains and keep everyone away from the wire until an electrician has been.",
-};
 
 // Romanized Nepali is written a dozen ways, so the patterns are loose on
 // spelling and tight on meaning. Devanagari is included because people type
@@ -69,15 +65,12 @@ export function detectHazard(input: string): Hazard | null {
 }
 
 /**
- * The line for a photo we never managed to look at.
+ * Where the "we couldn't look at your photo" line is allowed to appear.
  *
  * Not a hazard claim — a statement that we could not check. It goes on the
  * categories where a gas or electrical hazard actually lives, so a photo of a
  * sofa awaiting a clean does not come back with a warning about flames.
  */
-export const UNSEEN_PHOTO_CAUTION =
-  "We couldn't look at your photo just now, so check it yourself: if you can smell gas, or see sparking, scorching or a bare wire, switch off at the mains, don't light a flame, and call us instead of booking.";
-
 const HAZARD_PRONE_CATEGORIES = new Set([
   "electrical",
   "plumbing",
@@ -85,10 +78,24 @@ const HAZARD_PRONE_CATEGORIES = new Set([
   "ac-servicing",
 ]);
 
-/** Does this explanation already open with something to do right now? */
+/**
+ * Does this explanation already open with something to do right now?
+ *
+ * Both scripts, because the model answers in the reader's language: the
+ * English verbs, and the Nepali imperatives for switching off, not lighting a
+ * flame, opening a window and staying clear. Getting this wrong only ever
+ * costs a duplicated sentence, never a missing one.
+ */
 function leadsWithSafety(explanation: string): boolean {
-  const opening = explanation.slice(0, 140).toLowerCase();
-  return /(switch off|turn off|don't|do not|open the window|leave the room|step outside|close the (cylinder|valve)|keep everyone away|unplug)/.test(
+  const opening = explanation.slice(0, 160).toLowerCase();
+  if (
+    /(switch off|turn off|don't|do not|open the window|leave the room|step outside|close the (cylinder|valve)|keep everyone away|unplug)/.test(
+      opening,
+    )
+  ) {
+    return true;
+  }
+  return /(मेन स्विच|स्विच बन्द|आगो नबाल्नु|नछुनुहोस्|झ्याल खोल्नु|बाहिर निस्कनु|टाढा राख्नु|भल्भ बन्द|प्लग निकाल्नु)/.test(
     opening,
   );
 }
@@ -121,7 +128,12 @@ export type SafetyOutcome = {
 export function applySafetyFloor(
   input: string,
   result: TriageResult,
-  options: { visionHazard?: Hazard | null; photoUnseen?: boolean } = {},
+  options: {
+    /** The safety lines in the reader's language. */
+    copy: SafetyCopy;
+    visionHazard?: Hazard | null;
+    photoUnseen?: boolean;
+  },
 ): SafetyOutcome {
   const textHazard = detectHazard(input);
   const hazard = textHazard ?? options.visionHazard ?? null;
@@ -134,7 +146,7 @@ export function applySafetyFloor(
   if (hazard) {
     const explanation = leadsWithSafety(result.explanation)
       ? result.explanation
-      : `${LEAD_LINE[hazard]} ${result.explanation}`;
+      : `${options.copy[hazard]} ${result.explanation}`;
 
     return {
       result: { ...result, urgency: "emergency", explanation },
@@ -152,7 +164,7 @@ export function applySafetyFloor(
     return {
       result: {
         ...result,
-        explanation: `${UNSEEN_PHOTO_CAUTION} ${result.explanation}`,
+        explanation: `${options.copy.unseenPhoto} ${result.explanation}`,
       },
       hazard: null,
       via: null,

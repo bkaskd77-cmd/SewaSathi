@@ -142,20 +142,63 @@ logging in rather than to the homepage.
 
 ## Language
 
-The header toggle writes a `sajilokaam-locale` cookie and refreshes; the server
-reads it (`lib/i18n/server.ts`) and renders category names from `name_ne`. That
-is all it does today, deliberately.
+next-intl, `[locale]` segments, English and Nepali as equals. Every screen
+shipped so far exists in both.
 
-`lib/i18n/locale.ts` is constants and types only — the toggle is a Client
-Component and `next/headers` cannot be bundled for the browser.
+`i18n/routing.ts` is the contract: locales, default, `localePrefix:
+"as-needed"` so English stays on `/services` and Nepali lives at `/ne/services`
+— every link, test path and budget key from before the migration still
+resolves. `localeDetection` is on, so a phone set to Nepali lands in Nepali;
+an explicit choice writes the `sajilokaam-locale` cookie and wins after that.
 
-**Before extending this**, decide the approach once. The recommendation is
-next-intl with `[locale]` segments, message catalogues per namespace, and
-Nepali as a first-class locale rather than a translation layer bolted on: it
-gives locale-aware routing and metadata, keeps strings out of components, and
-handles plurals and dates, which hand-rolled cookies never will. Retrofitting
-it across twenty screens costs a week; doing it before Phase 6 adds screens
-costs a day.
+- **Import `Link`, `redirect`, `useRouter`, `usePathname` from
+  `@/i18n/navigation`, never from `next/link` or `next/navigation`.** One stray
+  `next/link` drops a Nepali reader back into English and nothing fails.
+  In-page fragments (`#services`) are plain `<a>` — they have no locale to
+  carry. `redirect` is re-exported with an explicit `never` return type,
+  because next-intl's is inferred through a factory and TypeScript will not
+  narrow past it.
+- **Route guards match the unprefixed path.** `stripLocale` runs inside
+  `lib/auth/routes.ts`, so `/ne/account` is the same protected route as
+  `/account`. `safeRedirect` returns an unprefixed path and the caller adds the
+  prefix back. Missing that would leave the Nepali half of the product
+  unguarded.
+- **`middleware.ts` runs next-intl first, then the Supabase refresh**, and
+  copies the auth cookies onto whichever response is returned. Dropping them on
+  an intl redirect is how you lose a session on a language switch.
+- **The catalogues are `messages/en.json` and `messages/ne.json`**, namespaced.
+  `npm run check:messages` fails if they disagree on a key or an ICU
+  placeholder — a missing key is not a build error in next-intl, it renders the
+  key path into the page, in the language you are least likely to be reading.
+- **Numbers are interpolated as strings.** `ne` formats `1234` as `१,२३४`, and
+  a page mixing Devanagari prices with a Latin phone number, a 4.8 rating and
+  an OTP is harder to read than one that picks a side. Messages take `{n}` (a
+  pre-formatted string) for display and a separate numeric `count` only where a
+  plural branch needs selecting. `formatNpr(amount, { locale })` swaps `Rs` for
+  `रु` and leaves the digits alone. Devanagari numerals are used in prose
+  counts (`६ अङ्कको कोड`, `४८ घण्टा`) but never for a value the reader has to
+  match against something on screen.
+- **Category and place names are data, not interface copy.** `categories`
+  carries `descriptor_ne`, `description_ne`, `cta_label_ne` alongside the
+  English; `categoryCopy(category, locale)` is the only thing that picks a
+  side. Areas live in `lib/data/seed/areas.json` with `cityNe` / `nameNe`; only
+  the word "Ward" comes from the catalogue.
+- **Sentences that wrap a link use `t.rich`, not three fragments.** Nepali puts
+  the verb last, so prefix/link/suffix has no shape that works in both.
+- **Provider bios and reviews stay as authored.** They are user-generated
+  content; translating them would mean inventing words a professional did not
+  say. `/design-system` is English in both locales on purpose — a developer
+  surface, `noindex`, and no customer reads it.
+
+Triage answers in the reader's language: the client sends `locale` with the
+request, the prompt's one language instruction comes from `ANSWER_LANGUAGE` in
+`lib/ai/copy.ts`, and the response cache is keyed by locale as well as text.
+The deterministic half — the safety lines and the keyword matcher's
+explanations — is passed in as `TriageCopy` rather than held in `lib/ai`, so
+the browser has both languages before the request that fails is ever made.
+`KEYWORD_RULES` matches Devanagari as well as Romanized input, because that
+matcher is what answers when the key is missing and a Nepali reader would
+otherwise have had a fallback in name only.
 
 ## Auth
 
@@ -253,23 +296,34 @@ Numbers in a summary are not a guard. Two things run automatically:
 
 - **Bundle budget** — `npm run build` is `scripts/check-bundle-budget.mjs`,
   which runs `next build` and then fails on the printed route table. Ceilings
-  live in `scripts/perf-budget.mjs`: `/` 140 kB, `/login` 190 kB, any route
-  200 kB, shared 95 kB. Vercel runs `npm run build`, so a regression cannot
-  deploy. Raising a ceiling is a decision — move it in the commit that needs
-  it and say why.
-- **Paint check** — `npm run check:paint` loads `/` and `/login` in a real
-  Chromium and fails if either never records a first-contentful-paint. That is
-  the signature of content hidden behind an entrance animation, and it has now
-  happened twice. It is not in `next build` because Vercel's builder has no
-  browser; `.github/workflows/ci.yml` runs it on every push, and
-  `npm run verify` runs the whole set locally.
+  live in `scripts/perf-budget.mjs`: `/[locale]` 155 kB, `/[locale]/login`
+  205 kB, any route 210 kB, shared 95 kB. Vercel runs `npm run build`, so a
+  regression cannot deploy. Raising a ceiling is a decision — move it in the
+  commit that needs it and say why. They moved once, for next-intl: its client
+  runtime is ~18 kB on the landing page and 5-6 kB elsewhere, and it is not
+  optional while the hero renders a triage result in the browser.
+- **Paint check** — `npm run check:paint` loads the four front doors in each
+  language in a real Chromium and fails if any never records a
+  first-contentful-paint. That is the signature of content hidden behind an
+  entrance animation, and it has now happened twice. It is not in `next build`
+  because Vercel's builder has no browser; `.github/workflows/ci.yml` runs it
+  on every push, and `npm run verify` runs the whole set locally.
+- **Message check** — `npm run check:messages` fails if `en.json` and `ne.json`
+  disagree on a key or an ICU placeholder. next-intl renders a missing key as
+  its own dotted path, so without this the failure mode is a button labelled
+  `services.card.book` on a page nobody on the team reads.
 
 Both are proven by breaking them on purpose, not by passing once. Lighthouse
 is still the periodic check — the bar and the median-of-3 rule are unchanged.
 
 ## Signed-in pages
 
-`app/(app)/` holds them: site header and footer, page content in the middle.
+`app/[locale]/(app)/` holds them: site header and footer, page content in the
+middle. Everything that renders a page lives under `app/[locale]/` —
+`app/api/triage/route.ts` is deliberately outside it, because it is not a page
+and must never be rewritten to `/ne/api/triage`. `app/[locale]/[...rest]` is
+the catch-all that puts an unknown path back inside the locale tree so
+`not-found.tsx` can answer it in the right language.
 `/bookings` and `/account` are placeholders with real empty states — Phase 6
 fills the first, Phase 10 makes the second editable — but they exist now
 because the account menu links to them and a 404 from your own menu reads as

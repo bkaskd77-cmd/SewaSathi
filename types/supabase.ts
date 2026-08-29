@@ -70,8 +70,11 @@ export type Database = {
           name_en: string;
           name_ne: string;
           descriptor: string;
+          descriptor_ne: string;
           description: string;
+          description_ne: string;
           cta_label: string;
+          cta_label_ne: string;
           base_price_min: number;
           base_price_max: number;
           icon: string;
@@ -84,8 +87,11 @@ export type Database = {
           name_en: string;
           name_ne: string;
           descriptor: string;
+          descriptor_ne: string;
           description: string;
+          description_ne: string;
           cta_label: string;
+          cta_label_ne: string;
           base_price_min: number;
           base_price_max: number;
           icon: string;

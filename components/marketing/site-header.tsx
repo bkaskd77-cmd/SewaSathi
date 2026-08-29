@@ -1,35 +1,40 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Menu, X } from "lucide-react";
 
 import { AccountMenu, SignedOutCta } from "@/components/marketing/account-menu";
 import { LanguageToggle } from "@/components/marketing/language-toggle";
-import type { Locale } from "@/lib/i18n/locale";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
+/**
+ * The in-page anchors. Hrefs are fragments, so they need no locale prefix and
+ * no `Link` from the routing helpers — but they still resolve against whatever
+ * page the header is on, which is why they are relative fragments and not
+ * "/#services".
+ */
 const NAV = [
-  { href: "#services", label: "Services" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#for-professionals", label: "For Professionals" },
-];
+  { href: "#services", key: "services" },
+  { href: "#how-it-works", key: "howItWorks" },
+  { href: "#for-professionals", key: "forProfessionals" },
+] as const;
 
 /**
  * `accountName` comes from the server (see lib/auth/session.ts) so the correct
  * header renders in the first HTML — a client-side session check would flash
  * "Book a service" at someone who is already signed in.
+ *
+ * The locale is no longer a prop: it is in the URL, and `useTranslations`
+ * reads it from the provider. One fewer thing every layout has to remember to
+ * pass down correctly.
  */
-export function SiteHeader({
-  accountName,
-  locale = "en",
-}: {
-  accountName?: string | null;
-  locale?: Locale;
-}) {
+export function SiteHeader({ accountName }: { accountName?: string | null }) {
+  const t = useTranslations("nav");
   const signedIn = accountName !== null && accountName !== undefined;
   const [condensed, setCondensed] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -69,23 +74,23 @@ export function SiteHeader({
         <Wordmark className={cn(condensed && "text-xl")} />
 
         <nav
-          aria-label="Main"
+          aria-label={t("main")}
           className="ml-6 hidden items-center gap-6 lg:flex"
         >
           {NAV.map((item) => (
-            <Link
+            <a
               key={item.href}
               href={item.href}
               className="rounded-sm text-body-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
             >
-              {item.label}
-            </Link>
+              {t(item.key)}
+            </a>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
           <div className="hidden sm:block">
-            <LanguageToggle locale={locale} />
+            <LanguageToggle />
           </div>
           <ThemeToggle />
           <div className="hidden sm:block">
@@ -97,7 +102,7 @@ export function SiteHeader({
             className="lg:hidden"
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
             onClick={() => setMenuOpen((o) => !o)}
           >
             {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
@@ -110,16 +115,19 @@ export function SiteHeader({
           id="mobile-nav"
           className="border-t border-border bg-background lg:hidden"
         >
-          <nav aria-label="Mobile" className="container flex flex-col py-3">
+          <nav
+            aria-label={t("mobile")}
+            className="container flex flex-col py-3"
+          >
             {NAV.map((item) => (
-              <Link
+              <a
                 key={item.href}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
                 className="py-2.5 text-body-md font-medium hover:text-primary"
               >
-                {item.label}
-              </Link>
+                {t(item.key)}
+              </a>
             ))}
             {signedIn ? (
               <>
@@ -128,14 +136,14 @@ export function SiteHeader({
                   onClick={() => setMenuOpen(false)}
                   className="py-2.5 text-body-md font-medium hover:text-primary"
                 >
-                  Bookings
+                  {t("bookings")}
                 </Link>
                 <Link
                   href="/account"
                   onClick={() => setMenuOpen(false)}
                   className="py-2.5 text-body-md font-medium hover:text-primary"
                 >
-                  Account
+                  {t("account")}
                 </Link>
               </>
             ) : (
@@ -144,12 +152,12 @@ export function SiteHeader({
                 onClick={() => setMenuOpen(false)}
                 className="py-2.5 text-body-md font-medium hover:text-primary"
               >
-                Sign in
+                {t("signIn")}
               </Link>
             )}
 
             <div className="mt-3 flex items-center gap-3 sm:hidden">
-              <LanguageToggle locale={locale} />
+              <LanguageToggle />
               {signedIn ? (
                 <div className="flex-1">
                   <AccountMenu name={accountName} />
@@ -158,9 +166,9 @@ export function SiteHeader({
                 // Just the primary action here — "Sign in" is already a row in
                 // the menu above, and repeating it reads as two different doors.
                 <Button variant="gold" asChild className="btn-tactile flex-1">
-                  <Link href="#hero-search" onClick={() => setMenuOpen(false)}>
-                    Book a service
-                  </Link>
+                  <a href="#hero-search" onClick={() => setMenuOpen(false)}>
+                    {t("bookService")}
+                  </a>
                 </Button>
               )}
             </div>

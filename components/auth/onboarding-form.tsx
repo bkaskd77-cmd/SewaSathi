@@ -1,19 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+// Each option is written in its own language, in both locales — a language
+// picker that renders "Nepali" in English is asking somebody to recognise the
+// name of their own language in a script they may not read.
 const LANGUAGES = [
-  { value: "en", label: "English", hint: "Interface in English" },
-  { value: "ne", label: "नेपाली", hint: "अन्तरफलक नेपालीमा" },
+  { value: "en", label: "English", hintKey: "languageEnHint" },
+  { value: "ne", label: "नेपाली", hintKey: "languageNeHint" },
 ] as const;
 
 /**
@@ -24,9 +29,14 @@ const LANGUAGES = [
  * at a third-floor window.
  */
 export function OnboardingForm({ next }: { next: string }) {
+  const t = useTranslations("auth.onboarding");
+  const tErr = useTranslations("auth.errors");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [name, setName] = React.useState("");
-  const [language, setLanguage] = React.useState<"en" | "ne">("en");
+  // Prefilled from the language they are already reading in — they chose it
+  // in the header, and asking again with the wrong default is a small insult.
+  const [language, setLanguage] = React.useState<Locale>(locale);
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
 
@@ -35,9 +45,7 @@ export function OnboardingForm({ next }: { next: string }) {
     const trimmed = name.trim();
 
     if (trimmed.length < 2) {
-      setError(
-        "Please enter your name so your professional knows who to ask for.",
-      );
+      setError(tErr("nameTooShort"));
       return;
     }
 
@@ -51,7 +59,7 @@ export function OnboardingForm({ next }: { next: string }) {
 
     if (!user) {
       setSaving(false);
-      setError("Your session expired. Please sign in again.");
+      setError(tErr("sessionExpired"));
       return;
     }
 
@@ -62,7 +70,7 @@ export function OnboardingForm({ next }: { next: string }) {
 
     if (updateError) {
       setSaving(false);
-      setError("We couldn't save that. Check your connection and try again.");
+      setError(tErr("saveFailed"));
       return;
     }
 
@@ -74,13 +82,13 @@ export function OnboardingForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      <Label htmlFor="full-name">Your name</Label>
+      <Label htmlFor="full-name">{t("nameLabel")}</Label>
       <Input
         id="full-name"
         name="full-name"
         autoComplete="name"
         autoFocus
-        placeholder="e.g. Anita Shrestha"
+        placeholder={t("namePlaceholder")}
         className="mt-2 h-14 text-lg"
         aria-invalid={Boolean(error)}
         aria-describedby="name-error"
@@ -94,7 +102,7 @@ export function OnboardingForm({ next }: { next: string }) {
 
       <fieldset className="mt-3">
         <legend className="text-body-sm font-semibold">
-          Preferred language
+          {t("languageLegend")}
         </legend>
         <div className="mt-2 grid grid-cols-2 gap-3">
           {LANGUAGES.map((option) => {
@@ -128,7 +136,7 @@ export function OnboardingForm({ next }: { next: string }) {
                   className="mt-0.5 text-caption text-muted-foreground"
                   lang={option.value}
                 >
-                  {option.hint}
+                  {t(option.hintKey)}
                 </span>
               </label>
             );
@@ -143,7 +151,7 @@ export function OnboardingForm({ next }: { next: string }) {
         className="btn-tactile mt-6 w-full"
         disabled={saving}
       >
-        {saving ? "Saving…" : "Continue"}
+        {saving ? t("saving") : t("continue")}
         {!saving ? <ArrowRight aria-hidden="true" /> : null}
       </Button>
     </form>

@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { CalendarDays, LogOut, User } from "lucide-react";
 
-import { signOutAction } from "@/app/(auth)/actions";
+import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
  * only thing on the page that would pull in another primitive.
  */
 export function AccountMenu({ name }: { name: string }) {
+  const t = useTranslations("nav");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -35,7 +37,7 @@ export function AccountMenu({ name }: { name: string }) {
   }, [open]);
 
   const initial = name.trim().charAt(0).toUpperCase() || "?";
-  const firstName = name.trim().split(/\s+/)[0] || "Account";
+  const firstName = name.trim().split(/\s+/)[0] || t("account");
 
   return (
     <div ref={containerRef} className="relative">
@@ -71,7 +73,7 @@ export function AccountMenu({ name }: { name: string }) {
             className="flex items-center gap-2.5 px-4 py-3 text-body-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
           >
             <CalendarDays aria-hidden="true" className="size-4" />
-            Bookings
+            {t("bookings")}
           </Link>
           <Link
             role="menuitem"
@@ -80,7 +82,7 @@ export function AccountMenu({ name }: { name: string }) {
             className="flex items-center gap-2.5 px-4 py-3 text-body-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
           >
             <User aria-hidden="true" className="size-4" />
-            Account
+            {t("account")}
           </Link>
           <form action={signOutAction}>
             <button
@@ -89,7 +91,7 @@ export function AccountMenu({ name }: { name: string }) {
               className="flex w-full items-center gap-2.5 border-t border-border px-4 py-3 text-left text-body-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
             >
               <LogOut aria-hidden="true" className="size-4" />
-              Log out
+              {t("logOut")}
             </button>
           </form>
         </div>
@@ -107,13 +109,16 @@ export function AccountMenu({ name }: { name: string }) {
  * type the URL.
  */
 export function SignedOutCta({ className }: { className?: string }) {
+  const t = useTranslations("nav");
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <Button variant="ghost" asChild>
-        <Link href="/login">Sign in</Link>
+        <Link href="/login">{t("signIn")}</Link>
       </Button>
       <Button variant="gold" asChild className="btn-tactile">
-        <Link href="#hero-search">Book a service</Link>
+        {/* A fragment on the current page, so no locale prefix and no Link. */}
+        <a href="#hero-search">{t("bookService")}</a>
       </Button>
     </div>
   );

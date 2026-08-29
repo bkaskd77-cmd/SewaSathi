@@ -1,10 +1,12 @@
-import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { BadgeCheck, Clock, MapPin, Star } from "lucide-react";
 
 import { ProviderAvatar } from "@/components/services/provider-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
 import { bookingHref } from "@/lib/routes/booking";
@@ -23,10 +25,10 @@ import { cn, formatNpr } from "@/lib/utils";
  * one keyboard stop with no way to reach the second.
  */
 
-const AVAILABILITY_META = {
-  now: { label: "Available now", variant: "urgent" as const },
-  today: { label: "Available today", variant: "info" as const },
-  scheduled: { label: "By appointment", variant: "muted" as const },
+const AVAILABILITY_VARIANT = {
+  now: "urgent" as const,
+  today: "info" as const,
+  scheduled: "muted" as const,
 };
 
 export function ProviderCard({
@@ -43,6 +45,10 @@ export function ProviderCard({
   q?: string | null;
   index?: number;
 }) {
+  const t = useTranslations("services");
+  const tc = useTranslations("common");
+  const locale = useLocale() as Locale;
+
   // The context follows the customer. Losing "this is an emergency" on the way
   // to a profile means the booking that starts there has forgotten it too.
   const profileParams = new URLSearchParams();
@@ -51,7 +57,6 @@ export function ProviderCard({
   const profileHref = `/services/${categorySlug}/${provider.id}${
     profileParams.toString() ? `?${profileParams.toString()}` : ""
   }`;
-  const availability = AVAILABILITY_META[provider.availability];
   const { stats } = provider;
 
   return (
@@ -79,20 +84,24 @@ export function ProviderCard({
               <MapPin aria-hidden="true" className="size-3.5" />
               {provider.serviceAreas
                 .slice(0, 2)
-                .map(areaShortLabel)
+                .map((key) => areaShortLabel(key, locale))
                 .join(" · ")}
             </span>
             {provider.serviceAreas.length > 2 ? (
-              <span>+{provider.serviceAreas.length - 2} more</span>
+              <span>
+                {t("card.more", {
+                  n: String(provider.serviceAreas.length - 2),
+                })}
+              </span>
             ) : null}
           </p>
         </div>
 
         <div className="text-right">
           <p className="font-display text-lg font-bold tabular-nums">
-            {formatNpr(provider.baseRate)}
+            {formatNpr(provider.baseRate, { locale })}
           </p>
-          <p className="text-caption text-muted-foreground">from</p>
+          <p className="text-caption text-muted-foreground">{tc("from")}</p>
         </div>
       </div>
 
@@ -100,18 +109,20 @@ export function ProviderCard({
         {provider.isVerified ? (
           <Badge variant="verified">
             <BadgeCheck aria-hidden="true" />
-            ID verified
+            {t("card.idVerified")}
           </Badge>
         ) : (
-          <Badge variant="muted">Verification in progress</Badge>
+          <Badge variant="muted">{t("card.verificationInProgress")}</Badge>
         )}
-        <Badge variant={availability.variant}>
+        <Badge variant={AVAILABILITY_VARIANT[provider.availability]}>
           <Clock aria-hidden="true" />
-          {availability.label}
+          {t(`availability.${provider.availability}`)}
         </Badge>
         {provider.yearsExperience >= 10 ? (
           <Badge variant="gold-subtle">
-            {provider.yearsExperience} years&rsquo; experience
+            {t("card.yearsExperience", {
+              n: String(provider.yearsExperience),
+            })}
           </Badge>
         ) : null}
       </div>
@@ -119,7 +130,7 @@ export function ProviderCard({
       <dl className="flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-4">
         <div>
           <dt className="text-overline uppercase text-muted-foreground">
-            Rating
+            {t("card.rating")}
           </dt>
           <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
             <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
@@ -131,7 +142,7 @@ export function ProviderCard({
         </div>
         <div>
           <dt className="text-overline uppercase text-muted-foreground">
-            Jobs done
+            {t("card.jobsDone")}
           </dt>
           <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
             {stats.jobsCompleted}
@@ -139,10 +150,10 @@ export function ProviderCard({
         </div>
         <div>
           <dt className="text-overline uppercase text-muted-foreground">
-            Responds in
+            {t("card.respondsIn")}
           </dt>
           <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
-            ~{stats.avgResponseMinutes} min
+            {t("card.minutes", { n: String(stats.avgResponseMinutes) })}
           </dd>
         </div>
       </dl>
@@ -160,11 +171,11 @@ export function ProviderCard({
               q,
             })}
           >
-            Book {provider.displayName.split(" ")[0]}
+            {t("card.book", { name: provider.displayName.split(" ")[0] })}
           </Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link href={profileHref}>View profile</Link>
+          <Link href={profileHref}>{t("card.viewProfile")}</Link>
         </Button>
       </div>
     </Card>

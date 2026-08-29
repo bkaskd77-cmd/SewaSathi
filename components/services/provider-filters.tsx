@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
 import { areasByCity } from "@/lib/config/areas";
 import { cn, formatNpr } from "@/lib/utils";
 
@@ -19,24 +22,20 @@ import { cn, formatNpr } from "@/lib/utils";
  */
 
 const AVAILABILITY_OPTIONS = [
-  { value: "", label: "Any time" },
-  { value: "now", label: "Available now" },
-  { value: "today", label: "Today" },
-];
+  { value: "", key: "anyTime" },
+  { value: "now", key: "availableNow" },
+  { value: "today", key: "today" },
+] as const;
 
-const RATING_OPTIONS = [
-  { value: "", label: "Any rating" },
-  { value: "4", label: "4.0 and up" },
-  { value: "4.5", label: "4.5 and up" },
-  { value: "4.8", label: "4.8 and up" },
-];
+/** The number is the filter and the label; only "and up" is translated. */
+const RATING_OPTIONS = ["4.0", "4.5", "4.8"];
 
 const SORT_OPTIONS = [
-  { value: "", label: "Best match" },
-  { value: "rating", label: "Highest rated" },
-  { value: "price", label: "Lowest price" },
-  { value: "jobs", label: "Most jobs done" },
-];
+  { value: "", key: "sortRelevance" },
+  { value: "rating", key: "sortRating" },
+  { value: "price", key: "sortPrice" },
+  { value: "jobs", key: "sortJobs" },
+] as const;
 
 const selectClass =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-body-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -47,6 +46,9 @@ export function ProviderFilters({
   /** The category's published band — the price tiers are cut from it. */
   priceBand: { low: number; high: number };
 }) {
+  const t = useTranslations("services.filters");
+  const tWard = useTranslations("services");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -104,13 +106,13 @@ export function ProviderFilters({
 
   return (
     <section
-      aria-label="Filter professionals"
+      aria-label={t("region")}
       className="rounded-xl border border-border bg-card p-4"
     >
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-body-sm font-semibold">
           <SlidersHorizontal aria-hidden="true" className="size-4" />
-          Filter
+          {t("heading")}
           {activeCount > 0 ? (
             <span className="rounded-full bg-primary px-2 py-0.5 text-caption font-semibold text-primary-foreground">
               {activeCount}
@@ -129,7 +131,7 @@ export function ProviderFilters({
             htmlFor="filter-area"
             className="text-overline uppercase text-muted-foreground"
           >
-            Area
+            {t("area")}
           </label>
           <select
             id="filter-area"
@@ -137,12 +139,13 @@ export function ProviderFilters({
             value={value("area")}
             onChange={(event) => set("area", event.target.value)}
           >
-            <option value="">Anywhere in the Valley</option>
-            {areasByCity().map((group) => (
+            <option value="">{t("anywhere")}</option>
+            {areasByCity(locale).map((group) => (
               <optgroup key={group.city} label={group.city}>
                 {group.areas.map((area) => (
                   <option key={area.key} value={area.key}>
-                    {area.ward} — {area.name}
+                    {tWard("ward", { n: String(area.wardNumber) })} —{" "}
+                    {locale === "ne" ? area.nameNe : area.name}
                   </option>
                 ))}
               </optgroup>
@@ -155,7 +158,7 @@ export function ProviderFilters({
             htmlFor="filter-availability"
             className="text-overline uppercase text-muted-foreground"
           >
-            Availability
+            {t("availability")}
           </label>
           <select
             id="filter-availability"
@@ -165,7 +168,7 @@ export function ProviderFilters({
           >
             {AVAILABILITY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.key)}
               </option>
             ))}
           </select>
@@ -176,7 +179,7 @@ export function ProviderFilters({
             htmlFor="filter-rating"
             className="text-overline uppercase text-muted-foreground"
           >
-            Rating
+            {t("rating")}
           </label>
           <select
             id="filter-rating"
@@ -184,9 +187,10 @@ export function ProviderFilters({
             value={value("rating")}
             onChange={(event) => set("rating", event.target.value)}
           >
-            {RATING_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            <option value="">{t("anyRating")}</option>
+            {RATING_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {t("ratingFrom", { value })}
               </option>
             ))}
           </select>
@@ -197,7 +201,7 @@ export function ProviderFilters({
             htmlFor="filter-price"
             className="text-overline uppercase text-muted-foreground"
           >
-            Starting price
+            {t("startingPrice")}
           </label>
           <select
             id="filter-price"
@@ -205,10 +209,10 @@ export function ProviderFilters({
             value={value("maxRate")}
             onChange={(event) => set("maxRate", event.target.value)}
           >
-            <option value="">Any price</option>
+            <option value="">{t("anyPrice")}</option>
             {tiers.map((tier) => (
               <option key={tier} value={String(tier)}>
-                Up to {formatNpr(tier)}
+                {t("upTo", { price: formatNpr(tier, { locale }) })}
               </option>
             ))}
           </select>
@@ -219,7 +223,7 @@ export function ProviderFilters({
             htmlFor="filter-sort"
             className="text-overline uppercase text-muted-foreground"
           >
-            Sort by
+            {t("sortBy")}
           </label>
           <select
             id="filter-sort"
@@ -229,7 +233,7 @@ export function ProviderFilters({
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.key)}
               </option>
             ))}
           </select>
@@ -245,13 +249,13 @@ export function ProviderFilters({
               }
               className="size-4 rounded border-input text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
-            Verified only
+            {t("verifiedOnly")}
           </label>
 
           {activeCount > 0 ? (
             <Button type="button" variant="ghost" size="sm" onClick={clear}>
               <X aria-hidden="true" />
-              Clear
+              {t("clear")}
             </Button>
           ) : null}
         </div>

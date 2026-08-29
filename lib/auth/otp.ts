@@ -16,12 +16,29 @@ import { createClient } from "@/lib/supabase/client";
  * which provider is in play, so keep provider types out of the exports.
  */
 
+/**
+ * `error` is a key into `auth.errors`, never a sentence.
+ *
+ * Provider wording is for us, not for someone standing in a wet kitchen — and
+ * it is only ever written in English. Mapping to a key here is what lets the
+ * form show the same message in Nepali without this file knowing a locale
+ * exists.
+ */
+export type OtpError =
+  | "tooManyRequests"
+  | "codeExpiredOrInvalid"
+  | "codeExpired"
+  | "codeInvalid"
+  | "smsFailed"
+  | "requestNewCode"
+  | "generic";
+
 export type OtpOutcome =
-  { ok: true } | { ok: false; message: string; retryAfterSeconds?: number };
+  { ok: true } | { ok: false; error: OtpError; retryAfterSeconds?: number };
 
 /** Verification additionally reports whether this is a brand-new account. */
 export type VerifyOutcome =
-  { ok: true; isNewUser: boolean } | { ok: false; message: string };
+  { ok: true; isNewUser: boolean } | { ok: false; error: OtpError };
 
 export async function sendOtp(e164: string): Promise<OtpOutcome> {
   const supabase = createClient();
@@ -34,12 +51,12 @@ export async function sendOtp(e164: string): Promise<OtpOutcome> {
     const seconds = Number(error.message.match(/(\d+)\s*second/)?.[1]);
     return {
       ok: false,
-      message: "Too many requests. Wait a moment before trying again.",
+      error: "tooManyRequests",
       retryAfterSeconds: Number.isFinite(seconds) ? seconds : 60,
     };
   }
 
-  return { ok: false, message: friendlyError(error.message) };
+  return { ok: false, error: classifyError(error.message) };
 }
 
 export async function verifyOtp(
@@ -54,15 +71,12 @@ export async function verifyOtp(
   });
 
   if (error) {
-    return { ok: false, message: friendlyError(error.message) };
+    return { ok: false, error: classifyError(error.message) };
   }
 
   const user = data.user;
   if (!user) {
-    return {
-      ok: false,
-      message: "That didn't work. Please request a new code.",
-    };
+    return { ok: false, error: "requestNewCode" };
   }
 
   // A profile row exists from the signup trigger; `full_name` is what
@@ -78,22 +92,22 @@ export async function verifyOtp(
 }
 
 /** Provider wording is for us, not for someone standing in a wet kitchen. */
-function friendlyError(message: string): string {
+function classifyError(message: string): OtpError {
   const m = message.toLowerCase();
   // Supabase returns one message — "Token has expired or is invalid" — for
   // both a mistyped code and a stale one, so picking either word is a coin
   // flip that sends people down the wrong path. Cover both, briefly.
   if (m.includes("expired") && m.includes("invalid")) {
-    return "That code didn't work. Check it, or ask for a new one.";
+    return "codeExpiredOrInvalid";
   }
   if (m.includes("expired")) {
-    return "That code has expired. Request a new one.";
+    return "codeExpired";
   }
   if (m.includes("invalid") || m.includes("token")) {
-    return "That code isn't right. Check it and try again.";
+    return "codeInvalid";
   }
   if (m.includes("sms") || m.includes("provider") || m.includes("send")) {
-    return "We couldn't send the code just now. Try again in a moment.";
+    return "smsFailed";
   }
-  return "Something went wrong. Please try again.";
+  return "generic";
 }

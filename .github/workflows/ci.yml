@@ -1,8 +1,10 @@
 name: CI
 
-# The performance guard. `npm run build` enforces the bundle budget (Vercel
-# runs it too, so a regression cannot deploy), and the paint check runs here
-# because it needs a browser, which Vercel's builder does not have.
+# The performance guard, plus the translation guard. `npm run build` enforces
+# the bundle budget (Vercel runs it too, so a regression cannot deploy); the
+# paint check runs here because it needs a browser, which Vercel's builder does
+# not have; and the message check catches a key that exists in one language and
+# not the other, which next-intl renders as a raw key path rather than failing.
 on:
   push:
     branches: ["**"]
@@ -26,13 +28,18 @@ jobs:
 
       - run: npm run typecheck
 
+      # Fails if en.json and ne.json disagree on a key or a placeholder.
+      - name: Message catalogues
+        run: npm run check:messages
+
       # Fails if First Load JS on any budgeted route is over its ceiling.
       # See scripts/perf-budget.mjs.
       - name: Build (enforces the bundle budget)
         run: npm run build
 
-      # Fails if / or /login never records a first-contentful-paint — the
-      # signature of content hidden behind an entrance animation.
+      # Fails if any front door, in either language, never records a
+      # first-contentful-paint — the signature of content hidden behind an
+      # entrance animation.
       - name: Paint check
         run: npm run check:paint
         env:

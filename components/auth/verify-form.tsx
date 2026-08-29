@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { OtpInput } from "@/components/ui/otp-input";
+import { Link, useRouter } from "@/i18n/navigation";
 import { sendOtp, verifyOtp } from "@/lib/auth/otp";
 import { formatE164ForDisplay } from "@/lib/auth/phone";
 
@@ -19,6 +19,8 @@ const RESEND_SECONDS = 60;
 const SUCCESS_HOLD_MS = 700;
 
 export function VerifyForm({ phone, next }: { phone: string; next: string }) {
+  const t = useTranslations("auth.verify");
+  const tErr = useTranslations("auth.errors");
   const router = useRouter();
   const [code, setCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -62,7 +64,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
       if (!outcome.ok) {
         setStatus("idle");
         setCode("");
-        setError(outcome.message);
+        setError(tErr(outcome.error));
         setErrorNonce((n) => n + 1);
         return;
       }
@@ -80,7 +82,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
         router.refresh();
       }, SUCCESS_HOLD_MS);
     },
-    [busy, next, phone, router],
+    [busy, next, phone, router, tErr],
   );
 
   async function resend() {
@@ -90,13 +92,13 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
     setStatus("idle");
 
     if (!outcome.ok) {
-      setError(outcome.message);
+      setError(tErr(outcome.error));
       setErrorNonce((n) => n + 1);
       setSecondsLeft(outcome.retryAfterSeconds ?? RESEND_SECONDS);
       return;
     }
     setCode("");
-    setNotice("New code sent.");
+    setNotice(t("newCodeSent"));
     setSecondsLeft(RESEND_SECONDS);
   }
 
@@ -137,7 +139,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
           className="animate-pop-in mt-2 flex h-13 w-full items-center justify-center gap-2 rounded-md bg-success px-7 text-body-md font-semibold text-success-foreground"
         >
           <Check aria-hidden="true" className="size-5" />
-          Verified — taking you in…
+          {t("verified")}
         </div>
       ) : (
         <Button
@@ -148,7 +150,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
           disabled={code.length !== 6 || busy}
           onClick={() => submit(code)}
         >
-          {status === "checking" ? "Checking…" : "Verify and continue"}
+          {status === "checking" ? t("checking") : t("verifyAndContinue")}
         </Button>
       )}
 
@@ -161,15 +163,15 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
           onClick={resend}
         >
           {secondsLeft > 0
-            ? `Resend code in ${secondsLeft}s`
-            : "Resend the code"}
+            ? t("resendIn", { seconds: String(secondsLeft) })
+            : t("resend")}
         </Button>
 
         <Link
           href={`/login?next=${encodeURIComponent(next)}`}
           className="rounded-sm text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Wrong number? Change it
+          {t("wrongNumber")}
         </Link>
       </div>
 
@@ -181,33 +183,30 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
           onClick={() => setShowHelp((open) => !open)}
           className="w-full rounded-sm text-left text-body-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Didn&rsquo;t get the code?
+          {t("noCode")}
         </button>
         {showHelp ? (
           <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-caption text-muted-foreground">
+            <li>{t("helpCoverage")}</li>
+            <li>{t("helpDigit")}</li>
             <li>
-              Delivery to NTC and Ncell can take up to a minute in poor
-              coverage. Move somewhere with signal and wait a little.
-            </li>
-            <li>
-              Check the number above is right — one wrong digit is enough.
-            </li>
-            <li>
-              Still nothing? Call us on{" "}
-              <a
-                href="tel:+9779800000000"
-                className="text-foreground underline underline-offset-2"
-              >
-                +977 9800 000 000
-              </a>{" "}
-              and we&rsquo;ll book it for you over the phone.
+              {t.rich("helpCall", {
+                phone: (chunks) => (
+                  <a
+                    href="tel:+9779800000000"
+                    className="text-foreground underline underline-offset-2"
+                  >
+                    {chunks}
+                  </a>
+                ),
+              })}
             </li>
           </ul>
         ) : null}
       </div>
 
       <p className="mt-6 text-center text-caption text-muted-foreground">
-        Code sent to {formatE164ForDisplay(phone)}
+        {t("sentTo", { phone: formatE164ForDisplay(phone) })}
       </p>
     </div>
   );

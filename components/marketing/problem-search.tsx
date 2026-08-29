@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { useLocale, useMessages, useTranslations } from "next-intl";
 import { ArrowRight, Camera, Search, Sparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
+import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
 import {
   categoryCtaLabel,
   categoryName,
@@ -27,7 +30,12 @@ import { cn, formatNpr } from "@/lib/utils";
  * result shape did not change, so the card below is untouched.
  */
 
-const QUICK_PICKS = ["Water leak", "Power cut", "Need it today"] as const;
+/**
+ * The chips. Keys rather than strings: the visible label is translated, and
+ * the *query* sent to triage is the label itself — Claude reads Nepali, and the
+ * keyword matcher underneath it matches Romanized and Devanagari terms too.
+ */
+const QUICK_PICKS = ["leak", "power", "today"] as const;
 
 /**
  * Typing pause before triaging. Longer than the mock's 600ms: this is now a
@@ -41,15 +49,26 @@ const MIN_AUTO_LENGTH = 6;
 /** Long enough for the thumbnail's exit animation, and no longer. */
 const PHOTO_EXIT_MS = 160;
 
-const URGENCY_META = {
-  emergency: { label: "Emergency", variant: "urgent" as const },
-  soon: { label: "Needed soon", variant: "info" as const },
-  routine: { label: "Routine", variant: "verified" as const },
+const URGENCY_VARIANT = {
+  emergency: "urgent" as const,
+  soon: "info" as const,
+  routine: "verified" as const,
 };
 
 type Photo = TriageImage & { previewUrl: string };
 
 export function ProblemSearch() {
+  const t = useTranslations("triage");
+  const locale = useLocale() as Locale;
+  // The safety lines and the keyword explanations, already in the browser.
+  // The fallback path runs when the network does not, so they cannot be
+  // fetched at the moment they are needed.
+  const messages = useMessages();
+  const copy = React.useMemo<TriageCopy>(
+    () => triageCopyFrom(messages),
+    [messages],
+  );
+
   const [query, setQuery] = React.useState("");
   const [thinking, setThinking] = React.useState(false);
   const [outcome, setOutcome] = React.useState<TriageOutcome | null>(null);
@@ -108,6 +127,8 @@ export function ProblemSearch() {
 
       try {
         const next = await triageProblem(trimmed, {
+          locale,
+          copy,
           image: image
             ? { mediaType: image.mediaType, data: image.data }
             : null,
@@ -125,7 +146,7 @@ export function ProblemSearch() {
         // screen now. triageProblem never throws for anything else.
       }
     },
-    [clearPhoto],
+    [clearPhoto, copy, locale],
   );
 
   const onChange = (value: string) => {
@@ -165,11 +186,7 @@ export function ProblemSearch() {
       // A photo on its own is a complete question, so triage runs immediately.
       void runTriage(query, prepared);
     } catch (error) {
-      setPhotoError(
-        error instanceof Error
-          ? error.message
-          : "That photo didn't work. Try another.",
-      );
+      setPhotoError(error instanceof Error ? error.message : t("photoFailed"));
     } finally {
       setPhotoBusy(false);
       // Let the same file be chosen again after a remove.
@@ -191,7 +208,7 @@ export function ProblemSearch() {
         className="flex flex-col gap-2 rounded-xl border border-input bg-card p-2 shadow-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background sm:flex-row sm:items-center"
       >
         <label htmlFor="problem" className="sr-only">
-          What&rsquo;s broken today?
+          {t("inputLabel")}
         </label>
         <div className="flex flex-1 items-center gap-2.5 px-3">
           <Search
@@ -203,14 +220,21 @@ export function ProblemSearch() {
             ref={inputRef}
             value={query}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="Tap is leaking, AC not cooling, need someone to clean the flat…"
+            placeholder={t("placeholder")}
             autoComplete="off"
             className="h-12 w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted-foreground/80"
           />
 
           {/* capture="environment" opens the rear camera straight away on a
               phone, which is where the problem is. On desktop it is ignored
-              and this is an ordinary file picker. */}
+              and this is an ordinary file picker.
+
+              Out of the accessibility tree entirely: the labelled button below
+              is the control, and a bare `sr-only` file input left a second,
+              unlabelled tab stop for the same action — which is what Lighthouse
+              was failing the page on. `tabIndex={-1}` is what makes
+              `aria-hidden` legitimate here rather than hiding something
+              focusable. */}
           <input
             ref={fileRef}
             id="problem-photo"
@@ -218,13 +242,15 @@ export function ProblemSearch() {
             accept="image/*"
             capture="environment"
             className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
             onChange={(event) => void onPickPhoto(event.target.files?.[0])}
           />
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={photoBusy}
-            aria-label={photo ? "Replace the photo" : "Add a photo"}
+            aria-label={photo ? t("replacePhoto") : t("addPhoto")}
             className={cn(
               "grid size-9 shrink-0 place-items-center rounded-lg border transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -244,7 +270,7 @@ export function ProblemSearch() {
           size="lg"
           className="btn-tactile shrink-0"
         >
-          Find help
+          {t("submit")}
           <ArrowRight aria-hidden="true" />
         </Button>
       </form>
@@ -261,16 +287,16 @@ export function ProblemSearch() {
               add a loader in front of bytes that are already in memory. */}
           <img
             src={photo.previewUrl}
-            alt="The photo you added"
+            alt={t("photoAlt")}
             className="size-12 rounded-md object-cover"
           />
           <p className="flex-1 text-caption text-muted-foreground">
-            Photo added — we&rsquo;ll read it with your description.
+            {t("photoAdded")}
           </p>
           <button
             type="button"
             onClick={clearPhoto}
-            aria-label="Remove the photo"
+            aria-label={t("removePhoto")}
             className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" className="size-4" />
@@ -286,43 +312,52 @@ export function ProblemSearch() {
             photoError ? "text-destructive-ink" : "text-muted-foreground",
           )}
         >
-          {photoError ?? "Shrinking the photo…"}
+          {photoError ?? t("photoShrinking")}
         </p>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-caption text-muted-foreground">Common:</span>
-        {QUICK_PICKS.map((pick) => (
-          <button
-            key={pick}
-            type="button"
-            onClick={() => {
-              setQuery(pick);
-              void runTriage(pick, photo);
-            }}
-            className="rounded-full border border-border bg-card px-3 py-1.5 text-caption font-medium transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            {pick}
-          </button>
-        ))}
+        <span className="text-caption text-muted-foreground">
+          {t("commonLabel")}
+        </span>
+        {QUICK_PICKS.map((key) => {
+          const label = t(`quickPicks.${key}`);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setQuery(label);
+                void runTriage(label, photo);
+              }}
+              className="rounded-full border border-border bg-card px-3 py-1.5 text-caption font-medium transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Result area. Announced politely so the outcome reaches screen
           readers once, rather than every frame of the thinking state. */}
       <div aria-live="polite" aria-atomic="true">
         {thinking ? <TriageSkeleton /> : null}
-        {!thinking && outcome ? <TriageCard outcome={outcome} /> : null}
+        {!thinking && outcome ? (
+          <TriageCard outcome={outcome} locale={locale} />
+        ) : null}
       </div>
     </div>
   );
 }
 
 function TriageSkeleton() {
+  const t = useTranslations("triage");
+
   return (
     <div className="animate-rise mt-4 rounded-xl border border-border bg-card p-5">
       <p className="flex items-center gap-2 text-caption text-muted-foreground">
         <Sparkles aria-hidden="true" className="size-3.5 text-gold-ink" />
-        Reading your description…
+        {t("reading")}
       </p>
       <div aria-hidden="true" className="mt-3 flex flex-col gap-2.5">
         <div className="flex gap-2">
@@ -336,18 +371,34 @@ function TriageSkeleton() {
   );
 }
 
-function TriageCard({ outcome }: { outcome: TriageOutcome }) {
+function TriageCard({
+  outcome,
+  locale,
+}: {
+  outcome: TriageOutcome;
+  locale: Locale;
+}) {
+  const t = useTranslations("triage");
+  const tc = useTranslations("common");
+  const fallback = useTranslations("fallback");
   const result = outcome.result;
-  const urgency = URGENCY_META[result.urgency];
-  const name = categoryName(result.category);
-  const ctaLabel = categoryCtaLabel(result.category);
+  const name = categoryName(
+    result.category,
+    locale,
+    fallback("genericCategory"),
+  );
+  const ctaLabel = categoryCtaLabel(
+    result.category,
+    locale,
+    fallback("genericCtaLabel"),
+  );
   const [low, high] = result.priceRangeNPR;
 
   return (
     <div className="animate-rise mt-4 rounded-xl border border-border bg-card p-5 shadow-md">
       <p className="flex items-center gap-2 text-caption text-muted-foreground">
         <Sparkles aria-hidden="true" className="size-3.5 text-gold-ink" />
-        Here&rsquo;s what we think you need
+        {t("resultLead")}
       </p>
 
       {/*
@@ -360,16 +411,18 @@ function TriageCard({ outcome }: { outcome: TriageOutcome }) {
         style={{ animationDelay: "60ms" }}
       >
         <Badge variant="verified">{name}</Badge>
-        <Badge variant={urgency.variant}>{urgency.label}</Badge>
+        <Badge variant={URGENCY_VARIANT[result.urgency]}>
+          {t(`urgency.${result.urgency}`)}
+        </Badge>
       </div>
 
       <p
         className="animate-rise mt-3 font-display text-lg font-bold tabular-nums"
         style={{ animationDelay: "120ms" }}
       >
-        {formatNpr(low)} – {formatNpr(high)}
+        {formatNpr(low, { locale })} – {formatNpr(high, { locale })}
         <span className="ml-2 text-caption font-normal text-muted-foreground">
-          typical range
+          {tc("typicalRange")}
         </span>
       </p>
 
@@ -382,14 +435,8 @@ function TriageCard({ outcome }: { outcome: TriageOutcome }) {
 
       <div className="animate-rise" style={{ animationDelay: "240ms" }}>
         <Button variant="gold" className={cn("btn-tactile mt-4")} asChild>
-          {/* prefetch={false} until Phase 5 ships /services/[slug]: Next
-              prefetches this the moment the card appears, and every triage
-              currently puts a 404 in the console. */}
-          <Link
-            prefetch={false}
-            href={`/services/${result.category}?urgency=${result.urgency}`}
-          >
-            Find {ctaLabel} professionals
+          <Link href={`/services/${result.category}?urgency=${result.urgency}`}>
+            {t("findProfessionals", { category: ctaLabel })}
             <ArrowRight aria-hidden="true" />
           </Link>
         </Button>
@@ -428,29 +475,18 @@ function useTriageDebug(): boolean {
   return enabled;
 }
 
-const PATH_LABEL: Record<TriageOutcome["source"], string> = {
-  claude: "Claude",
-  cache: "cache",
-  fallback: "keyword fallback",
-};
-
-/** Plain English for the reason codes — this is a debugging aid, not a log. */
-const REASON_LABEL: Record<string, string> = {
-  ok: "",
-  "cache-hit": "same question within 10 min",
-  "no-api-key": "ANTHROPIC_API_KEY not set",
-  timeout: "model took over 9.5s",
-  "provider-error": "the API returned an error",
-  unparseable: "the reply failed validation",
-  unreachable: "the request never arrived",
-  rejected: "rate limited or refused",
-};
-
 function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
+  const t = useTranslations("triage.debug");
   const show = useTriageDebug();
   if (!show) return null;
 
-  const reason = REASON_LABEL[outcome.reason] ?? outcome.reason;
+  // "ok" has nothing to add — the path itself is the whole story.
+  const reason =
+    outcome.reason === "ok"
+      ? ""
+      : t.has(`reason.${outcome.reason}`)
+        ? t(`reason.${outcome.reason}`)
+        : outcome.reason;
 
   return (
     <p
@@ -462,9 +498,9 @@ function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
           : "text-muted-foreground",
       )}
     >
-      <span className="font-semibold uppercase tracking-wide">dev</span>
+      <span className="font-semibold uppercase tracking-wide">{t("tag")}</span>
       <span>
-        served by {PATH_LABEL[outcome.source]}
+        {t("servedBy", { path: t(outcome.source) })}
         {outcome.model ? ` (${outcome.model})` : ""}
       </span>
       {reason ? <span>· {reason}</span> : null}

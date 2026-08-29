@@ -14,6 +14,8 @@ import {
 
 import categorySeed from "@/lib/data/seed/categories.json";
 
+import type { Locale } from "@/i18n/routing";
+
 /**
  * The service categories, as authored.
  *
@@ -32,14 +34,48 @@ export type Category = {
   nameEn: string;
   nameNe: string;
   descriptor: string;
+  descriptorNe: string;
   description: string;
+  descriptionNe: string;
   ctaLabel: string;
+  ctaLabelNe: string;
   basePriceMin: number;
   basePriceMax: number;
   /** Lucide icon name — resolved through CATEGORY_ICONS below. */
   icon: string;
   sortOrder: number;
 };
+
+/**
+ * A category's copy in one language.
+ *
+ * Category copy is data, not interface strings — it lives in the `categories`
+ * table so repricing and renaming happen in one place, and the Nepali sits in
+ * sibling columns rather than in the message catalogue. This is the single
+ * function that picks a side, so nothing else has to write `locale === "ne"`.
+ */
+export type CategoryCopy = {
+  name: string;
+  descriptor: string;
+  description: string;
+  ctaLabel: string;
+};
+
+export function categoryCopy(category: Category, locale: Locale): CategoryCopy {
+  return locale === "ne"
+    ? {
+        name: category.nameNe,
+        descriptor: category.descriptorNe,
+        description: category.descriptionNe,
+        ctaLabel: category.ctaLabelNe,
+      }
+    : {
+        name: category.nameEn,
+        descriptor: category.descriptor,
+        description: category.description,
+        ctaLabel: category.ctaLabel,
+      };
+}
 
 export const CATEGORY_SEED = categorySeed as Category[];
 
@@ -66,31 +102,15 @@ export function categoryIcon(name: string): LucideIcon {
   return CATEGORY_ICONS[name] ?? Wrench;
 }
 
-export type ServiceCategoryCard = {
-  slug: string;
-  name: string;
-  /** Same name in Nepali, for the language toggle. */
-  nameNe: string;
-  /**
-   * Short lower-case form for inline sentences, e.g.
-   * "Find {ctaLabel} professionals". Written out per category rather than
-   * derived: lower-casing "AC Servicing & Gas Refill" breaks the acronym.
-   */
-  ctaLabel: string;
-  descriptor: string;
-  Icon: LucideIcon;
-};
+export type ServiceCategoryCard = Category & { Icon: LucideIcon };
 
 /**
  * The landing grid's view of the categories. Ordered as authored.
+ *
+ * Carries the whole row rather than a flattened English view, so a caller can
+ * hand it to `categoryCopy` with the reader's locale instead of reaching back
+ * into the seed for the Nepali half.
  */
 export const SERVICE_CATEGORIES: ServiceCategoryCard[] = [...CATEGORY_SEED]
   .sort((a, b) => a.sortOrder - b.sortOrder)
-  .map((category) => ({
-    slug: category.slug,
-    name: category.nameEn,
-    nameNe: category.nameNe,
-    ctaLabel: category.ctaLabel,
-    descriptor: category.descriptor,
-    Icon: categoryIcon(category.icon),
-  }));
+  .map((category) => ({ ...category, Icon: categoryIcon(category.icon) }));

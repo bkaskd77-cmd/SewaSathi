@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type Anthropic from "@anthropic-ai/sdk";
+import { getMessages } from "next-intl/server";
 import { z } from "zod";
 
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/lib/ai/mockTriage";
 import { getTriagePrompt } from "@/lib/ai/prompt";
 import { getPriceBands } from "@/lib/ai/price-bands";
+import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
 import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
@@ -22,6 +24,7 @@ import { readTriageCache, writeTriageCache } from "@/lib/server/triage-cache";
 import { logTriage } from "@/lib/server/triage-log";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/env";
+import { isLocale, routing, type Locale } from "@/i18n/routing";
 
 /**
  * Triage: text and/or photo in, a category, urgency and price band out.
@@ -40,6 +43,11 @@ import { hasSupabaseConfig } from "@/lib/env";
  * schema validation, a price clamp and the safety floor before anyone may see
  * it — streaming it would mean revealing fields we have not finished checking,
  * to save a few hundred milliseconds on a call that already shows a skeleton.
+ *
+ * The locale arrives in the body rather than the URL. This route sits outside
+ * the `[locale]` segment on purpose — it is not a page, it must not be
+ * rewritten to /ne/api/triage by the intl middleware, and an unknown value
+ * simply falls back to the default rather than 404ing somebody mid-emergency.
  */
 
 export const runtime = "nodejs";
@@ -58,6 +66,7 @@ const requestSchema = z
         data: z.string().min(1),
       })
       .optional(),
+    locale: z.string().optional(),
   })
   .refine((body) => Boolean(body.text?.trim() || body.image), {
     message: "Describe the problem or add a photo.",
@@ -122,11 +131,13 @@ async function askClaude(
     mediaType: "image/jpeg" | "image/png" | "image/webp";
     data: string;
   } | null,
+  locale: Locale,
+  copy: TriageCopy,
 ): Promise<{ result: TriageResult; hazard: Hazard | null } | null> {
   // Both read the same `categories` table, so the bands in the prompt and the
   // bands the answer is clamped to are the same numbers.
   const [systemPrompt, bands] = await Promise.all([
-    getTriagePrompt(),
+    getTriagePrompt(locale, copy.explanations.generic),
     getPriceBands(),
   ]);
 
@@ -194,6 +205,14 @@ export async function POST(request: NextRequest) {
 
   const text = parsed.data.text?.trim() ?? "";
   const image = parsed.data.image ?? null;
+  const locale: Locale = isLocale(parsed.data.locale)
+    ? parsed.data.locale
+    : routing.defaultLocale;
+
+  // The safety lines and the keyword matcher's explanations, in the reader's
+  // language. Loaded before anything can fail, because every failure path
+  // below needs them.
+  const copy = triageCopyFrom(await getMessages({ locale }));
 
   if (image && base64Bytes(image.data) > MAX_IMAGE_BYTES) {
     return badRequest("That photo is too large. Try a smaller one.", 413);
@@ -215,7 +234,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Photos are never served from cache, and never written to it.
-  const cached = !image && text ? readTriageCache(text) : null;
+  const cached = !image && text ? readTriageCache(text, locale) : null;
 
   let source: TriageSource = cached ? "cache" : "fallback";
   let reason: TriageReason = cached ? "cache-hit" : "no-api-key";
@@ -225,13 +244,13 @@ export async function POST(request: NextRequest) {
   if (!result && hasAnthropicConfig()) {
     reason = "unparseable";
     try {
-      const answer = await askClaude(text, image);
+      const answer = await askClaude(text, image, locale, copy);
       if (answer) {
         result = answer.result;
         visionHazard = answer.hazard;
         source = "claude";
         reason = "ok";
-        if (!image && text) writeTriageCache(text, answer.result);
+        if (!image && text) writeTriageCache(text, locale, answer.result);
       }
     } catch (error) {
       // Timeout, rate limit at the provider, a 500, a network blip — all the
@@ -246,7 +265,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!result) {
-    result = keywordTriage(text);
+    result = keywordTriage(text, copy);
     source = "fallback";
   }
 
@@ -261,6 +280,7 @@ export async function POST(request: NextRequest) {
     via,
     cautioned,
   } = applySafetyFloor(text, result, {
+    copy: copy.safety,
     visionHazard: source === "claude" ? visionHazard : null,
     photoUnseen: Boolean(image) && source !== "claude",
   });

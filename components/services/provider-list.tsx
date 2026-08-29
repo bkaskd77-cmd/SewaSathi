@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { SearchX } from "lucide-react";
 
 import { DataSourceBadge } from "@/components/services/data-source-badge";
@@ -6,6 +6,8 @@ import { ProviderCard } from "@/components/services/provider-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import { listProviders, type Availability } from "@/lib/data/providers";
 import { sortProviders, type SortOption } from "@/lib/data/ranking";
@@ -42,6 +44,9 @@ export async function ProviderList({
       reports happen here, after the page shell has already streamed. */
   debug?: boolean;
 }) {
+  const t = await getTranslations("services");
+  const locale = (await getLocale()) as Locale;
+
   const providers = await listProviders({
     category: params.category,
     area: params.area,
@@ -57,22 +62,16 @@ export async function ProviderList({
   });
 
   if (ranked.length === 0) {
+    const area = params.area ? areaShortLabel(params.area, locale) : null;
+
     return (
       <EmptyState
         icon={SearchX}
-        title={
-          params.area
-            ? `Nobody free in ${areaShortLabel(params.area)} right now`
-            : "No one matches those filters"
-        }
-        description={
-          params.area
-            ? "Professionals travel across the Valley, and someone one ward over can usually still come today."
-            : "Try loosening a filter — availability and minimum rating are the two that cut a list down fastest."
-        }
+        title={area ? t("emptyAreaTitle", { area }) : t("emptyFiltersTitle")}
+        description={area ? t("emptyAreaBody") : t("emptyFiltersBody")}
         action={
           <Button variant="gold" asChild className="btn-tactile">
-            <Link href={clearHref}>Search the whole Valley</Link>
+            <Link href={clearHref}>{t("searchWholeValley")}</Link>
           </Button>
         }
       />
@@ -83,24 +82,30 @@ export async function ProviderList({
     <>
       {/* The cards are h3s. Without this the page jumps h1 to h3, which is
           what a screen reader user hears as a missing level. */}
-      <h2 className="sr-only">Professionals</h2>
+      <h2 className="sr-only">{t("professionals")}</h2>
 
       <p
         aria-live="polite"
         className="animate-rise mt-4 text-caption text-muted-foreground"
       >
-        {ranked.length} {ranked.length === 1 ? "professional" : "professionals"}
-        {params.area
-          ? ` covering ${areaShortLabel(params.area)}`
-          : " in the Valley"}
+        {t("resultCount", {
+          count: ranked.length,
+          n: String(ranked.length),
+          where: params.area
+            ? t("coveringArea", {
+                area: areaShortLabel(params.area, locale),
+              })
+            : t("inTheValley"),
+        })}
       </p>
 
       {params.urgency === "emergency" ? (
         <Card className="animate-rise mt-3 border-warning/30 bg-warning/[0.07] p-4">
           <p className="text-body-sm">
-            <strong className="font-semibold">Sorted for speed.</strong> Because
-            you said this is urgent, whoever can come soonest is first — not
-            whoever has the highest rating.
+            <strong className="font-semibold">
+              {t("sortedForSpeedTitle")}
+            </strong>{" "}
+            {t("sortedForSpeedBody")}
           </p>
         </Card>
       ) : null}

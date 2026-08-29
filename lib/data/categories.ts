@@ -31,8 +31,11 @@ type CategoryRow = {
   name_en: string;
   name_ne: string;
   descriptor: string;
+  descriptor_ne: string;
   description: string;
+  description_ne: string;
   cta_label: string;
+  cta_label_ne: string;
   base_price_min: number;
   base_price_max: number;
   icon: string;
@@ -45,8 +48,11 @@ function fromRow(row: CategoryRow): Category {
     nameEn: row.name_en,
     nameNe: row.name_ne,
     descriptor: row.descriptor,
+    descriptorNe: row.descriptor_ne,
     description: row.description,
+    descriptionNe: row.description_ne,
     ctaLabel: row.cta_label,
+    ctaLabelNe: row.cta_label_ne,
     basePriceMin: row.base_price_min,
     basePriceMax: row.base_price_max,
     icon: row.icon,
@@ -70,7 +76,7 @@ export const getCategories = cache(async (): Promise<Category[]> => {
     const { data, error } = await createClient()
       .from("categories")
       .select(
-        "slug, name_en, name_ne, descriptor, description, cta_label, base_price_min, base_price_max, icon, sort_order",
+        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order",
       )
       .eq("is_active", true)
       .order("sort_order");
@@ -94,7 +100,4 @@ export async function getCategory(slug: string): Promise<Category | null> {
   return categories.find((category) => category.slug === slug) ?? null;
 }
 
-/** Name in the reader's language. The only i18n that exists so far. */
-export function categoryNameFor(category: Category, locale: "en" | "ne") {
-  return locale === "ne" ? category.nameNe : category.nameEn;
-}
+export { categoryCopy } from "@/lib/config/services";

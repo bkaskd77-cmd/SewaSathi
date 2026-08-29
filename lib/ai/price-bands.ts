@@ -44,6 +44,8 @@ const BAND_NOTES: Record<string, string> = {
 export type PriceBand = {
   slug: string;
   name: string;
+  /** The Nepali name, listed alongside so Nepali input maps to the slug. */
+  nameNe: string;
   low: number;
   high: number;
   note: string;
@@ -53,6 +55,7 @@ function toBand(category: Category): PriceBand {
   return {
     slug: category.slug,
     name: category.nameEn,
+    nameNe: category.nameNe,
     low: category.basePriceMin,
     high: category.basePriceMax,
     note: BAND_NOTES[category.slug] ?? "",

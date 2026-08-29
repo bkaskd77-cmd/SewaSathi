@@ -1,15 +1,16 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "system", label: "System", Icon: Monitor },
-  { value: "dark", label: "Dark", Icon: Moon },
+  { value: "light", key: "themeLight", Icon: Sun },
+  { value: "system", key: "themeSystem", Icon: Monitor },
+  { value: "dark", key: "themeDark", Icon: Moon },
 ] as const;
 
 /**
@@ -19,6 +20,7 @@ const OPTIONS = [
  * the browser, so highlighting a segment during SSR would flash the wrong one.
  */
 export function ThemeToggle() {
+  const t = useTranslations("common");
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -27,10 +29,10 @@ export function ThemeToggle() {
   return (
     <div
       role="radiogroup"
-      aria-label="Colour theme"
+      aria-label={t("colourTheme")}
       className="inline-flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-sm"
     >
-      {OPTIONS.map(({ value, label, Icon }) => {
+      {OPTIONS.map(({ value, key, Icon }) => {
         const active = mounted && theme === value;
 
         return (
@@ -39,7 +41,7 @@ export function ThemeToggle() {
             type="button"
             role="radio"
             aria-checked={active}
-            aria-label={label}
+            aria-label={t(key)}
             onClick={() => setTheme(value)}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Activity } from "lucide-react";
 
-import { ACTIVITY_FEED, formatActivity } from "@/lib/mock/activityFeed";
+import { ACTIVITY_FEED } from "@/lib/mock/activityFeed";
 
 const INTERVAL_MS = 4000;
 
@@ -19,6 +20,8 @@ const INTERVAL_MS = 4000;
  * with a screen reader.
  */
 export function ActivityTicker() {
+  const t = useTranslations("activity");
+  const locale = useLocale();
   const [index, setIndex] = React.useState(0);
   const [paused, setPaused] = React.useState(false);
   const [enabled, setEnabled] = React.useState(false);
@@ -67,7 +70,11 @@ export function ActivityTicker() {
           aria-live="off"
           className="animate-ticker-in truncate text-caption text-muted-foreground"
         >
-          {formatActivity(entry)}
+          {t(entry.actionKey, {
+            name: locale === "ne" ? entry.nameNe : entry.name,
+            area: locale === "ne" ? entry.areaNe : entry.area,
+            minutes: String(entry.minutesAgo),
+          })}
         </p>
       </div>
     </div>

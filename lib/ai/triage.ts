@@ -1,3 +1,5 @@
+import type { Locale } from "@/i18n/routing";
+import type { TriageCopy } from "@/lib/ai/copy";
 import {
   triageProblem as keywordTriage,
   type TriageResult,
@@ -15,6 +17,11 @@ import { applySafetyFloor } from "@/lib/ai/safety";
  * down, request aborted mid-flight — anything that is not a real answer from
  * the server becomes the keyword matcher running locally, with the same safety
  * floor applied. The person always gets something.
+ *
+ * The caller passes the copy for both because this path runs with no network:
+ * the safety lines and the keyword explanations have to already be in the
+ * browser, in the reader's language, before the request that failed was ever
+ * made.
  */
 
 export type { TriageResult, Urgency } from "@/lib/ai/mockTriage";
@@ -52,6 +59,7 @@ export type TriageOutcome = {
 
 function localFallback(
   text: string,
+  copy: TriageCopy,
   reason: TriageReason,
   photoUnseen = false,
 ): TriageOutcome {
@@ -59,7 +67,10 @@ function localFallback(
     // Same floor as the server applies, including the note when a photo was
     // attached and nothing ever looked at it — which is precisely what this
     // path means.
-    result: applySafetyFloor(text, keywordTriage(text), { photoUnseen }).result,
+    result: applySafetyFloor(text, keywordTriage(text, copy), {
+      copy: copy.safety,
+      photoUnseen,
+    }).result,
     source: "fallback",
     reason,
   };
@@ -67,12 +78,19 @@ function localFallback(
 
 export async function triageProblem(
   input: string,
-  options: { image?: TriageImage | null; signal?: AbortSignal } = {},
+  options: {
+    /** The reader's language. Sent to the server, and used by the fallback. */
+    locale: Locale;
+    copy: TriageCopy;
+    image?: TriageImage | null;
+    signal?: AbortSignal;
+  },
 ): Promise<TriageOutcome> {
   const text = input.trim();
   const image = options.image ?? null;
+  const { copy, locale } = options;
 
-  if (!text && !image) return localFallback("", "rejected");
+  if (!text && !image) return localFallback("", copy, "rejected");
 
   try {
     const response = await fetch("/api/triage", {
@@ -81,11 +99,13 @@ export async function triageProblem(
       body: JSON.stringify({
         text: text || undefined,
         image: image ?? undefined,
+        locale,
       }),
       signal: options.signal,
     });
 
-    if (!response.ok) return localFallback(text, "rejected", Boolean(image));
+    if (!response.ok)
+      return localFallback(text, copy, "rejected", Boolean(image));
 
     const payload = (await response.json()) as {
       result?: TriageResult;
@@ -95,7 +115,7 @@ export async function triageProblem(
     };
 
     if (!payload.result)
-      return localFallback(text, "unparseable", Boolean(image));
+      return localFallback(text, copy, "unparseable", Boolean(image));
     return {
       result: payload.result,
       source: payload.source ?? "claude",
@@ -107,6 +127,6 @@ export async function triageProblem(
     // failure — it must not paint a fallback result over the new query.
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    return localFallback(text, "unreachable", Boolean(image));
+    return localFallback(text, copy, "unreachable", Boolean(image));
   }
 }

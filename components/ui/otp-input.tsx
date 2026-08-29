@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ export function OtpInput({
   success?: boolean;
   autoFocus?: boolean;
 }) {
+  const t = useTranslations("auth.verify");
   const refs = React.useRef<Array<HTMLInputElement | null>>([]);
   const completedFor = React.useRef<string | null>(null);
 
@@ -106,7 +108,7 @@ export function OtpInput({
         shaking && "animate-shake",
       )}
       role="group"
-      aria-label={`${length}-digit verification code`}
+      aria-label={t("otpLabel")}
     >
       {Array.from({ length }).map((_, i) => {
         const filled = Boolean(value[i]);
@@ -125,7 +127,7 @@ export function OtpInput({
             // One-time-code lets both iOS and Android offer the SMS autofill.
             autoComplete={i === 0 ? "one-time-code" : "off"}
             maxLength={1}
-            aria-label={`Digit ${i + 1}`}
+            aria-label={t("otpDigit", { index: String(i + 1) })}
             aria-invalid={invalid || undefined}
             style={
               landedAt > 0

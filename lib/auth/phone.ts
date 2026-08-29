@@ -12,8 +12,20 @@
 
 export const NEPAL_DIAL_CODE = "+977";
 
+/**
+ * `reason` is a key into `auth.errors`, not a sentence.
+ *
+ * This module is imported by the middleware-adjacent server code and by a
+ * Client Component, and neither is a good place to hold copy. Returning a key
+ * keeps the validation rules here and the wording in the catalogue, which is
+ * what lets the same check speak Nepali.
+ */
 export type PhoneCheck =
-  { ok: true; e164: string; national: string } | { ok: false; reason: string };
+  | { ok: true; e164: string; national: string }
+  | { ok: false; reason: PhoneError };
+
+export type PhoneError =
+  "enterMobile" | "landline" | "prefix" | "tooShort" | "tooLong";
 
 /** Digits only, with any +977 / 977 / leading 0 prefix removed. */
 export function toNationalDigits(input: string): string {
@@ -27,7 +39,7 @@ export function checkNepaliMobile(input: string): PhoneCheck {
   const national = toNationalDigits(input);
 
   if (national.length === 0) {
-    return { ok: false, reason: "Enter your mobile number." };
+    return { ok: false, reason: "enterMobile" };
   }
 
   // Landlines first: "01…" numbers are 7-8 digits and would otherwise read as
@@ -35,33 +47,21 @@ export function checkNepaliMobile(input: string): PhoneCheck {
   // with 9, so anything else is a fixed line — don't try to enumerate area
   // codes, that list is long and it changes.
   if (!national.startsWith("9")) {
-    return {
-      ok: false,
-      reason: "That's a landline. We can only text a mobile.",
-    };
+    return { ok: false, reason: "landline" };
   }
 
   // 96 is a live prefix on some networks but not one we serve yet, so it gets
   // the prefix message rather than being mislabelled a landline.
   if (!/^9[78]/.test(national)) {
-    return {
-      ok: false,
-      reason: "Mobile numbers here start 97 or 98.",
-    };
+    return { ok: false, reason: "prefix" };
   }
 
   if (national.length < 10) {
-    return {
-      ok: false,
-      reason: "Too short — a mobile number is 10 digits.",
-    };
+    return { ok: false, reason: "tooShort" };
   }
 
   if (national.length > 10) {
-    return {
-      ok: false,
-      reason: "Too long — a mobile number is 10 digits.",
-    };
+    return { ok: false, reason: "tooLong" };
   }
 
   return {

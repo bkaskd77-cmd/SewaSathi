@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowRight, Phone } from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "@/i18n/navigation";
 import { sendOtp } from "@/lib/auth/otp";
 import {
   checkNepaliMobile,
@@ -16,6 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export function PhoneForm({ next }: { next: string }) {
+  const t = useTranslations("auth.login");
+  const tErr = useTranslations("auth.errors");
   const router = useRouter();
   const [raw, setRaw] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -25,7 +28,7 @@ export function PhoneForm({ next }: { next: string }) {
     event.preventDefault();
     const check = checkNepaliMobile(raw);
     if (!check.ok) {
-      setError(check.reason);
+      setError(tErr(check.reason));
       return;
     }
 
@@ -35,7 +38,7 @@ export function PhoneForm({ next }: { next: string }) {
 
     if (!outcome.ok) {
       setSending(false);
-      setError(outcome.message);
+      setError(tErr(outcome.error));
       return;
     }
 
@@ -48,7 +51,7 @@ export function PhoneForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      <Label htmlFor="phone">Mobile number</Label>
+      <Label htmlFor="phone">{t("mobileLabel")}</Label>
 
       <div
         className={cn(
@@ -70,7 +73,7 @@ export function PhoneForm({ next }: { next: string }) {
           inputMode="numeric"
           autoComplete="tel-national"
           autoFocus
-          placeholder="98XX XXX XXX"
+          placeholder={t("placeholder")}
           aria-invalid={Boolean(error)}
           aria-describedby="phone-error"
           value={formatNepaliMobile(raw)}
@@ -91,12 +94,12 @@ export function PhoneForm({ next }: { next: string }) {
         className="btn-tactile mt-2 w-full"
         disabled={sending}
       >
-        {sending ? "Sending code…" : "Send code"}
+        {sending ? t("sending") : t("send")}
         {!sending ? <ArrowRight aria-hidden="true" /> : null}
       </Button>
 
       <p className="mt-3 text-center text-caption text-muted-foreground">
-        We&rsquo;ll text you a 6-digit code. Standard SMS rates apply.
+        {t("smsNote")}
       </p>
     </form>
   );
