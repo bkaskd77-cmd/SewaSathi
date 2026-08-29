@@ -5,13 +5,34 @@ shadcn-style primitives · Supabase · Claude · Vercel.
 
 ## Working agreement
 
-- **One phase at a time.** At the end of each phase, hand over a concise
-  summary: what was built, what was decided, what is verified, what is next.
+- **One phase at a time.** Every phase, and every substantial change inside
+  one, ends with the handover below. It is not optional and it is not a
+  paragraph.
 - **Deploy by pushing.** The branch is the Vercel production branch — a push
   deploys. Never ask the user to click Redeploy.
 - **Automate everything reachable.** Only ask the user for things that need
   their account or a credential, and then ask for one thing at a time.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
+
+### The handover — five headings, nothing else
+
+Write these five, in this order, and stop. A heading with nothing under it gets
+deleted, not padded.
+
+- **Built** — what now exists that did not before. Bullets, not prose.
+- **Decided** — the calls made and the one-line reason for each. Only decisions
+  that constrain what comes next; leave out anything reversible and obvious.
+- **Fixed** — bugs found on the way, including ones that were already there.
+  Say which were pre-existing.
+- **Verified** — what was actually run, with the numbers. "Tests pass" is not a
+  verification; "median-of-3 mobile Lighthouse 97, budgets green, 8 paint
+  checks" is. If something was not checked, say so here.
+- **Your turn** — the manual steps only the user can do, one at a time, and any
+  decision waiting on them. Empty means genuinely nothing is blocked.
+
+The failure mode is length, not omission. Detail belongs in the commit message
+and in this file; the handover is what someone reads in thirty seconds to know
+where the product stands.
 
 ## Design tokens — the one rule
 
