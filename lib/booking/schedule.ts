@@ -143,3 +143,21 @@ export function slotLabel(slot: Slot): string {
   const pad = (h: number) => `${String(h).padStart(2, "0")}:00`;
   return `${pad(slot.startHour)} – ${pad(slot.endHour)}`;
 }
+
+/**
+ * "2026-09-02 · 11:00 – 13:00", in Nepal Time.
+ *
+ * A stored instant is UTC. Rendering it with `toISOString()` shows a reader in
+ * Kathmandu a time 5h45m earlier than the one they booked, which is the kind
+ * of bug that looks like a typo and costs somebody a morning.
+ */
+export function formatSlotInstant(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+
+  const parts = nptParts(when);
+  const end = (parts.h + WORKING_HOURS.slotHours) % 24;
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return `${parts.y}-${pad(parts.m + 1)}-${pad(parts.d)} · ${pad(parts.h)}:00 – ${pad(end)}:00`;
+}

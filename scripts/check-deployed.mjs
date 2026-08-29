@@ -44,6 +44,7 @@ const ROUTES = [
   "/services/plumbing",
   "/login",
   "/providers/join",
+  "/book",
   "/about",
   "/contact",
   "/help",
@@ -54,6 +55,7 @@ const ROUTES = [
   "/ne",
   "/ne/services",
   "/ne/providers/join",
+  "/ne/book",
   "/ne/about",
   "/ne/legal/terms",
 ];

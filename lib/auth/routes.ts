@@ -33,11 +33,21 @@ export const PROTECTED_ROUTES = [
   "/bookings",
   "/account",
   "/onboarding",
-  // Booking requires an account: the professional needs a name and a number to
-  // arrive at. Being on this list is what makes /login send them back here
-  // with the provider and urgency still in the URL.
-  "/book",
 ] as const;
+
+/**
+ * `/book` is deliberately NOT protected, and that changed in Phase 6.
+ *
+ * Booking still requires an account — the professional needs a name and a
+ * number to arrive at — but the account is asked for at the fourth step, not
+ * the first. A stranger describes the problem, gives the address and picks a
+ * time, and only then signs in; the draft is in sessionStorage and the
+ * redirect intent is in the URL, so they come back to the step they left.
+ *
+ * Guarding the whole route put the login wall in front of step one, which is
+ * where funnels die. The flow does the guarding now, and `confirmBookingAction`
+ * re-reads the session server-side, so nothing is trusted to the browser.
+ */
 
 /** Requires a session AND profiles.role = 'provider'. */
 export const PROVIDER_ROUTES = ["/providers/dashboard"] as const;

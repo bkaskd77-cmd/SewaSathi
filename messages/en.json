@@ -359,18 +359,6 @@
     "terms": "By continuing you agree to our <terms>terms</terms> and <privacy>privacy policy</privacy>."
   },
   "booking": {
-    "book": {
-      "title": "Book a professional",
-      "lead": "Dates, addresses and payment arrive in the next release. Everything you chose is held below — nothing has been lost.",
-      "yourRequest": "Your request",
-      "service": "Service",
-      "professional": "Professional",
-      "urgency": "Urgency",
-      "whatYouToldUs": "What you told us",
-      "emptyTitle": "Booking opens shortly",
-      "emptyBody": "Until then we can take this over the phone — call and quote the professional's name, and we'll arrange the visit for you.",
-      "backTo": "Back to {category}"
-    },
     "bookings": {
       "title": "Your bookings",
       "leadNamed": "Everything you book, {name}, in one place — upcoming first, then past jobs.",
@@ -389,6 +377,202 @@
       "mobileUnset": "Not on file",
       "language": "Language",
       "changeNote": "Need to change something? Call <phone>+977 9800 000 000</phone> and we’ll update it — editing here arrives with addresses and payment."
+    },
+    "flow": {
+      "title": "Book a professional",
+      "lead": "Five short steps. Nothing is charged now — you pay after the work is done.",
+      "stepCount": "Step {n} of {total}",
+      "progressLabel": "Booking progress",
+      "next": "Continue",
+      "back": "Back",
+      "continueSignIn": "Continue — sign in",
+      "confirm": "Confirm booking",
+      "confirming": "Confirming…",
+      "steps": {
+        "problem": "Problem",
+        "address": "Address",
+        "when": "Time",
+        "provider": "Professional",
+        "review": "Review"
+      },
+      "titles": {
+        "problem": "What needs fixing?",
+        "address": "Where is it?",
+        "when": "When suits you?",
+        "provider": "Who should come?",
+        "review": "Check it over"
+      },
+      "leads": {
+        "problem": "A sentence or two is plenty. A photo helps more than a paragraph.",
+        "address": "We only share this with the professional who takes the job.",
+        "when": "Emergencies go out to everyone available right away.",
+        "provider": "Ranked by rating, jobs done and how fast they usually reply.",
+        "review": "Change anything that is not right before you confirm."
+      },
+      "problem": {
+        "descriptionLabel": "What is wrong?",
+        "descriptionPlaceholder": "Kitchen tap has been dripping since this morning and the handle is loose.",
+        "categoryLabel": "Service",
+        "categoryHelp": "We guessed from what you wrote. Change it if we got it wrong — the wrong service sends the wrong trade.",
+        "categoryPlaceholder": "Choose a service",
+        "estimate": "Usually {range}",
+        "photoLabel": "Photo",
+        "photoHelp": "Optional, but it is the fastest way for someone to know what they are walking into.",
+        "photoAdd": "Add a photo",
+        "photoAlt": "The photo you attached",
+        "photoUploading": "Uploading…",
+        "photoAttached": "Photo attached",
+        "photoRemove": "Remove photo"
+      },
+      "address": {
+        "savedTitle": "Saved addresses",
+        "addAnother": "Use a different address",
+        "areaLabel": "Area",
+        "areaPlaceholder": "Choose your ward",
+        "toleLabel": "Tole",
+        "tolePlaceholder": "Jhamsikhel",
+        "landmarkLabel": "Nearest landmark",
+        "landmarkHelp": "Required. There are no house numbers to go by — the landmark is how your professional actually finds the door.",
+        "landmarkPlaceholder": "Opposite Patan Durbar Square ticket counter",
+        "directionsLabel": "Anything else that helps",
+        "directionsPlaceholder": "Blue gate, third floor, ring the bottom bell",
+        "labelLabel": "Save as",
+        "labelPlaceholder": "home",
+        "saveForNextTime": "Save this address for next time"
+      },
+      "when": {
+        "preselectedNote": "You told us this is an emergency, so we have selected the fastest option.",
+        "dayLabel": "Day",
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "slotLabel": "Two-hour window",
+        "noSlots": "Nothing left today. Try tomorrow, or choose Today and we will send whoever is free.",
+        "options": {
+          "emergency": {
+            "title": "Right away",
+            "tag": "Emergency",
+            "body": "We alert everyone available now. Usually on site within the hour."
+          },
+          "today": {
+            "title": "Sometime today",
+            "body": "We find someone free today and call you with the time."
+          },
+          "scheduled": {
+            "title": "Pick a time",
+            "body": "Choose a two-hour window up to two weeks ahead."
+          }
+        }
+      },
+      "provider": {
+        "autoTitle": "Let SajiloKaam choose",
+        "autoBody": "We send it to the highest-ranked professional free at your time.",
+        "orChoose": "Or pick someone yourself",
+        "verified": "Verified",
+        "availableNow": "Free now",
+        "jobs": "{n} jobs",
+        "respondsIn": "replies in ~{n} min",
+        "noneNearby": "Nobody is listed in that ward yet. Let us choose and we will widen the search."
+      },
+      "review": {
+        "problem": "Problem",
+        "photo": "Photo",
+        "photoAttached": "1 photo attached",
+        "address": "Address",
+        "landmarkHint": "Landmark: {landmark}",
+        "when": "Time",
+        "asap": "As soon as possible",
+        "emergency": "Right away — emergency",
+        "provider": "Professional",
+        "chosen": "The professional you chose",
+        "autoAssigned": "SajiloKaam will choose",
+        "change": "Change {field}",
+        "paymentTitle": "How you will pay",
+        "paymentHelp": "Nothing is charged now. You pay when the work is finished.",
+        "payments": {
+          "cash": "Cash",
+          "esewa": "eSewa",
+          "khalti": "Khalti"
+        },
+        "estimateTitle": "This is an estimate, not a final price",
+        "estimateBody": "Your professional checks the job on site and agrees the final figure with you before any work starts. If you do not agree it, you pay nothing and they leave.",
+        "estimateBadge": "No work begins until you agree the price"
+      },
+      "success": {
+        "title": "Booked",
+        "body": "We are finding your professional now. Keep this reference for any call."
+      },
+      "errors": {
+        "describeTheProblem": "Tell us what is wrong — a sentence is enough.",
+        "pickCategory": "Choose which service you need.",
+        "pickArea": "Choose your ward.",
+        "toleTooShort": "Which tole? A name helps more than a street.",
+        "landmarkRequired": "A landmark is required — it is how your professional finds you.",
+        "directionsTooLong": "That is too long. Keep it to a line or two.",
+        "labelLength": "Give this address a short name.",
+        "pickSlot": "Choose a time window.",
+        "timeUnavailable": "That window has passed or is outside working hours. Pick another.",
+        "pickAddress": "Choose or add an address.",
+        "addressInvalid": "Something in the address is not right. Check it over.",
+        "pickPayment": "Choose how you will pay.",
+        "categoryUnavailable": "We are not taking bookings for that service right now.",
+        "providerUnavailable": "That professional is no longer available. Choose another, or let us pick.",
+        "photoFailed": "That photo would not upload. You can book without it.",
+        "badRequest": "Something about this request is not right. Start again from the first step.",
+        "saveFailed": "We could not save that. Check your connection and try again."
+      }
+    },
+    "status": {
+      "pending": "Finding a professional",
+      "accepted": "Accepted",
+      "en_route": "On the way",
+      "in_progress": "Work in progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "no_provider_found": "No professional found"
+    },
+    "whatNext": {
+      "pending": "We are alerting professionals now. You will get a call as soon as one accepts.",
+      "accepted": "Your professional has accepted. They will set off at the agreed time.",
+      "en_route": "Your professional is on the way. Keep your phone nearby.",
+      "in_progress": "Work has started. The final price was agreed before it began.",
+      "completed": "This job is done. Pay the agreed amount directly to your professional.",
+      "cancelled": "This booking was cancelled. Nothing is owed.",
+      "no_provider_found": "Nobody was free for this one. Call us and we will arrange it by hand."
+    },
+    "detail": {
+      "back": "All bookings",
+      "progressLabel": "Where this job has got to",
+      "problem": "Problem",
+      "photo": "Photo",
+      "photoAlt": "The photo attached to this booking",
+      "address": "Address",
+      "addressMissing": "Address unavailable",
+      "landmarkHint": "{landmark}",
+      "when": "Time",
+      "asap": "As soon as possible",
+      "provider": "Professional",
+      "providerPending": "Not assigned yet",
+      "providerVerified": "ID verified",
+      "price": "Price",
+      "priceEstimate": "Estimate — confirmed on site before work starts",
+      "priceFinal": "Final, agreed on site",
+      "payment": "Payment",
+      "payments": {
+        "cash": "Cash",
+        "esewa": "eSewa",
+        "khalti": "Khalti"
+      },
+      "callSupport": "Call us",
+      "cancel": {
+        "trigger": "Cancel booking",
+        "title": "Cancel this booking?",
+        "body": "Your professional may already have planned around it. You can book again at any time.",
+        "reasonLabel": "Why, if you do not mind saying?",
+        "reasonPlaceholder": "Fixed it myself",
+        "keep": "Keep it",
+        "confirm": "Cancel booking",
+        "failed": "We could not cancel that. It may have moved on already — call us and we will sort it."
+      }
     }
   },
   "safety": {

@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronRight } from "lucide-react";
 
+import { StatusBadge } from "@/components/booking/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import { categoryCopy } from "@/lib/config/services";
+import { listBookings } from "@/lib/data/bookings";
+import { getCategories } from "@/lib/data/categories";
+import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -21,13 +26,13 @@ export async function generateMetadata({
   };
 }
 
+export const dynamic = "force-dynamic";
+
 /**
- * PLACEHOLDER — there are no bookings to list until Phase 6 builds the booking
- * flow and the `bookings` table. This page exists now because the account menu
- * links to it and a 404 from your own menu reads as a broken product.
+ * Everything this customer has booked.
  *
- * Phase 6 replaces the empty state with the real list; the empty state itself
- * stays, because a new customer will always land on it first.
+ * The empty state stays, because a new customer always lands on it first — it
+ * is the common case on day one, not an error path.
  */
 export default async function BookingsPage() {
   const locale = (await getLocale()) as Locale;
@@ -40,6 +45,16 @@ export default async function BookingsPage() {
     redirect({ href: "/login?next=%2Fbookings", locale });
   }
 
+  const [bookings, categories] = await Promise.all([
+    listBookings(),
+    getCategories(),
+  ]);
+
+  const categoryName = (slug: string) => {
+    const category = categories.find((c) => c.slug === slug);
+    return category ? categoryCopy(category, locale).name : slug;
+  };
+
   const firstName = profile.fullName?.trim().split(/\s+/)[0];
 
   return (
@@ -51,19 +66,54 @@ export default async function BookingsPage() {
         </p>
       </header>
 
-      <div className="mt-8">
-        <EmptyState
-          delay={0.06}
-          icon={CalendarDays}
-          title={t("emptyTitle")}
-          description={t("emptyBody")}
-          action={
-            <Button variant="gold" size="lg" asChild className="btn-tactile">
-              <Link href="/#services">{t("browse")}</Link>
-            </Button>
-          }
-        />
-      </div>
+      {bookings.length === 0 ? (
+        <div className="mt-8">
+          <EmptyState
+            delay={0.06}
+            icon={CalendarDays}
+            title={t("emptyTitle")}
+            description={t("emptyBody")}
+            action={
+              <Button variant="gold" size="lg" asChild className="btn-tactile">
+                <Link href="/#services">{t("browse")}</Link>
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <ul className="assemble mt-8 flex flex-col gap-3">
+          {bookings.map((booking, i) => (
+            <li key={booking.id} style={{ ["--i" as string]: i }}>
+              <Link
+                href={`/bookings/${booking.id}`}
+                className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-body-md font-semibold">
+                      {categoryName(booking.categorySlug)}
+                    </span>
+                    <StatusBadge status={booking.status} />
+                  </div>
+                  <p className="mt-1 truncate text-body-sm text-muted-foreground">
+                    {booking.description}
+                  </p>
+                  <p className="mt-1 text-caption tabular-nums text-muted-foreground">
+                    {booking.reference} ·{" "}
+                    {booking.finalAmount !== null
+                      ? formatNpr(booking.finalAmount, { locale })
+                      : `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`}
+                  </p>
+                </div>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <p
         className="animate-rise mt-6 text-center text-caption text-muted-foreground"

@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import { getLocale, getTranslations } from "next-intl/server";
-import { CalendarClock } from "lucide-react";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
-import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Link, redirect } from "@/i18n/navigation";
+import { BookingFlow } from "@/components/booking/booking-flow";
+import type { SavedAddress } from "@/components/booking/step-address";
 import type { Locale } from "@/i18n/routing";
+import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
-import { getCategory } from "@/lib/data/categories";
-import { getProvider } from "@/lib/data/providers";
 import { getSessionProfile } from "@/lib/auth/session";
+import { listAddresses } from "@/lib/data/addresses";
+import { getCategories } from "@/lib/data/categories";
+import { getProvider } from "@/lib/data/providers";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -23,16 +22,23 @@ export async function generateMetadata({
   return { title: t("bookTitle"), robots: { index: false, follow: false } };
 }
 
+// The flow reads a session and saved addresses, so there is nothing to
+// prerender and a cached shell would show one customer another's addresses.
+export const dynamic = "force-dynamic";
+
 /**
- * PLACEHOLDER — Phase 6 builds the booking flow here.
+ * The booking flow.
  *
- * It exists now because every "Book now" in the product points at it, and a
- * primary call to action that 404s is worse than one that says "not yet".
+ * Arrives from three places — a triage result, a provider card, a category
+ * page — and any of the four parameters may be missing, including all of them
+ * when somebody lands here cold. Nothing below requires one: a missing
+ * category just means the first step asks.
  *
- * It also proves the piece that is easy to get wrong and hard to notice: this
- * route is protected, so a logged-out customer goes through /login and comes
- * back *here*, with the professional and the urgency they picked still in the
- * URL — not to the homepage to start again.
+ * Deliberately NOT redirecting a signed-out visitor to login. `/book` is still
+ * in PROTECTED_ROUTES for the middleware's benefit on the pages that need it,
+ * but the flow itself lets a stranger through the first three steps and asks
+ * them to sign in at the professional step, with the draft in sessionStorage
+ * and the redirect intent in the URL. Gating step one is where funnels die.
  */
 export default async function BookPage({
   searchParams,
@@ -46,29 +52,69 @@ export default async function BookPage({
   const providerId = first(searchParams.provider);
   const urgency = first(searchParams.urgency);
   const q = first(searchParams.q);
+  const triageLogId = first(searchParams.triage);
 
   const locale = (await getLocale()) as Locale;
-  const t = await getTranslations("booking.book");
-  const tc = await getTranslations("common");
+  const t = await getTranslations("booking.flow");
   const tServices = await getTranslations("services");
 
   const profile = await getSessionProfile();
-  if (!profile) {
-    const params = new URLSearchParams();
-    if (categorySlug) params.set("category", categorySlug);
-    if (providerId) params.set("provider", providerId);
-    if (urgency) params.set("urgency", urgency);
-    if (q) params.set("q", q);
-    redirect({
-      href: `/login?next=${encodeURIComponent(`/book?${params.toString()}`)}`,
-      locale,
-    });
-  }
 
-  const [category, provider] = await Promise.all([
-    categorySlug ? getCategory(categorySlug) : Promise.resolve(null),
+  /*
+   * The `booking` namespace is held back from the root client provider — it is
+   * the longest prose in the catalogue and every page would carry it. The flow
+   * is a Client Component and genuinely needs it, so it gets its own provider
+   * scoped to this page rather than the landing page paying for booking copy.
+   */
+  const messages = await getMessages();
+
+  const [categories, addresses, provider] = await Promise.all([
+    getCategories(),
+    profile ? listAddresses() : Promise.resolve([]),
     providerId ? getProvider(providerId) : Promise.resolve(null),
   ]);
+
+  const ward = (n: number) => tServices("ward", { n: String(n) });
+
+  const savedAddresses: SavedAddress[] = addresses.map((address) => {
+    const area = findArea(address.areaKey);
+    return {
+      id: address.id,
+      label: address.label,
+      tole: address.tole,
+      landmark: address.landmark,
+      areaKey: address.areaKey,
+      areaLabel: area
+        ? areaLabel(area, locale, ward(area.wardNumber))
+        : address.city,
+    };
+  });
+
+  const areas = areasByCity(locale).map((group) => ({
+    city: group.city,
+    options: group.areas.map((area) => ({
+      value: area.key,
+      label: areaLabel(area, locale, ward(area.wardNumber)),
+    })),
+  }));
+
+  // Every ward key to its label, so the review screen can name the area the
+  // customer picked without shipping the areas config to the browser.
+  const areaLabels: Record<string, string> = {};
+  for (const group of areas) {
+    for (const option of group.options) areaLabels[option.value] = option.label;
+  }
+
+  // The intent travels in the URL so `safeRedirect` brings them back to this
+  // booking rather than the homepage.
+  const back = new URLSearchParams();
+  if (categorySlug) back.set("category", categorySlug);
+  if (providerId) back.set("provider", providerId);
+  if (urgency) back.set("urgency", urgency);
+  if (q) back.set("q", q);
+  const loginHref = `${locale === "ne" ? "/ne" : ""}/login?next=${encodeURIComponent(
+    `/book?${back.toString()}`,
+  )}`;
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -77,90 +123,52 @@ export default async function BookPage({
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
 
-      {category || provider ? (
-        <Card
-          className="animate-rise mt-6 p-5"
-          style={{ animationDelay: "60ms" }}
+      <div className="animate-rise mt-8" style={{ animationDelay: "60ms" }}>
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
         >
-          <p className="text-overline uppercase text-muted-foreground">
-            {t("yourRequest")}
-          </p>
-          <dl className="mt-3 flex flex-col gap-3">
-            {category ? (
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-body-sm text-muted-foreground">
-                  {t("service")}
-                </dt>
-                <dd className="text-right text-body-md font-semibold">
-                  {categoryCopy(category, locale).name}
-                  <span className="ml-2 font-normal tabular-nums text-muted-foreground">
-                    {formatNpr(category.basePriceMin, { locale })}–
-                    {formatNpr(category.basePriceMax, { locale })}
-                  </span>
-                </dd>
-              </div>
-            ) : null}
-            {provider ? (
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-body-sm text-muted-foreground">
-                  {t("professional")}
-                </dt>
-                <dd className="text-right text-body-md font-semibold">
-                  {provider.displayName}
-                </dd>
-              </div>
-            ) : null}
-            {urgency ? (
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-body-sm text-muted-foreground">
-                  {t("urgency")}
-                </dt>
-                <dd className="text-right">
-                  <Badge variant={urgency === "emergency" ? "urgent" : "info"}>
-                    {tServices.has(`urgency.${urgency}`)
-                      ? tServices(`urgency.${urgency}`)
-                      : urgency}
-                  </Badge>
-                </dd>
-              </div>
-            ) : null}
-            {q ? (
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="text-body-sm text-muted-foreground">
-                  {t("whatYouToldUs")}
-                </dt>
-                <dd className="text-right text-body-sm">
-                  &ldquo;{q.slice(0, 120)}&rdquo;
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </Card>
-      ) : null}
-
-      <div className="mt-6">
-        <EmptyState
-          delay={0.12}
-          icon={CalendarClock}
-          title={t("emptyTitle")}
-          description={t("emptyBody")}
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="gold" asChild className="btn-tactile">
-                <a href="tel:+9779800000000">{tc("callSupport")}</a>
-              </Button>
-              {category ? (
-                <Button variant="outline" asChild>
-                  <Link href={`/services/${category.slug}`}>
-                    {t("backTo", {
-                      category: categoryCopy(category, locale).ctaLabel,
-                    })}
-                  </Link>
-                </Button>
-              ) : null}
-            </div>
+        <BookingFlow
+          seed={{
+            category: categorySlug,
+            provider: providerId,
+            urgency,
+            description: q,
+            triageLogId,
+          }}
+          categories={categories.map((category) => ({
+            slug: category.slug,
+            label: categoryCopy(category, locale).name,
+            priceMin: category.basePriceMin,
+            priceMax: category.basePriceMax,
+            // Formatted here rather than passed as a formatter: a function
+            // cannot cross the server/client boundary, and the locale-aware
+            // currency rules belong on the server anyway.
+            quoteLabel: `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
+          }))}
+          savedAddresses={savedAddresses}
+          areas={areas}
+          preselectedProvider={
+            provider
+              ? {
+                  id: provider.id,
+                  displayName: provider.displayName,
+                  photoUrl: provider.photoUrl,
+                  yearsExperience: provider.yearsExperience,
+                  isVerified: provider.isVerified,
+                  availability: provider.availability,
+                  ratingAvg: provider.stats.ratingAvg,
+                  ratingCount: provider.stats.ratingCount,
+                  jobsCompleted: provider.stats.jobsCompleted,
+                  avgResponseMinutes: provider.stats.avgResponseMinutes,
+                }
+              : null
           }
+          signedIn={Boolean(profile)}
+          loginHref={loginHref}
+          areaLabels={areaLabels}
         />
+        </NextIntlClientProvider>
       </div>
     </div>
   );

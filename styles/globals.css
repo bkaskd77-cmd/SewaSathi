@@ -489,6 +489,56 @@
     }
   }
 
+  /*
+   * The booking flow's step change.
+   *
+   * Direction carries meaning here in a way it does not elsewhere in the
+   * product: going back to fix the address should look like going back, or the
+   * customer loses their place in a five-step form on a phone. Only the
+   * entering step animates — animating the outgoing one as well doubles the
+   * time before anything is readable, and this flow is often being filled in
+   * by somebody standing over a leak.
+   */
+  .step-forward {
+    animation: step-in-forward 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .step-back {
+    animation: step-in-back 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes step-in-forward {
+    from {
+      opacity: 0;
+      transform: translateX(1.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes step-in-back {
+    from {
+      opacity: 0;
+      transform: translateX(-1.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /*
+   * The review screen assembles: each row arrives just after the one above it,
+   * so the summary reads as being put together rather than appearing whole.
+   * Capped like every other stagger so a long summary does not crawl.
+   */
+  .assemble > * {
+    animation: rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--assemble-step, 0.055s) * var(--i, 0));
+  }
+
   /* Success, and anything else that should arrive rather than appear. */
   .animate-pop-in {
     animation: pop-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -558,7 +608,10 @@
     }
 
     .animate-route-in,
-    .animate-pop-in {
+    .animate-pop-in,
+    .step-forward,
+    .step-back,
+    .assemble > * {
       animation: none;
       opacity: 1;
       transform: none;
