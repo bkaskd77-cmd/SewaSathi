@@ -1,7 +1,9 @@
+import * as React from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { BadgeCheck, Clock, MapPin, Star } from "lucide-react";
 
 import { ProviderAvatar } from "@/components/services/provider-avatar";
+import { ViewTransitionLink } from "@/components/shared/view-transition-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,13 +72,28 @@ export function ProviderCard({
       style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
     >
       <div className="flex items-start gap-4">
+        {/* Morphs into the larger avatar on the profile. See
+            components/shared/view-transition-link.tsx. */}
         <ProviderAvatar
           name={provider.displayName}
           photoUrl={provider.photoUrl}
+          className="vt-name"
+          style={
+            {
+              "--vt-name": `provider-avatar-${provider.id}`,
+            } as React.CSSProperties
+          }
         />
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-display text-display-sm">
+          <h3
+            className="vt-name truncate font-display text-display-sm"
+            style={
+              {
+                "--vt-name": `provider-name-${provider.id}`,
+              } as React.CSSProperties
+            }
+          >
             {provider.displayName}
           </h3>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
@@ -175,7 +192,9 @@ export function ProviderCard({
           </Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link href={profileHref}>{t("card.viewProfile")}</Link>
+          <ViewTransitionLink href={profileHref}>
+            {t("card.viewProfile")}
+          </ViewTransitionLink>
         </Button>
       </div>
     </Card>

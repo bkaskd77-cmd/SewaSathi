@@ -10,24 +10,33 @@ import { cn } from "@/lib/utils";
  * colour, no illustration to download. It always carries an action — a screen
  * that says "nothing here" and offers no way forward is a dead end, and people
  * leave rather than work out what to do next.
+ *
+ * It fades in like everything else. Emptiness is a state the list arrives at —
+ * usually right after a filter change, where the cards animated out and a
+ * hard-cut panel appearing in their place reads as a page error rather than as
+ * a result.
  */
 export function EmptyState({
   icon: Icon,
   title,
   description,
   action,
+  delay,
   className,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
   action?: React.ReactNode;
+  /** Seconds, when this needs to land after something above it. */
+  delay?: number;
   className?: string;
 }) {
   return (
     <Card
+      style={delay ? { animationDelay: `${delay}s` } : undefined}
       className={cn(
-        "flex flex-col items-center px-6 py-14 text-center sm:py-18",
+        "animate-rise flex flex-col items-center px-6 py-14 text-center sm:py-18",
         className,
       )}
     >

@@ -51,8 +51,9 @@ export default async function BookingsPage() {
         </p>
       </header>
 
-      <div className="animate-rise mt-8" style={{ animationDelay: "60ms" }}>
+      <div className="mt-8">
         <EmptyState
+          delay={0.06}
           icon={CalendarDays}
           title={t("emptyTitle")}
           description={t("emptyBody")}

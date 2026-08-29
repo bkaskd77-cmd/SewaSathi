@@ -1,3 +1,5 @@
+import * as React from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -15,6 +17,8 @@ import {
   dataDebugEnabled,
 } from "@/components/services/data-source-badge";
 import { ProviderAvatar } from "@/components/services/provider-avatar";
+import { ProviderReviews } from "@/components/services/provider-reviews";
+import { ProviderReviewsSkeleton } from "@/components/services/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,11 +28,7 @@ import { areaLabel, findArea } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories, getCategory } from "@/lib/data/categories";
-import {
-  getProvider,
-  getProviderReviews,
-  type VerificationCheck,
-} from "@/lib/data/providers";
+import { getProvider, type VerificationCheck } from "@/lib/data/providers";
 import { bookingHref } from "@/lib/routes/booking";
 import { formatNpr } from "@/lib/utils";
 
@@ -97,7 +97,6 @@ export default async function ProviderProfilePage({
   const t = await getTranslations("services");
   const categoryName = categoryCopy(category, locale).name;
 
-  const reviews = await getProviderReviews(provider.id);
   const first = (value: string | string[] | undefined) =>
     Array.isArray(value) ? value[0] : value;
   const urgency = first(searchParams.urgency);
@@ -145,10 +144,23 @@ export default async function ProviderProfilePage({
           name={provider.displayName}
           photoUrl={provider.photoUrl}
           size={88}
+          className="vt-name"
+          style={
+            {
+              "--vt-name": `provider-avatar-${provider.id}`,
+            } as React.CSSProperties
+          }
         />
 
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-display-md">
+          <h1
+            className="vt-name font-display text-display-md"
+            style={
+              {
+                "--vt-name": `provider-name-${provider.id}`,
+              } as React.CSSProperties
+            }
+          >
             {provider.displayName}
           </h1>
           <p className="mt-1 text-body-md text-muted-foreground">
@@ -343,51 +355,12 @@ export default async function ProviderProfilePage({
           {t("profile.reviews")}
         </h2>
 
-        {reviews.length === 0 ? (
-          <p className="mt-2 text-body-sm text-muted-foreground">
-            {t("profile.noReviews", { n: String(stats.ratingCount) })}
-          </p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-3">
-            {reviews.map((review) => (
-              <li key={review.id}>
-                <Card className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-body-sm font-semibold">
-                      {review.author}
-                    </p>
-                    <p
-                      className="flex items-center gap-1 text-caption tabular-nums"
-                      aria-label={t("profile.ratingOutOf", {
-                        rating: String(review.rating),
-                      })}
-                    >
-                      <Star
-                        aria-hidden="true"
-                        className="size-3.5 fill-gold text-gold"
-                      />
-                      {review.rating}.0
-                    </p>
-                  </div>
-                  <p className="mt-1.5 text-pretty text-body-sm text-muted-foreground">
-                    {review.comment}
-                  </p>
-                  <p className="mt-2 text-caption text-muted-foreground">
-                    {review.daysAgo < 30
-                      ? t("profile.daysAgo", {
-                          count: review.daysAgo,
-                          n: String(review.daysAgo),
-                        })
-                      : t("profile.monthsAgo", {
-                          count: Math.round(review.daysAgo / 30),
-                          n: String(Math.round(review.daysAgo / 30)),
-                        })}
-                  </p>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Suspense fallback={<ProviderReviewsSkeleton />}>
+          <ProviderReviews
+            providerId={provider.id}
+            ratingCount={stats.ratingCount}
+          />
+        </Suspense>
       </section>
 
       <DataSourceBadge enabled={dataDebugEnabled(searchParams)} />

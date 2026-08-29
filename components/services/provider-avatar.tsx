@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element -- see the note below: the
    storage host for provider photos is not chosen yet, and next/image needs
    that host in next.config before a single photo could render. */
+import type * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,11 +23,18 @@ export function ProviderAvatar({
   photoUrl,
   size = 56,
   className,
+  style,
 }: {
   name: string;
   photoUrl?: string | null;
   size?: number;
   className?: string;
+  /**
+   * Merged with the width and height below. The provider pages use it to set
+   * `--vt-name`, which cannot be a Tailwind class because it carries a
+   * provider id.
+   */
+  style?: React.CSSProperties;
 }) {
   const initials = name
     .trim()
@@ -49,7 +58,7 @@ export function ProviderAvatar({
         loading="lazy"
         decoding="async"
         className={shared}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, ...style }}
       />
     );
   }
@@ -57,7 +66,7 @@ export function ProviderAvatar({
   return (
     <span
       aria-hidden="true"
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, ...style }}
       className={cn(
         shared,
         "grid place-items-center bg-primary font-display font-bold text-primary-foreground",

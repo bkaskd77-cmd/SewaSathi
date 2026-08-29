@@ -247,6 +247,21 @@
 
 @layer utilities {
   /*
+   * Shared elements between a provider card and that provider's page.
+   *
+   * The name has to be unique among elements present at the same time, so it
+   * carries the provider id: one card per provider in the list, one avatar on
+   * the profile. The browser matches old to new by name and interpolates
+   * position and size; everything else cross-fades.
+   *
+   * Set inline via a CSS custom property so the id can come from data — a
+   * Tailwind class cannot hold a runtime value.
+   */
+  .vt-name {
+    view-transition-name: var(--vt-name);
+  }
+
+  /*
    * Above-the-fold entrance.
    *
    * The hero must never depend on JavaScript to become visible — a
@@ -575,5 +590,30 @@
 
   .text-pretty {
     text-wrap: pretty;
+  }
+}
+
+/*
+ * View transitions.
+ *
+ * Same budget as every other entrance in the product: 150-300ms, ease-out, no
+ * bounce. The root cross-fade is what stops a route change reading as a cut;
+ * the named pairs above are what make it read as the same person.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.22s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Belt and braces. ViewTransitionLink already declines to start one, but a
+   * transition begun any other way must not animate either.
+   */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

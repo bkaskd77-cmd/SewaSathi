@@ -138,8 +138,9 @@ export default async function BookPage({
         </Card>
       ) : null}
 
-      <div className="animate-rise mt-6" style={{ animationDelay: "120ms" }}>
+      <div className="mt-6">
         <EmptyState
+          delay={0.12}
           icon={CalendarClock}
           title={t("emptyTitle")}
           description={t("emptyBody")}
