@@ -130,7 +130,6 @@
   "footer": {
     "company": "Company",
     "about": "About us",
-    "careers": "Careers",
     "contact": "Contact",
     "services": "Services",
     "allServices": "All services",
@@ -429,5 +428,11 @@
     "acDone": "{name}’s AC servicing in {area} was completed — {minutes} min ago",
     "pestControl": "{name} in {area} booked pest control — {minutes} min ago",
     "ratedCarpenter": "{name} in {area} rated a carpenter 5 stars — {minutes} min ago"
+  },
+  "legal": {
+    "lastUpdated": "Last updated {date}",
+    "contents": "Contents",
+    "draftTitle": "First draft — not yet reviewed by a lawyer",
+    "draftBody": "This document describes how SajiloKaam actually works today, but it has not been checked against Nepali consumer, privacy or e-commerce law. We are showing it rather than hiding it, because a page you cannot read is worse than a page marked as unfinished. It will be replaced by a reviewed version before launch."
   }
 }

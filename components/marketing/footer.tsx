@@ -7,12 +7,13 @@ import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import { site } from "@/lib/config/site";
 
 /**
- * `soon` marks a page that has not shipped yet.
+ * The footer is the site map, so every link in it has to go somewhere.
  *
- * The link stays — the footer is the site map and these are real destinations —
- * but Next must not prefetch it, or every page carrying the footer fires a
- * dozen 404s into the console before anyone clicks anything. Delete the flag
- * in the phase that adds the page.
+ * Every one of these was a 404 until now, which in a product asking to be
+ * trusted with your address and your house keys reads as abandonment. They are
+ * real pages now — short ones, but real. `/careers` is gone rather than
+ * shipped: there are no jobs to post, and a careers page that says "no
+ * openings" is a worse claim than not having one. It comes back with a vacancy.
  *
  * Labels are keys into the `footer` namespace rather than strings, so the same
  * structure renders in both languages and a new locale is a catalogue file
@@ -22,25 +23,24 @@ const COLUMNS = [
   {
     heading: "company",
     links: [
-      { key: "about", href: "/about", soon: true },
-      { key: "careers", href: "/careers", soon: true },
-      { key: "contact", href: "/contact", soon: true },
+      { key: "about", href: "/about" },
+      { key: "contact", href: "/contact" },
     ],
   },
   {
     heading: "support",
     links: [
-      { key: "help", href: "/help", soon: true },
+      { key: "help", href: "/help" },
       { key: "trackBooking", href: "/bookings" },
-      { key: "reportProblem", href: "/help/complaint", soon: true },
+      { key: "reportProblem", href: "/help/complaint" },
     ],
   },
   {
     heading: "legal",
     links: [
-      { key: "terms", href: "/legal/terms", soon: true },
-      { key: "privacy", href: "/legal/privacy", soon: true },
-      { key: "refunds", href: "/legal/refunds", soon: true },
+      { key: "terms", href: "/legal/terms" },
+      { key: "privacy", href: "/legal/privacy" },
+      { key: "refunds", href: "/legal/refunds" },
     ],
   },
 ] as const;
@@ -106,11 +106,7 @@ export function SiteFooter() {
               <ul className="mt-3 flex flex-col gap-2">
                 {column.links.map((link) => (
                   <li key={link.key}>
-                    <Link
-                      href={link.href}
-                      prefetch={"soon" in link ? false : undefined}
-                      className={linkClass}
-                    >
+                    <Link href={link.href} className={linkClass}>
                       {t(link.key)}
                     </Link>
                   </li>
