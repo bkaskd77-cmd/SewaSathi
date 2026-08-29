@@ -102,6 +102,64 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];
       };
+      bookings: {
+        Row: {
+          id: string;
+          reference: string;
+          customer_id: string;
+          provider_id: string | null;
+          category_slug: string;
+          status: string;
+          urgency: string;
+          scheduled_for: string | null;
+          area_key: string;
+          address_line: string;
+          landmark: string | null;
+          contact_phone: string;
+          contact_name: string;
+          notes: string | null;
+          quoted_min: number;
+          quoted_max: number;
+          final_price: number | null;
+          payment_method: string | null;
+          locale: string;
+          cancelled_by: string | null;
+          cancellation_reason: string | null;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+          cancelled_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          reference: string;
+          customer_id: string;
+          provider_id?: string | null;
+          category_slug: string;
+          status?: string;
+          urgency?: string;
+          scheduled_for?: string | null;
+          area_key: string;
+          address_line: string;
+          landmark?: string | null;
+          contact_phone: string;
+          contact_name: string;
+          notes?: string | null;
+          quoted_min: number;
+          quoted_max: number;
+          final_price?: number | null;
+          payment_method?: string | null;
+          locale?: string;
+          cancelled_by?: string | null;
+          cancellation_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+          cancelled_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
+        Relationships: [];
+      };
       provider_leads: {
         Row: {
           id: string;
