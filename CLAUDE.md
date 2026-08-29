@@ -8,8 +8,13 @@ shadcn-style primitives · Supabase · Claude · Vercel.
 - **One phase at a time.** Every phase, and every substantial change inside
   one, ends with the handover below. It is not optional and it is not a
   paragraph.
-- **Deploy by pushing.** The branch is the Vercel production branch — a push
-  deploys. Never ask the user to click Redeploy.
+- **Commit and push when a step is done — without being asked.** Not at the
+  end of the phase, not when prompted: when the thing works and the checks are
+  green. The branch is the Vercel production branch, so a push is the deploy;
+  never ask the user to click Redeploy, and never leave finished work sitting
+  in the working tree. `npm run verify` first — pushing red is worse than not
+  pushing. The handover then reports what was pushed, so "did you push it?" is
+  never a question the user has to ask.
 - **Automate everything reachable.** Only ask the user for things that need
   their account or a credential, and then ask for one thing at a time.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
