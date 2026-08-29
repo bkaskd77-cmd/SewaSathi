@@ -15,6 +15,7 @@
     "check:paint": "node scripts/check-paint.mjs",
     "check:messages": "node scripts/check-messages.mjs",
     "check:blockers": "node scripts/check-launch-blockers.mjs",
+    "check:deployed": "node scripts/check-deployed.mjs",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
     "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run build && npm run check:paint",
     "ui:add": "shadcn add"

@@ -15,6 +15,16 @@ shadcn-style primitives · Supabase · Claude · Vercel.
   in the working tree. `npm run verify` first — pushing red is worse than not
   pushing. The handover then reports what was pushed, so "did you push it?" is
   never a question the user has to ask.
+- **"Pushed" is not "deployed".** They diverged silently once — four commits
+  sat on the branch while production kept serving an older build, and it was
+  caught by a human reading the HTML. So a step is not done at the push: every
+  page carries `<meta name="x-build-commit">` and `npm run check:deployed`
+  compares it against `git rev-parse HEAD`, then walks every route.
+  **The sandbox cannot run it** — outbound HTTPS to `*.vercel.app` is blocked
+  by policy and the proxy answers 403, which is why the check exits 2 (never 0,
+  never 1) when it cannot reach the site. When that happens, **Verified** says
+  "local only, live not checked from here" and **Your turn** carries the
+  command. Never write "verified" for something only proven locally.
 - **Automate everything reachable.** Only ask the user for things that need
   their account or a credential, and then ask for one thing at a time.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
@@ -37,7 +47,9 @@ is "none".
   so nobody could tell which had happened.
 - **Verified** — what was actually run, with the numbers. "Tests pass" is not a
   verification; "median-of-3 mobile Lighthouse 97, budgets green, 8 paint
-  checks" is. If something was not checked, say so here.
+  checks" is. If something was not checked, say so here. Local checks and the
+  live site are reported separately: a green `npm run verify` says nothing
+  about what production is serving, so say which of the two you actually saw.
 - **Your turn** — the manual steps only the user can do, one at a time, and any
   decision waiting on them. Empty means genuinely nothing is blocked.
 
@@ -411,7 +423,16 @@ Numbers in a summary are not a guard. Two things run automatically:
   its own dotted path, so without this the failure mode is a button labelled
   `services.card.book` on a page nobody on the team reads.
 
-Both are proven by breaking them on purpose, not by passing once. Lighthouse
+- **Deploy check** — `npm run check:deployed` (optionally with a URL) asks the
+  live site which commit it is serving, via the `x-build-commit` meta that
+  `next.config.mjs` stamps and `app/[locale]/layout.tsx` renders, then walks
+  every route in `ROUTES` and checks `og:url` matches the host. Add a route to
+  that list in the phase that ships it; a page missing from it is a page nobody
+  is checking. It is not in `next build` — it tests the thing the build
+  produces, which does not exist yet at build time — and it cannot run from the
+  agent sandbox at all.
+
+All are proven by breaking them on purpose, not by passing once. Lighthouse
 is still the periodic check — the bar and the median-of-3 rule are unchanged.
 
 ## Signed-in pages

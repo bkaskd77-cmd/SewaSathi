@@ -14,6 +14,7 @@ import {
 
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { routing, type Locale } from "@/i18n/routing";
+import { BUILD_COMMIT, BUILD_TIME } from "@/lib/build-info";
 import { site } from "@/lib/config/site";
 import { openGraphFor } from "@/lib/seo";
 import "@/styles/globals.css";
@@ -156,6 +157,16 @@ export default async function LocaleLayout({
       className={`${sans.variable} ${display.variable} ${nepali.variable}`}
     >
       <head>
+        {/*
+          Which build this page came from. Raw tags rather than Metadata's
+          `other`, for the same reason `openGraph` needed lib/seo.ts: a page
+          that sets its own metadata replaces the parent's rather than merging
+          with it, and a stamp that silently disappears on the pages you most
+          want to check is worse than none. scripts/check-deployed.mjs reads
+          this to tell "pushed" from "deployed".
+        */}
+        <meta name="x-build-commit" content={BUILD_COMMIT} />
+        <meta name="x-build-time" content={BUILD_TIME} />
         {/*
           Marks the document as JS-capable before the first paint. Everything
           in styles/globals.css that hides content for an entrance animation is
