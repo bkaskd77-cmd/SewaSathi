@@ -166,9 +166,23 @@ async function main() {
 
   const failures = [];
 
-  // 1. Which commit is serving.
-  const served = meta(home.body, "x-build-commit");
-  const builtAt = meta(home.body, "x-build-time");
+  // 1. Which commit is serving. /api/version is the same answer without
+  // viewing source, so it is what a human is told to open; prefer it here too
+  // so both routes are exercised by the same run.
+  let served = null;
+  let builtAt = null;
+  try {
+    const version = await get(`${origin}/api/version`);
+    if (version.status === 200) {
+      const parsed = JSON.parse(version.body);
+      served = parsed.commit ?? null;
+      builtAt = parsed.builtAt ?? null;
+    }
+  } catch {
+    // Falls through to the meta tag, which is on every page anyway.
+  }
+  served ??= meta(home.body, "x-build-commit");
+  builtAt ??= meta(home.body, "x-build-time");
   const local = localHead();
   const remote = remoteHead();
 
