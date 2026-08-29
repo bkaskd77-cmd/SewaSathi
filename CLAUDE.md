@@ -211,6 +211,33 @@ an explicit choice writes the `sajilokaam-locale` cookie and wins after that.
   say. `/design-system` is English in both locales on purpose — a developer
   surface, `noindex`, and no customer reads it.
 
+**Nepali is written, not translated.** Every Nepali string has to read as
+something a Nepali speaker would have said unprompted. The test is not "does
+this mean the English" — it is "would anyone say this". Concretely:
+
+- **Rewrite the sentence, do not map it.** English coordinates with "and"
+  where Nepali splits, and puts the verb early where Nepali puts it last. A
+  line that preserves the English clause order is a translation even when every
+  word is right. `home.lead` and `services.sortedForSpeedBody` were both fixed
+  for exactly this.
+- **A dictionary match is not a word choice.** "breadcrumb" → मार्गचिन्ह,
+  "loosen a filter" → फिल्टर खुकुलो बनाउनु, "rate limit" → दर सीमा are all
+  correct and all wrong. Ask what a Nepali interface would call the thing, or
+  use the loanword people actually use.
+- **Watch the register.** प्रत्यक्ष belongs to live broadcasts, आपत् to a
+  calamity, फोन घुमाउनु to a rotary dial. Right meaning, wrong room.
+- **Get the grammar right.** को takes the oblique कस- before a postposition
+  (कसकहाँ). "Throughout" is भरि, never भर. लिङ्क, not लिंक. Postpositions bind
+  to the Devanagari word before them ({area}मा) but take a space after Latin
+  text.
+- `npm run check:messages` carries a list of the specific mistakes that have
+  already shipped, so none of them can come back. Add to `NEPALI_TRAPS` when a
+  native reader flags something new.
+
+Where a line genuinely needs a native ear rather than care — trade terms, the
+safety copy, anything a frightened person reads — say so in the handover rather
+than shipping it silently.
+
 **The interface word and the search word are different words.** The interface
 says प्राविधिक and सिकर्मी काम; people type मिस्त्री, कालिगड, plumber, धारा,
 फर्निचर मर्मत. `lib/data/synonyms.ts` is the one table that maps what they type

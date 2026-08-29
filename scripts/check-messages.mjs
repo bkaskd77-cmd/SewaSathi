@@ -47,6 +47,43 @@ function at(catalogue, key) {
   return key.split(".").reduce((node, part) => node?.[part], catalogue);
 }
 
+/**
+ * Devanagari spellings and calques that have already been wrong once.
+ *
+ * Not a grammar checker — a list of specific mistakes, each of which shipped.
+ * A translation that reads as English-run-through-a-dictionary is the failure
+ * this catches: it is invisible to anyone reviewing in English, and obvious
+ * and slightly insulting to the reader it was written for.
+ *
+ * Add an entry when a native reader flags something, so it cannot come back.
+ */
+const NEPALI_TRAPS = [
+  {
+    pattern: /(?:उपत्यका|काठमाडौँ|ललितपुर|भक्तपुर|शहर|देश)भर(?![िी])/,
+    why: '"भर" should be "भरि" — उपत्यकाभरि, not उपत्यकाभर.',
+  },
+  {
+    pattern: /लिंक/,
+    why: '"लिंक" should be "लिङ्क" — Nepali writes the ङ् conjunct, not anusvara.',
+  },
+  {
+    pattern: /कोकहाँ|कोलाई|कोसित/,
+    why: '"को" takes the oblique "कस-" before a postposition: कसकहाँ, कसलाई.',
+  },
+  {
+    pattern: /मार्गचिन्ह/,
+    why: '"मार्गचिन्ह" is a word-for-word "breadcrumb" nobody uses.',
+  },
+  {
+    pattern: /मोलमोलाइ/,
+    why: 'The usual word is "मोलतोल".',
+  },
+  {
+    pattern: /दर सीमा/,
+    why: '"rate limit" calqued word-for-word; use the loanword "रेट लिमिट".',
+  },
+];
+
 const catalogues = Object.fromEntries(LOCALES.map((l) => [l, read(l)]));
 const reference = catalogues[REFERENCE];
 const referenceKeys = leaves(reference);
@@ -90,6 +127,15 @@ for (const locale of LOCALES) {
   }
 }
 
+// Nepali-specific spelling and calque traps.
+for (const key of leaves(catalogues.ne)) {
+  const value = at(catalogues.ne, key);
+  if (typeof value !== "string") continue;
+  for (const { pattern, why } of NEPALI_TRAPS) {
+    if (pattern.test(value)) failures.push(`ne.json "${key}": ${why}`);
+  }
+}
+
 console.log("\nMessage catalogues");
 console.log(`  ${referenceKeys.length} keys in ${REFERENCE}.json`);
 
@@ -100,4 +146,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.\n`);
+console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.`);
+console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.\n`);
