@@ -32,6 +32,12 @@ jobs:
       - name: Message catalogues
         run: npm run check:messages
 
+      # Reports the register of mock claims still on the live site. Only a
+      # build failure when LAUNCH=true and NODE_ENV=production, so CI sees the
+      # list without blocking ordinary work.
+      - name: Launch blockers
+        run: npm run check:blockers
+
       # Fails if First Load JS on any budgeted route is over its ceiling.
       # See scripts/perf-budget.mjs.
       - name: Build (enforces the bundle budget)

@@ -13,8 +13,9 @@ import {
 } from "next-intl/server";
 
 import { ThemeProvider } from "@/components/shared/theme-provider";
-import { routing } from "@/i18n/routing";
+import { routing, type Locale } from "@/i18n/routing";
 import { site } from "@/lib/config/site";
+import { openGraphFor } from "@/lib/seo";
 import "@/styles/globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -88,14 +89,15 @@ export async function generateMetadata({
     // its canonical URL — worse than having none. The per-path hreflang pairs
     // are already served by next-intl's middleware as `Link` response headers,
     // which is the mechanism built for exactly this and cannot go stale.
-    openGraph: {
-      type: "website",
-      siteName: site.name,
-      url: site.url,
+    // The locale root, which is what this layout actually describes. Pages with
+    // their own generateMetadata build their own; anything without one is
+    // noindex and never shared.
+    openGraph: openGraphFor({
+      locale: locale as Locale,
+      href: "/",
       title: t("homeTitle"),
       description: t("homeDescription"),
-      locale: locale === "ne" ? "ne_NP" : "en_NP",
-    },
+    }),
     twitter: {
       card: "summary_large_image",
       title: t("homeTitle"),

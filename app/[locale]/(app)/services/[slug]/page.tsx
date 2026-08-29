@@ -15,6 +15,7 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
+import { openGraphFor } from "@/lib/seo";
 import { getCategory } from "@/lib/data/categories";
 import type { SortOption } from "@/lib/data/ranking";
 import { formatNpr } from "@/lib/utils";
@@ -55,12 +56,21 @@ export async function generateMetadata({
   if (!category) return { title: t("categoryNotFound") };
 
   const copy = categoryCopy(category, locale);
+  const title = t("categoryTitle", { category: copy.name });
+  const description = t("categoryDescription", {
+    description: copy.description,
+    low: formatNpr(category.basePriceMin, { locale }),
+    high: formatNpr(category.basePriceMax, { locale }),
+  });
+
   return {
-    title: t("categoryTitle", { category: copy.name }),
-    description: t("categoryDescription", {
-      description: copy.description,
-      low: formatNpr(category.basePriceMin, { locale }),
-      high: formatNpr(category.basePriceMax, { locale }),
+    title,
+    description,
+    openGraph: openGraphFor({
+      locale,
+      href: `/services/${category.slug}`,
+      title,
+      description,
     }),
   };
 }

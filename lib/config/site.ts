@@ -12,5 +12,33 @@ export const site = {
   taglineNe: "घरको काम, सजिलो तरिकाले।",
   description:
     "Describe what's broken and get matched with an ID-verified plumber, electrician, cleaner or repair professional — with the price agreed before anyone starts work.",
-  url: "https://sajilokaam.vercel.app",
+  /**
+   * The public origin, from NEXT_PUBLIC_SITE_URL.
+   *
+   * Hard-coding it meant every Open Graph preview and every absolute URL
+   * advertised sajilokaam.vercel.app while the site was actually served from
+   * sewasathi.vercel.app — a wrong domain on every link anyone shared. It is an
+   * env var so it follows the deployment, including the move to a custom
+   * domain, without a code change.
+   *
+   * The fallback is Vercel's own VERCEL_URL, which is correct on preview
+   * deployments where nobody has set the variable, and finally localhost so a
+   * fresh clone builds. Trailing slashes are stripped because everything that
+   * uses this appends a path.
+   */
+  url: siteUrl(),
 } as const;
+
+function siteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
+
+/** An absolute URL for `path`, for canonical and Open Graph tags. */
+export function absoluteUrl(path: string): string {
+  return `${site.url}${path.startsWith("/") ? path : `/${path}`}`;
+}

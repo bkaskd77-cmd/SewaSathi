@@ -19,16 +19,22 @@ shadcn-style primitives · Supabase · Claude · Vercel.
   their account or a credential, and then ask for one thing at a time.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
 
-### The handover — five headings, nothing else
+### The handover — six headings, nothing else
 
-Write these five, in this order, and stop. A heading with nothing under it gets
-deleted, not padded.
+Write these six, in this order, and stop. An empty heading gets deleted rather
+than padded — except **Motion**, which is always written even when the answer
+is "none".
 
 - **Built** — what now exists that did not before. Bullets, not prose.
 - **Decided** — the calls made and the one-line reason for each. Only decisions
   that constrain what comes next; leave out anything reversible and obvious.
 - **Fixed** — bugs found on the way, including ones that were already there.
   Say which were pre-existing.
+- **Motion** — what moves that did not before, and what it is for. The one
+  heading that is never dropped: a phase that shipped no motion writes "none"
+  and why. A missing heading reads as "forgot", which is indistinguishable from
+  "considered and decided against", and Phase 5's summary left it out entirely
+  so nobody could tell which had happened.
 - **Verified** — what was actually run, with the numbers. "Tests pass" is not a
   verification; "median-of-3 mobile Lighthouse 97, budgets green, 8 paint
   checks" is. If something was not checked, say so here.

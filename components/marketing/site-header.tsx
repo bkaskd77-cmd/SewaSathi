@@ -9,20 +9,58 @@ import { LanguageToggle } from "@/components/marketing/language-toggle";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * The in-page anchors. Hrefs are fragments, so they need no locale prefix and
- * no `Link` from the routing helpers — but they still resolve against whatever
- * page the header is on, which is why they are relative fragments and not
- * "/#services".
+ * The in-page anchors — every one of which is a section on the landing page.
+ *
+ * A bare "#services" only works if you are already on `/`. On /services and
+ * /login the same markup rendered a link that did nothing at all, which is
+ * what `AnchorLink` below exists to stop.
  */
 const NAV = [
-  { href: "#services", key: "services" },
-  { href: "#how-it-works", key: "howItWorks" },
-  { href: "#for-professionals", key: "forProfessionals" },
+  { hash: "#services", key: "services" },
+  { hash: "#how-it-works", key: "howItWorks" },
+  { hash: "#for-professionals", key: "forProfessionals" },
 ] as const;
+
+/**
+ * A link to a section of the landing page, from anywhere.
+ *
+ * On `/` it stays a plain fragment, so it scrolls without a navigation and
+ * without touching the router. Anywhere else it becomes a real link to the
+ * landing page's anchor — locale-aware, so a Nepali reader lands on /ne, not
+ * on the English homepage.
+ */
+function AnchorLink({
+  hash,
+  className,
+  onClick,
+  children,
+}: {
+  hash: string;
+  className?: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const onLanding = pathname === "/";
+
+  if (onLanding) {
+    return (
+      <a href={hash} className={className} onClick={onClick}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={`/${hash}`} className={className} onClick={onClick}>
+      {children}
+    </Link>
+  );
+}
 
 /**
  * `accountName` comes from the server (see lib/auth/session.ts) so the correct
@@ -78,13 +116,13 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
           className="ml-6 hidden items-center gap-6 lg:flex"
         >
           {NAV.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
+            <AnchorLink
+              key={item.hash}
+              hash={item.hash}
               className="rounded-sm text-body-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
             >
               {t(item.key)}
-            </a>
+            </AnchorLink>
           ))}
         </nav>
 
@@ -120,14 +158,14 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
             className="container flex flex-col py-3"
           >
             {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
+              <AnchorLink
+                key={item.hash}
+                hash={item.hash}
                 onClick={() => setMenuOpen(false)}
                 className="py-2.5 text-body-md font-medium hover:text-primary"
               >
                 {t(item.key)}
-              </a>
+              </AnchorLink>
             ))}
             {signedIn ? (
               <>
@@ -166,9 +204,12 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
                 // Just the primary action here — "Sign in" is already a row in
                 // the menu above, and repeating it reads as two different doors.
                 <Button variant="gold" asChild className="btn-tactile flex-1">
-                  <a href="#hero-search" onClick={() => setMenuOpen(false)}>
+                  <AnchorLink
+                    hash="#hero-search"
+                    onClick={() => setMenuOpen(false)}
+                  >
                     {t("bookService")}
-                  </a>
+                  </AnchorLink>
                 </Button>
               )}
             </div>

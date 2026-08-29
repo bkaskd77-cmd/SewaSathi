@@ -22,6 +22,7 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
+import { openGraphFor } from "@/lib/seo";
 import { getCategories, getCategory } from "@/lib/data/categories";
 import {
   getProvider,
@@ -54,14 +55,26 @@ export async function generateMetadata({
   if (!provider) return { title: t("providerNotFound") };
 
   const category = await getCategory(params.slug);
+  const title = t("providerTitle", {
+    name: provider.displayName,
+    category: category
+      ? categoryCopy(category, locale).name
+      : t("fallbackProfessional"),
+  });
+  const description = provider.bio.slice(0, 160);
+
   return {
-    title: t("providerTitle", {
-      name: provider.displayName,
-      category: category
-        ? categoryCopy(category, locale).name
-        : t("fallbackProfessional"),
+    title,
+    description,
+    // The most-shared page in the product: somebody sending a professional to
+    // a neighbour. It has to preview as that professional.
+    openGraph: openGraphFor({
+      locale,
+      type: "profile",
+      href: `/services/${params.slug}/${params.providerId}`,
+      title,
+      description,
     }),
-    description: provider.bio.slice(0, 160),
   };
 }
 

@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { categoryCopy, categoryIcon } from "@/lib/config/services";
+import { openGraphFor } from "@/lib/seo";
 import { getCategories } from "@/lib/data/categories";
 import { getCategoryCounts } from "@/lib/data/providers";
 import { matchCategories } from "@/lib/data/synonyms";
@@ -23,10 +24,19 @@ export async function generateMetadata({
 }: {
   params: { locale: string };
 }): Promise<Metadata> {
-  const t = await getTranslations({ locale: params.locale, namespace: "meta" });
+  const locale = params.locale as Locale;
+  const t = await getTranslations({ locale, namespace: "meta" });
   return {
     title: t("servicesTitle"),
     description: t("servicesDescription"),
+    // og:url has to be this page, not the site root — a shared catalogue link
+    // that previews the homepage is a link nobody clicks twice.
+    openGraph: openGraphFor({
+      locale,
+      href: "/services",
+      title: t("servicesTitle"),
+      description: t("servicesDescription"),
+    }),
   };
 }
 

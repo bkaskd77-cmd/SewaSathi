@@ -6,7 +6,7 @@ import { CalendarDays, LogOut, User } from "lucide-react";
 
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -110,6 +110,10 @@ export function AccountMenu({ name }: { name: string }) {
  */
 export function SignedOutCta({ className }: { className?: string }) {
   const t = useTranslations("nav");
+  // #hero-search is a section of the landing page. On /services or /login the
+  // bare fragment pointed at nothing, so the product's primary call to action
+  // was inert on every page except one.
+  const onLanding = usePathname() === "/";
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
@@ -117,8 +121,11 @@ export function SignedOutCta({ className }: { className?: string }) {
         <Link href="/login">{t("signIn")}</Link>
       </Button>
       <Button variant="gold" asChild className="btn-tactile">
-        {/* A fragment on the current page, so no locale prefix and no Link. */}
-        <a href="#hero-search">{t("bookService")}</a>
+        {onLanding ? (
+          <a href="#hero-search">{t("bookService")}</a>
+        ) : (
+          <Link href="/#hero-search">{t("bookService")}</Link>
+        )}
       </Button>
     </div>
   );
