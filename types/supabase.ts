@@ -168,6 +168,11 @@ export type Database = {
           no_provider_found_at: string | null;
           cancelled_by: string | null;
           cancellation_reason: string | null;
+          platform_fee: number | null;
+          provider_earning: number | null;
+          commission_bps: number | null;
+          final_amount_reason: string | null;
+          final_amount_approved_at: string | null;
         };
         Insert: {
           id?: string;
@@ -198,6 +203,11 @@ export type Database = {
           no_provider_found_at?: string | null;
           cancelled_by?: string | null;
           cancellation_reason?: string | null;
+          platform_fee?: number | null;
+          provider_earning?: number | null;
+          commission_bps?: number | null;
+          final_amount_reason?: string | null;
+          final_amount_approved_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -226,6 +236,72 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["booking_status_history"]["Insert"]
         >;
+        Relationships: [];
+      };
+      payments: {
+        Row: {
+          id: string;
+          booking_id: string;
+          method: string;
+          amount: number;
+          currency: string;
+          status: string;
+          our_reference: string;
+          provider_txn_id: string | null;
+          raw_response: Json | null;
+          failure_reason: string | null;
+          initiated_at: string | null;
+          settled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          method: string;
+          amount: number;
+          currency?: string;
+          status?: string;
+          our_reference: string;
+          provider_txn_id?: string | null;
+          raw_response?: Json | null;
+          failure_reason?: string | null;
+          initiated_at?: string | null;
+          settled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
+        Relationships: [];
+      };
+      refunds: {
+        Row: {
+          id: string;
+          payment_id: string;
+          amount: number;
+          reason: string;
+          status: string;
+          requested_by: string | null;
+          requested_by_role: string;
+          provider_txn_id: string | null;
+          raw_response: Json | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          payment_id: string;
+          amount: number;
+          reason: string;
+          status?: string;
+          requested_by?: string | null;
+          requested_by_role?: string;
+          provider_txn_id?: string | null;
+          raw_response?: Json | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["refunds"]["Insert"]>;
         Relationships: [];
       };
       provider_leads: {

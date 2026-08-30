@@ -40,6 +40,12 @@
           },
           {
             "group": [
+              "@/lib/payments/*"
+            ],
+            "message": "Import from '@/lib/payments'. The individual gateway adapters are private \u2014 a caller that reaches esewa.ts directly is a second place that knows which gateway is in play. See ARCHITECTURE.md."
+          },
+          {
+            "group": [
               "@/lib/auth/*",
               "!@/lib/auth/session",
               "!@/lib/auth/otp"
@@ -72,7 +78,8 @@
     {
       "files": [
         "lib/booking/**",
-        "lib/auth/**"
+        "lib/auth/**",
+        "lib/payments/**"
       ],
       "rules": {
         "no-restricted-imports": "off"

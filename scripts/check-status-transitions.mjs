@@ -15,8 +15,27 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-const TS_FILE = "lib/booking/status.ts";
-const SQL_FILE = "supabase/migrations/20260901000001_bookings.sql";
+/**
+ * Two machines now, checked the same way. Bookings and payments are separate
+ * state machines on purpose — a booking can be completed and unpaid — so each
+ * gets its own pair and each pair must agree.
+ */
+const MACHINES = [
+  {
+    name: "Booking",
+    ts: "lib/booking/status.ts",
+    sql: "supabase/migrations/20260901000001_bookings.sql",
+    tsConst: "BOOKING_TRANSITIONS",
+    sqlFn: "booking_transition_allowed",
+  },
+  {
+    name: "Payment",
+    ts: "lib/payments/status.ts",
+    sql: "supabase/migrations/20260902000001_payments.sql",
+    tsConst: "PAYMENT_TRANSITIONS",
+    sqlFn: "payment_transition_allowed",
+  },
+];
 
 function read(file) {
   try {
@@ -27,10 +46,10 @@ function read(file) {
   }
 }
 
-/** BOOKING_TRANSITIONS = { pending: ["accepted", ...], ... } */
-function parseTs(source) {
+/** <NAME>_TRANSITIONS = { pending: ["accepted", ...], ... } */
+function parseTs(source, constName) {
   const block = source.match(
-    /BOOKING_TRANSITIONS[^=]*=\s*\{([\s\S]*?)\n\};/,
+    new RegExp(`${constName}[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`),
   )?.[1];
   if (!block) return null;
 
@@ -48,9 +67,9 @@ function parseTs(source) {
 }
 
 /** when 'pending' then to_status in ('accepted', ...) */
-function parseSql(source) {
+function parseSql(source, fnName) {
   const block = source.match(
-    /booking_transition_allowed[\s\S]*?select case from_status([\s\S]*?)end;/,
+    new RegExp(`${fnName}[\\s\\S]*?select case from_status([\\s\\S]*?)end;`),
   )?.[1];
   if (!block) return null;
 
@@ -67,20 +86,20 @@ function parseSql(source) {
   return map;
 }
 
-function main() {
-  const ts = parseTs(read(TS_FILE));
-  const sql = parseSql(read(SQL_FILE));
+function checkMachine(machine) {
+  const ts = parseTs(read(machine.ts), machine.tsConst);
+  const sql = parseSql(read(machine.sql), machine.sqlFn);
 
   // Passing because the shape moved would read as green forever.
   if (!ts || ts.size === 0) {
     console.error(
-      `\nCould not read BOOKING_TRANSITIONS from ${TS_FILE}. Fix this script rather than deleting the check.\n`,
+      `\nCould not read ${machine.tsConst} from ${machine.ts}. Fix this script rather than deleting the check.\n`,
     );
     process.exit(1);
   }
   if (!sql || sql.size === 0) {
     console.error(
-      `\nCould not read booking_transition_allowed from ${SQL_FILE}. Fix this script rather than deleting the check.\n`,
+      `\nCould not read ${machine.sqlFn} from ${machine.sql}. Fix this script rather than deleting the check.\n`,
     );
     process.exit(1);
   }
@@ -93,7 +112,7 @@ function main() {
   for (const [from, targets] of moving) {
     const theirs = sql.get(from);
     if (!theirs) {
-      problems.push(`${from}: in ${TS_FILE} but not in the SQL`);
+      problems.push(`${from}: in ${machine.ts} but not in the SQL`);
       continue;
     }
     if (theirs.join(",") !== targets.join(",")) {
@@ -104,22 +123,28 @@ function main() {
   }
 
   for (const from of sql.keys()) {
-    if (!ts.has(from)) problems.push(`${from}: in the SQL but not in ${TS_FILE}`);
+    if (!ts.has(from)) problems.push(`${from}: in the SQL but not in ${machine.ts}`);
     else if (ts.get(from).length === 0) {
-      problems.push(`${from}: terminal in ${TS_FILE} but the SQL lets it move`);
+      problems.push(`${from}: terminal in ${machine.ts} but the SQL lets it move`);
     }
   }
 
-  console.log("\nBooking transitions");
+  console.log(`\n${machine.name} transitions`);
   for (const [from, targets] of ts.entries()) {
     console.log(
       `  ${targets.length === 0 ? "end " : "ok  "}  ${from.padEnd(18)} ${targets.join(", ") || "(terminal)"}`,
     );
   }
 
+  return problems.map((p) => `${machine.name}: ${p}`);
+}
+
+function main() {
+  const problems = MACHINES.flatMap(checkMachine);
+
   if (problems.length > 0) {
     console.error(
-      `\nThe interface and the database disagree about what a booking may do:`,
+      `\nThe interface and the database disagree about what may happen:`,
     );
     for (const problem of problems) console.error(`  - ${problem}`);
     console.error(
@@ -130,7 +155,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("  Interface and database agree.\n");
+  console.log("\n  Interface and database agree on both machines.\n");
 }
 
 main();

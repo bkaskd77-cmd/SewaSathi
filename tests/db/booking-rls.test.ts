@@ -305,3 +305,145 @@ describe("append-only history", () => {
     ).rejects.toThrow(/row-level security/i);
   });
 });
+
+/**
+ * Payments.
+ *
+ * Two properties the code cannot assert about itself: that a customer cannot
+ * read another's payment record, and that no client can write one at all.
+ * The second is the more important — RLS grants no insert or update on
+ * `payments` to anybody, which is what forces every write through a server
+ * route that has verified the money with the gateway first.
+ */
+describe("payments are readable only by the people involved", () => {
+  let alicePayment: string;
+
+  beforeAll(async () => {
+    const { rows } = await pg.admin.query(
+      `insert into public.payments (booking_id, method, amount, our_reference)
+       values ($1, 'cash', 1500, 'SKP-ALICE-1') returning id`,
+      [aliceBooking],
+    );
+    alicePayment = rows[0].id;
+    await pg.admin.query(
+      `insert into public.payments (booking_id, method, amount, our_reference)
+       values ($1, 'esewa', 2500, 'SKP-BOB-1')`,
+      [bobBooking],
+    );
+  });
+
+  it("shows a customer only the payments on their own bookings", async () => {
+    const alice = await pg.asUser(ALICE);
+    const { rows } = await alice.query(
+      "select id, our_reference from public.payments",
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].our_reference).toBe("SKP-ALICE-1");
+  });
+
+  it("returns nothing when asking for someone else's by reference", async () => {
+    const alice = await pg.asUser(ALICE);
+    const { rows } = await alice.query(
+      "select id from public.payments where our_reference = $1",
+      ["SKP-BOB-1"],
+    );
+
+    expect(rows).toHaveLength(0);
+  });
+
+  it("lets nobody insert a payment through the client", async () => {
+    // The line that matters most in the payments migration: a client that
+    // could insert here could mark its own booking paid.
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query(
+        `insert into public.payments (booking_id, method, amount, our_reference)
+         values ($1, 'cash', 1, 'SKP-FORGED')`,
+        [aliceBooking],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it("lets nobody change an amount through the client", async () => {
+    const alice = await pg.asUser(ALICE);
+    const result = await alice.query(
+      "update public.payments set amount = 1 where id = $1",
+      [alicePayment],
+    );
+    // No update policy exists, so RLS matches no rows.
+    expect(result.rowCount).toBe(0);
+  });
+});
+
+describe("the payment machine is enforced by the database", () => {
+  let ref = 0;
+  const newPayment = async (status = "pending") => {
+    ref += 1;
+    const { rows } = await pg.admin.query(
+      `insert into public.payments (booking_id, method, amount, our_reference)
+       values ($1, 'esewa', 2000, $2) returning id`,
+      [aliceBooking, `SKP-M-${ref}`],
+    );
+    const id = rows[0].id;
+    if (status !== "pending") {
+      await pg.admin.query("update public.payments set status = $2 where id = $1", [
+        id,
+        status,
+      ]);
+    }
+    return id;
+  };
+
+  it("refuses to un-settle a paid payment", async () => {
+    const id = await newPayment("paid");
+    await expect(
+      pg.admin.query("update public.payments set status = 'pending' where id = $1", [
+        id,
+      ]),
+    ).rejects.toThrow(/cannot go from paid to pending/i);
+  });
+
+  it("refuses a payment that tries to start settled", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.payments (booking_id, method, amount, our_reference, status, settled_at)
+         values ($1, 'cash', 900, 'SKP-CHEAT', 'paid', now())`,
+        [aliceBooking],
+      ),
+    ).rejects.toThrow(/must start as pending/i);
+  });
+
+  it("stamps settled_at itself rather than trusting the caller", async () => {
+    const id = await newPayment();
+    await pg.admin.query("update public.payments set status = 'paid' where id = $1", [
+      id,
+    ]);
+    const { rows } = await pg.admin.query(
+      "select settled_at from public.payments where id = $1",
+      [id],
+    );
+    expect(rows[0].settled_at).not.toBeNull();
+  });
+
+  it("makes the reference unique, which is what makes callbacks idempotent", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.payments (booking_id, method, amount, our_reference)
+         values ($1, 'cash', 500, 'SKP-ALICE-1')`,
+        [aliceBooking],
+      ),
+    ).rejects.toThrow(/duplicate key|unique/i);
+  });
+
+  it("treats a full refund as final", async () => {
+    const id = await newPayment("paid");
+    await pg.admin.query(
+      "update public.payments set status = 'refunded' where id = $1",
+      [id],
+    );
+    await expect(
+      pg.admin.query("update public.payments set status = 'paid' where id = $1", [id]),
+    ).rejects.toThrow(/cannot go from refunded to paid/i);
+  });
+});
