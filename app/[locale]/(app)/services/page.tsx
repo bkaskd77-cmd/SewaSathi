@@ -111,18 +111,30 @@ export default async function ServicesPage({
     : all;
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <header className="animate-rise max-w-2xl">
-        <p className="text-overline uppercase text-gold-ink">{t("eyebrow")}</p>
-        <h1 className="mt-2 text-balance font-display text-display-md">
-          {t("catalogueTitle")}
-        </h1>
-        <p className="mt-3 text-pretty text-body-md text-muted-foreground">
-          {t("catalogueLead")}
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-6xl">
+      {/*
+        Heading and search share a row on desktop.
+        Stacked, they cost about 490px before the first card, which on a laptop
+        left four of ten services visible — a catalogue you have to scroll to
+        discover is a catalogue people give up on.
+      */}
+      <div className="animate-rise flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+        <header className="max-w-xl">
+          <p className="text-overline uppercase text-gold-ink">{t("eyebrow")}</p>
+          {/* One step down on a phone: at display-md this ran to two lines
+              and pushed a whole service card below the fold. */}
+          <h1 className="mt-2 text-balance font-display text-display-sm sm:text-display-md">
+            {t("catalogueTitle")}
+          </h1>
+          <p className="mt-2 text-pretty text-body-sm text-muted-foreground">
+            {t("catalogueLead")}
+          </p>
+        </header>
 
-      <CategorySearch query={query || null} />
+        <div className="w-full shrink-0 lg:w-80">
+          <CategorySearch query={query || null} />
+        </div>
+      </div>
 
       {query ? (
         <p
@@ -158,7 +170,14 @@ export default async function ServicesPage({
         </div>
       ) : null}
 
-      <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/*
+        Horizontal cards, three across.
+        The tall vertical card was ~310px, so ten of them ran to four screens.
+        Laid on its side with the short descriptor rather than the full
+        description, a card is ~100px and the whole catalogue fits one view —
+        which is the entire job of a catalogue page.
+      */}
+      <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {categories.map((category, index) => {
           const Icon = categoryIcon(category.icon);
           const count = counts[category.slug] ?? 0;
@@ -172,34 +191,47 @@ export default async function ServicesPage({
               >
                 <Link
                   href={`/services/${category.slug}`}
-                  className="flex h-full flex-col p-5 focus-visible:outline-none"
+                  className="flex h-full items-start gap-3 p-3.5 focus-visible:outline-none"
                 >
                   <span
                     aria-hidden="true"
-                    className="grid size-11 place-items-center rounded-lg bg-primary/[0.08] text-primary transition-colors group-hover:bg-primary/[0.14]"
+                    className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/[0.08] text-primary transition-colors group-hover:bg-primary/[0.14]"
                   >
-                    <Icon className="size-5" />
+                    <Icon className="size-[18px]" />
                   </span>
 
-                  <h2 className="mt-4 font-display text-display-sm">
-                    {copy.name}
-                  </h2>
-                  <p className="mt-1.5 flex-1 text-pretty text-body-sm text-muted-foreground">
-                    {copy.description}
-                  </p>
+                  <span className="min-w-0 flex-1">
+                    <h2 className="font-display text-body-lg leading-tight">
+                      {copy.name}
+                    </h2>
+                    {/* The short descriptor, not the full description: one
+                        line that says what the trade covers is what somebody
+                        scanning ten of these actually reads.
 
-                  <p className="mt-4 font-display text-body-md font-bold tabular-nums">
-                    {formatNpr(category.basePriceMin, { locale })} –{" "}
-                    {formatNpr(category.basePriceMax, { locale })}
-                  </p>
+                        Hidden on a phone. There the screen is the constraint,
+                        not the reading — name, price and availability are what
+                        a choice is made on, and dropping this line takes the
+                        card from 140px to about 90, which is three more
+                        services in view. */}
+                    <p className="mt-0.5 hidden truncate text-body-sm text-muted-foreground sm:block">
+                      {copy.descriptor}
+                    </p>
 
-                  <p className="mt-1 flex items-center gap-1.5 text-caption text-muted-foreground">
-                    {t("available", { count, n: String(count) })}
-                    <ArrowRight
-                      aria-hidden="true"
-                      className="size-3.5 transition-transform group-hover:translate-x-0.5"
-                    />
-                  </p>
+                    <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="font-display text-body-md font-bold tabular-nums">
+                        {formatNpr(category.basePriceMin, { locale })} –{" "}
+                        {formatNpr(category.basePriceMax, { locale })}
+                      </span>
+                      <span className="text-caption text-muted-foreground">
+                        {t("available", { count, n: String(count) })}
+                      </span>
+                    </span>
+                  </span>
+
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  />
                 </Link>
               </Card>
             </li>
