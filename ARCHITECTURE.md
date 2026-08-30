@@ -61,7 +61,7 @@ it and what you checked**. Feature code is cheap to change; these are not.
 | `middleware.ts` | Every request | Auth cookies must be copied onto whichever response is returned, or a language switch drops the session |
 | `lib/seo.ts` | Every page's metadata | Next *replaces* `openGraph` rather than merging, so a per-page `og:url` silently dropped `og:locale` |
 | `lib/supabase/{client,server}.ts` | All data access | Importing the client one into anything the header renders puts ~70 kB of supabase-js on the landing page |
-| `lib/ai/safety.ts` | Triage on the server, the cache, and the browser fallback | `SMELL_OR_LEAK` matched the noun `गन्ध` but not the verb `गन्हाउनु`, so a Nepali speaker describing a gas leak got the calm path |
+| `lib/ai/safety.ts` | Triage on the server, the cache, and the browser fallback | Matched the noun `गन्ध` but not the verb `गन्हाउनु`, so a Nepali speaker describing a gas leak got the calm path. Bare `करेन्ट` also fired on "करेन्ट आएको छैन" — the power being out. Rebuilt around stems; corpus in `tests/unit/hazard-corpus.test.ts` |
 | `lib/auth/routes.ts` | Middleware and every auth page | `safeRedirect` accepted `/\evil.example`, which a browser reads as a jump to another origin |
 | `i18n/routing.ts`, `i18n/navigation.ts` | Every link and redirect | — |
 | Design tokens in `styles/globals.css` | Every component | — |
@@ -117,6 +117,7 @@ Where a change on one side cannot reach the other.
 | Budgets | `npm run build` | Per-route JS ceilings |
 | Parity | `npm run check:messages` | `en`/`ne` agree on every key and placeholder |
 | Transitions | `npm run check:transitions` | The TS and SQL transition tables agree |
+| Hazard corpus | `npm run test` | Realistic Devanagari, Romanized and English hazard sentences reach the safety path — and ordinary complaints do not |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up
 `tests/unit` and `tests/db` together. The harness needs Postgres 16 binaries on

@@ -54,7 +54,21 @@ same commit as the change, never afterwards.
 4. **One adapter per external dependency**, with a typed interface, listed in
    `ARCHITECTURE.md`. Swapping a provider is one file or the rule has been
    broken.
-5. **When something breaks, reproduce it with a failing test first.** Never fix
+5. **Nepali is a first-class path, not a translation layer.** Every phase
+   ships it working, tested, and checked the same way English is — not
+   retrofitted afterwards. It has now broken silently twice, both times the
+   same way: matching dictionary words when **Nepali conjugates by suffixing**.
+   `गन्हाउनु` arrives as गन्हायो, गन्हाउँछ, गन्हाइरहेको, गन्हाएको. So **match
+   stems, not words**, everywhere text is matched — `lib/ai/safety.ts` and the
+   `KEYWORD_RULES` in `lib/ai/mockTriage.ts` are both built that way and say so.
+   Devanagari has no usable word boundary for a regex, which makes stems the
+   natural approach as well as the correct one. Romanized Nepali has no
+   spelling standard, so those lists stay deliberately loose. Anything matching
+   user text gets cases in `tests/unit/hazard-corpus.test.ts` phrased the way
+   somebody in a hurry would actually type them — including the ordinary
+   complaints that must NOT fire, because a product that cries wolf is worth
+   nothing when it is real ("करेन्ट आएको छैन" means the power is out).
+6. **When something breaks, reproduce it with a failing test first.** Never fix
    blind. The regression test stays in the suite permanently. If the fix
    touches shared code, say so explicitly and list what else you verified.
 

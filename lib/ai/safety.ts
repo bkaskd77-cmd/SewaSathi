@@ -23,43 +23,157 @@ import type { TriageResult } from "@/lib/ai/mockTriage";
 
 export type Hazard = "gas" | "burning" | "live-wire";
 
-// Romanized Nepali is written a dozen ways, so the patterns are loose on
-// spelling and tight on meaning. Devanagari is included because people type
-// it directly on an Android keyboard.
-// `गन्ध` is the noun; `गन्हाउनु`/`गनाउनु` is the verb people actually type —
-// "ग्यास गन्हाइरहेको छ" is how somebody says it, and matching only the noun
-// sent that straight down the calm path. Found by a test, not by review.
-const SMELL_OR_LEAK =
-  /(smell|smelt|smelling|stink|odou?r|leak|leaking|leakage|gandha|gandh|bass?na|गन्ध|गन्हा|गनाउ|गनाइ|बास्ना|चुहि|लिक)/i;
+/*
+ * ---------------------------------------------------------------------------
+ * How this matcher is built, and why it is built this way
+ * ---------------------------------------------------------------------------
+ *
+ * Twice the Nepali path broke silently. First the keyword rules were
+ * Latin-only. Then this file matched the noun `गन्ध` but not the verb
+ * `गन्हाउनु` — so "ग्यास गन्हाइरहेको छ", which is how somebody actually says
+ * it, went down the calm path. Both were invisible in review and both were
+ * found by a test.
+ *
+ * The cause was the same each time: matching dictionary words. Nepali
+ * conjugates by suffixing, so one verb is a dozen surface forms —
+ * गन्हायो, गन्हाउँछ, गन्हाइरहेको छ, गन्हाएको, गन्हाउन थाल्यो. A word list
+ * misses all but the one somebody happened to think of.
+ *
+ * So: MATCH STEMS, NOT WORDS. `गन्हा` catches every form above. Devanagari has
+ * no usable word boundary for a regex anyway, which makes stem matching both
+ * the correct approach and the natural one. Every list below is stems, and
+ * each is annotated with the forms it is meant to cover.
+ *
+ * Romanized Nepali has no spelling standard at all — the same word arrives as
+ * gandha / gandh / ganha / ganhayo — so those lists are deliberately loose.
+ *
+ * The trade is stated once and holds throughout: a false positive costs one
+ * unnecessary safety sentence. A false negative costs something we are not
+ * willing to pay. When in doubt, match.
+ */
 
-const GAS = /(\bgas\b|lpg|ग्यास|सिलिन्डर|cylinder)/i;
+/** Joins stems into an alternation. Nothing here needs escaping today. */
+function anyOf(...stems: string[]): RegExp {
+  return new RegExp(`(${stems.join("|")})`, "i");
+}
 
-// An AC gas top-up is a service, not a hazard, and it is the single most
-// likely false positive in the whole product ("ac gas refill" is a category
-// we sell). A refrigerant leak still reaches Claude, which treats it on its
-// merits — it just does not get the LPG script, which would be wrong advice.
-const AC_CONTEXT = /(\bac\b|a\/c|air ?con|air conditioner|एसी)/i;
+// Smelling something. Devanagari stems cover the whole conjugation:
+//   गन्हा  -> गन्हायो, गन्हाउँछ, गन्हाइरहेको, गन्हाएको, गन्हाउन
+//   गनाउ  -> गनायो, गनाउँछ, गनाइरहेको   (the eastern/colloquial form)
+//   बास्न  -> बास्ना, बास्न आयो
+const SMELL = anyOf(
+  "smell", "smelt", "smelling", "stink", "stinking", "odou?r", "fumes",
+  "gandha", "gandh", "ganha", "ganau", "gana+yo", "basna", "bassna",
+  "गन्ध", "गन्हा", "गन्धा", "गनाउ", "गनाइ", "गनाय", "बास्न", "वास्न",
+);
 
-const BURNING =
-  /(burn(ing|t|ed)?\s*(smell|plastic|wire|rubber)?|smoke|smoking|spark|sparking|sparks|short.?circuit|fire|flame|jaleko|poleko|dhuwa|aago|पोलेको|जलेको|धुवाँ|आगो|आगलागी)/i;
+// Leaking or escaping. Stems:
+//   चुहि -> चुहियो, चुहिरहेको, चुहिएको     चुहे -> चुहेको
+//   पोखि -> पोखियो (spilling)             निस्कि -> निस्किरहेको (escaping)
+const LEAK = anyOf(
+  "leak", "leaking", "leakage", "leaked", "escaping",
+  "chuhi", "chuhe", "chuha", "pokhi", "niski",
+  "चुहि", "चुहे", "चुहा", "चुहाव", "पोखि", "निस्कि", "निस्के",
+  "लिक", "लीक",
+);
 
-// "burning" alone is too broad — a burning question, burning the rice. Pair it
-// with something that belongs to a house fire.
-const BURNING_CONTEXT =
-  /(smell|smoke|wire|wiring|switch|socket|board|plug|fuse|mcb|meter|plastic|rubber|panel|बत्ती|तार|स्विच)/i;
+// The substance. `ग्याँस` with the chandrabindu is at least as common as
+// `ग्यास` when typed on a phone, and missing it was a silent gap.
+const GAS = anyOf(
+  "\\bgas\\b", "\\bgais\\b", "\\bgyas\\b", "lpg", "cylinder", "silinder",
+  "ग्यास", "ग्याँस", "ग्यास्", "सिलिन्डर", "सिलिण्डर", "एलपीजी",
+);
 
-const LIVE_WIRE =
-  /(live wire|bare wire|exposed wire|open wire|naked wire|electric shock|electrocut|shock lag|current lag|karent lag|करेन्ट|बिजुली लाग|तार खुल)/i;
+/*
+ * An AC gas top-up is a service we sell, not a hazard, and it is the single
+ * most likely false positive in the product. `ग्यास भर्नु` — to refill gas —
+ * is the Nepali phrasing and belongs here too, or "एसीमा ग्यास भर्नुपर्‍यो"
+ * gets the LPG script, which is wrong advice for the wrong appliance.
+ *
+ * A genuine refrigerant leak still reaches Claude and is treated on its
+ * merits. It simply does not get told to open a window and leave the room.
+ */
+const AC_CONTEXT = anyOf(
+  "\\bac\\b", "a/c", "air ?con", "air conditioner", "refill", "recharge",
+  "fridge", "refrigerator", "freezer",
+  "एसी", "ए\\.सी", "एयर ?कन", "ग्यास भर", "ग्याँस भर", "रिफिल", "फ्रिज",
+);
 
-/** The hazard a description points at, or null. First match wins, worst first. */
+// Fire, smoke, scorching. Stems:
+//   पोल -> पोल्यो, पोलेको, पोलिरहेको      जल -> जल्यो, जलेको, जलिरहेको
+//   डढ  -> डढ्यो, डढेको                   बलिरह/बलेको (alight — bare बल is
+//   "strength" and far too broad to include on its own)
+// `धुवा` without the chandrabindu is how it is usually typed.
+const BURNING = anyOf(
+  "burn", "burnt", "burned", "burning", "smoke", "smoking", "smould",
+  "scorch", "singe", "spark", "sparking", "sparks", "flame", "flames",
+  "\\bfire\\b", "short.?circuit",
+  "poleko", "polyo", "jaleko", "jalyo", "dadheko", "dhuwa", "dhuwaa",
+  "aago", "aagalagi", "aagolagyo", "sort ?circuit",
+  "पोल", "जल्", "जले", "जलि", "डढ", "बलिरह", "बलेको", "आगो", "आगलागी",
+  "धुवाँ", "धुवा", "धुँवा", "ज्वाला", "स्पार्क", "झिल्का", "सर्ट सर्किट",
+  "सर्किट",
+);
+
+/*
+ * "Burning" alone is a burning question or burnt rice. Pair it with something
+ * that belongs to an electrical fire or a house fire before escalating.
+ */
+const BURNING_CONTEXT = anyOf(
+  "smell", "smoke", "wire", "wiring", "switch", "socket", "board", "plug",
+  "fuse", "mcb", "meter", "plastic", "rubber", "panel", "cable", "heater",
+  "tar\\b", "waayar", "wayar", "switch", "socket",
+  "तार", "वायर", "स्विच", "स्वीच", "सकेट", "सोकेट", "बोर्ड", "प्लग",
+  "फ्युज", "मिटर", "प्लास्टिक", "रबर", "बत्ती", "हिटर", "केबल", "गन्ध",
+  "गन्हा", "धुवा", "धुवाँ",
+);
+
+/*
+ * A wire somebody could touch. These fire on their own — there is no innocent
+ * reading of "नाङ्गो तार".
+ */
+const BARE_WIRE = anyOf(
+  "live wire", "bare wire", "exposed wire", "open wire", "naked wire",
+  "nango tar", "khula tar", "tar nango",
+  "नाङ्गो तार", "नांगो तार", "खुला तार", "तार खुल", "तार नाङ्गो",
+  "तार चुँडि", "तार झुण्डि", "तार झुन्डि",
+);
+
+/*
+ * Being shocked. This one MUST be paired with the "struck" verb.
+ *
+ * Bare `करेन्ट` was a false positive waiting to happen: "करेन्ट आएको छैन"
+ * means the power is out — the single most ordinary complaint there is — and
+ * it would have been escalated to an emergency about live wiring.
+ *
+ * Stems: लाग -> लाग्यो, लागेको, लागिरहेको. झट्का is the word people actually
+ * use for a shock, far more than "करेन्ट".
+ */
+const SHOCK_SOURCE = anyOf(
+  "current", "karent", "kurrent", "bijuli", "bijulee", "jhatka", "jhatkaa",
+  "shock", "electric",
+  "करेन्ट", "करेण्ट", "कर्रेन्ट", "बिजुली", "विजुली", "झट्का", "झड्का", "शक",
+);
+const SHOCK_VERB = anyOf(
+  "shock", "electrocut", "lag", "lagyo", "laagyo", "lageko", "hit", "struck",
+  "लाग", "लागे", "लाग्", "छो", "पस",
+);
+
+/**
+ * The hazard a description points at, or null.
+ *
+ * Order is worst-first and the first match wins: a live wire outranks a smell,
+ * because the action it asks for is the more urgent one.
+ */
 export function detectHazard(input: string): Hazard | null {
   const text = input.toLowerCase();
   if (!text.trim()) return null;
 
-  if (LIVE_WIRE.test(text)) return "live-wire";
+  if (BARE_WIRE.test(text)) return "live-wire";
+  if (SHOCK_SOURCE.test(text) && SHOCK_VERB.test(text)) return "live-wire";
 
-  if (GAS.test(text) && SMELL_OR_LEAK.test(text) && !AC_CONTEXT.test(text)) {
-    return "gas";
+  if (GAS.test(text) && !AC_CONTEXT.test(text)) {
+    if (SMELL.test(text) || LEAK.test(text)) return "gas";
   }
 
   if (BURNING.test(text) && BURNING_CONTEXT.test(text)) return "burning";

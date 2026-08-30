@@ -16,7 +16,16 @@ import { BUILD_COMMIT, BUILD_COMMIT_SHORT, BUILD_TIME } from "@/lib/build-info";
  * Nothing here is a secret. It is the commit SHA of a public repository and
  * the time it was compiled.
  */
-export const dynamic = "force-static";
+/*
+ * Never cached, anywhere.
+ *
+ * This was `force-static`, which is exactly wrong for the one endpoint whose
+ * entire job is to tell you what is live right now: Vercel served it from the
+ * CDN and a reader got the previous deploy's commit back. A stale answer here
+ * is worse than no answer, because it looks authoritative.
+ */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export function GET() {
   return NextResponse.json(
@@ -25,6 +34,13 @@ export function GET() {
       short: BUILD_COMMIT_SHORT,
       builtAt: BUILD_TIME,
     },
-    { headers: { "cache-control": "public, max-age=0, must-revalidate" } },
+    {
+      headers: {
+        "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+        // Vercel's edge honours this one specifically.
+        "cdn-cache-control": "no-store",
+        pragma: "no-cache",
+      },
+    },
   );
 }
