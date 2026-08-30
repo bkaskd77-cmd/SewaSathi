@@ -3,12 +3,12 @@ import "server-only";
 import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
-import { isValidSlot } from "@/lib/booking/schedule";
+import { isValidSlot } from "@/lib/booking";
 import {
   customerCanCancel,
   isBookingStatus,
   type BookingStatus,
-} from "@/lib/booking/status";
+} from "@/lib/booking";
 import { getCategory } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";

@@ -1,7 +1,6 @@
 import "server-only";
 
 import { CATEGORY_SEED, type Category } from "@/lib/config/services";
-import { getCategories } from "@/lib/data/categories";
 
 /**
  * The price bands Claude is given as reference data.
@@ -70,7 +69,18 @@ export const FALLBACK_PRICE_BANDS: PriceBand[] = [...CATEGORY_SEED]
   .sort((a, b) => a.sortOrder - b.sortOrder)
   .map(toBand);
 
+/**
+ * The live bands, from the database, falling back to the authored ones.
+ *
+ * The data layer is imported *inside* the function rather than at the top of
+ * the file. `lib/data/categories` wraps its reads in React's `cache()`, which
+ * only exists inside a server runtime — importing it at module scope made
+ * FALLBACK_PRICE_BANDS, and therefore the price clamp, impossible to load
+ * anywhere else. The clamp is a safety-relevant pure function and must stay
+ * loadable on its own; a test that cannot import it is a test nobody writes.
+ */
 export async function getPriceBands(): Promise<PriceBand[]> {
+  const { getCategories } = await import("@/lib/data/categories");
   const categories = await getCategories();
   if (categories.length === 0) return FALLBACK_PRICE_BANDS;
   return [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map(toBand);

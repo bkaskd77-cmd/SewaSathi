@@ -243,11 +243,14 @@ as $$
 $$;
 
 /*
- * Enforce the rules, stamp the timestamp, and write the history row.
+ * Two triggers, not one, and the split is forced by Postgres.
  *
- * All three in one trigger on purpose: a transition that is recorded but not
- * stamped, or stamped but not recorded, is the inconsistency the history table
- * exists to rule out.
+ * Validating and stamping must happen BEFORE the write — they modify the row.
+ * Recording history must happen AFTER it, because the history row carries a
+ * foreign key to the booking, and on a BEFORE INSERT the booking does not
+ * exist yet. Doing both in one BEFORE trigger fails every first insert with a
+ * foreign key violation. (Found by tests/db/booking-rls.test.ts, which is the
+ * only reason it was not found by a customer.)
  */
 create or replace function public.enforce_booking_transition()
 returns trigger
@@ -255,18 +258,12 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  actor uuid := auth.uid();
-  actor_role text;
 begin
   if tg_op = 'INSERT' then
     if new.status <> 'pending' then
       raise exception 'A booking must start as pending, not %', new.status
         using errcode = 'check_violation';
     end if;
-    insert into public.booking_status_history
-      (booking_id, from_status, to_status, changed_by, changed_by_role)
-    values (new.id, null, 'pending', actor, 'customer');
     return new;
   end if;
 
@@ -290,6 +287,25 @@ begin
     else null;
   end case;
 
+  return new;
+end;
+$$;
+
+/* The audit half, after the row exists. */
+create or replace function public.record_booking_status()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  actor_role text;
+begin
+  if tg_op = 'UPDATE' and new.status = old.status then
+    return null;
+  end if;
+
   actor_role := case
     when actor is null then 'system'
     when actor = new.customer_id then 'customer'
@@ -299,10 +315,16 @@ begin
 
   insert into public.booking_status_history
     (booking_id, from_status, to_status, changed_by, changed_by_role, note)
-  values (new.id, old.status, new.status, actor, actor_role,
-          case when new.status = 'cancelled' then new.cancellation_reason end);
+  values (
+    new.id,
+    case when tg_op = 'INSERT' then null else old.status end,
+    new.status,
+    actor,
+    actor_role,
+    case when new.status = 'cancelled' then new.cancellation_reason end
+  );
 
-  return new;
+  return null;
 end;
 $$;
 
@@ -310,6 +332,11 @@ drop trigger if exists bookings_enforce_transition on public.bookings;
 create trigger bookings_enforce_transition
   before insert or update of status on public.bookings
   for each row execute function public.enforce_booking_transition();
+
+drop trigger if exists bookings_record_status on public.bookings;
+create trigger bookings_record_status
+  after insert or update of status on public.bookings
+  for each row execute function public.record_booking_status();
 
 -- updated_at, without trusting the application to remember.
 create or replace function public.touch_updated_at()

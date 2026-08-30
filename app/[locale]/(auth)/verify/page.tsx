@@ -5,8 +5,8 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { VerifyForm } from "@/components/auth/verify-form";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { checkNepaliMobile } from "@/lib/auth/phone";
-import { safeRedirect } from "@/lib/auth/routes";
+import { checkNepaliMobile } from "@/lib/auth";
+import { safeRedirect } from "@/lib/auth";
 
 export async function generateMetadata({
   params,

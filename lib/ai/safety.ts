@@ -26,8 +26,11 @@ export type Hazard = "gas" | "burning" | "live-wire";
 // Romanized Nepali is written a dozen ways, so the patterns are loose on
 // spelling and tight on meaning. Devanagari is included because people type
 // it directly on an Android keyboard.
+// `गन्ध` is the noun; `गन्हाउनु`/`गनाउनु` is the verb people actually type —
+// "ग्यास गन्हाइरहेको छ" is how somebody says it, and matching only the noun
+// sent that straight down the calm path. Found by a test, not by review.
 const SMELL_OR_LEAK =
-  /(smell|smelt|smelling|stink|odou?r|leak|leaking|leakage|gandha|gandh|bass?na|गन्ध|बास्ना|चुहि|लिक)/i;
+  /(smell|smelt|smelling|stink|odou?r|leak|leaking|leakage|gandha|gandh|bass?na|गन्ध|गन्हा|गनाउ|गनाइ|बास्ना|चुहि|लिक)/i;
 
 const GAS = /(\bgas\b|lpg|ग्यास|सिलिन्डर|cylinder)/i;
 
@@ -86,7 +89,12 @@ const HAZARD_PRONE_CATEGORIES = new Set([
  * flame, opening a window and staying clear. Getting this wrong only ever
  * costs a duplicated sentence, never a missing one.
  */
-function leadsWithSafety(explanation: string): boolean {
+function leadsWithSafety(explanation: string, ours?: string): boolean {
+  // Exact first: if this is our own line, we know it verbatim, and comparing
+  // against it cannot drift when the copy is reworded. The heuristic below is
+  // only for explanations the model wrote itself.
+  if (ours && explanation.trimStart().startsWith(ours.trimStart())) return true;
+
   const opening = explanation.slice(0, 160).toLowerCase();
   if (
     /(switch off|turn off|don't|do not|open the window|leave the room|step outside|close the (cylinder|valve)|keep everyone away|unplug)/.test(
@@ -144,7 +152,7 @@ export function applySafetyFloor(
       : null;
 
   if (hazard) {
-    const explanation = leadsWithSafety(result.explanation)
+    const explanation = leadsWithSafety(result.explanation, options.copy[hazard])
       ? result.explanation
       : `${options.copy[hazard]} ${result.explanation}`;
 

@@ -6,7 +6,7 @@ import { Check, MapPin, Plus } from "lucide-react";
 import { FieldError } from "@/components/auth/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { NewAddressDraft } from "@/lib/booking/flow-state";
+import type { NewAddressDraft } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
 export type SavedAddress = {

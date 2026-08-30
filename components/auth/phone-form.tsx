@@ -13,7 +13,7 @@ import {
   checkNepaliMobile,
   formatNepaliMobile,
   NEPAL_DIAL_CODE,
-} from "@/lib/auth/phone";
+} from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 export function PhoneForm({ next }: { next: string }) {

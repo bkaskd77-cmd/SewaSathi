@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { FLOW_STEPS, type FlowStep } from "@/lib/booking/flow-state";
+import { FLOW_STEPS, type FlowStep } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
 /**

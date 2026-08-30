@@ -5,7 +5,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { OnboardingForm } from "@/components/auth/onboarding-form";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { safeRedirect } from "@/lib/auth/routes";
+import { safeRedirect } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata({

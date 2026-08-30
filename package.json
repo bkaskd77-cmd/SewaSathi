@@ -13,12 +13,17 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:paint": "node scripts/check-paint.mjs",
+    "check:flows": "node scripts/check-flows.mjs",
     "check:messages": "node scripts/check-messages.mjs",
     "check:blockers": "node scripts/check-launch-blockers.mjs",
     "check:transitions": "node scripts/check-status-transitions.mjs",
     "check:deployed": "node scripts/check-deployed.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:db": "vitest run tests/db",
+    "test:watch": "vitest",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run build && npm run check:paint",
+    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run test && npm run build && npm run check:paint && npm run check:flows",
     "ui:add": "shadcn add"
   },
   "dependencies": {
@@ -45,19 +50,24 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "eslint-config-prettier": "^10.1.8",
+    "pg": "^8.23.0",
     "playwright-core": "^1.56.1",
     "postcss": "^8",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
+  "description": "SajiloKaam — AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

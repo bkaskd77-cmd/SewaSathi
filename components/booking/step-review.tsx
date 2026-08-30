@@ -5,7 +5,7 @@ import { Banknote, Info, Pencil, Smartphone, Wallet } from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
 import { Badge } from "@/components/ui/badge";
-import type { FlowStep } from "@/lib/booking/flow-state";
+import type { FlowStep } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
 export type PaymentMethod = "cash" | "esewa" | "khalti";

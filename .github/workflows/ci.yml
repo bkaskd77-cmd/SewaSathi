@@ -32,6 +32,19 @@ jobs:
       - name: Message catalogues
         run: npm run check:messages
 
+      # The status machine exists in TypeScript and in SQL. This fails if they
+      # ever disagree about what a booking may do.
+      - name: Status transitions
+        run: npm run check:transitions
+
+      # Unit tests plus the database suite. The db half stands up a throwaway
+      # Postgres and applies the real migrations, so RLS isolation between two
+      # customers is asserted against actual policies rather than a mock.
+      # ubuntu-latest ships the server binaries; the harness drops to the
+      # unprivileged `postgres` account because Postgres refuses to run as root.
+      - name: Tests
+        run: npm run test
+
       # Reports the register of mock claims still on the live site. Only a
       # build failure when LAUNCH=true and NODE_ENV=production, so CI sees the
       # list without blocking ordinary work.
@@ -50,3 +63,8 @@ jobs:
         run: npm run check:paint
         env:
           PERF_CHROME_PATH: /usr/bin/google-chrome
+
+      # The booking funnel in a real browser: the logged-out customer who fills
+      # in three screens, signs in, and must come back to all of it.
+      - name: Booking flows
+        run: npm run check:flows

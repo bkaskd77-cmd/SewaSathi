@@ -8,7 +8,7 @@ import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NEPAL_DIAL_CODE } from "@/lib/auth/phone";
+import { NEPAL_DIAL_CODE } from "@/lib/auth";
 import type { LeadResult } from "@/lib/data/provider-leads";
 import { cn } from "@/lib/utils";
 

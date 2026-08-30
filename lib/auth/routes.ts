@@ -89,8 +89,19 @@ export function isProviderRoute(pathname: string): boolean {
  */
 export function safeRedirect(next: string | null | undefined): string {
   if (!next) return "/";
-  if (!next.startsWith("/") || next.startsWith("//")) return "/";
-  const path = stripLocale(next);
+
+  // Browsers normalise a backslash to a forward slash inside a URL, and strip
+  // tab, newline and carriage return before parsing at all. So "/\\evil.test"
+  // and "/\tevil.test" both reach another origin while passing a naive
+  // startsWith("//") check. Strip what the browser strips, then judge the
+  // shape. Found by a test, not by review.
+  const cleaned = next.replace(/[\t\n\r]/g, "");
+  if (!cleaned.startsWith("/")) return "/";
+  // "//host" and "/\host" are both origin jumps.
+  if (/^\/[/\\]/.test(cleaned)) return "/";
+  if (cleaned.includes("\\")) return "/";
+
+  const path = stripLocale(cleaned);
   if (path.startsWith("/login") || path.startsWith("/verify")) return "/";
   return path;
 }

@@ -29,8 +29,8 @@ import {
   stepComplete,
   type FlowState,
   type FlowStep,
-} from "@/lib/booking/flow-state";
-import { formatSlotInstant } from "@/lib/booking/schedule";
+} from "@/lib/booking";
+import { formatSlotInstant } from "@/lib/booking";
 
 /**
  * The booking flow.

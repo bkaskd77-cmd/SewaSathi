@@ -1,15 +1,105 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript", "prettier"],
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript",
+    "prettier"
+  ],
   "rules": {
     "@typescript-eslint/no-unused-vars": [
       "error",
-      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
     ],
     "@typescript-eslint/consistent-type-imports": [
       "error",
-      { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
     ],
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    "no-console": [
+      "warn",
+      {
+        "allow": [
+          "warn",
+          "error"
+        ]
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/lib/booking/*"
+            ],
+            "message": "Import from '@/lib/booking' instead. A feature's internals are private \u2014 that is what stops a change inside booking breaking services. See ARCHITECTURE.md."
+          },
+          {
+            "group": [
+              "@/lib/auth/*",
+              "!@/lib/auth/session",
+              "!@/lib/auth/otp"
+            ],
+            "message": "Import from '@/lib/auth' (isomorphic), '@/lib/auth/session' (server) or '@/lib/auth/otp' (client). Everything else under lib/auth is private. See ARCHITECTURE.md."
+          },
+          {
+            "group": [
+              "next/link"
+            ],
+            "message": "Import Link from '@/i18n/navigation'. One stray next/link drops a Nepali reader back into English and nothing fails."
+          }
+        ],
+        "paths": [
+          {
+            "name": "next/navigation",
+            "importNames": [
+              "redirect",
+              "permanentRedirect",
+              "useRouter",
+              "usePathname"
+            ],
+            "message": "Import redirect, useRouter and usePathname from '@/i18n/navigation' \u2014 the next/navigation versions drop the locale. notFound and useSearchParams are fine from here."
+          }
+        ]
+      }
+    ]
   },
-  "ignorePatterns": ["node_modules", ".next", "out", "next-env.d.ts"]
+  "overrides": [
+    {
+      "files": [
+        "lib/booking/**",
+        "lib/auth/**"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
+        "i18n/**",
+        "middleware.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
+        "tests/**"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "out",
+    "next-env.d.ts"
+  ]
 }

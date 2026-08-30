@@ -29,6 +29,35 @@ shadcn-style primitives · Supabase · Claude · Vercel.
   their account or a credential, and then ask for one thing at a time.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
 
+### Architecture — standing law
+
+The risk as this grows is **shared surface, not file count**. Every bug that
+has cost a rebuild lived in shared code: `cn()`, the root and locale layouts,
+`template.tsx`, `lib/seo.ts`, the Devanagari font on `:root`. None was caused by
+there being too many files. `ARCHITECTURE.md` is the map and is updated in the
+same commit as the change, never afterwards.
+
+1. **Tests are the memory this project does not have.** Every phase ships tests
+   for what it built; a phase with no new tests is not done. `npm run verify`
+   must be green before a phase is reported complete. Test behaviour and
+   contracts, never implementation — a test that breaks when a button is
+   restyled is worse than no test. The critical paths always have one: triage
+   safety escalation, price clamping, the booking status machine, RLS isolation
+   between customers, redirect safety.
+2. **Feature modules have one public entry and the linter enforces it.**
+   `no-restricted-imports` forbids reaching into another module's internals.
+   `lib/booking` and `lib/auth` are done; the rest is mechanical and must be
+   done against a green suite. Prove the rule still bites after changing it.
+3. **Shared code has a higher bar.** The list is in `ARCHITECTURE.md`. Before
+   changing anything on it, say in the summary **what depends on it and what
+   you checked**. Feature code is cheap; shared code is never a casual edit.
+4. **One adapter per external dependency**, with a typed interface, listed in
+   `ARCHITECTURE.md`. Swapping a provider is one file or the rule has been
+   broken.
+5. **When something breaks, reproduce it with a failing test first.** Never fix
+   blind. The regression test stays in the suite permanently. If the fix
+   touches shared code, say so explicitly and list what else you verified.
+
 ### The handover — six headings, nothing else
 
 Write these six, in this order, and stop. An empty heading gets deleted rather

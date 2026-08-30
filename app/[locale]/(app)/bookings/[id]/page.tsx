@@ -10,12 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatSlotInstant } from "@/lib/booking/schedule";
+import { formatSlotInstant } from "@/lib/booking";
 import {
   BOOKING_PROGRESS,
   customerCanCancel,
   progressIndex,
-} from "@/lib/booking/status";
+} from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";

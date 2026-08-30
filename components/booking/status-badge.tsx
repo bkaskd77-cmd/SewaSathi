@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
-import type { BookingStatus } from "@/lib/booking/status";
+import type { BookingStatus } from "@/lib/booking";
 
 /**
  * A booking's status, in a colour that means something.

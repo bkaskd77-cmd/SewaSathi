@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
 import { AREA_KEYS } from "@/lib/config/areas";
-import { checkNepaliMobile } from "@/lib/auth/phone";
+import { checkNepaliMobile } from "@/lib/auth";
 import { CATEGORY_SEED } from "@/lib/config/services";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";

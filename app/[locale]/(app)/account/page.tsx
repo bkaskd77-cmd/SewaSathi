@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatE164ForDisplay } from "@/lib/auth/phone";
+import { formatE164ForDisplay } from "@/lib/auth";
 
 export async function generateMetadata({
   params,

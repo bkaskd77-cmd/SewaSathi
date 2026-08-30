@@ -6,7 +6,7 @@ import {
   isProtectedRoute,
   isProviderRoute,
   safeRedirect,
-} from "@/lib/auth/routes";
+} from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { routing, stripLocale } from "@/i18n/routing";
 

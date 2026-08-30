@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { OtpInput } from "@/components/ui/otp-input";
 import { Link, useRouter } from "@/i18n/navigation";
 import { sendOtp, verifyOtp } from "@/lib/auth/otp";
-import { formatE164ForDisplay } from "@/lib/auth/phone";
+import { formatE164ForDisplay } from "@/lib/auth";
 
 const RESEND_SECONDS = 60;
 

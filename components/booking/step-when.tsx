@@ -12,8 +12,8 @@ import {
   slotLabel,
   slotsForDay,
   type Slot,
-} from "@/lib/booking/schedule";
-import type { Timing } from "@/lib/booking/flow-state";
+} from "@/lib/booking";
+import type { Timing } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
 const CHOICES: Array<{ value: Timing; icon: typeof Zap }> = [

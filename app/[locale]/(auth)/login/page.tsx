@@ -5,7 +5,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { PhoneForm } from "@/components/auth/phone-form";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { safeRedirect } from "@/lib/auth/routes";
+import { safeRedirect } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
