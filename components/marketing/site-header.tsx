@@ -203,13 +203,14 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
               ) : (
                 // Just the primary action here — "Sign in" is already a row in
                 // the menu above, and repeating it reads as two different doors.
-                <Button variant="gold" asChild className="btn-tactile flex-1">
-                  <AnchorLink
-                    hash="#hero"
-                    onClick={() => setMenuOpen(false)}
-                  >
+                <Button
+                  variant="gold"
+                  asChild
+                  className="btn-tactile btn-beacon flex-1"
+                >
+                  <Link href="/services" onClick={() => setMenuOpen(false)}>
                     {t("bookService")}
-                  </AnchorLink>
+                  </Link>
                 </Button>
               )}
             </div>

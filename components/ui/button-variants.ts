@@ -60,7 +60,10 @@ export const buttonVariants = cva(
          * press cancels. Scarce by design — one per screen.
          */
         gold: [
-          "bg-gold bg-gradient-to-b from-white/12 to-transparent text-gold-foreground",
+          // Solid gold, no gradient overlay. The overlay lightened it toward
+          // the ivory header and the brand accent stopped reading as an
+          // accent — the whole point of keeping gold scarce.
+          "bg-gold text-gold-foreground",
           "shadow-sm before:via-white/30",
           "hover:bg-gold/95 hover:shadow-lg hover:shadow-gold/25",
           "hover:-translate-y-px active:translate-y-0",

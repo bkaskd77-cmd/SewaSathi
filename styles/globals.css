@@ -539,6 +539,61 @@
     animation-delay: calc(var(--assemble-step, 0.055s) * var(--i, 0));
   }
 
+  /*
+   * A slow light passing across the primary call to action.
+   *
+   * Opt-in, not baked into the `gold` variant: gold is already scarce (one per
+   * screen), but a button that shimmers while somebody is filling in a booking
+   * form is a distraction, not an invitation. This goes on the marketing CTA
+   * and nowhere else.
+   *
+   * Deliberately slow — 5.5s with most of that spent off-screen, so it reads
+   * as a light travelling across a surface rather than a loading stripe. The
+   * band is soft-edged and low-contrast; a hard white bar looks like a bug.
+   */
+  .btn-beacon::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      100deg,
+      transparent 35%,
+      hsl(0 0% 100% / 0.28) 50%,
+      transparent 65%
+    );
+    transform: translateX(-120%);
+    animation: beacon 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+
+  @keyframes beacon {
+    0%,
+    55% {
+      transform: translateX(-120%);
+    }
+    /* The pass itself takes about a second of the five and a half. */
+    75%,
+    100% {
+      transform: translateX(120%);
+    }
+  }
+
+  /*
+   * On hover the light stops sweeping and the surface simply brightens, so
+   * pointing at it feels like resting a hand on something rather than
+   * interrupting an animation mid-travel.
+   */
+  .btn-beacon:hover::after {
+    animation-play-state: paused;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  .btn-beacon:hover {
+    filter: brightness(1.06);
+  }
+
   /* Success, and anything else that should arrive rather than appear. */
   .animate-pop-in {
     animation: pop-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -605,6 +660,11 @@
     .animate-digit-in,
     .animate-shake {
       animation: none;
+    }
+
+    .btn-beacon::after {
+      animation: none;
+      opacity: 0;
     }
 
     .animate-route-in,

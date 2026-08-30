@@ -6,7 +6,7 @@ import { CalendarDays, LogOut, User } from "lucide-react";
 
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -110,22 +110,27 @@ export function AccountMenu({ name }: { name: string }) {
  */
 export function SignedOutCta({ className }: { className?: string }) {
   const t = useTranslations("nav");
-  // #hero is the landing page hero. On /services or /login the
-  // bare fragment pointed at nothing, so the product's primary call to action
-  // was inert on every page except one.
-  const onLanding = usePathname() === "/";
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <Button variant="ghost" asChild>
         <Link href="/login">{t("signIn")}</Link>
       </Button>
-      <Button variant="gold" asChild className="btn-tactile">
-        {onLanding ? (
-          <a href="#hero">{t("bookService")}</a>
-        ) : (
-          <Link href="/#hero">{t("bookService")}</Link>
-        )}
+      {/*
+        Goes to the catalogue, not to the hero search.
+
+        A button labelled "Book a service" promises a list of services, and
+        that is what /services is — ten cards, search and filters. Scrolling
+        somebody to a text box instead asks them to describe a problem, which
+        is what the hero's own "Find help" is for. Two doors, each labelled
+        honestly, rather than one label doing two jobs.
+
+        It also removes the on-landing / off-landing branch: a real page works
+        the same from everywhere, which is why the anchor version was inert on
+        every page but one in the first place.
+      */}
+      <Button variant="gold" asChild className="btn-tactile btn-beacon">
+        <Link href="/services">{t("bookService")}</Link>
       </Button>
     </div>
   );

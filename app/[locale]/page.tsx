@@ -136,7 +136,7 @@ export default async function Home() {
                   have made the bilingual signal one-directional.
                 */}
                 <p
-                  className="mt-1 text-body-md text-muted-foreground"
+                  className="mt-3 flex items-center gap-2.5 text-body-md text-muted-foreground before:h-px before:w-6 before:shrink-0 before:bg-border before:content-['']"
                   lang={locale === "ne" ? "en" : "ne"}
                 >
                   {locale === "ne" ? site.tagline : site.taglineNe}

@@ -42,7 +42,10 @@ export function BookingProgress({
       </div>
 
       <div
-        className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        // Thicker on a phone, where it is the only thing telling somebody how
+        // much of a five-step form is left and a 6px hairline reads as a
+        // divider rather than a measure.
+        className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted sm:h-1.5"
         role="progressbar"
         aria-valuemin={1}
         aria-valuemax={FLOW_STEPS.length}
@@ -50,7 +53,7 @@ export function BookingProgress({
         aria-label={t("progressLabel")}
       >
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
+          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out motion-reduce:transition-none"
           style={{ width: `${percent}%` }}
         />
       </div>
