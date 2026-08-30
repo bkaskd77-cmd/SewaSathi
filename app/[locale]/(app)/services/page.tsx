@@ -145,7 +145,7 @@ export default async function ServicesPage({
             description={t("searchEmptyBody")}
             action={
               <Link
-                href="/#hero-search"
+                href="/#hero"
                 className={buttonVariants({
                   variant: "gold",
                   className: "btn-tactile",

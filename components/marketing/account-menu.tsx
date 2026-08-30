@@ -110,7 +110,7 @@ export function AccountMenu({ name }: { name: string }) {
  */
 export function SignedOutCta({ className }: { className?: string }) {
   const t = useTranslations("nav");
-  // #hero-search is a section of the landing page. On /services or /login the
+  // #hero is the landing page hero. On /services or /login the
   // bare fragment pointed at nothing, so the product's primary call to action
   // was inert on every page except one.
   const onLanding = usePathname() === "/";
@@ -122,9 +122,9 @@ export function SignedOutCta({ className }: { className?: string }) {
       </Button>
       <Button variant="gold" asChild className="btn-tactile">
         {onLanding ? (
-          <a href="#hero-search">{t("bookService")}</a>
+          <a href="#hero">{t("bookService")}</a>
         ) : (
-          <Link href="/#hero-search">{t("bookService")}</Link>
+          <Link href="/#hero">{t("bookService")}</Link>
         )}
       </Button>
     </div>

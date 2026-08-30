@@ -205,7 +205,7 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
                 // the menu above, and repeating it reads as two different doors.
                 <Button variant="gold" asChild className="btn-tactile flex-1">
                   <AnchorLink
-                    hash="#hero-search"
+                    hash="#hero"
                     onClick={() => setMenuOpen(false)}
                   >
                     {t("bookService")}

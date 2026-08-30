@@ -18,7 +18,23 @@ import { cva, type VariantProps } from "class-variance-authority";
  */
 export const buttonVariants = cva(
   [
+    "relative isolate overflow-hidden",
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold ring-offset-background",
+    /*
+     * A sheen that sweeps across on hover. It is the difference between a
+     * coloured rectangle and something that feels like a control — and it
+     * costs one pseudo-element rather than a motion library. Filled variants
+     * opt in with `before:via-white/20`; the quiet ones leave it transparent
+     * so a ghost button does not shimmer.
+     */
+    "before:pointer-events-none before:absolute before:inset-0 before:-z-10",
+    "before:-translate-x-[110%] before:bg-gradient-to-r before:from-transparent before:to-transparent",
+    "before:transition-transform before:duration-700 before:ease-out",
+    "hover:before:translate-x-[110%]",
+    "motion-reduce:before:hidden",
+    // The trailing arrow leans toward where it is taking you.
+    "[&>svg:last-child]:transition-transform [&>svg:last-child]:duration-200",
+    "hover:[&>svg:last-child]:translate-x-0.5 motion-reduce:hover:[&>svg:last-child]:translate-x-0",
     // Transform is in the transition list for the press below. `.btn-tactile`
     // overrides both with its own curve where a button needs the lift too.
     "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out",
@@ -32,10 +48,26 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        gold: "bg-gold text-gold-foreground hover:bg-gold/90",
+        default: [
+          "bg-primary text-primary-foreground shadow-sm before:via-white/20",
+          "hover:bg-primary/92 hover:shadow-md hover:shadow-primary/20",
+          "hover:-translate-y-px active:translate-y-0",
+          "motion-reduce:hover:translate-y-0",
+        ].join(" "),
+        /*
+         * The one that commits the customer, so it carries the most weight: a
+         * gradient for dimension, a shadow that grows, and a lift that the
+         * press cancels. Scarce by design — one per screen.
+         */
+        gold: [
+          "bg-gold bg-gradient-to-b from-white/12 to-transparent text-gold-foreground",
+          "shadow-sm before:via-white/30",
+          "hover:bg-gold/95 hover:shadow-lg hover:shadow-gold/25",
+          "hover:-translate-y-px active:translate-y-0",
+          "motion-reduce:hover:translate-y-0",
+        ].join(" "),
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-background hover:border-primary/40 hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",

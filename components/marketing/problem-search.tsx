@@ -194,6 +194,28 @@ export function ProblemSearch() {
     }
   }
 
+  /*
+   * "Book a service" scrolls to the whole hero, then puts the cursor here.
+   *
+   * The anchor alone would leave somebody looking at a composed page with no
+   * idea they are meant to type. Focusing without scrolling first would jump
+   * past the headline. Doing both, in that order, is what makes the button
+   * mean what it says.
+   *
+   * `hashchange` as well as mount, because clicking the same anchor twice does
+   * not remount anything.
+   */
+  React.useEffect(() => {
+    const focusIfTargeted = () => {
+      if (window.location.hash !== "#hero") return;
+      // After the scroll settles, or the browser fights the focus for it.
+      window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 420);
+    };
+    focusIfTargeted();
+    window.addEventListener("hashchange", focusIfTargeted);
+    return () => window.removeEventListener("hashchange", focusIfTargeted);
+  }, []);
+
   return (
     <div id="hero-search" className="scroll-mt-24">
       <form

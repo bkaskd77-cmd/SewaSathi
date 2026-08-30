@@ -87,11 +87,20 @@ export default async function Home() {
 
       <main id="main">
         {/* ---------------- hero ---------------- */}
-        <section className="relative overflow-hidden">
+        {/*
+          The CTA anchors point here, at the whole hero — not at the search box
+          inside it. Aiming at the input scrolled the headline off the top and
+          left a sliver of clipped text under the sticky header, which reads as
+          a broken page rather than a considered landing.
+        */}
+        <section id="hero" className="relative overflow-hidden scroll-mt-16">
           {/* Pure token gradient — nothing to download. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-gradient-to-b from-gold/[0.18] to-transparent"
+            // inset-0, not a fixed height: at 560px the gradient was still
+            // mid-fade where the section ends and `overflow-hidden` cut it,
+            // leaving a hard horizontal step above the trust strip.
+            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-gold/[0.18] via-gold/[0.06] to-transparent"
           />
           {/*
             Drifting mesh, brand colours only, kept at low opacity so it never
