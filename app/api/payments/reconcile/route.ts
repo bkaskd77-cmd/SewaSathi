@@ -11,7 +11,17 @@ import { reconcileStuckPayments } from "@/lib/data/payments";
  * the browser makes it back. This runs whether or not it did.
  *
  * Safe to call as often as you like — `verifyAndSettle` is idempotent and only
- * ever asks the gateway. Point a Vercel cron at it every 10 minutes.
+ * ever asks the gateway.
+ *
+ * `vercel.json` runs it daily, because daily is the most frequent schedule
+ * every Vercel plan accepts; on Pro, tighten it to every ten minutes, which is
+ * what this sweep is actually sized for. That note lives here rather than in
+ * `vercel.json` because Vercel validates that file strictly and rejects any
+ * property it does not know — a stray comment key there fails the deployment
+ * before the build starts, which looks exactly like nothing having been pushed.
+ *
+ * The customer-present case does not wait for the cron: the payment panel's
+ * "Check again" re-verifies on the spot.
  *
  * Guarded by `CRON_SECRET` rather than a session, because there is no user
  * here. With no secret set it refuses rather than running open: a reconcile
