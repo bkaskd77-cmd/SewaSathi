@@ -85,9 +85,11 @@ export async function listProviderJobs(
   const me = await getMyProvider(profileId);
   if (!me) return [];
 
+  // The jobs themselves, through RLS. Its own try: this is the list, and
+  // nothing below is allowed to take it down.
+  let rows: Record<string, unknown>[] = [];
   try {
-    // RLS-scoped: a professional sees only what is assigned to them.
-    const { data: bookings } = await createClient()
+    const { data, error } = await createClient()
       .from("bookings")
       .select(
         "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, customer_id, address_id, created_at",
@@ -96,9 +98,37 @@ export async function listProviderJobs(
       .order("created_at", { ascending: false })
       .limit(50);
 
-    const rows = (bookings ?? []) as Record<string, unknown>[];
-    if (rows.length === 0) return [];
+    if (error) {
+      console.error(`[provider-jobs] list failed — ${describeError(error)}`);
+      return [];
+    }
+    rows = (data ?? []) as Record<string, unknown>[];
+  } catch (thrown) {
+    console.error(`[provider-jobs] list threw — ${describeError(thrown)}`);
+    return [];
+  }
 
+  if (rows.length === 0) return [];
+
+  /*
+   * Who to call, and where to go — and DELIBERATELY not in the same try as the
+   * list above.
+   *
+   * This half needs the admin client, because no RLS policy grants a provider
+   * a read on `profiles` or `addresses`; widening those would expose every
+   * customer to every professional, so the join happens here instead, over a
+   * set RLS has already narrowed to this professional's own jobs.
+   *
+   * The first version wrapped both halves in one try. When the service role
+   * key was absent the enrichment threw, the catch returned [], and a
+   * professional with two live jobs was shown "No jobs yet" — a missing
+   * customer name silently deleting the work. Now it degrades: the jobs
+   * render, the name and address are null, and the failure is logged rather
+   * than swallowed.
+   */
+  let byProfile = new Map<string, Record<string, unknown>>();
+  let byAddress = new Map<string, Record<string, unknown>>();
+  try {
     const admin = createAdminClient();
     // Array.from rather than spreading a Set: the tsconfig target predates
     // downlevel iteration, same note as the payments callback reader.
@@ -117,40 +147,41 @@ export async function listProviderJobs(
         .in("id", addressIds),
     ]);
 
-    const byProfile = new Map(
+    byProfile = new Map(
       (profiles ?? []).map((p) => [p.id as string, p as Record<string, unknown>]),
     );
-    const byAddress = new Map(
+    byAddress = new Map(
       (addresses ?? []).map((a) => [a.id as string, a as Record<string, unknown>]),
     );
-
-    return rows.map((row) => {
-      const profile = byProfile.get(row.customer_id as string);
-      const address = byAddress.get(row.address_id as string);
-      return {
-        id: row.id as string,
-        reference: row.reference as string,
-        status: row.status as BookingStatus,
-        categorySlug: row.category_slug as string,
-        description: row.description as string,
-        urgency: row.urgency as string,
-        scheduledFor: (row.scheduled_for as string | null) ?? null,
-        quotedMin: row.quoted_min as number,
-        quotedMax: row.quoted_max as number,
-        finalAmount: (row.final_amount as number | null) ?? null,
-        customerName: (profile?.full_name as string | null) ?? null,
-        customerPhone: (profile?.phone as string | null) ?? null,
-        addressLine: address
-          ? `${address.tole as string}, ${address.city as string}`
-          : null,
-        landmark: (address?.landmark as string | null) ?? null,
-        createdAt: row.created_at as string,
-      };
-    });
   } catch (thrown) {
-    console.error(`[provider-jobs] list failed — ${describeError(thrown)}`);
-    return [];
+    console.error(
+      `[provider-jobs] could not load customer details — ${describeError(thrown)}. Jobs are still listed without them.`,
+    );
   }
+
+  return rows.map((row) => {
+    const profile = byProfile.get(row.customer_id as string);
+    const address = byAddress.get(row.address_id as string);
+    return {
+      id: row.id as string,
+      reference: row.reference as string,
+      status: row.status as BookingStatus,
+      categorySlug: row.category_slug as string,
+      description: row.description as string,
+      urgency: row.urgency as string,
+      scheduledFor: (row.scheduled_for as string | null) ?? null,
+      quotedMin: row.quoted_min as number,
+      quotedMax: row.quoted_max as number,
+      finalAmount: (row.final_amount as number | null) ?? null,
+      customerName: (profile?.full_name as string | null) ?? null,
+      customerPhone: (profile?.phone as string | null) ?? null,
+      addressLine: address
+        ? `${address.tole as string}, ${address.city as string}`
+        : null,
+      landmark: (address?.landmark as string | null) ?? null,
+      createdAt: row.created_at as string,
+    };
+  });
 }
 
 /** What the notification catalogue calls each arrival. */
