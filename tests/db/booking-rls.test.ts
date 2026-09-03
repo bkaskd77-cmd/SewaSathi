@@ -447,3 +447,109 @@ describe("the payment machine is enforced by the database", () => {
     ).rejects.toThrow(/cannot go from refunded to paid/i);
   });
 });
+
+/**
+ * The hardening from 20260903000001, proved rather than assumed.
+ *
+ * Supabase's Security Advisor asks for EXECUTE to be revoked from PUBLIC on
+ * every SECURITY DEFINER function. That is correct for the trigger functions
+ * and dangerous for `is_admin()`, and the difference is not visible by reading
+ * the advice — it is visible by running it. So both halves are asserted here:
+ * the triggers still fire for an ordinary signed-in user with no grant, and
+ * the policies that call `is_admin()` still answer instead of erroring.
+ *
+ * Without this, the safe-looking half of the advisor's remediation would take
+ * out every read in the product and nothing would have caught it.
+ */
+describe("locking the functions down did not lock the product out", () => {
+  it("leaves no ordinary caller able to invoke a trigger function by hand", async () => {
+    const client = await pg.asUser(ALICE);
+    await expect(
+      client.query("select public.enforce_booking_transition()"),
+    ).rejects.toThrow(/permission denied/i);
+    await expect(
+      client.query("select public.touch_updated_at()"),
+    ).rejects.toThrow(/permission denied/i);
+    await expect(
+      client.query("select public.booking_transition_allowed('pending', 'accepted')"),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("still fires those triggers on a signed-in customer's own insert", async () => {
+    // The revoke would be a catastrophe if firing a trigger re-checked EXECUTE
+    // against the caller. It does not — Postgres checks that when the trigger
+    // is created — and this is what says so out loud.
+    const client = await pg.asUser(ALICE);
+    const { rows: addressRows } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'work', 'lalitpur-4', 'Lalitpur', 4, 'Sanepa', 'Red gate')
+       returning id`,
+      [ALICE],
+    );
+
+    const { rows } = await client.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max)
+       values ('SK-HARD1', $1, 'plumbing', $2, 'Sink is blocked', 900, 4500)
+       returning id, status`,
+      [ALICE, addressRows[0].id],
+    );
+    expect(rows[0].status).toBe("pending");
+
+    // The AFTER trigger wrote the history row, under the tightened search_path.
+    const { rows: history } = await pg.admin.query(
+      "select to_status from public.booking_status_history where booking_id = $1",
+      [rows[0].id],
+    );
+    expect(history.map((r) => r.to_status)).toContain("pending");
+
+    // And the BEFORE trigger still refuses an illegal move.
+    await expect(
+      pg.admin.query(
+        "update public.bookings set status = 'completed' where id = $1",
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/cannot go from pending to completed/i);
+  });
+
+  it("keeps the payment triggers working under the same revoke", async () => {
+    const { rows } = await pg.admin.query(
+      `insert into public.payments (booking_id, method, amount, our_reference)
+       values ($1, 'cash', 1200, 'SKP-HARD-1') returning id, status`,
+      [aliceBooking],
+    );
+    expect(rows[0].status).toBe("pending");
+
+    await pg.admin.query(
+      "update public.payments set status = 'paid' where id = $1",
+      [rows[0].id],
+    );
+    const { rows: settled } = await pg.admin.query(
+      "select settled_at, updated_at from public.payments where id = $1",
+      [rows[0].id],
+    );
+    // settled_at from enforce_payment_transition, updated_at from
+    // touch_updated_at — both now running with an empty search_path.
+    expect(settled[0].settled_at).not.toBeNull();
+    expect(settled[0].updated_at).not.toBeNull();
+  });
+
+  it("still lets a signed-in user's policies call is_admin()", async () => {
+    // The one piece of the advisor's advice that must NOT be taken. If
+    // `authenticated` loses EXECUTE on is_admin(), this query stops returning
+    // rows and starts raising — every booking read in the product with it.
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "select id from public.bookings where id = $1",
+      [aliceBooking],
+    );
+    expect(rows).toHaveLength(1);
+
+    // And the function itself is still callable by a signed-in user, which is
+    // the grant that makes the policies above work.
+    const { rows: admin } = await client.query("select public.is_admin() as v");
+    expect(admin[0].v).toBe(false);
+  });
+});

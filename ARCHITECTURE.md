@@ -118,6 +118,13 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **Function privileges are part of the schema, not a dashboard setting.**
+  `20260903000001_harden_functions.sql` pins every function's `search_path` to
+  empty and revokes `execute` from `public` on the trigger functions.
+  `is_admin()` is the deliberate exception — six RLS policies call it and
+  policy expressions run with the caller's privileges, so it keeps `execute`
+  for `authenticated`. Supabase's Security Advisor asks for it anyway; the
+  answer is no, and the test that would fail is in the db suite.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.
@@ -135,7 +142,7 @@ Where a change on one side cannot reach the other.
 | Suite | Command | What it protects |
 | --- | --- | --- |
 | Unit | `npm run test` | Safety escalation, price clamp, status machine, slot rules, redirect safety |
-| Database | `npm run test:db` | RLS isolation between two customers, illegal transitions, append-only history — against a real Postgres running the real migrations |
+| Database | `npm run test:db` | RLS isolation between two customers, illegal transitions, append-only history, and that the function lockdown did not lock the product out — against a real Postgres running the real migrations |
 | Flows | `npm run check:flows` | The booking funnel in a browser, including logged-out → login → resume |
 | Paint | `npm run check:paint` | Every front door records a first-contentful-paint |
 | Budgets | `npm run build` | Per-route JS ceilings |

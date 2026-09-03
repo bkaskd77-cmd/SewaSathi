@@ -415,6 +415,18 @@ caller's role recurses into itself and Postgres raises "infinite recursion
 detected in policy". `public.is_admin()` is `security definer` to break that
 cycle.
 
+**`is_admin()` must keep `execute` for `authenticated`, and Supabase's Security
+Advisor will keep telling you to take it away.** Six policies call it —
+profiles, triage_logs, bookings, payments, refunds, booking_status_history —
+and a policy expression is evaluated with the *caller's* privileges, so
+revoking it breaks every read in the product for every signed-in user. The
+advisor cannot see that; the answer is no. Everything else it flags on
+functions was taken: `20260903000001_harden_functions.sql` pins `search_path`
+to empty on all six and revokes `execute` from `public` on the trigger
+functions. Firing a trigger does not re-check `execute` against the caller —
+Postgres checks that when the trigger is created — and
+`tests/db/booking-rls.test.ts` asserts both halves rather than trusting either.
+
 ## Motion — the standing rule
 
 Every screen ships with considered motion. Not decoration: motion whose job is
