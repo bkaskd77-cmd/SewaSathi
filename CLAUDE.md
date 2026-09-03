@@ -395,6 +395,41 @@ Phase 8. A booking now moves with a real person on each end.
   paid. An account not yet linked to a listing gets the exact SQL to link it,
   with its own id already filled in, rather than a dead end.
 
+## Health, and the dependencies we do not own
+
+Sign-in broke in production for a day. Supabase's Twilio credentials were
+placeholder zeros, every OTP failed, and the product's whole response was one
+red sentence that by design says nothing about the cause. It was found by a
+person trying to log in.
+
+The lesson is not "add a try/catch". **Every dependency this product has lives
+in somebody else's dashboard** — a Supabase toggle, a gateway credential, a
+Vercel variable. None is in this repository, none is covered by `npm run
+verify`, and any can be changed by somebody not looking at this code.
+
+- **`GET /api/health`** is the one URL that answers "can this serve a customer
+  right now". Public, cheap, sends nothing: auth config, database reachability,
+  triage key. **`?deep=1`**, behind `CRON_SECRET`, additionally asks Supabase to
+  send a real OTP to `SMS_HEALTH_NUMBER` — the only way to know a gateway's
+  credentials are real. Point it at a Supabase *test* number and it is free.
+- **`unknown` is never `ok`.** Not looking must never read as working; that is
+  precisely the confusion that let this run for a day.
+- **The login screen never dead-ends.** `strandsCustomer()` decides when the
+  failure is ours and unfixable by retrying, and then the screen offers a phone
+  number instead. A mistyped digit gets the ordinary error — telling somebody to
+  ring support when they need to retype a character is how a working product
+  comes to feel broken.
+- **`?debug=auth`** prints the provider's own status and message on the login
+  form. Same rule as the triage and data badges: dev, or the query param
+  anywhere. Finding this the first time meant reading a network response in
+  DevTools, which nobody does on a phone.
+- **`site.supportPhone` is one constant.** It appears on five screens and one
+  of them is that fallback — the screen somebody reaches when nothing else in
+  the product is working for them.
+- The SMS gateway is a **launch blocker** until `?deep=1` reports
+  `auth.sms: ok` against production. The dashboard looked correct the whole
+  time it was broken.
+
 ## Payments
 
 Our model is not a checkout. The quote is a **band**, the final figure is

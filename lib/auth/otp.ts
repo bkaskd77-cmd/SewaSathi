@@ -114,6 +114,23 @@ export async function verifyOtp(
   return { ok: true, isNewUser: !profile?.full_name };
 }
 
+/**
+ * Is this failure ours, and unfixable by the person in front of us?
+ *
+ * The difference decides whether the login screen offers a phone number.
+ * Telling somebody to ring support when they have simply mistyped a digit is
+ * worse than useless — it teaches them the product is broken when it is not.
+ * Telling them nothing when the gateway is genuinely down is worse still: for
+ * a plumbing emergency at nine at night, a dead login is the whole business
+ * failing, and that is exactly what happened in production.
+ *
+ * `tooManyRequests` is deliberately absent. It resolves on its own, and the
+ * form already says how long to wait.
+ */
+export function strandsCustomer(error: OtpError): boolean {
+  return error === "smsFailed" || error === "generic";
+}
+
 /** Provider wording is for us, not for someone standing in a wet kitchen. */
 function classifyError(message: string): OtpError {
   const m = message.toLowerCase();

@@ -37,6 +37,12 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ---
 
+### BLOCKER: sms-gateway-unverified
+- Status: unresolved
+- Claims: "We text you a 6-digit code and you're in." Phone OTP is the ONLY way into this product — there is no email or password path anywhere — so if the gateway is not real, nobody signs in, nobody books, and the failure is total rather than partial.
+- Lives in: Supabase → Authentication → Providers → Phone (an external dashboard, not this repository), reached through `lib/auth/otp.ts`
+- Replaced by: real SMS credentials, proved end to end by `GET /api/health?deep=1` reporting `auth.sms: ok` against a production deployment — not by the dashboard looking correct. It looked correct while every send was failing with Twilio 20003, and the only thing that noticed was a person trying to log in.
+
 ### BLOCKER: trust-strip-counts
 - Status: unresolved
 - Claims: "1,200+ ID-verified professionals", "Average rating 4.8 from 10,000+ households". There are 28 providers in the database, none of them real people, and no completed bookings at all. This is the most serious entry in the file: it is the first thing on the landing page, it is the specific claim the product asks to be trusted on, and it is false.

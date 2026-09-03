@@ -145,6 +145,15 @@ Where a change on one side cannot reach the other.
   a policy that releases it only while a job of theirs is accepted, on the way
   or under way. The window closing again at `completed` is asserted in the db
   suite, because it is the half nobody would notice was missing.
+- **Every dependency this product has lives in somebody else's dashboard.**
+  A Supabase auth toggle, a Twilio credential, a Vercel environment variable —
+  none of them are in this repository, none are covered by `npm run verify`,
+  and any of them can be changed by a person who is not looking at this code.
+  `GET /api/health` is the one URL that answers "can this serve a customer
+  right now"; `?deep=1` (behind `CRON_SECRET`) additionally sends a real OTP,
+  because a gateway's credentials cannot be verified any other way. `unknown`
+  is never counted as healthy — an unverifiable dependency is what broke
+  sign-in.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.

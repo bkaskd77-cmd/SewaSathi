@@ -6,10 +6,11 @@ import { ArrowRight, Phone } from "lucide-react";
 
 import { AuthDebug } from "@/components/auth/auth-debug";
 import { FieldError } from "@/components/auth/field-error";
+import { SignInFallback } from "@/components/auth/sign-in-fallback";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
-import { sendOtp } from "@/lib/auth/otp";
+import { sendOtp, strandsCustomer } from "@/lib/auth/otp";
 import {
   checkNepaliMobile,
   formatNepaliMobile,
@@ -26,6 +27,8 @@ export function PhoneForm({ next }: { next: string }) {
   // The provider's own wording, for the dev badge only. Never rendered as the
   // customer-facing message.
   const [detail, setDetail] = React.useState<string | null>(null);
+  // Set when the failure is ours, not theirs — see SignInFallback.
+  const [stranded, setStranded] = React.useState(false);
   const [sending, setSending] = React.useState(false);
 
   async function onSubmit(event: React.FormEvent) {
@@ -34,11 +37,13 @@ export function PhoneForm({ next }: { next: string }) {
     if (!check.ok) {
       setError(tErr(check.reason));
       setDetail(null);
+      setStranded(false);
       return;
     }
 
     setError(null);
     setDetail(null);
+    setStranded(false);
     setSending(true);
     const outcome = await sendOtp(check.e164);
 
@@ -46,6 +51,9 @@ export function PhoneForm({ next }: { next: string }) {
       setSending(false);
       setError(tErr(outcome.error));
       setDetail(outcome.detail ?? null);
+      // The rule lives in lib/auth/otp.ts, not here — the verify screen has
+      // the same question to answer.
+      setStranded(strandsCustomer(outcome.error));
       return;
     }
 
@@ -94,6 +102,7 @@ export function PhoneForm({ next }: { next: string }) {
 
       <FieldError id="phone-error" message={error} className="mt-1.5" />
       <AuthDebug detail={detail} />
+      <SignInFallback show={stranded} />
 
       <Button
         type="submit"

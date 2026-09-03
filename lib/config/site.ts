@@ -27,6 +27,17 @@ export const site = {
    * uses this appends a path.
    */
   url: siteUrl(),
+
+  /**
+   * The number a customer rings when the product cannot help them.
+   *
+   * One constant because it appears on five screens and one of them is the
+   * login fallback — the screen somebody reaches when nothing else in the
+   * product is working for them. Five copies of a phone number means four
+   * chances of a stale one, and the stale one is the one on the screen that
+   * matters most.
+   */
+  supportPhone: "+9779800000000",
 } as const;
 
 function siteUrl(): string {

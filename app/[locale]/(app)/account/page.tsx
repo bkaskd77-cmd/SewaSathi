@@ -9,6 +9,7 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { formatE164ForDisplay } from "@/lib/auth";
+import { site } from "@/lib/config/site";
 
 export async function generateMetadata({
   params,
@@ -118,7 +119,7 @@ export default async function AccountPage() {
         {t.rich("changeNote", {
           phone: (chunks) => (
             <a
-              href="tel:+9779800000000"
+              href={`tel:${site.supportPhone}`}
               className="text-foreground underline underline-offset-2"
             >
               {chunks}

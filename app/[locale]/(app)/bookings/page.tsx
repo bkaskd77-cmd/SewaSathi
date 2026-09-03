@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import { site } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
@@ -137,7 +138,7 @@ export default async function BookingsPage() {
         {t.rich("phoneNote", {
           phone: (chunks) => (
             <a
-              href="tel:+9779800000000"
+              href={`tel:${site.supportPhone}`}
               className="text-foreground underline underline-offset-2"
             >
               {chunks}

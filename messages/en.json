@@ -356,7 +356,13 @@
       "requestNewCode": "That didn't work. Please request a new code.",
       "generic": "Something went wrong. Please try again."
     },
-    "terms": "By continuing you agree to our <terms>terms</terms> and <privacy>privacy policy</privacy>."
+    "terms": "By continuing you agree to our <terms>terms</terms> and <privacy>privacy policy</privacy>.",
+    "fallback": {
+      "title": "Sign-in isn't working right now",
+      "body": "This is our problem, not yours — retrying won't help. Call us and we'll take your booking over the phone.",
+      "call": "Call us to book",
+      "hours": "7am to 9pm, every day."
+    }
   },
   "booking": {
     "bookings": {

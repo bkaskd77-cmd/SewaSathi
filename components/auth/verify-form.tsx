@@ -10,6 +10,7 @@ import { OtpInput } from "@/components/ui/otp-input";
 import { Link, useRouter } from "@/i18n/navigation";
 import { sendOtp, verifyOtp } from "@/lib/auth/otp";
 import { formatE164ForDisplay } from "@/lib/auth";
+import { site } from "@/lib/config/site";
 
 const RESEND_SECONDS = 60;
 
@@ -193,7 +194,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
               {t.rich("helpCall", {
                 phone: (chunks) => (
                   <a
-                    href="tel:+9779800000000"
+                    href={`tel:${site.supportPhone}`}
                     className="text-foreground underline underline-offset-2"
                   >
                     {chunks}

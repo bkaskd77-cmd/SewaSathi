@@ -19,6 +19,7 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { formatSlotInstant } from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
+import { site } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
@@ -45,8 +46,7 @@ export async function generateMetadata({
 
 export const dynamic = "force-dynamic";
 
-/** One number, so the two places that dial it cannot drift apart. */
-const SUPPORT_PHONE = "+9779800000000";
+
 
 /**
  * One booking.
@@ -184,7 +184,7 @@ export default async function BookingDetailPage({
             callSupport: t("callSupport"),
             verified: t("providerVerified"),
             noPhone: t("providerCard.noPhone"),
-            supportPhone: SUPPORT_PHONE,
+            supportPhone: site.supportPhone,
           }}
         />
       ) : null}
@@ -318,7 +318,7 @@ export default async function BookingDetailPage({
           </NextIntlClientProvider>
         ) : null}
         <Button variant="ghost" size="sm" asChild>
-          <a href={`tel:${SUPPORT_PHONE}`}>
+          <a href={`tel:${site.supportPhone}`}>
             <Phone aria-hidden="true" />
             {t("callSupport")}
           </a>
