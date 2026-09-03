@@ -192,6 +192,41 @@ const ARRIVAL_KIND: Partial<Record<BookingStatus, NotificationKind>> = {
   completed: "booking.completed",
 };
 
+/**
+ * The booking a professional is acting on, read the same way the screen read it.
+ *
+ * RLS-scoped deliberately. The policy is the authority on whether this
+ * professional may see the row at all, so using it here means the check is
+ * exercised on every real request rather than only in the db suite — and it
+ * removes a service-role dependency from a path that never needed one.
+ *
+ * Null covers "no such booking" and "not yours" alike, which is the right
+ * answer to both.
+ */
+async function readAssignedBooking(bookingId: string) {
+  try {
+    const { data, error } = await createClient()
+      .from("bookings")
+      .select("id, reference, status, provider_id, customer_id")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (error) {
+      console.error(`[provider-jobs] read failed — ${describeError(error)}`);
+      return null;
+    }
+    return data as {
+      id: string;
+      reference: string;
+      status: string;
+      provider_id: string | null;
+      customer_id: string;
+    } | null;
+  } catch (thrown) {
+    console.error(`[provider-jobs] read threw — ${describeError(thrown)}`);
+    return null;
+  }
+}
+
 type AdvanceResult = { ok: true } | { ok: false; reason: string };
 
 /**
@@ -213,13 +248,12 @@ export async function advanceJob(input: {
   const me = await getMyProvider(input.actorId);
   if (!me) return { ok: false, reason: "notAProvider" };
 
-  const admin = createAdminClient();
-  const { data: booking } = await admin
-    .from("bookings")
-    .select("id, reference, status, provider_id, customer_id")
-    .eq("id", input.bookingId)
-    .maybeSingle();
-
+  // Through RLS, not the admin client. The "Providers read their assigned
+  // bookings" policy already grants exactly this row, so reaching for the
+  // service role bought nothing and cost everything: with the key absent,
+  // `createAdminClient()` throws, the server action rejects, and every button
+  // on the screen says "that didn't work" with no way to tell why.
+  const booking = await readAssignedBooking(input.bookingId);
   if (!booking) return { ok: false, reason: "notFound" };
   if (booking.provider_id !== me.providerId) {
     return { ok: false, reason: "notYours" };
@@ -276,13 +310,7 @@ export async function declineJob(input: {
   const me = await getMyProvider(input.actorId);
   if (!me) return { ok: false, reason: "notAProvider" };
 
-  const admin = createAdminClient();
-  const { data: booking } = await admin
-    .from("bookings")
-    .select("id, reference, status, provider_id, customer_id")
-    .eq("id", input.bookingId)
-    .maybeSingle();
-
+  const booking = await readAssignedBooking(input.bookingId);
   if (!booking) return { ok: false, reason: "notFound" };
   if (booking.provider_id !== me.providerId) {
     return { ok: false, reason: "notYours" };
