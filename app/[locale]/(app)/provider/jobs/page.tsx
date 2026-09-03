@@ -8,6 +8,7 @@ import { JobCard } from "@/components/provider/job-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
 import { formatSlotInstant } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
@@ -73,15 +74,7 @@ export default async function ProviderJobsPage() {
             {t("unlinked.hint")}
           </p>
           <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-background p-3 text-caption">
-            <code>{`update public.providers
-set profile_id = '${profile!.id}'
-where display_name = '<the listing to claim>';
-
-insert into public.provider_contacts (provider_id, phone)
-select id, '${profile!.phone ?? "+9779800000000"}'
-from public.providers
-where profile_id = '${profile!.id}'
-on conflict (provider_id) do update set phone = excluded.phone;`}</code>
+            <code>{claimSql(profile!.id, profile!.phone)}</code>
           </pre>
         </div>
       </div>
@@ -159,4 +152,50 @@ on conflict (provider_id) do update set phone = excluded.phone;`}</code>
       )}
     </div>
   );
+}
+
+/**
+ * The two statements that link this account to a listing.
+ *
+ * Generated rather than written out, because the first version was wrong in
+ * two ways that only showed up when somebody ran it. It asked for a
+ * `display_name` the person had no way to know, and it interpolated
+ * `profiles.phone` verbatim — which Supabase stores without a leading `+`,
+ * while `provider_contacts.phone` has a check constraint demanding E.164. The
+ * insert failed on a constraint the page itself had just violated.
+ *
+ * So: the listing is chosen by the query rather than named, and the phone goes
+ * through the same normalisation the rest of the product uses. Copy-and-paste
+ * has to actually work — a snippet that needs debugging is worse than no
+ * snippet, because it looks authoritative.
+ */
+function claimSql(profileId: string, phone: string | null): string {
+  const normalised = phone ? checkNepaliMobile(phone) : null;
+  const e164 = normalised?.ok ? normalised.e164 : null;
+
+  const claim = `-- 1. Claim the first unclaimed listing for this account.
+update public.providers
+set profile_id = '${profileId}'
+where id = (
+  select id from public.providers
+  where profile_id is null
+  order by display_name
+  limit 1
+);`;
+
+  const contact = e164
+    ? `-- 2. Publish a number the customer can call once a job is accepted.
+insert into public.provider_contacts (provider_id, phone)
+select id, '${e164}'
+from public.providers
+where profile_id = '${profileId}'
+on conflict (provider_id) do update set phone = excluded.phone;`
+    : `-- 2. No usable number on this account. Put one in E.164 (+977…) here:
+-- insert into public.provider_contacts (provider_id, phone)
+-- select id, '+9779800000000'
+-- from public.providers
+-- where profile_id = '${profileId}'
+-- on conflict (provider_id) do update set phone = excluded.phone;`;
+
+  return `${claim}\n\n${contact}`;
 }
