@@ -100,6 +100,14 @@ export default async function BookingDetailPage({
   const area = address ? findArea(address.areaKey) : null;
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
 
+  // The contact card's window, and it mirrors the RLS policy on
+  // provider_contacts exactly: the phone is released while a job is live and
+  // taken back when it is over.
+  const showsProvider =
+    booking.status === "accepted" ||
+    booking.status === "en_route" ||
+    booking.status === "in_progress";
+
   /*
    * Which of the payment stages this booking is at.
    *
@@ -172,7 +180,12 @@ export default async function BookingDetailPage({
         <LiveProgress bookingId={booking.id} initialStatus={booking.status} />
       </NextIntlClientProvider>
 
-      {provider && !ended ? (
+      {/* Only from acceptance onward. Before that nobody has agreed to the job,
+          and showing the card at `pending` said "we do not have a number for
+          them yet" — which reads as a missing record when in fact the policy
+          is deliberately withholding it until someone accepts. The status card
+          above already says a professional is being found. */}
+      {provider && showsProvider ? (
         <ProviderCard
           name={provider.displayName}
           photoUrl={provider.photoUrl}
