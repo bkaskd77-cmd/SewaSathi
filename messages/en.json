@@ -573,6 +573,73 @@
         "confirm": "Cancel booking",
         "failed": "We could not cancel that. It may have moved on already — call us and we will sort it."
       }
+    },
+    "payment": {
+      "methods": {
+        "cash": "Cash",
+        "esewa": "eSewa",
+        "khalti": "Khalti"
+      },
+      "notYet": {
+        "title": "Payment",
+        "body": "Nothing to pay yet. Your professional agrees the final price with you on site, and you pay once the work is done. The estimate is {quote}."
+      },
+      "awaitingAmount": {
+        "title": "Payment",
+        "body": "The work is done. We are waiting for your professional to enter the final amount — you will see it before you pay anything."
+      },
+      "needsApproval": {
+        "title": "Check this amount",
+        "body": "The estimate was {quote}. Your professional has entered {final}, which is {over} more. Nothing is charged until you agree.",
+        "approve": "Yes, {final} is right",
+        "dispute": "Something's wrong"
+      },
+      "dispute": {
+        "label": "What doesn't look right?",
+        "placeholder": "The extra work was never discussed",
+        "submit": "Send this to us",
+        "back": "Back"
+      },
+      "ready": {
+        "title": "Amount to pay",
+        "chooseMethod": "How would you like to pay?",
+        "pay": "Pay with {method}",
+        "payCash": "I'll pay in cash",
+        "cashNote": "Hand the money to your professional, then confirm it here.",
+        "gatewayNote": "You'll be taken to the payment app and brought straight back.",
+        "retry": "The last payment didn't go through. Nothing was charged — you can try again."
+      },
+      "cashPending": {
+        "title": "Paying in cash",
+        "body": "Hand {final} to your professional. Tap below once you have, and we'll close the job.",
+        "confirm": "I've paid in cash"
+      },
+      "processing": {
+        "title": "Checking your payment",
+        "body": "We're confirming this with the payment service. It usually takes a few seconds. If money left your account it will show here — you will not be charged twice.",
+        "recheck": "Check again"
+      },
+      "paid": {
+        "title": "Paid",
+        "body": "Thank you — this job is settled."
+      },
+      "receipt": {
+        "method": "Method",
+        "reference": "Reference",
+        "providerTxn": "Provider reference",
+        "settledAt": "Paid on"
+      },
+      "errors": {
+        "failed": "That didn't work. Please try again.",
+        "network": "We couldn't reach the server. Check your connection and try again.",
+        "notSignedIn": "Please sign in again.",
+        "alreadyPaid": "This booking is already paid.",
+        "amountChanged": "The amount has changed. Refresh the page and check it again.",
+        "aboveCeiling": "This is too far above the estimate to agree here. Please call us.",
+        "gatewayUnavailable": "The payment app isn't responding. Try again, or pay in cash.",
+        "needsApproval": "Agree to the amount first.",
+        "noFinalAmount": "The final amount hasn't been entered yet."
+      }
     }
   },
   "safety": {

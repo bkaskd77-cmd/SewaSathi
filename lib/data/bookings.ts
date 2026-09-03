@@ -54,6 +54,11 @@ export type Booking = {
   quotedMin: number;
   quotedMax: number;
   finalAmount: number | null;
+  /** Why the professional went over the band, in their own words. */
+  finalAmountReason: string | null;
+  /** Set when the figure is agreed — automatically inside the band, by the
+   * customer above it. Null with a final amount set means "waiting on you". */
+  finalAmountApprovedAt: string | null;
   paymentMethod: PaymentMethod;
   paymentStatus: string;
   createdAt: string;
@@ -122,7 +127,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, payment_method, payment_status, created_at, accepted_at, completed_at, cancelled_at";
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, created_at, accepted_at, completed_at, cancelled_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -140,6 +145,9 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     quotedMin: row.quoted_min as number,
     quotedMax: row.quoted_max as number,
     finalAmount: (row.final_amount as number | null) ?? null,
+    finalAmountReason: (row.final_amount_reason as string | null) ?? null,
+    finalAmountApprovedAt:
+      (row.final_amount_approved_at as string | null) ?? null,
     paymentMethod: row.payment_method as PaymentMethod,
     paymentStatus: row.payment_status as string,
     createdAt: row.created_at as string,

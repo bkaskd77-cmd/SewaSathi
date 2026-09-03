@@ -349,6 +349,58 @@ adding one would be a product decision, not a convenience.
   pulls ~70 KB of supabase-js into the landing bundle. Sign-out is a server
   action for exactly this reason.
 
+## Payments
+
+Our model is not a checkout. The quote is a **band**, the final figure is
+agreed on site, and money moves **after** the work is done. Everything below
+follows from that.
+
+- **The dangerous surface is the final amount, not the gateways.** It is typed
+  by a professional standing in somebody's kitchen with the customer watching.
+  `lib/payments/pricing.ts` is the rule and it has three outcomes: inside the
+  quoted band it is confirmed (asking a customer to re-approve what they
+  already agreed teaches them to tap through approvals); above the band up to
+  **2× the quoted max** the customer must approve and the professional must
+  give a reason, which is stored; above 2× nothing can be approved in-app at
+  all. 2× is chosen so an honest overrun fits and a mistyped extra zero — 1,500
+  becoming 15,000 — cannot. It is a customer protection, not a tuning knob.
+- **Commission is 15% (`COMMISSION_BPS = 1500`)**, frozen onto the booking at
+  the moment it settles so a later rate change never rewrites history. The fee
+  is rounded and the professional gets the remainder, so the split always
+  reconciles to the amount charged.
+- **A callback is a claim, never evidence.** eSewa and Khalti both return the
+  customer to us with a status in the URL, through a browser we do not control.
+  `verify()` ignores it and asks the gateway's own servers. `verifyAndSettle`
+  then reconciles their figure against ours and refuses on a mismatch.
+  `tests/unit/payment-gateways.test.ts` forges exactly that callback.
+- **RLS grants no insert or update on `payments` to anyone.** Every write goes
+  through `lib/data/payments.ts` under the service role, which re-reads the
+  booking rather than believing anything it was handed. That file is the one
+  place in the product holding that key on a customer path; treat an edit to it
+  the way you would treat shared code.
+- **Idempotent by construction.** `our_reference` is unique and every settle is
+  a guarded update (`.in("status", ["pending","initiated"])`), so a duplicate
+  callback, a refresh and the reconciliation sweep can race and only one wins.
+  A retry gets a **new** reference — reusing it would make attempt two
+  indistinguishable from a duplicate callback for attempt one.
+- **A gateway we cannot reach is not a failed payment.** `ok: false` means "no
+  answer": the money may well have left the customer's account, so the row
+  stays in flight and the sweep picks it up. `/api/payments/reconcile` runs it
+  (guarded by `CRON_SECRET`, refusing everything if it is unset), and the
+  panel's "Check again" re-verifies on the spot rather than re-rendering what
+  we already believed.
+- **Cash is the primary path, not a fallback.** `isConfigured()` is always
+  true, so a missing key can never leave a customer with no way to pay, and
+  `verify()` never self-settles — the customer confirming receipt is the only
+  oracle there is, which is why that check lives in the data layer where the
+  caller's identity is known.
+- **Two machines, deliberately separate.** A booking can be completed and
+  unpaid; for cash that is the normal case. `npm run check:transitions` now
+  parses both TS/SQL pairs.
+- `@/lib/payments` is **server-only** (the registry reaches `node:crypto` via
+  eSewa). Client Components import `@/lib/payments/client`. The linter enforces
+  both, and the bundle build is what caught it the first time.
+
 ## Schema
 
 `supabase/migrations/`, applied in filename order. If it is not in a migration

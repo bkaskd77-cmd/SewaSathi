@@ -6,7 +6,16 @@
  * exported: a caller that could reach `esewa.ts` directly would be a second
  * place that knows which gateway is in play, and the whole point of the
  * registry is that there is exactly one.
+ *
+ * SERVER ONLY, and marked so rather than left to discipline. The registry
+ * reaches every adapter, and eSewa's signs its form with `node:crypto`; a
+ * Client Component that imports this fails the build with an unhandled `node:`
+ * scheme, which is exactly what happened. The pure half — method names, the
+ * price rules, the error allow-list — is re-exported from `./client`, which is
+ * the path a Client Component uses.
  */
+
+import "server-only";
 
 import { cash } from "./cash";
 import { esewa } from "./esewa";
@@ -48,25 +57,11 @@ export type {
   VerifyResult,
 } from "./gateway";
 
-export {
-  canRetry,
-  canTransitionPayment,
-  isInFlight,
-  isPaymentMethod,
-  isPaymentStatus,
-  isSettled,
-  PAYMENT_METHODS,
-  PAYMENT_STATUSES,
-  PAYMENT_TRANSITIONS,
-  type PaymentMethod,
-  type PaymentStatus,
-} from "./status";
+export { readCallback, type CallbackRead } from "./callback";
 
-export {
-  canSettle,
-  judgeFinalAmount,
-  PRICE_RULES,
-  type PriceVerdict,
-} from "./pricing";
-
-export { COMMISSION_BPS, splitAmount, type Split } from "./commission";
+/*
+ * Everything a Client Component may also have. Re-exported rather than moved,
+ * so server code has one import for the whole module and nobody has to
+ * remember which half a symbol lives in.
+ */
+export * from "./client";

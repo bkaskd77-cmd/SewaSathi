@@ -5,6 +5,10 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ArrowLeft, MapPin, Phone } from "lucide-react";
 
 import { CancelBooking } from "@/components/booking/cancel-booking";
+import {
+  PaymentPanel,
+  type PaymentStage,
+} from "@/components/booking/payment-panel";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
@@ -22,7 +26,9 @@ import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
+import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProvider } from "@/lib/data/providers";
+import { availableMethods, judgeFinalAmount } from "@/lib/payments";
 import { cn, formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -71,16 +77,59 @@ export default async function BookingDetailPage({
   // "not yours" are the same answer here — which is the right answer to give.
   if (!booking) notFound();
 
-  const [category, address, provider, photoUrl] = await Promise.all([
+  const [category, address, provider, photoUrl, payments] = await Promise.all([
     getCategory(booking.categorySlug),
     getAddress(booking.addressId),
     booking.providerId ? getProvider(booking.providerId) : Promise.resolve(null),
     signBookingPhoto(booking.photoUrl),
+    listPaymentsForBooking(booking.id),
   ]);
 
   const area = address ? findArea(address.areaKey) : null;
   const stepIndex = progressIndex(booking.status);
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
+
+  /*
+   * Which of the payment stages this booking is at.
+   *
+   * Worked out here rather than in the panel so the screen and the server
+   * agree on one judgement — `startPayment` re-checks all of it before any
+   * money moves, and a second implementation in the browser could only drift.
+   * Order matters: settled wins over everything, and an unapproved amount
+   * blocks the pay button rather than sitting alongside it.
+   */
+  const settled = payments.find(
+    (p) => p.status === "paid" || p.status === "partially_refunded",
+  );
+  const inFlight = payments.find((p) => p.status === "initiated");
+  const cashWaiting = payments.find(
+    (p) => p.method === "cash" && p.status === "pending",
+  );
+  const lastFailed = payments.find((p) => p.status === "failed");
+
+  const stage: PaymentStage = settled
+    ? "paid"
+    : booking.finalAmount === null
+      ? booking.status === "completed"
+        ? "awaitingAmount"
+        : "notYet"
+      : !booking.finalAmountApprovedAt
+        ? "needsApproval"
+        : inFlight
+          ? "processing"
+          : cashWaiting
+            ? "cashPending"
+            : "ready";
+
+  const verdict =
+    booking.finalAmount !== null
+      ? judgeFinalAmount(booking.finalAmount, {
+          min: booking.quotedMin,
+          max: booking.quotedMax,
+        })
+      : null;
+
+  const quoteLabel = `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`;
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -218,6 +267,52 @@ export default async function BookingDetailPage({
 
         <Row i={6} label={t("payment")} value={t(`payments.${booking.paymentMethod}`)} />
       </dl>
+
+      {/* Money. Hidden on a booking that ended before anyone worked — there
+          is nothing to pay and offering to would be alarming. */}
+      {!ended ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <PaymentPanel
+            bookingId={booking.id}
+            stage={stage}
+            quoteLabel={quoteLabel}
+            finalLabel={
+              booking.finalAmount !== null
+                ? formatNpr(booking.finalAmount, { locale })
+                : null
+            }
+            finalAmount={booking.finalAmount}
+            overByLabel={
+              verdict?.outcome === "needs-approval"
+                ? formatNpr(verdict.overBy, { locale })
+                : null
+            }
+            reason={booking.finalAmountReason}
+            methods={availableMethods()}
+            defaultMethod={booking.paymentMethod}
+            // Same precedence as the stage above, so the reference always
+            // belongs to the attempt the panel is actually showing.
+            reference={(inFlight ?? cashWaiting)?.ourReference ?? null}
+            receipt={
+              settled
+                ? {
+                    reference: settled.ourReference,
+                    method: settled.method,
+                    amountLabel: formatNpr(settled.amount, { locale }),
+                    settledAt: formatSlotInstant(
+                      settled.settledAt ?? settled.createdAt,
+                    ),
+                    providerTxnId: settled.providerTxnId,
+                  }
+                : null
+            }
+            failureReason={lastFailed?.failureReason ?? null}
+          />
+        </NextIntlClientProvider>
+      ) : null}
 
       <div className="animate-rise mt-6 flex flex-wrap items-center gap-3">
         {customerCanCancel(booking.status) ? (

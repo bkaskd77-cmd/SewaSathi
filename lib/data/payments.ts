@@ -86,13 +86,14 @@ async function readBooking(bookingId: string) {
   const { data } = await createAdminClient()
     .from("bookings")
     .select(
-      "id, customer_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method",
+      "id, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method",
     )
     .eq("id", bookingId)
     .maybeSingle();
   return data as {
     id: string;
     customer_id: string;
+    provider_id: string | null;
     status: string;
     quoted_min: number;
     quoted_max: number;
@@ -100,6 +101,41 @@ async function readBooking(bookingId: string) {
     final_amount_approved_at: string | null;
     payment_method: string;
   } | null;
+}
+
+/**
+ * May this actor put a figure on this booking?
+ *
+ * The professional assigned to it, or an admin. Nobody else — and emphatically
+ * not the customer, who would then be setting the price they pay, and not a
+ * professional who happens to be logged in but was assigned a different job.
+ *
+ * Checked here rather than only at the route, because this file holds the
+ * service role: a future caller that forgets the check would otherwise let
+ * anyone bill anyone.
+ */
+async function canBill(
+  actorId: string,
+  booking: { provider_id: string | null },
+): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", actorId)
+    .maybeSingle();
+  if ((profile as { role?: string } | null)?.role === "admin") return true;
+
+  if (!booking.provider_id) return false;
+  const { data: provider } = await supabase
+    .from("providers")
+    .select("profile_id")
+    .eq("id", booking.provider_id)
+    .maybeSingle();
+  return (
+    (provider as { profile_id?: string | null } | null)?.profile_id === actorId
+  );
 }
 
 /**
@@ -120,6 +156,14 @@ export async function recordFinalAmount(input: {
 
   const booking = await readBooking(input.bookingId);
   if (!booking) return { ok: false, reason: "bookingNotFound" };
+  if (!(await canBill(input.actorId, booking))) {
+    return { ok: false, reason: "notYours" };
+  }
+  // Billing for a job that has not started is not an overrun, it is a mistake
+  // or a fraud. The band was quoted; the work is what justifies leaving it.
+  if (booking.status !== "in_progress" && booking.status !== "completed") {
+    return { ok: false, reason: "notStarted" };
+  }
 
   const verdict = judgeFinalAmount(input.amount, {
     min: booking.quoted_min,
@@ -280,6 +324,118 @@ export async function openPayment(input: {
     return { ok: false, reason: "saveFailed" };
   }
   return { ok: true, payment: rowToPayment(data as Record<string, unknown>) };
+}
+
+/**
+ * The handoff: what the browser has to do next to pay.
+ *
+ * Three shapes because the gateways genuinely differ. eSewa needs a signed
+ * form POST, Khalti gives back a URL to redirect to, and cash needs nothing at
+ * all — the customer pays the professional and comes back to confirm. Folding
+ * cash into a fake "redirect" would have been tidier and wrong: it is the
+ * common path here, not a degraded one.
+ */
+export type Handoff =
+  | { ok: true; kind: "redirect"; url: string; reference: string }
+  | {
+      ok: true;
+      kind: "form";
+      url: string;
+      fields: Record<string, string>;
+      reference: string;
+    }
+  | { ok: true; kind: "cash"; reference: string }
+  | { ok: false; reason: string };
+
+/**
+ * Where a gateway sends the customer back to.
+ *
+ * Our own reference rides on the query string as `ref` so a return that has
+ * been stripped of the gateway's own payload still resolves to a row. It is an
+ * identifier, not a capability: naming a reference gets you a verification
+ * against the gateway and nothing else.
+ */
+function returnUrl(origin: string, method: PaymentMethod, reference: string) {
+  return `${origin}/api/payments/${method}/return?ref=${encodeURIComponent(reference)}`;
+}
+
+/**
+ * Open a payment and hand the customer to the gateway.
+ *
+ * The amount handed to the gateway is the one read out of the booking here —
+ * never one that came in from a form. That is the whole reason this lives
+ * behind the data layer rather than in the server action.
+ */
+export async function startPayment(input: {
+  bookingId: string;
+  method: PaymentMethod;
+  actorId: string;
+  /** Absolute site origin, e.g. https://sewasathi.vercel.app. */
+  origin: string;
+  description: string;
+  customer: { name: string | null; phone: string | null };
+}): Promise<Handoff> {
+  const opened = await openPayment({
+    bookingId: input.bookingId,
+    method: input.method,
+    actorId: input.actorId,
+  });
+  if (!opened.ok) return { ok: false, reason: opened.reason };
+
+  const payment = opened.payment;
+
+  // Already settled — the customer is looking at a stale page. Say so rather
+  // than opening a second attempt against a paid booking.
+  if (payment.status === "paid") return { ok: false, reason: "alreadyPaid" };
+
+  if (input.method === "cash") {
+    return { ok: true, kind: "cash", reference: payment.ourReference };
+  }
+
+  const url = returnUrl(input.origin, input.method, payment.ourReference);
+  const result = await gatewayFor(input.method).initiate({
+    reference: payment.ourReference,
+    amount: payment.amount,
+    successUrl: url,
+    // The same route on failure: a gateway saying "cancelled" is still only a
+    // claim, and the route verifies either way.
+    failureUrl: `${url}&outcome=failed`,
+    description: input.description,
+    customer: input.customer,
+  });
+
+  if (!result.ok) {
+    await createAdminClient()
+      .from("payments")
+      .update({ status: "failed", failure_reason: result.reason.slice(0, 500) })
+      .eq("id", payment.id)
+      .in("status", ["pending", "initiated"]);
+    return { ok: false, reason: "gatewayUnavailable" };
+  }
+
+  // Marked initiated only once the gateway has accepted the attempt, so
+  // `initiated_at` is a real handoff time and the reconciliation sweep is not
+  // chasing payments that never left.
+  await createAdminClient()
+    .from("payments")
+    .update({
+      status: "initiated",
+      initiated_at: new Date().toISOString(),
+      provider_txn_id: result.providerTxnId ?? null,
+      raw_response: result.raw as never,
+    })
+    .eq("id", payment.id)
+    .in("status", ["pending", "initiated"]);
+
+  return result.kind === "form"
+    ? {
+        ok: true,
+        kind: "form",
+        url: result.url,
+        fields: result.fields ?? {},
+        reference: payment.ourReference,
+      }
+    : { ok: true, kind: "redirect", url: result.url, reference: payment.ourReference };
 }
 
 /**
@@ -554,4 +710,27 @@ export async function listPaymentsForBooking(
   } catch {
     return [];
   }
+}
+
+/**
+ * One payment by our reference, with the booking it belongs to.
+ *
+ * Used by the return route, which knows a reference and nothing else and has
+ * to send the customer back to the right booking. Admin-scoped because the
+ * route runs before any session is guaranteed — a customer can come back from
+ * a gateway in a fresh browser tab — so the caller sends them to the booking
+ * page and RLS decides there whether they may see it.
+ */
+export async function findPaymentByReference(
+  reference: string,
+): Promise<{ payment: Payment; bookingId: string } | null> {
+  if (!hasSupabaseConfig()) return null;
+  const { data } = await createAdminClient()
+    .from("payments")
+    .select(COLUMNS)
+    .eq("our_reference", reference)
+    .maybeSingle();
+  if (!data) return null;
+  const payment = rowToPayment(data as Record<string, unknown>);
+  return { payment, bookingId: payment.bookingId };
 }

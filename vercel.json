@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "comment": "Re-verifies payments that started and never came back. Daily because that is the most frequent schedule every Vercel plan accepts — on Pro, tighten it to */10 * * * *, which is what this sweep is actually sized for. The customer-present case does not wait for it: the payment panel's 'Check again' re-verifies on the spot.",
+      "path": "/api/payments/reconcile",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

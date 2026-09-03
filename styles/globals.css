@@ -632,6 +632,39 @@
     transition-duration: 0.06s;
   }
 
+  /*
+   * Money arriving. Deliberately different from .animate-pop-in: a payment
+   * confirming is the one moment in this product where the user has just done
+   * something irreversible with their own money, and it should read as
+   * settling rather than as another card appearing. The ring expands once out
+   * of the tick and fades — no loop, because a looping success animation asks
+   * for attention it has already got.
+   */
+  .animate-settle {
+    animation: pop-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-settle::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid hsl(var(--success));
+    animation: settle-ring 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    pointer-events: none;
+  }
+
+  @keyframes settle-ring {
+    from {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.035);
+    }
+  }
+
   /* Leaving. Pairs with .animate-pop-in — the photo thumbnail goes out the
      way it came in, so removing it reads as a reversal rather than a glitch. */
   .animate-pop-out {
@@ -669,12 +702,19 @@
 
     .animate-route-in,
     .animate-pop-in,
+    .animate-settle,
     .step-forward,
     .step-back,
     .assemble > * {
       animation: none;
       opacity: 1;
       transform: none;
+    }
+
+    /* The ring's end state is invisible, so it simply never runs. */
+    .animate-settle::before {
+      animation: none;
+      opacity: 0;
     }
 
     /* Not `animation: none` — this one's end state is gone, and the element

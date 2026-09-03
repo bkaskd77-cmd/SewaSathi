@@ -21,6 +21,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | Module | Public entry | Owns |
 | --- | --- | --- |
 | **booking** | `@/lib/booking` | Status machine, working hours and slots, flow draft persistence |
+| **payments** | `@/lib/payments` (server)<br>`@/lib/payments/client` (isomorphic) | Payment status machine, the price-integrity rules, the commission split, the gateway registry, callback reading |
 | **auth** | `@/lib/auth` (isomorphic)<br>`@/lib/auth/session` (server)<br>`@/lib/auth/otp` (client) | Route rules, redirect safety, phone parsing, session reads, the SMS adapter |
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
@@ -31,6 +32,17 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 stylistic: `session.ts` imports `server-only` and `otp.ts` is `"use client"`.
 One combined entry would drag `server-only` into the client bundle the moment a
 form imported a phone formatter.
+
+`payments` splits for the same kind of reason and it was found the same way —
+by the build failing. Its registry reaches every adapter and eSewa's signs its
+form with `node:crypto`, so a Client Component importing `@/lib/payments` dies
+on an unhandled `node:` scheme. `@/lib/payments/client` re-exports only the
+pure half — method names, the price rules, the customer-facing error list —
+and `@/lib/payments` is marked `server-only` so the failure can never be quiet
+again. What may go in the client entry: pure tables and pure judgements with no
+Node builtin anywhere in their import graph. The price rules are there so the
+screen can explain why a figure needs approving; they are never the
+enforcement.
 
 **Not yet modularised:** `triage`, `data`, `content` and `config` are still
 imported by their internal paths. `booking` and `auth` went first because they
@@ -79,7 +91,9 @@ interface. Swapping a provider is then one file, not a hunt.
 | Claude | `lib/ai/client.ts` | Model, timeout and token budget live here. |
 | Supabase (data) | `lib/supabase/{client,server}.ts` | The only files constructing a client. |
 | Supabase (storage) | `lib/data/booking-photos.ts` | Private bucket, signed URLs. The only file that touches `storage`. |
-| eSewa / Khalti | *not built* | Phase 7. `bookings.payment_method` records the intent; nothing charges. |
+| eSewa | `lib/payments/esewa.ts` | ePay v2. Signed form POST; the signature covers `total_amount,transaction_uuid,product_code` in that order. Refunds are dashboard-only, so `refund()` returns `manualRefundRequired` rather than pretending. |
+| Khalti | `lib/payments/khalti.ts` | KPG-2. Server-side initiate returns a `payment_url` and a `pidx`. Amounts are in **paisa**; the ×100 lives here and nowhere else. |
+| Cash | `lib/payments/cash.ts` | Not a degraded path — the common one. `isConfigured()` is always true, so the customer is never left with no way to pay, and `verify()` never self-settles: the customer confirming is the only oracle. |
 | Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
 
 ---
@@ -97,6 +111,16 @@ Where a change on one side cannot reach the other.
   and the card. Everything behind it can be rebuilt as long as that shape and
   the ten category slugs hold.
 - **`lib/data/` is the only thing that talks to Supabase.** Pages never do.
+- **A callback is a claim, never evidence.** `PaymentGateway.verify()` is the
+  only thing that may conclude a payment succeeded, and it reaches the
+  gateway's own servers to do it. `lib/payments/callback.ts` extracts an
+  identifier from a return URL and decides nothing. RLS grants **no** insert or
+  update on `payments` to anybody, so every write goes through
+  `lib/data/payments.ts` under the service role, after it has re-read the
+  booking and reconciled the gateway's figure against ours.
+- **Money and job progress are separate machines.** A booking can be completed
+  and unpaid — for cash that is the normal case — so "mark it complete" and
+  "mark it paid" are never the same privilege.
 - **The seed JSON is both the fixture and the fallback**, so a clone with no
   keys renders the whole product. Reads record which path they took
   (`?debug=data`).
@@ -118,6 +142,9 @@ Where a change on one side cannot reach the other.
 | Parity | `npm run check:messages` | `en`/`ne` agree on every key and placeholder |
 | Transitions | `npm run check:transitions` | The TS and SQL transition tables agree |
 | Hazard corpus | `npm run test` | Realistic Devanagari, Romanized and English hazard sentences reach the safety path — and ordinary complaints do not |
+| Price integrity | `npm run test` | The three verdicts and both boundaries: inside the band, over it with approval, and blocked above 2× |
+| Gateway contract | `npm run test` | Every adapter satisfies one interface; a **forged callback loses to the gateway**; the gateway's amount is what gets reconciled; a gateway we cannot reach is not a failed payment |
+| Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up
 `tests/unit` and `tests/db` together. The harness needs Postgres 16 binaries on
