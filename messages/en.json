@@ -572,6 +572,13 @@
         "keep": "Keep it",
         "confirm": "Cancel booking",
         "failed": "We could not cancel that. It may have moved on already — call us and we will sort it."
+      },
+      "reconnecting": "Connection lost — reconnecting. What you see is the last update we had.",
+      "notLive": "This page will not update on its own. Refresh to check for changes.",
+      "providerCard": {
+        "heading": "Your professional",
+        "call": "Call {name}",
+        "noPhone": "We do not have a number for them yet."
       }
     },
     "payment": {
@@ -640,6 +647,16 @@
         "needsApproval": "Agree to the amount first.",
         "noFinalAmount": "The final amount hasn't been entered yet."
       }
+    },
+    "notifications": {
+      "booking.accepted": "Accepted",
+      "booking.en_route": "On the way",
+      "booking.in_progress": "Work started",
+      "booking.completed": "Work done",
+      "booking.cancelled": "Cancelled",
+      "booking.declined": "Professional withdrew",
+      "booking.amountEntered": "Amount to check",
+      "booking.paid": "Paid"
     }
   },
   "safety": {
@@ -721,6 +738,55 @@
       "prefix": "Mobile numbers here start 97 or 98.",
       "tooShort": "Too short — a mobile number is 10 digits.",
       "tooLong": "Too long — a mobile number is 10 digits."
+    }
+  },
+  "provider": {
+    "jobs": {
+      "title": "My jobs",
+      "subtitle": "Signed in as {name}",
+      "asap": "As soon as possible",
+      "when": "Time",
+      "quote": "Price",
+      "address": "Address",
+      "callCustomer": "Call the customer",
+      "failed": "That didn't work. Please try again.",
+      "status": {
+        "pending": "Waiting for you",
+        "accepted": "You accepted",
+        "en_route": "On the way",
+        "in_progress": "Working",
+        "completed": "Done",
+        "cancelled": "Cancelled",
+        "no_provider_found": "Closed unmatched"
+      },
+      "advance": {
+        "accepted": "Accept this job",
+        "en_route": "I'm on the way",
+        "in_progress": "I've started",
+        "completed": "Work is done"
+      },
+      "decline": {
+        "trigger": "Can't take it",
+        "label": "Why, so we can tell the customer?",
+        "placeholder": "Already on another job",
+        "confirm": "Turn this down",
+        "back": "Back"
+      },
+      "amount": {
+        "label": "What is the final amount?",
+        "overBand": "This is above the price the customer was quoted. They will have to agree to it before paying.",
+        "reasonLabel": "Why did it come to more?",
+        "reasonPlaceholder": "The pipe under the sink had to be replaced",
+        "submit": "Send this to the customer"
+      },
+      "empty": {
+        "title": "No jobs yet",
+        "body": "When a customer books you, the job appears here."
+      },
+      "unlinked": {
+        "body": "This account is not linked to a listing yet, so there are no jobs to show.",
+        "hint": "Provider sign-up is coming. For now, run this in the Supabase SQL editor to link this account to a listing — your own id is already filled in."
+      }
     }
   }
 }

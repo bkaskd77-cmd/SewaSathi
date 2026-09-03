@@ -56,15 +56,6 @@ export function isTerminal(status: BookingStatus): boolean {
 }
 
 /**
- * A customer may cancel while nobody is on the way. Once a professional is
- * en route they have already spent the trip, so cancelling goes through
- * support — the RLS policy enforces the same window.
- */
-export function customerCanCancel(status: BookingStatus): boolean {
-  return status === "pending" || status === "accepted";
-}
-
-/**
  * The steps shown on the booking's own page, in order. Cancelled and
  * no_provider_found are deliberately absent: they are ends, not stages, and
  * drawing them as a step implies the job is still travelling towards one.

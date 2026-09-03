@@ -50,7 +50,14 @@ export const PROTECTED_ROUTES = [
  */
 
 /** Requires a session AND profiles.role = 'provider'. */
-export const PROVIDER_ROUTES = ["/providers/dashboard"] as const;
+export const PROVIDER_ROUTES = [
+  "/providers/dashboard",
+  // Phase 8's minimal job screen. Under /provider (singular) rather than
+  // /providers, which is the public directory — a professional's own work and
+  // a customer browsing professionals are different things and should not
+  // share a prefix that a bare startsWith could confuse.
+  "/provider",
+] as const;
 
 function matches(rawPathname: string, routes: readonly string[]): boolean {
   const pathname = stripLocale(rawPathname);

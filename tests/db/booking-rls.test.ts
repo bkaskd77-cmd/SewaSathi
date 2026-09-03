@@ -568,3 +568,150 @@ describe("locking the functions down did not lock the product out", () => {
     expect(admin[0].v).toBe(false);
   });
 });
+
+/**
+ * The professional's phone, and who is allowed to have it.
+ *
+ * This is the one genuinely new privacy surface in Phase 8. `providers` is
+ * world-readable — it is the public directory — so a phone number on that
+ * table would be every professional's number on the open internet. It lives on
+ * `provider_contacts` instead, behind a policy that releases it only while a
+ * job of theirs is live.
+ *
+ * The window is asserted from both ends: it opens at `accepted` and it closes
+ * again when the job is over. A finished job is not a standing right to
+ * somebody's number, and that is the half nobody would notice was missing.
+ */
+describe("a professional's number is not public", () => {
+  let providerId: string;
+  // Its own booking, deliberately. Earlier blocks in this file advance
+  // `aliceBooking` through the machine, and a test whose fixture is whatever
+  // the previous describe left behind is a test that passes for the wrong
+  // reason — which is how the first version of this block "passed" the
+  // pending case while the booking was actually en_route.
+  let job: string;
+
+  beforeAll(async () => {
+    const { rows } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ('Ramesh', '{lalitpur-4}', 800, true, null)
+       returning id`,
+    );
+    providerId = rows[0].id as string;
+
+    await pg.admin.query(
+      "insert into public.provider_contacts (provider_id, phone) values ($1, '+9779812345678')",
+      [providerId],
+    );
+
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Kupondole', 'Green gate')
+       returning id`,
+      [ALICE],
+    );
+    const { rows: booking } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max)
+       values ('SK-PHONE', $1, $2, 'plumbing', $3, 'Leaking tap', 900, 4500)
+       returning id`,
+      [ALICE, providerId, address[0].id],
+    );
+    job = booking[0].id as string;
+  });
+
+  const phoneVisibleTo = async (userId: string) => {
+    const client = await pg.asUser(userId);
+    const { rows } = await client.query(
+      "select phone from public.provider_contacts where provider_id = $1",
+      [providerId],
+    );
+    return rows;
+  };
+
+  it("hides it while the job is still only requested", async () => {
+    // pending: nobody has agreed to anything, so there is nothing to call about.
+    expect(await phoneVisibleTo(ALICE)).toHaveLength(0);
+  });
+
+  it("releases it to the customer once the job is accepted", async () => {
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [job],
+    );
+    const rows = await phoneVisibleTo(ALICE);
+    expect(rows[0]?.phone).toBe("+9779812345678");
+  });
+
+  it("keeps it hidden from a customer with no job with them", async () => {
+    expect(await phoneVisibleTo(BOB)).toHaveLength(0);
+  });
+
+  it("takes it away again once the job is over", async () => {
+    // The half that is easy to forget. A finished job is not a permanent
+    // right to somebody's phone number.
+    for (const status of ["en_route", "in_progress", "completed"]) {
+      await pg.admin.query(
+        "update public.bookings set status = $1 where id = $2",
+        [status, job],
+      );
+    }
+    expect(await phoneVisibleTo(ALICE)).toHaveLength(0);
+  });
+
+  it("lets nobody write one through the client", async () => {
+    const client = await pg.asUser(ALICE);
+    await expect(
+      client.query(
+        "insert into public.provider_contacts (provider_id, phone) values ($1, '+9779800000009')",
+        [providerId],
+      ),
+    ).rejects.toThrow(/row-level security|permission denied/i);
+  });
+});
+
+describe("notifications belong to the person they are about", () => {
+  it("shows a person only their own", async () => {
+    await pg.admin.query(
+      `insert into public.notifications (profile_id, booking_id, kind)
+       values ($1, $2, 'booking.accepted')`,
+      [ALICE, aliceBooking],
+    );
+
+    const alice = await pg.asUser(ALICE);
+    const { rows: mine } = await alice.query(
+      "select id from public.notifications",
+    );
+    expect(mine.length).toBeGreaterThan(0);
+
+    const bob = await pg.asUser(BOB);
+    const { rows: theirs } = await bob.query(
+      "select id from public.notifications",
+    );
+    expect(theirs).toHaveLength(0);
+  });
+
+  it("lets nobody forge one", async () => {
+    // A notification a client can write is one an attacker can write, and
+    // these say things like "your professional is on the way".
+    const client = await pg.asUser(BOB);
+    await expect(
+      client.query(
+        `insert into public.notifications (profile_id, kind) values ($1, 'booking.paid')`,
+        [BOB],
+      ),
+    ).rejects.toThrow(/row-level security|permission denied/i);
+  });
+
+  it("lets a person mark their own read", async () => {
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "update public.notifications set read_at = now() where profile_id = $1 returning id",
+      [ALICE],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});

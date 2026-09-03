@@ -5,6 +5,8 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ArrowLeft, MapPin, Phone } from "lucide-react";
 
 import { CancelBooking } from "@/components/booking/cancel-booking";
+import { LiveProgress } from "@/components/booking/live-progress";
+import { ProviderCard } from "@/components/booking/provider-card";
 import {
   PaymentPanel,
   type PaymentStage,
@@ -15,21 +17,19 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { formatSlotInstant } from "@/lib/booking";
-import {
-  BOOKING_PROGRESS,
-  customerCanCancel,
-  progressIndex,
-} from "@/lib/booking";
+import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
+import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
+import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider } from "@/lib/data/providers";
 import { availableMethods, judgeFinalAmount } from "@/lib/payments";
-import { cn, formatNpr } from "@/lib/utils";
+import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -45,6 +45,9 @@ export async function generateMetadata({
 
 export const dynamic = "force-dynamic";
 
+/** One number, so the two places that dial it cannot drift apart. */
+const SUPPORT_PHONE = "+9779800000000";
+
 /**
  * One booking.
  *
@@ -59,8 +62,6 @@ export default async function BookingDetailPage({
 }) {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.detail");
-  const tStatus = await getTranslations("booking.status");
-  const tNext = await getTranslations("booking.whatNext");
   const tServices = await getTranslations("services");
 
   const profile = await getSessionProfile();
@@ -85,8 +86,18 @@ export default async function BookingDetailPage({
     listPaymentsForBooking(booking.id),
   ]);
 
+  // RLS releases this only while the job is accepted, on the way or under way,
+  // so an unassigned or finished booking simply gets null and the card falls
+  // back to the support line.
+  // Looking at the booking is reading the notifications about it. Guarded on
+  // `read_at is null`, so it is a no-op on every render after the first.
+  await markBookingRead(profile!.id, booking.id);
+
+  const providerPhone = booking.providerId
+    ? await getProviderPhone(booking.providerId)
+    : null;
+
   const area = address ? findArea(address.areaKey) : null;
-  const stepIndex = progressIndex(booking.status);
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
 
   /*
@@ -152,49 +163,30 @@ export default async function BookingDetailPage({
         </p>
       </header>
 
-      {/* What happens next, in words. A badge alone tells nobody what to do. */}
-      <div
-        className="animate-rise mt-6 rounded-xl border border-primary/25 bg-primary/[0.05] p-4"
-        style={{ animationDelay: "80ms" }}
+      {/* Status and progress, live. Scoped provider: `booking` is server-only
+          in the root layout, and this is the Client Component that needs it. */}
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ booking: messages.booking }}
       >
-        <p className="text-body-sm font-semibold text-primary">
-          {tStatus(booking.status)}
-        </p>
-        <p className="mt-1 text-body-md">{tNext(booking.status)}</p>
-      </div>
+        <LiveProgress bookingId={booking.id} initialStatus={booking.status} />
+      </NextIntlClientProvider>
 
-      {/* Where it has got to. Cancelled and no-provider are ends, not stages,
-          so the track is hidden rather than shown frozen part-way. */}
-      {!ended ? (
-        <ol
-          className="animate-rise mt-6 flex gap-1"
-          style={{ animationDelay: "120ms" }}
-          aria-label={t("progressLabel")}
-        >
-          {BOOKING_PROGRESS.map((step, i) => {
-            const done = i <= stepIndex;
-            return (
-              <li key={step} className="flex-1">
-                <div
-                  className={cn(
-                    "h-1.5 rounded-full transition-colors duration-300",
-                    done ? "bg-primary" : "bg-muted",
-                  )}
-                />
-                <p
-                  className={cn(
-                    "mt-1.5 truncate text-caption",
-                    i === stepIndex
-                      ? "font-semibold text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {tStatus(step)}
-                </p>
-              </li>
-            );
-          })}
-        </ol>
+      {provider && !ended ? (
+        <ProviderCard
+          name={provider.displayName}
+          photoUrl={provider.photoUrl}
+          phone={providerPhone}
+          verified={provider.isVerified}
+          labels={{
+            heading: t("providerCard.heading"),
+            call: t("providerCard.call", { name: provider.displayName }),
+            callSupport: t("callSupport"),
+            verified: t("providerVerified"),
+            noPhone: t("providerCard.noPhone"),
+            supportPhone: SUPPORT_PHONE,
+          }}
+        />
       ) : null}
 
       <dl className="assemble mt-6 divide-y divide-border rounded-xl border border-border">
@@ -326,7 +318,7 @@ export default async function BookingDetailPage({
           </NextIntlClientProvider>
         ) : null}
         <Button variant="ghost" size="sm" asChild>
-          <a href="tel:+9779800000000">
+          <a href={`tel:${SUPPORT_PHONE}`}>
             <Phone aria-hidden="true" />
             {t("callSupport")}
           </a>

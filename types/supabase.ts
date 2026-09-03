@@ -173,6 +173,8 @@ export type Database = {
           commission_bps: number | null;
           final_amount_reason: string | null;
           final_amount_approved_at: string | null;
+          cancelled_by_role: string | null;
+          cancellation_fee: number;
         };
         Insert: {
           id?: string;
@@ -208,6 +210,8 @@ export type Database = {
           commission_bps?: number | null;
           final_amount_reason?: string | null;
           final_amount_approved_at?: string | null;
+          cancelled_by_role?: string | null;
+          cancellation_fee?: number;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -302,6 +306,44 @@ export type Database = {
           processed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["refunds"]["Insert"]>;
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          profile_id: string;
+          booking_id: string | null;
+          kind: string;
+          params: Json;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          booking_id?: string | null;
+          kind: string;
+          params?: Json;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+        Relationships: [];
+      };
+      provider_contacts: {
+        Row: {
+          provider_id: string;
+          phone: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: string;
+          phone: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_contacts"]["Insert"]
+        >;
         Relationships: [];
       };
       provider_leads: {

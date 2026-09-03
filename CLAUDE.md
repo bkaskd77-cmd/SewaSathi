@@ -349,6 +349,52 @@ adding one would be a product decision, not a convenience.
   pulls ~70 KB of supabase-js into the landing bundle. Sign-out is a server
   action for exactly this reason.
 
+## Live tracking and the provider surface
+
+Phase 8. A booking now moves with a real person on each end.
+
+- **The socket is assumed to die.** `lib/hooks/use-booking-channel.ts` is built
+  around that, not around the happy path: it re-reads the booking row on
+  subscribe, on every re-subscribe, on `visibilitychange` back to visible, and
+  on `online`/`focus`. A phone in a pocket loses its socket with no event at
+  all, and a *missed* transition is the failure that matters — somebody who
+  never sees "on the way" phones support, or assumes nobody is coming.
+- **supabase-js is imported inside the effect.** It is ~70 kB and would have
+  put `/bookings/[id]` over its budget. Dynamically imported it stays out of
+  first load entirely, so the page paints and is correct on a connection that
+  never finishes fetching it. Live updates are an enhancement, never the source
+  of truth.
+- **A status change refreshes the page, not just a badge.** The provider card
+  appears at `accepted` and the payment panel changes at `completed`, and both
+  are server-rendered — so the channel's `onChange` calls `router.refresh()`.
+- **Motion is progression, not replacement.** One rail with a fill that travels
+  over 600ms, plus a single `.animate-advance` pulse on the step being reached.
+  A label swapping in place reads as a glitch; the eye cannot tell forward from
+  re-render.
+- **Nothing says "live" when it is.** A permanent badge is noise, and the
+  Nepali for it (प्रत्यक्ष) belongs to television. The connection is mentioned
+  only when it is *down*, because then the page may be stale.
+- **The professional's phone is on `provider_contacts`, never `providers`.**
+  `providers` is readable by `anon` — it is the public directory — so a number
+  on it is a number on the open internet. The policy releases it only while a
+  job of theirs is `accepted`, `en_route` or `in_progress`, and takes it away
+  again at `completed`. Both ends of that window are in the db suite.
+- **`lib/booking/cancellation.ts` is the one cancellation rule.** The window
+  *is* the policy: a customer may cancel until a professional sets off, a
+  professional until they start work, support until the job is over. So
+  cancelling is always free, and `fee` is always 0 — a fee on screen that
+  nothing can collect is worse than no fee, and our money moves *after* the
+  work. The columns exist so a fee is later a constant, not a migration.
+- **Notifications carry a key, not a sentence** — `lib/notify`. A sentence
+  written in English at event time cannot be read back in Nepali. Adding SMS or
+  push in Phase 13 is one file implementing `NotificationChannel` plus a line
+  in the registry; `notify()` never throws, because the event already happened
+  and a dead gateway must not roll a booking back.
+- **`/provider/jobs` is minimal and says so.** Phase 10 is the real dashboard.
+  This is the smallest surface on which a booking can travel from pending to
+  paid. An account not yet linked to a listing gets the exact SQL to link it,
+  with its own id already filled in, rather than a dead end.
+
 ## Payments
 
 Our model is not a checkout. The quote is a **band**, the final figure is

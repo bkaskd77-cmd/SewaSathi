@@ -11,6 +11,7 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
+import { unreadByBooking } from "@/lib/data/notifications";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -37,6 +38,7 @@ export const dynamic = "force-dynamic";
 export default async function BookingsPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.bookings");
+  const tNote = await getTranslations("booking");
 
   // The middleware already guards this route. Repeated here because a page
   // that reads a session should not depend on something else having checked.
@@ -45,9 +47,10 @@ export default async function BookingsPage() {
     redirect({ href: "/login?next=%2Fbookings", locale });
   }
 
-  const [bookings, categories] = await Promise.all([
+  const [bookings, categories, unread] = await Promise.all([
     listBookings(),
     getCategories(),
+    unreadByBooking(),
   ]);
 
   const categoryName = (slug: string) => {
@@ -94,6 +97,18 @@ export default async function BookingsPage() {
                       {categoryName(booking.categorySlug)}
                     </span>
                     <StatusBadge status={booking.status} />
+                    {/* Something happened here since this person last looked.
+                        The live page only helps someone who is looking at it;
+                        this is for everyone who closed the tab. */}
+                    {unread.has(booking.id) ? (
+                      <span className="animate-pop-in inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary">
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 rounded-full bg-primary"
+                        />
+                        {tNote(`notifications.${unread.get(booking.id)!.kind}`)}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 truncate text-body-sm text-muted-foreground">
                     {booking.description}

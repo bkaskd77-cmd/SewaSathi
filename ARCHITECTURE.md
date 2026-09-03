@@ -22,6 +22,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | --- | --- | --- |
 | **booking** | `@/lib/booking` | Status machine, working hours and slots, flow draft persistence |
 | **payments** | `@/lib/payments` (server)<br>`@/lib/payments/client` (isomorphic) | Payment status machine, the price-integrity rules, the commission split, the gateway registry, callback reading |
+| **notify** | `@/lib/notify` (server) | The channel contract and registry. In-app today; SMS and push are Phase 13 and are one file each. |
 | **auth** | `@/lib/auth` (isomorphic)<br>`@/lib/auth/session` (server)<br>`@/lib/auth/otp` (client) | Route rules, redirect safety, phone parsing, session reads, the SMS adapter |
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
@@ -94,6 +95,8 @@ interface. Swapping a provider is then one file, not a hunt.
 | eSewa | `lib/payments/esewa.ts` | ePay v2. Signed form POST; the signature covers `total_amount,transaction_uuid,product_code` in that order. Refunds are dashboard-only, so `refund()` returns `manualRefundRequired` rather than pretending. |
 | Khalti | `lib/payments/khalti.ts` | KPG-2. Server-side initiate returns a `payment_url` and a `pidx`. Amounts are in **paisa**; the ×100 lives here and nowhere else. |
 | Cash | `lib/payments/cash.ts` | Not a degraded path — the common one. `isConfigured()` is always true, so the customer is never left with no way to pay, and `verify()` never self-settles: the customer confirming is the only oracle. |
+| In-app notifications | `lib/notify/in-app.ts` | A row in `notifications`, written under the service role. Always configured — there is no key to be missing, so something is always recorded. |
+| SMS / push notifications | *not built* | Phase 13. One file implementing `NotificationChannel` plus a line in `lib/notify/index.ts`; nothing that decides *what* to notify about changes. |
 | Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
 
 ---
@@ -125,6 +128,23 @@ Where a change on one side cannot reach the other.
   policy expressions run with the caller's privileges, so it keeps `execute`
   for `authenticated`. Supabase's Security Advisor asks for it anyway; the
   answer is no, and the test that would fail is in the db suite.
+- **A notification carries a key, not a sentence.** `kind` is a message-catalogue
+  key and `params` are its placeholders, so every channel renders in the
+  *reader's* language at delivery. A sentence baked in English at write time
+  can never be read back in Nepali — and the reader's language can change
+  between the event and the reading.
+- **The realtime page assumes the socket dies.** `useBookingChannel` re-reads
+  the row on subscribe, on every re-subscribe, when the tab becomes visible and
+  when the browser reports the network is back. A missed transition is the
+  failure that matters, and a phone in a pocket loses its socket without an
+  event. The Supabase client is imported inside the effect, so the page paints,
+  reads and works on a connection that never finishes fetching it — and so
+  ~70 kB stays out of the route's first load.
+- **A professional's phone is not on `providers`.** That table is world-readable
+  — it is the public directory. The number lives on `provider_contacts`, behind
+  a policy that releases it only while a job of theirs is accepted, on the way
+  or under way. The window closing again at `completed` is asserted in the db
+  suite, because it is the half nobody would notice was missing.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.
@@ -152,6 +172,7 @@ Where a change on one side cannot reach the other.
 | Price integrity | `npm run test` | The three verdicts and both boundaries: inside the band, over it with approval, and blocked above 2× |
 | Gateway contract | `npm run test` | Every adapter satisfies one interface; a **forged callback loses to the gateway**; the gateway's amount is what gets reconciled; a gateway we cannot reach is not a failed payment |
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
+| Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up
 `tests/unit` and `tests/db` together. The harness needs Postgres 16 binaries on

@@ -5,14 +5,16 @@ import { z } from "zod";
 import type { Locale } from "@/i18n/routing";
 import { isValidSlot } from "@/lib/booking";
 import {
-  customerCanCancel,
   isBookingStatus,
+  judgeCancellation,
   type BookingStatus,
 } from "@/lib/booking";
 import { getCategory } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { notify } from "@/lib/notify";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -349,12 +351,42 @@ export async function getBookingHistory(
 }
 
 /**
+ * Tell the professional their job is off.
+ *
+ * Their profile id is not on the booking — `provider_id` points at the
+ * directory row — so it takes a hop. Failing to find one is not an error worth
+ * surfacing to the customer who just cancelled: the cancellation happened, and
+ * a missing notification is not a reason to tell them it did not.
+ */
+async function notifyProviderOfCancellation(
+  providerId: string,
+  reference: string,
+  bookingId: string,
+): Promise<void> {
+  const { data } = await createAdminClient()
+    .from("providers")
+    .select("profile_id")
+    .eq("id", providerId)
+    .maybeSingle();
+
+  const profileId = (data?.profile_id as string | null) ?? null;
+  if (!profileId) return;
+
+  await notify({
+    recipientId: profileId,
+    kind: "booking.cancelled",
+    params: { reference },
+    bookingId,
+  });
+}
+
+/**
  * Cancel — the only status change a customer may make.
  *
  * Three things have to agree for this to work, and all three are deliberate:
  * the RLS policy restricts which rows may be updated at all, the transition
- * trigger rejects an illegal target status, and `customerCanCancel` here keeps
- * the button off the screen in the first place. The check below makes a
+ * trigger rejects an illegal target status, and the cancellation policy here
+ * keeps the button off the screen in the first place. The check below makes a
  * refusal legible instead of letting the policy return a silent zero rows.
  */
 export async function cancelBooking(
@@ -368,23 +400,36 @@ export async function cancelBooking(
 
     const current = await getBooking(id);
     if (!current) return { ok: false };
-    if (!customerCanCancel(current.status)) return { ok: false };
+
+    // One policy, three surfaces. See lib/booking/cancellation.ts for why the
+    // window is the whole rule and the fee is always zero.
+    const verdict = judgeCancellation(current.status, "customer");
+    if (!verdict.allowed) return { ok: false };
 
     const { data, error } = await supabase
       .from("bookings")
       .update({
         status: "cancelled",
         cancelled_by: "customer",
+        cancelled_by_role: "customer",
+        cancellation_fee: verdict.fee,
         cancellation_reason: reason?.trim().slice(0, 300) || null,
       })
       .eq("id", id)
-      .select("id");
+      .select("id, provider_id");
 
     if (error) {
       console.error(`[bookings] cancel failed — ${describeError(error)}`);
       return { ok: false };
     }
-    return { ok: (data?.length ?? 0) > 0 };
+    if ((data?.length ?? 0) === 0) return { ok: false };
+
+    // The professional finds out from us, not by turning up. Only worth
+    // sending once somebody has actually been assigned.
+    const providerId = data?.[0]?.provider_id as string | null | undefined;
+    if (providerId) await notifyProviderOfCancellation(providerId, current.reference, id);
+
+    return { ok: true };
   } catch (thrown) {
     console.error(`[bookings] cancel threw — ${describeError(thrown)}`);
     return { ok: false };

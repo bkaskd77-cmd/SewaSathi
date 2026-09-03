@@ -665,6 +665,34 @@
     }
   }
 
+  /*
+   * A step that has just been reached.
+   *
+   * One pulse, not a loop. It fires on the label the travelling fill is
+   * arriving at, so the eye is drawn to where the job now is rather than to
+   * the fact that something re-rendered. Paired with the 600ms width
+   * transition on the fill itself — the pulse is the arrival, the fill is the
+   * journey, and without both a status change reads as a swap.
+   */
+  .animate-advance {
+    animation: advance 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes advance {
+    0% {
+      opacity: 0.55;
+      transform: translateY(2px);
+    }
+    60% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* Leaving. Pairs with .animate-pop-in — the photo thumbnail goes out the
      way it came in, so removing it reads as a reversal rather than a glitch. */
   .animate-pop-out {
@@ -703,6 +731,7 @@
     .animate-route-in,
     .animate-pop-in,
     .animate-settle,
+    .animate-advance,
     .step-forward,
     .step-back,
     .assemble > * {

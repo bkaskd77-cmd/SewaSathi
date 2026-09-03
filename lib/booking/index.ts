@@ -15,12 +15,19 @@ export {
   BOOKING_STATUSES,
   BOOKING_TRANSITIONS,
   canTransition,
-  customerCanCancel,
   isBookingStatus,
   isTerminal,
   progressIndex,
   type BookingStatus,
 } from "./status";
+
+export {
+  customerCanCancel,
+  judgeCancellation,
+  providerCanCancel,
+  type CancelActor,
+  type CancelVerdict,
+} from "./cancellation";
 
 export {
   bookableDays,
