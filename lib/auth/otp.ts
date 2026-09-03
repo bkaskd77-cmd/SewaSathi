@@ -34,11 +34,27 @@ export type OtpError =
   | "generic";
 
 export type OtpOutcome =
-  { ok: true } | { ok: false; error: OtpError; retryAfterSeconds?: number };
+  | { ok: true }
+  | {
+      ok: false;
+      error: OtpError;
+      retryAfterSeconds?: number;
+      /**
+       * The provider's own wording, verbatim.
+       *
+       * Never shown to a customer — `error` is what the form renders. This is
+       * carried so the dev badge can print it, because the alternative is
+       * asking somebody to open DevTools and read a network response, and that
+       * turned out to be several rounds of back-and-forth for a message the
+       * app already had in its hand. Same reasoning as the triage badge.
+       */
+      detail?: string;
+    };
 
 /** Verification additionally reports whether this is a brand-new account. */
 export type VerifyOutcome =
-  { ok: true; isNewUser: boolean } | { ok: false; error: OtpError };
+  | { ok: true; isNewUser: boolean }
+  | { ok: false; error: OtpError; detail?: string };
 
 export async function sendOtp(e164: string): Promise<OtpOutcome> {
   const supabase = createClient();
@@ -47,16 +63,19 @@ export async function sendOtp(e164: string): Promise<OtpOutcome> {
   if (!error) return { ok: true };
 
   // Supabase surfaces its rate limit as a 429 with the wait time in the text.
+  const detail = `${error.status ?? "?"}: ${error.message}`;
+
   if (error.status === 429) {
     const seconds = Number(error.message.match(/(\d+)\s*second/)?.[1]);
     return {
       ok: false,
       error: "tooManyRequests",
       retryAfterSeconds: Number.isFinite(seconds) ? seconds : 60,
+      detail,
     };
   }
 
-  return { ok: false, error: classifyError(error.message) };
+  return { ok: false, error: classifyError(error.message), detail };
 }
 
 export async function verifyOtp(
@@ -71,7 +90,11 @@ export async function verifyOtp(
   });
 
   if (error) {
-    return { ok: false, error: classifyError(error.message) };
+    return {
+      ok: false,
+      error: classifyError(error.message),
+      detail: `${error.status ?? "?"}: ${error.message}`,
+    };
   }
 
   const user = data.user;

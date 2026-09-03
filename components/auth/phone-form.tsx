@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Phone } from "lucide-react";
 
+import { AuthDebug } from "@/components/auth/auth-debug";
 import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,9 @@ export function PhoneForm({ next }: { next: string }) {
   const router = useRouter();
   const [raw, setRaw] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  // The provider's own wording, for the dev badge only. Never rendered as the
+  // customer-facing message.
+  const [detail, setDetail] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
 
   async function onSubmit(event: React.FormEvent) {
@@ -29,16 +33,19 @@ export function PhoneForm({ next }: { next: string }) {
     const check = checkNepaliMobile(raw);
     if (!check.ok) {
       setError(tErr(check.reason));
+      setDetail(null);
       return;
     }
 
     setError(null);
+    setDetail(null);
     setSending(true);
     const outcome = await sendOtp(check.e164);
 
     if (!outcome.ok) {
       setSending(false);
       setError(tErr(outcome.error));
+      setDetail(outcome.detail ?? null);
       return;
     }
 
@@ -86,6 +93,7 @@ export function PhoneForm({ next }: { next: string }) {
       </div>
 
       <FieldError id="phone-error" message={error} className="mt-1.5" />
+      <AuthDebug detail={detail} />
 
       <Button
         type="submit"
