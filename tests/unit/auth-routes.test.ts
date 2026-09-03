@@ -104,3 +104,36 @@ describe("guards are locale-blind", () => {
     expect(isProviderRoute("/providers/join")).toBe(false);
   });
 });
+
+/**
+ * The provider job screen, and the guard that hid it.
+ *
+ * `/provider/jobs` shipped inside PROVIDER_ROUTES, whose middleware check
+ * reads `user_metadata.role` — a claim nothing in this product ever writes. So
+ * the page redirected every visitor home, including the professional it exists
+ * to help, and the redirect looked like the site simply ignoring the URL.
+ *
+ * The pairing matters as much as the rule: `/providers` is the public
+ * directory and must stay public, while `/provider` is somebody's own work.
+ * One character apart, and a bare prefix match confuses them.
+ */
+describe("the provider's own work is signed-in, the directory is not", () => {
+  it("guards /provider/jobs behind sign-in", () => {
+    expect(isProtectedRoute("/provider/jobs")).toBe(true);
+  });
+
+  it("guards it in Nepali too", () => {
+    expect(isProtectedRoute("/ne/provider/jobs")).toBe(true);
+  });
+
+  it("does not send it through the provider-role guard, which nothing satisfies", () => {
+    // That guard reads a claim no code path writes. Until Phase 10 sets one,
+    // routing this page through it is a redirect home for everybody.
+    expect(isProviderRoute("/provider/jobs")).toBe(false);
+  });
+
+  it("leaves the public directory public", () => {
+    expect(isProtectedRoute("/providers/join")).toBe(false);
+    expect(isProtectedRoute("/services")).toBe(false);
+  });
+});

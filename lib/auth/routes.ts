@@ -33,6 +33,26 @@ export const PROTECTED_ROUTES = [
   "/bookings",
   "/account",
   "/onboarding",
+  /*
+   * Phase 8's job screen. Signed-in, but deliberately NOT a PROVIDER_ROUTE.
+   *
+   * That guard reads `user_metadata.role`, which nothing in this product ever
+   * writes — the role lives on `profiles`. So every provider route is shut to
+   * everybody, which is correct for the unbuilt dashboard and was a dead end
+   * here: the page exists precisely to tell a professional how to link their
+   * account, and it was redirecting them home before it could say so.
+   *
+   * Route-level gating is not the boundary anyway. `getMyProvider` returns
+   * null for anyone without a linked listing, `listProviderJobs` returns
+   * nothing, and the RLS policy on `bookings` limits a professional to their
+   * own work. Someone signed in who reaches this page sees an empty shell and
+   * their own profile id. Phase 10 tightens it against `profiles.role` once
+   * provider onboarding exists to set one.
+   *
+   * Singular `/provider`, not `/providers`: the plural is the public
+   * directory, and a bare prefix match would have swallowed it.
+   */
+  "/provider",
 ] as const;
 
 /**
@@ -50,14 +70,7 @@ export const PROTECTED_ROUTES = [
  */
 
 /** Requires a session AND profiles.role = 'provider'. */
-export const PROVIDER_ROUTES = [
-  "/providers/dashboard",
-  // Phase 8's minimal job screen. Under /provider (singular) rather than
-  // /providers, which is the public directory — a professional's own work and
-  // a customer browsing professionals are different things and should not
-  // share a prefix that a bare startsWith could confuse.
-  "/provider",
-] as const;
+export const PROVIDER_ROUTES = ["/providers/dashboard"] as const;
 
 function matches(rawPathname: string, routes: readonly string[]): boolean {
   const pathname = stripLocale(rawPathname);
