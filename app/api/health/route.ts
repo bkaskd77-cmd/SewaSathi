@@ -207,6 +207,68 @@ async function checkSmsDelivery(): Promise<Check> {
   }
 }
 
+/**
+ * The service role key, and whether it actually works.
+ *
+ * Not a nice-to-have: `payments`, `notifications` and `provider_contacts` all
+ * grant nobody insert or update through RLS, by design, so every write to them
+ * goes through the server role. Without this key a professional cannot record
+ * a final amount, no payment can settle, and no notification is written — and
+ * because `createAdminClient()` throws rather than returning an error, every
+ * one of those surfaces as the same generic "that didn't work" on a button.
+ *
+ * Three of those buttons were reported as separate bugs before the cause was
+ * found. That is exactly the class of thing this endpoint exists to name.
+ *
+ * The key itself is never echoed. Only whether it is present and whether the
+ * database accepted it.
+ */
+async function checkServiceRole(): Promise<Check> {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    return {
+      name: "server.serviceRole",
+      state: "down",
+      detail:
+        "SUPABASE_SERVICE_ROLE_KEY is not set. Final amounts, payments and notifications all fail, each as a generic button error.",
+    };
+  }
+  if (!hasSupabaseConfig()) {
+    return { name: "server.serviceRole", state: "down", detail: "Supabase not configured." };
+  }
+
+  try {
+    // A read no anonymous caller could make: RLS grants `payments` to nobody
+    // for insert or update and only to the people involved for select, so a
+    // 200 here means the key is genuinely being honoured as the service role.
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/payments?select=id&limit=1`,
+      {
+        headers: { apikey: key, authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
+        cache: "no-store",
+      },
+    );
+    return response.ok
+      ? {
+          name: "server.serviceRole",
+          state: "ok",
+          detail: "Present, and the database accepts it.",
+        }
+      : {
+          name: "server.serviceRole",
+          state: "down",
+          detail: `Present but rejected (${response.status}). Wrong project, or a rotated key.`,
+        };
+  } catch (error) {
+    return {
+      name: "server.serviceRole",
+      state: "unknown",
+      detail: `Could not check: ${(error as Error).message}`,
+    };
+  }
+}
+
 /** Triage falls back to the keyword matcher without a key, so this is a warning. */
 function checkTriage(): Check {
   return process.env.ANTHROPIC_API_KEY
@@ -236,7 +298,11 @@ export async function GET(request: Request) {
   }
 
   const checks: Check[] = [
-    ...(await Promise.all([checkAuthConfig(), checkDatabase()])),
+    ...(await Promise.all([
+      checkAuthConfig(),
+      checkDatabase(),
+      checkServiceRole(),
+    ])),
     checkTriage(),
   ];
 
