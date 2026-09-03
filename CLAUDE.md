@@ -427,6 +427,13 @@ functions. Firing a trigger does not re-check `execute` against the caller —
 Postgres checks that when the trigger is created — and
 `tests/db/booking-rls.test.ts` asserts both halves rather than trusting either.
 
+**Revoking a function grant on Supabase means three roles, not one.** Supabase
+grants `execute` directly to `anon` and `authenticated` through a default
+privilege on `public`; `revoke ... from public` leaves both in place and clears
+nothing. The harness models that default privilege now, so a revoke that misses
+them fails locally instead of only showing up as warnings that would not go
+away.
+
 ## Motion — the standing rule
 
 Every screen ships with considered motion. Not decoration: motion whose job is

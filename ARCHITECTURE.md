@@ -164,6 +164,13 @@ than no RLS test.
 which is not part of Postgres, so the harness skips that migration. Nothing
 pretends otherwise.
 
+**What the harness now also models:** Supabase's default privileges. Supabase
+grants `execute` on every function in `public` directly to `anon` and
+`authenticated`, not merely through `PUBLIC`. Without that line the harness was
+*more* locked down than production, and a migration that revoked only from
+`PUBLIC` passed here while changing nothing there — which is exactly what
+happened to the first version of `20260903000001`.
+
 **What the database harness stubs:** the identity source only. `auth.uid()` is
 backed by a session setting instead of a JWT, the same shape Supabase's local
 tooling uses. Every policy, constraint and trigger under test is the one that

@@ -82,6 +82,8 @@ export type Harness = {
   admin: Client;
   /** Open a connection that RLS applies to, acting as a given profile id. */
   asUser: (userId: string) => Promise<Client>;
+  /** A logged-out connection — the join form's caller. */
+  asAnon: () => Promise<Client>;
   stop: () => Promise<void>;
 };
 
@@ -118,6 +120,15 @@ begin
   end if;
 end
 $$;
+
+-- Supabase hands anon and authenticated EXECUTE on every function created in
+-- the public schema, as a default privilege — a *direct* grant, not one inherited from
+-- PUBLIC. Without this line the harness was more locked-down than the real
+-- database, and a migration that revoked only from PUBLIC passed here while
+-- changing nothing in production. It did: the Security Advisor still showed
+-- nine of the warnings 20260903000001 was supposed to clear.
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated;
 `;
 
 /** Migrations that need Supabase-only schemas we cannot stand up here. */
@@ -202,6 +213,12 @@ export async function startPostgres(): Promise<Harness> {
       await client.query("select set_config('request.jwt.claim.sub', $1, false)", [
         userId,
       ]);
+      open.push(client);
+      return client;
+    },
+    async asAnon() {
+      const client = await connect();
+      await client.query("set role anon");
       open.push(client);
       return client;
     },

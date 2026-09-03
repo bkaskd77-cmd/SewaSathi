@@ -536,6 +536,21 @@ describe("locking the functions down did not lock the product out", () => {
     expect(settled[0].updated_at).not.toBeNull();
   });
 
+  it("leaves the logged-out join form working", async () => {
+    // provider_leads is the one table anon writes to, and the revoke above
+    // took anon's function grants away. It has no triggers, so nothing should
+    // have changed — this is here to notice if that ever stops being true.
+    const client = await pg.asAnon();
+    await client.query(
+      `insert into public.provider_leads
+         (full_name, phone, category_slug, area_key, years_experience)
+       values ('Hari', '+9779800000123', 'plumbing', 'lalitpur-4', 6)`,
+    );
+    // And still cannot read the list back.
+    const { rows } = await client.query("select id from public.provider_leads");
+    expect(rows).toHaveLength(0);
+  });
+
   it("still lets a signed-in user's policies call is_admin()", async () => {
     // The one piece of the advisor's advice that must NOT be taken. If
     // `authenticated` loses EXECUTE on is_admin(), this query stops returning
