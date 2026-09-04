@@ -792,6 +792,17 @@
       "unlinked": {
         "body": "This account is not linked to a listing yet, so there are no jobs to show.",
         "hint": "Provider sign-up is coming. For now, run this in the Supabase SQL editor to link this account to a listing — your own id is already filled in."
+      },
+      "errors": {
+        "aboveCeiling": "That is more than twice the price the customer was quoted. It cannot be agreed in the app — call us and we will sort it out.",
+        "illegalTransition": "This job has already moved on. Refresh the page.",
+        "invalidAmount": "Enter a whole amount of at least Rs 100.",
+        "network": "We couldn't reach the server. Check your connection and try again.",
+        "notAProvider": "This account isn't linked to a listing.",
+        "notStarted": "You can only enter an amount once the work is done.",
+        "notYours": "This job isn't assigned to you any more.",
+        "reasonRequired": "Say why it came to more than the quote — the customer sees this.",
+        "tooLate": "It's too late to turn this down. Call us if something has gone wrong."
       }
     }
   }

@@ -25,6 +25,33 @@ import { cn } from "@/lib/utils";
  * be an invitation to try.
  */
 
+/**
+ * Reasons the professional gets a real sentence for.
+ *
+ * An allow-list rather than an interpolated key: next-intl renders a missing
+ * key as its own dotted path, so a reason without copy would put
+ * `errors.saveFailed` on screen. Everything absent here is ours, not theirs,
+ * and collapses to "try again" — which is the only useful thing to say about a
+ * fault they cannot act on.
+ */
+const KNOWN_JOB_ERRORS = [
+  "aboveCeiling",
+  "illegalTransition",
+  "invalidAmount",
+  "network",
+  "notAProvider",
+  "notStarted",
+  "notYours",
+  "reasonRequired",
+  "tooLate",
+] as const;
+
+function jobErrorKey(reason: string): string {
+  return (KNOWN_JOB_ERRORS as readonly string[]).includes(reason)
+    ? `errors.${reason}`
+    : "failed";
+}
+
 /** The one forward move offered at each status. Cancelling is separate. */
 const NEXT: Partial<Record<BookingStatus, BookingStatus>> = {
   pending: "accepted",
@@ -56,7 +83,11 @@ export function JobCard(props: JobCardProps) {
   const router = useRouter();
 
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState(false);
+  // The server's own reason, not a boolean. It already distinguishes "the job
+  // has not started", "that is more than twice the quote" and "you need to say
+  // why" — collapsing all of them into one sentence threw away the only thing
+  // that tells the professional what to do next.
+  const [error, setError] = React.useState<string | null>(null);
   const [declining, setDeclining] = React.useState(false);
   const [declineReason, setDeclineReason] = React.useState("");
   const [amount, setAmount] = React.useState("");
@@ -66,16 +97,19 @@ export function JobCard(props: JobCardProps) {
   const canDecline = BOOKING_TRANSITIONS[props.status].includes("cancelled");
   const overBand = Number(amount) > props.quotedMax;
 
-  async function run(work: () => Promise<{ ok: boolean }>) {
+  async function run(work: () => Promise<{ ok: boolean; reason?: string }>) {
     if (busy) return;
     setBusy(true);
-    setError(false);
+    setError(null);
     try {
       const result = await work();
       if (result.ok) router.refresh();
-      else setError(true);
+      else setError(result.reason ?? "failed");
     } catch {
-      setError(true);
+      // A thrown server action is ours, not theirs — a missing key, a dead
+      // database. Named separately so it does not read as "you did something
+      // wrong".
+      setError("network");
     } finally {
       setBusy(false);
     }
@@ -275,7 +309,7 @@ export function JobCard(props: JobCardProps) {
           role="alert"
           className="animate-pop-in mt-3 text-caption text-destructive-ink"
         >
-          {t("failed")}
+          {t(jobErrorKey(error))}
         </p>
       ) : null}
     </article>
