@@ -215,3 +215,143 @@ drop trigger if exists bookings_enforce_immutability on public.bookings;
 create trigger bookings_enforce_immutability
   before update on public.bookings
   for each row execute function public.enforce_booking_immutability();
+
+-- ---------------------------------------------------------------------------
+-- A professional withdrawing is not the customer cancelling.
+--
+-- Declining an accepted job ended the booking at `cancelled`, and the customer
+-- was shown "This booking was cancelled. Nothing is owed." — on a job they
+-- still needed doing. Their air conditioner was still broken; the product had
+-- simply stopped. Nothing is owed, and nothing is happening either.
+--
+-- So `accepted -> pending` and `en_route -> pending` become legal moves. They
+-- are the only backwards transitions in this machine, and they exist because
+-- the customer's *need* has not gone anywhere. The job returns to the pool and
+-- somebody else picks it up; only the customer may end it.
+--
+-- The stamps are cleared on the way back, because `accepted_at` on a booking
+-- nobody has accepted is a lie a report would repeat.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.booking_transition_allowed(
+  from_status text,
+  to_status text
+) returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case from_status
+    when 'pending'     then to_status in ('accepted', 'cancelled', 'no_provider_found')
+    when 'accepted'    then to_status in ('en_route', 'cancelled', 'pending')
+    when 'en_route'    then to_status in ('in_progress', 'cancelled', 'pending')
+    when 'in_progress' then to_status in ('completed', 'cancelled')
+    else false
+  end;
+$$;
+
+revoke execute on function public.booking_transition_allowed(text, text)
+  from public, anon, authenticated;
+
+create or replace function public.enforce_booking_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'pending' then
+      raise exception 'A booking must start as pending, not %', new.status
+        using errcode = 'check_violation';
+    end if;
+    return new;
+  end if;
+
+  if new.status = old.status then
+    return new;
+  end if;
+
+  if not public.booking_transition_allowed(old.status, new.status) then
+    raise exception 'A booking cannot go from % to %', old.status, new.status
+      using errcode = 'check_violation';
+  end if;
+
+  -- Going back to the pool. Clear the stamps of the assignment that lapsed:
+  -- an `accepted_at` on a booking nobody has accepted is a lie, and it is the
+  -- kind a report repeats without anyone noticing.
+  if new.status = 'pending' then
+    new.accepted_at := null;
+    new.en_route_at := null;
+    new.provider_id := null;
+    return new;
+  end if;
+
+  case new.status
+    when 'accepted'          then new.accepted_at := now();
+    when 'en_route'          then new.en_route_at := now();
+    when 'in_progress'       then new.started_at := now();
+    when 'completed'         then new.completed_at := now();
+    when 'cancelled'         then new.cancelled_at := now();
+    when 'no_provider_found' then new.no_provider_found_at := now();
+    else null;
+  end case;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.enforce_booking_transition()
+  from public, anon, authenticated;
+
+-- The immutability trigger forbids reassigning an already-assigned booking.
+-- Releasing one is the exception: `provider_id` may go to NULL, because that is
+-- a professional letting go rather than handing the job to somebody chosen.
+create or replace function public.enforce_booking_immutability()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := auth.uid();
+begin
+  if caller is null then
+    return new;
+  end if;
+
+  if new.customer_id is distinct from old.customer_id
+     or new.reference is distinct from old.reference
+     or new.category_slug is distinct from old.category_slug then
+    raise exception 'A booking cannot be re-identified'
+      using errcode = 'check_violation';
+  end if;
+
+  if new.quoted_min is distinct from old.quoted_min
+     or new.quoted_max is distinct from old.quoted_max
+     or new.final_amount is distinct from old.final_amount
+     or new.final_amount_approved_at is distinct from old.final_amount_approved_at
+     or new.platform_fee is distinct from old.platform_fee
+     or new.provider_earning is distinct from old.provider_earning
+     or new.commission_bps is distinct from old.commission_bps
+     or new.payment_status is distinct from old.payment_status then
+    raise exception 'Prices and payment state are not editable from a browser'
+      using errcode = 'check_violation';
+  end if;
+
+  -- null -> a listing is a claim; a listing -> null is a release. Listing ->
+  -- another listing is the one that would let somebody hand away a job that is
+  -- not theirs to give.
+  if new.provider_id is distinct from old.provider_id
+     and old.provider_id is not null
+     and new.provider_id is not null then
+    raise exception 'A booking that is already assigned cannot be reassigned'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.enforce_booking_immutability()
+  from public, anon, authenticated;

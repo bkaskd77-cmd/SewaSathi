@@ -20,10 +20,12 @@ import { type BookingStatus } from "./status";
  * booking records it and the day there is something to charge against, this is
  * a constant rather than a migration.
  *
- * A PROFESSIONAL'S CANCELLATION IS NOT THE SAME EVENT. They may pull out later
- * than a customer may — a van breaks down, a job overruns — and the customer
- * is never charged for it. It is recorded against them instead, which is what
- * Phase 10's reliability score will read.
+ * A PROFESSIONAL'S WITHDRAWAL IS NOT A CANCELLATION AT ALL. They may pull out
+ * later than a customer may — a van breaks down, a job overruns — and it does
+ * not end the booking: the customer's tap is still dripping. The job goes back
+ * to the pool for somebody else to take, and only the customer may actually
+ * end it. What is recorded against the professional is the withdrawal, which
+ * is what Phase 10's reliability score reads.
  */
 
 export type CancelActor = "customer" | "provider" | "admin";

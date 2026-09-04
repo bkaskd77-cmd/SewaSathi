@@ -187,7 +187,7 @@ Where a change on one side cannot reach the other.
 | Paint | `npm run check:paint` | Every front door records a first-contentful-paint |
 | Budgets | `npm run build` | Per-route JS ceilings |
 | Parity | `npm run check:messages` | `en`/`ne` agree on every key and placeholder |
-| Transitions | `npm run check:transitions` | The TS and SQL transition tables agree |
+| Transitions | `npm run check:transitions` | The TS and SQL transition tables agree, comparing against the *last* definition across all migrations — a rule amended in a later file wins, as it does in Postgres |
 | Hazard corpus | `npm run test` | Realistic Devanagari, Romanized and English hazard sentences reach the safety path — and ordinary complaints do not |
 | Price integrity | `npm run test` | The three verdicts and both boundaries: inside the band, over it with approval, and blocked above 2× |
 | Gateway contract | `npm run test` | Every adapter satisfies one interface; a **forged callback loses to the gateway**; the gateway's amount is what gets reconciled; a gateway we cannot reach is not a failed payment |

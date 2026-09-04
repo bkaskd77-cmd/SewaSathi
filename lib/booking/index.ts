@@ -16,6 +16,7 @@ export {
   BOOKING_TRANSITIONS,
   canTransition,
   isBookingStatus,
+  isRelease,
   isTerminal,
   progressIndex,
   type BookingStatus,

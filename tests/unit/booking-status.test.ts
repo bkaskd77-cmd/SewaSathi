@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isRelease,
   BOOKING_PROGRESS,
   BOOKING_STATUSES,
   BOOKING_TRANSITIONS,
@@ -105,5 +106,39 @@ describe("the progress track", () => {
     expect(progressIndex("pending")).toBe(0);
     expect(progressIndex("completed")).toBe(BOOKING_PROGRESS.length - 1);
     expect(progressIndex("accepted")).toBeLessThan(progressIndex("en_route"));
+  });
+});
+
+/**
+ * The two backwards moves, and why they are not a mistake.
+ *
+ * Every other transition in this machine goes forward. `accepted -> pending`
+ * and `en_route -> pending` are a professional letting go of a job the
+ * customer still wants, and they read as a bug to anyone who has not been
+ * told — which is why they are named.
+ */
+describe("a professional can hand a job back", () => {
+  it("recognises the release from accepted and en_route", () => {
+    expect(isRelease("accepted", "pending")).toBe(true);
+    expect(isRelease("en_route", "pending")).toBe(true);
+  });
+
+  it("does not call anything else a release", () => {
+    // in_progress is deliberately excluded: somebody is in the customer's
+    // house with the floor up, and walking out of that is a support call.
+    expect(isRelease("in_progress", "pending")).toBe(false);
+    expect(isRelease("accepted", "cancelled")).toBe(false);
+    expect(isRelease("pending", "accepted")).toBe(false);
+  });
+
+  it("keeps the release legal in the machine itself", () => {
+    expect(canTransition("accepted", "pending")).toBe(true);
+    expect(canTransition("en_route", "pending")).toBe(true);
+    expect(canTransition("in_progress", "pending")).toBe(false);
+  });
+
+  it("still treats a finished or cancelled booking as final", () => {
+    expect(canTransition("completed", "pending")).toBe(false);
+    expect(canTransition("cancelled", "pending")).toBe(false);
   });
 });

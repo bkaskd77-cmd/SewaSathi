@@ -379,6 +379,17 @@ Phase 8. A booking now moves with a real person on each end.
   on it is a number on the open internet. The policy releases it only while a
   job of theirs is `accepted`, `en_route` or `in_progress`, and takes it away
   again at `completed`. Both ends of that window are in the db suite.
+- **A professional withdrawing is not a cancellation.** Declining an accepted
+  job returns it to `pending` and opens it immediately; only the customer may
+  end a booking. It used to write `cancelled`, and the customer was shown
+  "nothing is owed" on a job they still needed doing — nothing owed, and
+  nothing happening. `accepted -> pending` and `en_route -> pending` are the
+  only backwards moves in the machine and `isRelease` names them, because they
+  read as a bug otherwise. `in_progress` is excluded: somebody is in the
+  customer's house with the floor up, and walking out of that is a support
+  call. The trigger clears `accepted_at`, `en_route_at` and `provider_id` on
+  the way back — a stamp for an assignment that lapsed is a lie a report
+  repeats.
 - **`lib/booking/cancellation.ts` is the one cancellation rule.** The window
   *is* the policy: a customer may cancel until a professional sets off, a
   professional until they start work, support until the job is over. So

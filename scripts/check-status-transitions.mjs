@@ -11,7 +11,7 @@
  * It parses rather than executes: running the SQL would need a database, and
  * this has to fail on a laptop with no network in under a second.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -24,18 +24,42 @@ const MACHINES = [
   {
     name: "Booking",
     ts: "lib/booking/status.ts",
-    sql: "supabase/migrations/20260901000001_bookings.sql",
     tsConst: "BOOKING_TRANSITIONS",
     sqlFn: "booking_transition_allowed",
   },
   {
     name: "Payment",
     ts: "lib/payments/status.ts",
-    sql: "supabase/migrations/20260902000001_payments.sql",
     tsConst: "PAYMENT_TRANSITIONS",
     sqlFn: "payment_transition_allowed",
   },
 ];
+
+/**
+ * The LAST definition of a function across every migration, in filename order.
+ *
+ * Migrations are applied in order and `create or replace` means a later file
+ * wins, exactly as it does in Postgres. Naming one file here instead was wrong
+ * the moment a rule was amended in a second migration: the check compared the
+ * interface against a superseded definition and reported a disagreement that
+ * did not exist — and, worse, would have missed a real one.
+ */
+function latestSql(fnName) {
+  const dir = path.join(process.cwd(), "supabase/migrations");
+  let found = null;
+  let foundIn = null;
+
+  for (const file of readdirSync(dir).sort()) {
+    if (!file.endsWith(".sql")) continue;
+    const sql = readFileSync(path.join(dir, file), "utf8");
+    const parsed = parseSql(sql, fnName);
+    if (parsed && parsed.size > 0) {
+      found = parsed;
+      foundIn = file;
+    }
+  }
+  return { map: found, file: foundIn };
+}
 
 function read(file) {
   try {
@@ -88,7 +112,7 @@ function parseSql(source, fnName) {
 
 function checkMachine(machine) {
   const ts = parseTs(read(machine.ts), machine.tsConst);
-  const sql = parseSql(read(machine.sql), machine.sqlFn);
+  const { map: sql, file: sqlFile } = latestSql(machine.sqlFn);
 
   // Passing because the shape moved would read as green forever.
   if (!ts || ts.size === 0) {
@@ -99,7 +123,7 @@ function checkMachine(machine) {
   }
   if (!sql || sql.size === 0) {
     console.error(
-      `\nCould not read ${machine.sqlFn} from ${machine.sql}. Fix this script rather than deleting the check.\n`,
+      `\nCould not find ${machine.sqlFn} in any migration. Fix this script rather than deleting the check.\n`,
     );
     process.exit(1);
   }
@@ -112,7 +136,7 @@ function checkMachine(machine) {
   for (const [from, targets] of moving) {
     const theirs = sql.get(from);
     if (!theirs) {
-      problems.push(`${from}: in ${machine.ts} but not in the SQL`);
+      problems.push(`${from}: in ${machine.ts} but not in ${sqlFile}`);
       continue;
     }
     if (theirs.join(",") !== targets.join(",")) {
@@ -123,13 +147,15 @@ function checkMachine(machine) {
   }
 
   for (const from of sql.keys()) {
-    if (!ts.has(from)) problems.push(`${from}: in the SQL but not in ${machine.ts}`);
+    if (!ts.has(from)) {
+      problems.push(`${from}: in ${sqlFile} but not in ${machine.ts}`);
+    }
     else if (ts.get(from).length === 0) {
       problems.push(`${from}: terminal in ${machine.ts} but the SQL lets it move`);
     }
   }
 
-  console.log(`\n${machine.name} transitions`);
+  console.log(`\n${machine.name} transitions  (${sqlFile})`);
   for (const [from, targets] of ts.entries()) {
     console.log(
       `  ${targets.length === 0 ? "end " : "ok  "}  ${from.padEnd(18)} ${targets.join(", ") || "(terminal)"}`,

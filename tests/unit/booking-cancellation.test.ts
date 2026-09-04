@@ -72,6 +72,9 @@ describe("a professional may pull out later, but not mid-job", () => {
   });
 
   it("is a different event from a customer cancelling", () => {
+    // Different because it has a different *outcome*: a customer cancelling
+    // ends the booking, a professional withdrawing puts it back in the pool.
+    // The customer's tap is still dripping either way.
     const verdict = judgeCancellation("accepted", "provider");
     expect(verdict.allowed && verdict.copyKey).toBe("providerWithdraws");
   });

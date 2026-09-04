@@ -1089,3 +1089,115 @@ describe("open jobs, and who may take them", () => {
     ).rejects.toThrow(/row-level security/i);
   });
 });
+
+/**
+ * A professional withdrawing puts the job back, it does not end it.
+ *
+ * Declining an accepted job used to write `cancelled`, and the customer was
+ * shown "This booking was cancelled. Nothing is owed." on a job they still
+ * needed doing — appliance still broken, product simply stopped. Nothing owed,
+ * and nothing happening.
+ *
+ * `accepted -> pending` and `en_route -> pending` are therefore the only
+ * backwards moves in this machine, and the stamps have to come off with them:
+ * an `accepted_at` on a booking nobody has accepted is a lie, and it is the
+ * kind a report repeats without anyone noticing.
+ */
+describe("releasing a job, rather than cancelling it", () => {
+  const fresh = async (status: string) => {
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, $2, 'Gate')
+       returning id`,
+      [ALICE, `Tole-${Math.random().toString(36).slice(2, 8)}`],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max)
+       values ($1, $2, 'plumbing', $3, 'Dripping tap', 900, 4500)
+       returning id`,
+      [`SK-R${Math.random().toString(36).slice(2, 7).toUpperCase()}`, ALICE, address[0].id],
+    );
+    const id = rows[0].id as string;
+    if (status !== "pending") {
+      await pg.admin.query(
+        "update public.bookings set status = 'accepted' where id = $1",
+        [id],
+      );
+    }
+    if (status === "en_route") {
+      await pg.admin.query(
+        "update public.bookings set status = 'en_route' where id = $1",
+        [id],
+      );
+    }
+    return id;
+  };
+
+  it("allows accepted back to pending", async () => {
+    const id = await fresh("accepted");
+    const { rows } = await pg.admin.query(
+      "update public.bookings set status = 'pending' where id = $1 returning status",
+      [id],
+    );
+    expect(rows[0].status).toBe("pending");
+  });
+
+  it("allows en_route back to pending, because a van can break down", async () => {
+    const id = await fresh("en_route");
+    const { rows } = await pg.admin.query(
+      "update public.bookings set status = 'pending' where id = $1 returning status",
+      [id],
+    );
+    expect(rows[0].status).toBe("pending");
+  });
+
+  it("clears the stamps of the assignment that lapsed", async () => {
+    const id = await fresh("en_route");
+    await pg.admin.query(
+      "update public.bookings set status = 'pending' where id = $1",
+      [id],
+    );
+    const { rows } = await pg.admin.query(
+      "select accepted_at, en_route_at, provider_id from public.bookings where id = $1",
+      [id],
+    );
+    expect(rows[0].accepted_at).toBeNull();
+    expect(rows[0].en_route_at).toBeNull();
+    expect(rows[0].provider_id).toBeNull();
+  });
+
+  it("still refuses to reopen a job that is finished or cancelled", async () => {
+    // The release is for work in flight. Resurrecting a completed or cancelled
+    // booking would let somebody redo a job that is already paid for.
+    const id = await fresh("accepted");
+    await pg.admin.query(
+      "update public.bookings set status = 'cancelled', cancelled_by = 'customer' where id = $1",
+      [id],
+    );
+    await expect(
+      pg.admin.query(
+        "update public.bookings set status = 'pending' where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/cannot go from cancelled to pending/i);
+  });
+
+  it("still refuses to reopen work already under way", async () => {
+    // in_progress is deliberately absent: somebody is in the customer's house
+    // with the floor up. Walking out of that is a support call, not a button.
+    const id = await fresh("en_route");
+    await pg.admin.query(
+      "update public.bookings set status = 'in_progress' where id = $1",
+      [id],
+    );
+    await expect(
+      pg.admin.query(
+        "update public.bookings set status = 'pending' where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/cannot go from in_progress to pending/i);
+  });
+});

@@ -4,7 +4,7 @@ import { judgeCancellation, type BookingStatus } from "@/lib/booking";
 import { canTransition } from "@/lib/booking";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
-import { notify, notifyAll, type NotificationKind } from "@/lib/notify";
+import { notify, type NotificationKind } from "@/lib/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -327,32 +327,52 @@ export async function declineJob(input: {
   const verdict = judgeCancellation(booking.status as BookingStatus, "provider");
   if (!verdict.allowed) return { ok: false, reason: verdict.reason };
 
+  /*
+   * BACK TO THE POOL, NOT CANCELLED.
+   *
+   * This used to write `cancelled`, and the customer was shown "This booking
+   * was cancelled. Nothing is owed." on a job they still needed doing — their
+   * appliance still broken, the product simply stopped. Nothing owed, and
+   * nothing happening.
+   *
+   * A professional pulling out does not remove the customer's need. The job
+   * returns to `pending` and is opened immediately (no second first-refusal
+   * window: the customer has already waited through one), so anybody eligible
+   * can take it. Only the customer may actually end a booking.
+   *
+   * The database clears `accepted_at`, `en_route_at` and `provider_id` on the
+   * way back — see `enforce_booking_transition`.
+   */
   const { data, error } = await createClient()
     .from("bookings")
-    .update({
-      status: "cancelled",
-      cancelled_by: "provider",
-      cancelled_by_role: "provider",
-      cancellation_fee: verdict.fee,
-      cancellation_reason: input.reason?.trim().slice(0, 300) || null,
-    })
+    .update({ status: "pending", opened_at: new Date().toISOString() })
     .eq("id", input.bookingId)
     .select("id");
 
   if (error) {
-    console.error(`[provider-jobs] decline failed — ${describeError(error)}`);
+    console.error(`[provider-jobs] release failed — ${describeError(error)}`);
     return { ok: false, reason: "saveFailed" };
   }
   if ((data?.length ?? 0) === 0) return { ok: false, reason: "notYours" };
 
-  await notifyAll([
-    {
-      recipientId: booking.customer_id as string,
-      kind: "booking.declined",
-      params: { reference: booking.reference as string },
-      bookingId: input.bookingId,
-    },
-  ]);
+  // Recorded against them, not against the booking's outcome. Phase 10's
+  // reliability score reads this: repeatedly accepting and then withdrawing is
+  // a fact worth keeping, and it is not the same as never accepting at all.
+  await createAdminClient().from("booking_status_history").insert({
+    booking_id: input.bookingId,
+    from_status: booking.status,
+    to_status: "pending",
+    changed_by: input.actorId,
+    changed_by_role: "provider",
+    note: `withdrew: ${input.reason?.trim().slice(0, 250) || "no reason given"}`,
+  });
+
+  await notify({
+    recipientId: booking.customer_id,
+    kind: "booking.declined",
+    params: { reference: booking.reference },
+    bookingId: input.bookingId,
+  });
 
   return { ok: true };
 }

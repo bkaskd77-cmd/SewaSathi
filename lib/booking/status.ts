@@ -35,8 +35,14 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
  */
 export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   pending: ["accepted", "cancelled", "no_provider_found"],
-  accepted: ["en_route", "cancelled"],
-  en_route: ["in_progress", "cancelled"],
+  // `accepted -> pending` and `en_route -> pending` are the professional
+  // withdrawing. They are the only backwards moves in this machine and they
+  // exist because a professional pulling out is NOT the customer cancelling:
+  // the customer's tap is still dripping, and ending their booking would leave
+  // them with a broken thing and a screen saying "nothing is owed". The job
+  // goes back to the pool instead, and only the customer may end it.
+  accepted: ["en_route", "cancelled", "pending"],
+  en_route: ["in_progress", "cancelled", "pending"],
   in_progress: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -53,6 +59,18 @@ export function canTransition(
 /** Nothing more will happen to this booking. */
 export function isTerminal(status: BookingStatus): boolean {
   return BOOKING_TRANSITIONS[status].length === 0;
+}
+
+/**
+ * Is this a professional letting go of a job the customer still wants?
+ *
+ * Named rather than written inline because it reads backwards in the machine
+ * and would otherwise look like a mistake to the next person: a booking moving
+ * from `accepted` to `pending` is not a bug, it is somebody's van breaking
+ * down.
+ */
+export function isRelease(from: BookingStatus, to: BookingStatus): boolean {
+  return to === "pending" && (from === "accepted" || from === "en_route");
 }
 
 /**
