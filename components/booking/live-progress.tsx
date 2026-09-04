@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { WifiOff } from "lucide-react";
+import { RefreshCw, WifiOff } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import { useRouter } from "@/i18n/navigation";
 import { BOOKING_PROGRESS, progressIndex, type BookingStatus } from "@/lib/booking";
@@ -39,6 +41,8 @@ export function LiveProgress({
   // A status change moves more than this component: the provider's contact
   // card appears at accepted, the payment panel changes at completed. Both are
   // server-rendered, so the page has to be re-read.
+  const [checking, setChecking] = React.useState(false);
+
   const { status, connection } = useBookingChannel(
     bookingId,
     initialStatus,
@@ -74,6 +78,41 @@ export function LiveProgress({
             ? t("whatNext.completedPaid")
             : t(`whatNext.${status}`)}
         </p>
+
+        {/* Waiting is the one state where the customer has something useful to
+            do, and it is not "wait harder". This runs the same escalation the
+            cron runs — see lib/data/dispatch.ts — so if their professional's
+            window has lapsed the job widens to everybody who can do it, right
+            now, rather than at tomorrow's sweep. Tapping it early is harmless:
+            the stage comes from timestamps, so nothing moves before it is due. */}
+        {status === "pending" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            disabled={checking}
+            onClick={() => {
+              setChecking(true);
+              void (async () => {
+                try {
+                  const { checkForProviderAction } = await import(
+                    "@/app/[locale]/(app)/bookings/[id]/actions"
+                  );
+                  await checkForProviderAction(bookingId);
+                  router.refresh();
+                } finally {
+                  setChecking(false);
+                }
+              })();
+            }}
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={cn("size-3.5", checking && "animate-spin")}
+            />
+            {t("detail.checkForProvider")}
+          </Button>
+        ) : null}
       </div>
 
       {/* Cancelled and no-provider are ends, not stages, so the track is

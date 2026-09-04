@@ -586,7 +586,8 @@
         "heading": "Your professional",
         "call": "Call {name}",
         "noPhone": "We do not have a number for them yet."
-      }
+      },
+      "checkForProvider": "Check for a professional now"
     },
     "payment": {
       "methods": {

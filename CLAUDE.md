@@ -450,6 +450,13 @@ the customer picked and waited for ever if they never opened the app.
   clause matches only rows still unassigned, so the second claimant updates
   zero rows. Checking "is it taken?" and then writing is the gap that sends two
   professionals to one house.
+- **"Check now" and the cron run the same code** — `applyDispatch` in
+  `lib/data/dispatch.ts`. Two implementations of an escalation rule escalate
+  differently depending on who asked, and the difference stays invisible until
+  somebody's emergency sits unwidened. The button needs no `CRON_SECRET`
+  because it is scoped to one booking the caller owns and can only apply what
+  was already due: tapping it early reports "still with your professional" and
+  moves nothing.
 - **`provider_can_serve` is `security definer`** because a policy on `bookings`
   that reads `addresses` re-enters `bookings` through *its* policy — the same
   recursion `is_admin()` exists to break, found the same way.

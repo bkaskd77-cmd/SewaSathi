@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getSessionProfile } from "@/lib/auth/session";
+import { checkDispatchNow } from "@/lib/data/dispatch";
 import { site } from "@/lib/config/site";
 import { cancelBooking, getBooking } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
@@ -177,4 +178,30 @@ export async function abandonPaymentAction(
   const result = await abandonPayment({ reference, actorId: profile.id });
   revalidatePath(`/bookings/${bookingId}`);
   return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+/**
+ * "Check now" on a booking still waiting for a professional.
+ *
+ * Runs the same age-based rule the cron runs — see `lib/data/dispatch.ts`. It
+ * cannot widen anything early: the stage comes from timestamps, so an
+ * impatient tap on a two-minute-old emergency reports that the chosen
+ * professional still has it and moves nothing.
+ *
+ * It exists because the sweep runs daily on this Vercel plan, and a
+ * five-minute emergency window that only advances once a day is not a
+ * five-minute window. Nobody waiting by a leak should have to wait for
+ * tomorrow's cron.
+ */
+export async function checkForProviderAction(
+  bookingId: string,
+): Promise<{ ok: boolean; changed: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, changed: false };
+
+  const outcome = await checkDispatchNow({ bookingId, actorId: profile.id });
+  if (outcome.stage === "notYours") return { ok: false, changed: false };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, changed: outcome.changed };
 }
