@@ -59,6 +59,11 @@ export type ProviderJob = {
   quotedMin: number;
   quotedMax: number;
   finalAmount: number | null;
+  /** pending | paid — the booking's own payment state, not a payment row. */
+  paymentStatus: string;
+  paymentMethod: string;
+  /** What this professional keeps, frozen at settlement. Null until paid. */
+  providerEarning: number | null;
   customerName: string | null;
   customerPhone: string | null;
   addressLine: string | null;
@@ -92,7 +97,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -173,6 +178,9 @@ export async function listProviderJobs(
       quotedMin: row.quoted_min as number,
       quotedMax: row.quoted_max as number,
       finalAmount: (row.final_amount as number | null) ?? null,
+      paymentStatus: (row.payment_status as string) ?? "pending",
+      paymentMethod: (row.payment_method as string) ?? "cash",
+      providerEarning: (row.provider_earning as number | null) ?? null,
       customerName: (profile?.full_name as string | null) ?? null,
       customerPhone: (profile?.phone as string | null) ?? null,
       addressLine: address

@@ -144,6 +144,13 @@ export default async function ProviderJobsPage() {
                   landmark={job.landmark}
                   quotedMax={job.quotedMax}
                   ceiling={job.quotedMax * PRICE_RULES.hardCeilingMultiple}
+                  paymentStatus={job.paymentStatus}
+                  paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
+                  earningLabel={
+                    job.providerEarning !== null
+                      ? formatNpr(job.providerEarning, { locale })
+                      : null
+                  }
                 />
               </div>
             ))}

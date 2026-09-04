@@ -806,6 +806,16 @@
         "notYours": "This job isn't assigned to you any more.",
         "reasonRequired": "Say why it came to more than the quote — the customer sees this.",
         "tooLate": "It's too late to turn this down. Call us if something has gone wrong."
+      },
+      "payment": {
+        "paid": "Paid",
+        "awaiting": "Waiting for the customer to pay by {method}",
+        "youKeep": "You keep {amount} after our 15% fee",
+        "methods": {
+          "cash": "cash",
+          "esewa": "eSewa",
+          "khalti": "Khalti"
+        }
       }
     }
   }

@@ -76,6 +76,11 @@ export type JobCardProps = {
   /** Twice the quoted max — nothing above it can be approved in-app at all. */
   ceiling: number;
   quotedMax: number;
+  /** "paid" once the money has actually settled. */
+  paymentStatus: string;
+  paymentMethodLabel: string;
+  /** Pre-formatted: what this professional keeps after commission. */
+  earningLabel: string | null;
 };
 
 export function JobCard(props: JobCardProps) {
@@ -195,6 +200,42 @@ export function JobCard(props: JobCardProps) {
           <Phone aria-hidden="true" className="size-3.5" />
           {props.customerName ?? t("callCustomer")}
         </a>
+      ) : null}
+
+      {/* Did I get paid, and what do I keep?
+          The card used to stop at "Done", which leaves the one question a
+          professional actually has after finishing unanswered — and for cash
+          they are standing there holding the money wondering whether to mark
+          anything at all. The earning is the frozen split, not a recomputation:
+          a later change to the commission rate must never rewrite what somebody
+          was already told they had earned. */}
+      {props.finalLabel !== null ? (
+        <div
+          className={cn(
+            "mt-3 rounded-lg border p-3 text-body-sm",
+            props.paymentStatus === "paid"
+              ? "border-success/40 bg-success/[0.06]"
+              : "border-border bg-muted/30",
+          )}
+        >
+          <p
+            className={cn(
+              "font-semibold",
+              props.paymentStatus === "paid"
+                ? "text-success-ink"
+                : "text-muted-foreground",
+            )}
+          >
+            {props.paymentStatus === "paid"
+              ? t("payment.paid")
+              : t("payment.awaiting", { method: props.paymentMethodLabel })}
+          </p>
+          {props.earningLabel ? (
+            <p className="animate-digit-in mt-1 tabular-nums">
+              {t("payment.youKeep", { amount: props.earningLabel })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {/* The amount, once the work is done. */}
