@@ -22,6 +22,14 @@ export {
 } from "./status";
 
 export {
+  awaitingProvider,
+  dispatchStage,
+  DISPATCH_WINDOWS,
+  type DispatchStage,
+  type Urgency,
+} from "./dispatch";
+
+export {
   customerCanCancel,
   judgeCancellation,
   providerCanCancel,

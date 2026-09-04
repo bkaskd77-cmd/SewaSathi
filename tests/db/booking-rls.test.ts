@@ -887,3 +887,205 @@ describe("an address cannot be saved twice", () => {
     await expect(save(BOB, "Sanepa", "Blue awning")).resolves.toBeTruthy();
   });
 });
+
+/**
+ * An open job, and the race to take it.
+ *
+ * When first refusal lapses the booking is unassigned and offered to everybody
+ * who works that category in that ward. Two things have to hold and neither is
+ * visible by reading the page: a professional must not see open work they
+ * cannot do, and when two people tap "Take this job" at the same second,
+ * exactly one must get it. The second is settled by the policy's `using`
+ * clause matching only rows that are still unassigned — checking first and
+ * writing after is precisely the gap that sends two professionals to one house.
+ */
+describe("open jobs, and who may take them", () => {
+  let openBooking: string;
+  let aliceListing: string;
+
+  beforeAll(async () => {
+    const { rows: listing } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ('Alice Electrical', '{lalitpur-4}', 900, true, $1)
+       returning id`,
+      [ALICE],
+    );
+    aliceListing = listing[0].id as string;
+    await pg.admin.query(
+      `insert into public.provider_categories (provider_id, category_slug)
+       values ($1, 'electrical') on conflict do nothing`,
+      [aliceListing],
+    );
+
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Dhobighat', 'Steel gate')
+       returning id`,
+      [BOB],
+    );
+
+    const { rows: booking } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max, opened_at)
+       values ('SK-OPEN1', $1, 'electrical', $2, 'No power in the kitchen',
+               900, 4500, now())
+       returning id`,
+      [BOB, address[0].id],
+    );
+    openBooking = booking[0].id as string;
+  });
+
+  it("shows an open job to a professional who works that category and ward", async () => {
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "select reference from public.bookings where id = $1",
+      [openBooking],
+    );
+    expect(rows.map((r) => r.reference)).toContain("SK-OPEN1");
+  });
+
+  it("hides an open job from a professional who does not do that category", async () => {
+    // Alice does electrical, not plumbing. Seeing every open booking in the
+    // valley would make this a directory of strangers' addresses.
+    const { rows: other } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max, opened_at)
+       select 'SK-OPEN2', customer_id, 'plumbing', address_id, 'Blocked drain',
+              900, 4500, now()
+       from public.bookings where id = $1
+       returning id`,
+      [openBooking],
+    );
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "select id from public.bookings where id = $1",
+      [other[0].id],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("lets an eligible professional claim it", async () => {
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      `update public.bookings
+       set provider_id = $1, status = 'accepted'
+       where id = $2 returning id`,
+      [aliceListing, openBooking],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("refuses the second claimant, rather than stealing the job", async () => {
+    /*
+     * The job is now Alice's. This is the case that found a real hole: the
+     * rival here is also the *customer* on this booking, and "Customers cancel
+     * their own open bookings" made the row updatable for them. RLS is
+     * row-level — once a row is updatable every column on it is — so the
+     * second claim went straight through and reassigned Alice's job.
+     *
+     * `enforce_booking_immutability` is what refuses it now, and it refuses by
+     * raising rather than matching zero rows, which is the stronger answer:
+     * the caller cannot mistake it for "nothing to do".
+     */
+    const { rows: rival } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ('Bob Electrical', '{lalitpur-4}', 900, true, $1)
+       returning id`,
+      [BOB],
+    );
+    await pg.admin.query(
+      `insert into public.provider_categories (provider_id, category_slug)
+       values ($1, 'electrical') on conflict do nothing`,
+      [rival[0].id],
+    );
+
+    const client = await pg.asUser(BOB);
+    await expect(
+      client.query(
+        `update public.bookings
+         set provider_id = $1, status = 'accepted'
+         where id = $2`,
+        [rival[0].id, openBooking],
+      ),
+    ).rejects.toThrow(/already assigned cannot be reassigned/i);
+  });
+
+  it("does not let a customer rewrite the price of their own job", async () => {
+    /*
+     * The other half of the same hole, and the one that costs money. A
+     * customer could set `quoted_max` and `final_amount` on their own booking,
+     * and `openPayment` judges the amount against exactly those columns — so
+     * every server-side check would have agreed that Rs 100 was the right
+     * price for a Rs 4,000 job.
+     */
+    const client = await pg.asUser(BOB);
+    await expect(
+      client.query(
+        "update public.bookings set quoted_max = 100 where id = $1",
+        [bobBooking],
+      ),
+    ).rejects.toThrow(/not editable from a browser/i);
+
+    await expect(
+      client.query(
+        "update public.bookings set final_amount = 100 where id = $1",
+        [bobBooking],
+      ),
+    ).rejects.toThrow(/not editable from a browser/i);
+  });
+
+  it("does not let a customer mark their own booking paid", async () => {
+    const client = await pg.asUser(BOB);
+    await expect(
+      client.query(
+        "update public.bookings set payment_status = 'paid' where id = $1",
+        [bobBooking],
+      ),
+    ).rejects.toThrow(/not editable from a browser/i);
+  });
+
+  it("still lets a customer cancel, which is the one thing that policy is for", async () => {
+    const client = await pg.asUser(BOB);
+    const { rows } = await client.query(
+      `update public.bookings set status = 'cancelled', cancelled_by = 'customer'
+       where id = $1 returning id`,
+      [bobBooking],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("does not let a professional claim a job in somebody else's name", async () => {
+    const { rows: fresh } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max, opened_at)
+       select 'SK-OPEN3', customer_id, 'electrical', address_id, 'Fuse blown',
+              900, 4500, now()
+       from public.bookings where id = $1
+       returning id`,
+      [openBooking],
+    );
+
+    // Alice tries to hand the job to a listing that is not hers. The `with
+    // check` clause is what refuses this.
+    const { rows: stranger } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ('Unclaimed Sparks', '{lalitpur-4}', 900, true, null)
+       returning id`,
+    );
+    const client = await pg.asUser(ALICE);
+    await expect(
+      client.query(
+        `update public.bookings set provider_id = $1, status = 'accepted'
+         where id = $2`,
+        [stranger[0].id, fresh[0].id],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+});

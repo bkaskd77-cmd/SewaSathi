@@ -231,6 +231,9 @@ export async function createBooking(
           quoted_min: category.basePriceMin,
           quoted_max: category.basePriceMax,
           payment_method: parsed.data.paymentMethod,
+          // The customer's actual choice, kept separately so it survives the
+          // job being widened to other professionals. See lib/booking/dispatch.
+          first_choice_provider_id: parsed.data.provider ?? null,
           triage_log_id: parsed.data.triageLogId || null,
           locale,
         })

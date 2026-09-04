@@ -22,7 +22,11 @@ export type NotificationKind =
   | "booking.cancelled"
   | "booking.declined"
   | "booking.amountEntered"
-  | "booking.paid";
+  | "booking.paid"
+  /** First refusal lapsed; the job is now open to other professionals. */
+  | "booking.widened"
+  /** Nobody took it. The booking has ended rather than waiting for ever. */
+  | "booking.noProviderFound";
 
 export type Notification = {
   /** Who it is for. Their language is read at delivery, not passed in. */

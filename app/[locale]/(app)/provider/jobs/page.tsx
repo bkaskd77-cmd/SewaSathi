@@ -13,7 +13,11 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { formatSlotInstant } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategory } from "@/lib/data/categories";
-import { getMyProvider, listProviderJobs } from "@/lib/data/provider-jobs";
+import {
+  getMyProvider,
+  listOpenJobs,
+  listProviderJobs,
+} from "@/lib/data/provider-jobs";
 import { PRICE_RULES } from "@/lib/payments/client";
 import { formatNpr } from "@/lib/utils";
 
@@ -81,7 +85,14 @@ export default async function ProviderJobsPage() {
     );
   }
 
-  const jobs = await listProviderJobs(profile!.id);
+  // Two lists, and the separation matters. "Mine" is work somebody has already
+  // been given; "open" is work first refusal has lapsed on and anybody
+  // eligible can take. An open job carries no customer name, phone or
+  // doorstep — nobody has agreed to anything yet.
+  const [jobs, openJobs] = await Promise.all([
+    listProviderJobs(profile!.id),
+    listOpenJobs(profile!.id),
+  ]);
 
   // Category names are data, not interface copy, so they are resolved here
   // rather than in the card — and a function cannot cross to a Client
@@ -111,6 +122,52 @@ export default async function ProviderJobsPage() {
           {t("subtitle", { name: me.displayName })}
         </p>
       </header>
+
+      {openJobs.length > 0 ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ provider: messages.provider }}
+        >
+          <section className="mt-6">
+            <h2 className="text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("openHeading")}
+            </h2>
+            <p className="mt-1 text-body-sm text-muted-foreground">
+              {t("openBody")}
+            </p>
+            <div className="assemble mt-3 space-y-4">
+              {openJobs.map((job, i) => (
+                <div key={job.id} style={{ ["--i" as string]: i }}>
+                  <JobCard
+                    open
+                    id={job.id}
+                    reference={job.reference}
+                    status={job.status}
+                    categoryName={job.categorySlug}
+                    description={job.description}
+                    whenLabel={
+                      job.scheduledFor
+                        ? formatSlotInstant(job.scheduledFor)
+                        : t("asap")
+                    }
+                    quoteLabel={`${formatNpr(job.quotedMin, { locale })}–${formatNpr(job.quotedMax, { locale })}`}
+                    finalLabel={null}
+                    customerName={null}
+                    customerPhone={null}
+                    addressLine={job.addressLine}
+                    landmark={null}
+                    quotedMax={job.quotedMax}
+                    ceiling={job.quotedMax * PRICE_RULES.hardCeilingMultiple}
+                    paymentStatus="pending"
+                    paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
+                    earningLabel={null}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        </NextIntlClientProvider>
+      ) : null}
 
       {named.length === 0 ? (
         <EmptyState

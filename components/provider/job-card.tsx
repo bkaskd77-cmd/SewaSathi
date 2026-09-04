@@ -44,6 +44,9 @@ const KNOWN_JOB_ERRORS = [
   "notYours",
   "reasonRequired",
   "tooLate",
+  // Somebody else got there first. A normal outcome in an open list, and the
+  // one message that must not read like a fault.
+  "alreadyTaken",
 ] as const;
 
 function jobErrorKey(reason: string): string {
@@ -81,6 +84,12 @@ export type JobCardProps = {
   paymentMethodLabel: string;
   /** Pre-formatted: what this professional keeps after commission. */
   earningLabel: string | null;
+  /**
+   * An open job, offered to everybody who can do it rather than assigned.
+   * The only action is to take it, and the customer's details are absent
+   * until somebody has.
+   */
+  open?: boolean;
 };
 
 export function JobCard(props: JobCardProps) {
@@ -98,8 +107,17 @@ export function JobCard(props: JobCardProps) {
   const [amount, setAmount] = React.useState("");
   const [amountReason, setAmountReason] = React.useState("");
 
-  const next = NEXT[props.status];
-  const canDecline = BOOKING_TRANSITIONS[props.status].includes("cancelled");
+  const claim = () =>
+    void run(async () => {
+      const { claimJobAction } = await import(
+        "@/app/[locale]/(app)/provider/jobs/actions"
+      );
+      return claimJobAction(props.id);
+    });
+
+  const next = props.open ? undefined : NEXT[props.status];
+  const canDecline =
+    !props.open && BOOKING_TRANSITIONS[props.status].includes("cancelled");
   const overBand = Number(amount) > props.quotedMax;
 
   async function run(work: () => Promise<{ ok: boolean; reason?: string }>) {
@@ -158,7 +176,7 @@ export function JobCard(props: JobCardProps) {
       </div>
 
       <p className="mt-1 text-caption font-semibold uppercase tracking-wide text-primary">
-        {t(`status.${props.status}`)}
+        {props.open ? t("openNow") : t(`status.${props.status}`)}
       </p>
 
       <p className="mt-3 text-body-sm">{props.description}</p>
@@ -278,6 +296,21 @@ export function JobCard(props: JobCardProps) {
               <Loader2 aria-hidden="true" className="animate-spin" />
             ) : null}
             {t("amount.submit")}
+          </Button>
+        </div>
+      ) : null}
+
+      {props.open ? (
+        <div className="mt-4 border-t border-border pt-4">
+          <Button
+            className="btn-tactile btn-beacon"
+            onClick={claim}
+            disabled={busy}
+          >
+            {busy ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : null}
+            {t("claim")}
           </Button>
         </div>
       ) : null}

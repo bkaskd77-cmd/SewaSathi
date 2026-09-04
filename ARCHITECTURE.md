@@ -192,6 +192,7 @@ Where a change on one side cannot reach the other.
 | Price integrity | `npm run test` | The three verdicts and both boundaries: inside the band, over it with approval, and blocked above 2× |
 | Gateway contract | `npm run test` | Every adapter satisfies one interface; a **forged callback loses to the gateway**; the gateway's amount is what gets reconciled; a gateway we cannot reach is not a failed payment |
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
+| Dispatch windows | `npm run test` | First refusal, widening and giving up, per urgency — including that no window gives up before it opens |
 | Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up

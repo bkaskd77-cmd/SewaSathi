@@ -381,3 +381,124 @@ export async function getProviderPhone(
     return null;
   }
 }
+
+/**
+ * Jobs nobody has taken yet, that this professional could do.
+ *
+ * RLS does the whole filter — "Providers see open jobs they can do" limits it
+ * to unassigned, still-pending bookings in a category they work and a ward
+ * they serve. Deliberately no admin client anywhere in here: an open job list
+ * is a list of strangers' addresses, and the policy is what keeps it honest.
+ * The customer's name and phone are NOT joined in for the same reason — nobody
+ * has agreed to anything yet.
+ */
+export async function listOpenJobs(
+  profileId: string,
+): Promise<ProviderJob[]> {
+  if (!hasSupabaseConfig()) return [];
+  const me = await getMyProvider(profileId);
+  if (!me) return [];
+
+  try {
+    const { data, error } = await createClient()
+      .from("bookings")
+      .select(
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
+      )
+      .is("provider_id", null)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    if (error) {
+      console.error(`[provider-jobs] open list failed — ${describeError(error)}`);
+      return [];
+    }
+
+    // Only the ward, not the doorstep: a professional deciding whether to take
+    // a job needs to know roughly where it is, not which gate to knock on.
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length === 0) return [];
+
+    const admin = createAdminClient();
+    const { data: areas } = await admin
+      .from("addresses")
+      .select("id, city, area_key")
+      .in("id", Array.from(new Set(rows.map((r) => r.address_id as string))));
+    const byAddress = new Map(
+      (areas ?? []).map((a) => [a.id as string, a as Record<string, unknown>]),
+    );
+
+    return rows.map((row) => {
+      const area = byAddress.get(row.address_id as string);
+      return {
+        id: row.id as string,
+        reference: row.reference as string,
+        status: row.status as BookingStatus,
+        categorySlug: row.category_slug as string,
+        description: row.description as string,
+        urgency: row.urgency as string,
+        scheduledFor: (row.scheduled_for as string | null) ?? null,
+        quotedMin: row.quoted_min as number,
+        quotedMax: row.quoted_max as number,
+        finalAmount: null,
+        paymentStatus: "pending",
+        paymentMethod: (row.payment_method as string) ?? "cash",
+        providerEarning: null,
+        customerName: null,
+        customerPhone: null,
+        addressLine: (area?.city as string | null) ?? null,
+        landmark: null,
+        createdAt: row.created_at as string,
+      };
+    });
+  } catch (thrown) {
+    console.error(`[provider-jobs] open list threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
+/**
+ * Take an open job. First to arrive wins.
+ *
+ * The race is settled by the RLS policy, not by this function: its `using`
+ * clause matches only rows that are still unassigned, so a second claimant
+ * updates zero rows. Checking "is it taken?" here first and then writing would
+ * be exactly the gap two professionals tapping at once fall through — and the
+ * result of that is two people arriving at one house.
+ */
+export async function claimJob(input: {
+  bookingId: string;
+  actorId: string;
+}): Promise<AdvanceResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const me = await getMyProvider(input.actorId);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const { data, error } = await createClient()
+    .from("bookings")
+    .update({ provider_id: me.providerId, status: "accepted" })
+    .eq("id", input.bookingId)
+    .select("id, reference, customer_id");
+
+  if (error) {
+    console.error(`[provider-jobs] claim failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+  // Zero rows means somebody else got there first, which is a normal outcome
+  // and not an error worth alarming anyone about.
+  if ((data?.length ?? 0) === 0) return { ok: false, reason: "alreadyTaken" };
+
+  await notify({
+    recipientId: data![0].customer_id as string,
+    kind: "booking.accepted",
+    params: {
+      reference: data![0].reference as string,
+      provider: me.displayName,
+    },
+    bookingId: input.bookingId,
+  });
+
+  return { ok: true };
+}

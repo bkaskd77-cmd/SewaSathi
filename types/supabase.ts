@@ -175,6 +175,8 @@ export type Database = {
           final_amount_approved_at: string | null;
           cancelled_by_role: string | null;
           cancellation_fee: number;
+          first_choice_provider_id: string | null;
+          opened_at: string | null;
         };
         Insert: {
           id?: string;
@@ -212,6 +214,8 @@ export type Database = {
           final_amount_approved_at?: string | null;
           cancelled_by_role?: string | null;
           cancellation_fee?: number;
+          first_choice_provider_id?: string | null;
+          opened_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];

@@ -430,7 +430,30 @@ verify`, and any can be changed by somebody not looking at this code.
   `auth.sms: ok` against production. The dashboard looked correct the whole
   time it was broken.
 
-## Payments
+## Dispatch — a job nobody accepts
+
+The booking page says "we are alerting professionals now". `lib/booking/dispatch.ts`
+is what makes that true; before it, a booking sat assigned to the one person
+the customer picked and waited for ever if they never opened the app.
+
+- **Three stages, driven by the booking's age alone** — first refusal, open,
+  give up — so the sweep is idempotent and can run late, twice, or overlapping
+  without changing anything.
+- **Urgency sets the clock.** Emergency opens in 5 minutes and gives up at 45;
+  routine holds an hour and gives up at a day. These are product promises about
+  how fast the product moves, which is why they are named constants and not
+  inline in a cron job.
+- **The customer's choice survives the widening.** `first_choice_provider_id`
+  is kept when `provider_id` is cleared, so "I asked for Krishna and Sita came"
+  is answerable, and Phase 10's reliability score has something to read.
+- **The claim is a race settled by the policy, not by a read.** Its `using`
+  clause matches only rows still unassigned, so the second claimant updates
+  zero rows. Checking "is it taken?" and then writing is the gap that sends two
+  professionals to one house.
+- **`provider_can_serve` is `security definer`** because a policy on `bookings`
+  that reads `addresses` re-enters `bookings` through *its* policy — the same
+  recursion `is_admin()` exists to break, found the same way.
+
 
 Our model is not a checkout. The quote is a **band**, the final figure is
 agreed on site, and money moves **after** the work is done. Everything below
@@ -495,6 +518,17 @@ RLS gotcha: a policy on `profiles` that queries `profiles` to check the
 caller's role recurses into itself and Postgres raises "infinite recursion
 detected in policy". `public.is_admin()` is `security definer` to break that
 cycle.
+
+**RLS is row-level, so a policy that lets somebody update a row lets them
+update every column on it.** "Customers cancel their own open bookings"
+validates `customer_id` and `status` — which made `quoted_max`, `final_amount`
+and `provider_id` editable from a browser, and `openPayment` judges an amount
+against exactly those columns. A customer could have paid Rs 100 for a Rs 4,000
+job with every server-side check agreeing. Postgres has no per-column RLS
+clause, so `enforce_booking_immutability` (a BEFORE UPDATE trigger) is the rule;
+`auth.uid()` is null for the service role, which is how the server's own writes
+pass through. Found by the db suite, not by reading the code — add a case there
+before widening any update policy.
 
 **`is_admin()` must keep `execute` for `authenticated`, and Supabase's Security
 Advisor will keep telling you to take it away.** Six policies call it —

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/session";
 import { type BookingStatus } from "@/lib/booking";
 import { recordFinalAmount } from "@/lib/data/payments";
-import { advanceJob, declineJob } from "@/lib/data/provider-jobs";
+import { advanceJob, claimJob, declineJob } from "@/lib/data/provider-jobs";
 
 /**
  * The professional's actions.
@@ -81,4 +81,25 @@ export async function recordAmountAction(
     return { ok: true, verdict: result.verdict };
   }
   return { ok: false, reason: result.reason };
+}
+
+/**
+ * Take a job that has been opened to everybody.
+ *
+ * The race is settled by the RLS policy — see `claimJob`. Two professionals
+ * tapping at the same second is a normal event, not an error, and exactly one
+ * of them gets the work.
+ */
+export async function claimJobAction(
+  bookingId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await claimJob({ bookingId, actorId: profile.id });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  return result;
 }

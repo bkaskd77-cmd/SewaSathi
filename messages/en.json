@@ -666,7 +666,9 @@
       "booking.cancelled": "Cancelled",
       "booking.declined": "Professional withdrew",
       "booking.amountEntered": "Amount to check",
-      "booking.paid": "Paid"
+      "booking.paid": "Paid",
+      "booking.widened": "Still looking",
+      "booking.noProviderFound": "Nobody available"
     }
   },
   "safety": {
@@ -806,7 +808,8 @@
         "notStarted": "You can only enter an amount once the work is done.",
         "notYours": "This job isn't assigned to you any more.",
         "reasonRequired": "Say why it came to more than the quote — the customer sees this.",
-        "tooLate": "It's too late to turn this down. Call us if something has gone wrong."
+        "tooLate": "It's too late to turn this down. Call us if something has gone wrong.",
+        "alreadyTaken": "Someone else took this one. It happens — there will be others."
       },
       "payment": {
         "paid": "Paid",
@@ -817,7 +820,11 @@
           "esewa": "eSewa",
           "khalti": "Khalti"
         }
-      }
+      },
+      "claim": "Take this job",
+      "openNow": "Open — first to accept",
+      "openHeading": "Open nearby",
+      "openBody": "Nobody has taken these yet. First to accept gets the work."
     }
   }
 }
