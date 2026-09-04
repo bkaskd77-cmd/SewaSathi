@@ -120,9 +120,17 @@ export default async function BookingDetailPage({
   const settled = payments.find(
     (p) => p.status === "paid" || p.status === "partially_refunded",
   );
-  const inFlight = payments.find((p) => p.status === "initiated");
+  // "In flight" means a gateway is holding the customer's money in limbo, and
+  // that is the ONLY thing "Checking your payment" should ever describe. Cash
+  // is excluded explicitly: there is no service to confirm with, so a cash row
+  // shown as processing tells somebody to wait for an answer that will never
+  // come. It is the customer confirming that settles it, and until they do,
+  // whatever status the row happens to hold, the screen owes them that button.
+  const inFlight = payments.find(
+    (p) => p.method !== "cash" && p.status === "initiated",
+  );
   const cashWaiting = payments.find(
-    (p) => p.method === "cash" && p.status === "pending",
+    (p) => p.method === "cash" && (p.status === "pending" || p.status === "initiated"),
   );
   const lastFailed = payments.find((p) => p.status === "failed");
 
@@ -134,10 +142,10 @@ export default async function BookingDetailPage({
         : "notYet"
       : !booking.finalAmountApprovedAt
         ? "needsApproval"
-        : inFlight
-          ? "processing"
-          : cashWaiting
-            ? "cashPending"
+        : cashWaiting
+          ? "cashPending"
+          : inFlight
+            ? "processing"
             : "ready";
 
   const verdict =
@@ -300,7 +308,7 @@ export default async function BookingDetailPage({
             defaultMethod={booking.paymentMethod}
             // Same precedence as the stage above, so the reference always
             // belongs to the attempt the panel is actually showing.
-            reference={(inFlight ?? cashWaiting)?.ourReference ?? null}
+            reference={(cashWaiting ?? inFlight)?.ourReference ?? null}
             receipt={
               settled
                 ? {
@@ -315,6 +323,8 @@ export default async function BookingDetailPage({
                 : null
             }
             failureReason={lastFailed?.failureReason ?? null}
+            inFlightSince={inFlight?.initiatedAt ?? null}
+            supportPhone={site.supportPhone}
           />
         </NextIntlClientProvider>
       ) : null}

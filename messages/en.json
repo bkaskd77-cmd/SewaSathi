@@ -630,7 +630,9 @@
       "processing": {
         "title": "Checking your payment",
         "body": "We're confirming this with the payment service. It usually takes a few seconds. If money left your account it will show here — you will not be charged twice.",
-        "recheck": "Check again"
+        "recheck": "Check again",
+        "stalled": "This is taking longer than it should. Your money is safe and you will not be charged twice — but if it does not clear in a minute, call us and we will finish it by hand.",
+        "callUs": "Call us about this payment"
       },
       "paid": {
         "title": "Paid",

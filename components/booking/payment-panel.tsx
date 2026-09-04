@@ -54,6 +54,8 @@ export type PaymentPanelProps = {
   defaultMethod: PaymentMethod;
   /** The live attempt's reference, when there is one. */
   reference: string | null;
+  /** When the gateway attempt started, so the wait can be given a floor. */
+  inFlightSince: string | null;
   receipt: {
     reference: string;
     method: PaymentMethod;
@@ -63,6 +65,7 @@ export type PaymentPanelProps = {
   } | null;
   /** Why the last attempt failed, for the retry copy. */
   failureReason: string | null;
+  supportPhone: string;
 };
 
 const METHOD_ICON: Record<PaymentMethod, typeof Wallet> = {
@@ -282,6 +285,20 @@ export function PaymentPanel(props: PaymentPanelProps) {
   }
 
   if (props.stage === "processing") {
+    /*
+     * A wait with no floor is a dead end.
+     *
+     * "A few seconds" is true of a gateway that answers. One that does not
+     * leaves somebody watching a spinner with their money already gone and no
+     * idea whether to pay again — and the honest thing to say at that point is
+     * that we can see it too and here is a number. Two minutes because that is
+     * already far beyond any normal eSewa or Khalti round trip; below it the
+     * reassurance is accurate and adding an alarm would be the false one.
+     */
+    const stale = props.inFlightSince
+      ? Date.now() - new Date(props.inFlightSince).getTime() > 120_000
+      : false;
+
     return (
       <Section tone="quiet" title={t("processing.title")}>
         <div className="flex items-start gap-3">
@@ -291,7 +308,7 @@ export function PaymentPanel(props: PaymentPanelProps) {
           />
           <div>
             <p className="text-body-md text-muted-foreground">
-              {t("processing.body")}
+              {stale ? t("processing.stalled") : t("processing.body")}
             </p>
             <Button
               variant="outline"
@@ -305,6 +322,14 @@ export function PaymentPanel(props: PaymentPanelProps) {
               ) : null}
               {t("processing.recheck")}
             </Button>
+            {stale ? (
+              <a
+                href={`tel:${props.supportPhone}`}
+                className="mt-3 inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                {t("processing.callUs")}
+              </a>
+            ) : null}
             {problem}
           </div>
         </div>
