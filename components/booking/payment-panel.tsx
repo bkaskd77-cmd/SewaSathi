@@ -286,7 +286,12 @@ export function PaymentPanel(props: PaymentPanelProps) {
               <ReceiptRow label={t("receipt.reference")}>
                 <span className="tabular-nums">{props.receipt.reference}</span>
               </ReceiptRow>
-              {props.receipt.providerTxnId ? (
+              {/* Cash has no gateway, so there is no gateway reference —
+                  `cash:SKP-…` is our own row id with an internal prefix on it,
+                  and printing it as "Provider reference" invites somebody to
+                  quote a meaningless string at a support desk. The row is
+                  simply absent for cash. */}
+              {props.receipt.method !== "cash" && props.receipt.providerTxnId ? (
                 <ReceiptRow label={t("receipt.providerTxn")}>
                   <span className="break-all tabular-nums">
                     {props.receipt.providerTxnId}

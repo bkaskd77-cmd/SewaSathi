@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { ArrowLeft, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, ShieldCheck } from "lucide-react";
 
 import { CancelBooking } from "@/components/booking/cancel-booking";
 import { LiveProgress } from "@/components/booking/live-progress";
@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatSlotInstant } from "@/lib/booking";
+import { formatInstant, formatSlotInstant } from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { site } from "@/lib/config/site";
@@ -185,7 +185,15 @@ export default async function BookingDetailPage({
         locale={locale}
         messages={{ booking: messages.booking }}
       >
-        <LiveProgress bookingId={booking.id} initialStatus={booking.status} />
+        {/* The banner reads the booking status AND the payment status. It used
+            to read only the first, so a settled job still told the customer to
+            "pay the agreed amount directly to your professional" — two
+            sentences on one screen contradicting each other, about money. */}
+        <LiveProgress
+          bookingId={booking.id}
+          initialStatus={booking.status}
+          settled={Boolean(settled)}
+        />
       </NextIntlClientProvider>
 
       {/* Only from acceptance onward. Before that nobody has agreed to the job,
@@ -246,6 +254,7 @@ export default async function BookingDetailPage({
               : t("addressMissing")
           }
           hint={address ? t("landmarkHint", { landmark: address.landmark }) : null}
+          hintIcon={MapPin}
         />
 
         <Row
@@ -265,6 +274,7 @@ export default async function BookingDetailPage({
           hint={
             provider && provider.isVerified ? t("providerVerified") : null
           }
+          hintIcon={ShieldCheck}
         />
 
         <Row
@@ -315,8 +325,13 @@ export default async function BookingDetailPage({
                     reference: settled.ourReference,
                     method: settled.method,
                     amountLabel: formatNpr(settled.amount, { locale }),
-                    settledAt: formatSlotInstant(
+                    // A payment happens at a moment. formatSlotInstant is for
+                    // booking windows and rendered "2026-09-04 · 16:00 – 18:00"
+                    // here — an hour it did not happen and a range that means
+                    // nothing for an event.
+                    settledAt: formatInstant(
                       settled.settledAt ?? settled.createdAt,
+                      locale,
                     ),
                     providerTxnId: settled.providerTxnId,
                   }
@@ -356,11 +371,21 @@ function Row({
   label,
   value,
   hint,
+  hintIcon: HintIcon,
 }: {
   i: number;
   label: string;
   value: string;
   hint?: string | null;
+  /**
+   * Opt-in, and that is the fix.
+   *
+   * Every hint used to get a location pin, so "ID verified" and "Final, agreed
+   * on site" both rendered under a map marker. An icon that appears regardless
+   * of meaning stops carrying any — and a pin in particular makes a promise
+   * about a place. Only the address row asks for one now.
+   */
+  hintIcon?: typeof MapPin;
 }) {
   return (
     <div style={{ ["--i" as string]: i }} className="p-4">
@@ -368,7 +393,9 @@ function Row({
       <dd className="mt-1 text-body-md">{value}</dd>
       {hint ? (
         <dd className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
-          <MapPin aria-hidden="true" className="size-3 shrink-0" />
+          {HintIcon ? (
+            <HintIcon aria-hidden="true" className="size-3 shrink-0" />
+          ) : null}
           {hint}
         </dd>
       ) : null}

@@ -102,6 +102,11 @@ export default async function ProviderJobsPage() {
     <div className="mx-auto w-full max-w-2xl">
       <header className="animate-rise">
         <h1 className="font-display text-display-md">{t("title")}</h1>
+        {/* "Signed in as Anita Rai" alongside a header saying Bikas reads as
+            somebody else's session. It never was — `getMyProvider` resolves the
+            listing from `auth.uid()` and the db suite proves the policy — but a
+            label that has to be explained is a bad label. It is the listing,
+            so it says so. */}
         <p className="mt-1 text-body-md text-muted-foreground">
           {t("subtitle", { name: me.displayName })}
         </p>

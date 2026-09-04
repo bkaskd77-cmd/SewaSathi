@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   bookableDays,
+  formatInstant,
   formatSlotInstant,
   isValidSlot,
   slotLabel,
@@ -108,5 +109,48 @@ describe("Nepal Time, not UTC", () => {
     expect(slotLabel({ start: "", end: "", startHour: 7, endHour: 9 })).toBe(
       "07:00 – 09:00",
     );
+  });
+});
+
+/**
+ * A moment, rendered as a moment.
+ *
+ * The receipt printed "Paid on 2026-09-04 · 16:00 – 18:00" because it reused
+ * the *slot* formatter — which states an hour the payment did not happen and a
+ * two-hour range that means nothing for an event. Two different shapes of time,
+ * two functions, and this is the boundary between them.
+ */
+describe("formatInstant renders an event, not a window", () => {
+  it("gives no range, because a payment has no duration", () => {
+    const out = formatInstant("2026-09-04T10:47:00.000Z");
+    expect(out).not.toContain("–");
+  });
+
+  it("shifts to Nepal Time rather than showing UTC", () => {
+    // 10:47 UTC is 16:32 NPT (+5h45m). Showing 10:47 to somebody in Kathmandu
+    // is the bug this whole module exists to prevent.
+    expect(formatInstant("2026-09-04T10:47:00.000Z")).toBe("4 Sep 2026, 4:32 pm");
+  });
+
+  it("keeps the minutes, which a slot never has", () => {
+    expect(formatInstant("2026-09-04T03:20:00.000Z")).toContain(":05");
+  });
+
+  it("localises the month and leaves the digits Latin", () => {
+    // Latin digits on purpose: a reader may be matching this against a bank
+    // statement or a gateway receipt, and neither is in Devanagari.
+    const ne = formatInstant("2026-09-04T10:47:00.000Z", "ne");
+    expect(ne).toContain("सेप्टेम्बर");
+    expect(ne).toContain("2026");
+  });
+
+  it("handles midnight and noon without printing 0 o'clock", () => {
+    // 18:15 UTC is 00:00 NPT the next day.
+    expect(formatInstant("2026-09-04T18:15:00.000Z")).toContain("12:00 am");
+    expect(formatInstant("2026-09-04T06:15:00.000Z")).toContain("12:00 pm");
+  });
+
+  it("returns the input rather than throwing on a bad date", () => {
+    expect(formatInstant("not-a-date")).toBe("not-a-date");
   });
 });

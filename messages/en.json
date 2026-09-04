@@ -543,7 +543,8 @@
       "in_progress": "Work has started. The final price was agreed before it began.",
       "completed": "This job is done. Pay the agreed amount directly to your professional.",
       "cancelled": "This booking was cancelled. Nothing is owed.",
-      "no_provider_found": "Nobody was free for this one. Call us and we will arrange it by hand."
+      "no_provider_found": "Nobody was free for this one. Call us and we will arrange it by hand.",
+      "completedPaid": "All done and paid. Thank you — we hope the work was good."
     },
     "detail": {
       "back": "All bookings",
@@ -752,7 +753,7 @@
   "provider": {
     "jobs": {
       "title": "My jobs",
-      "subtitle": "Signed in as {name}",
+      "subtitle": "Jobs for your listing, {name}",
       "asap": "As soon as possible",
       "when": "Time",
       "quote": "Price",

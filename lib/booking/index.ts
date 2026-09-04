@@ -31,6 +31,7 @@ export {
 
 export {
   bookableDays,
+  formatInstant,
   formatSlotInstant,
   isValidSlot,
   slotLabel,

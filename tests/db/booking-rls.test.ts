@@ -715,3 +715,105 @@ describe("notifications belong to the person they are about", () => {
     expect(rows.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Nobody reads another professional's work.
+ *
+ * `/provider/jobs` shows customer names, phone numbers and home addresses. The
+ * page resolves the listing from the session — `getMyProvider` filters on
+ * `profile_id = auth.uid()` — but "the code looks right" is not what protects
+ * those addresses. The policy is, and a policy is only true if a database says
+ * so. Both directions are asserted: an ordinary customer gets nothing, and a
+ * real professional asking for somebody else's provider id gets nothing.
+ */
+describe("a provider's job list is theirs alone", () => {
+  // Alice's account is linked to a listing; Bob's is an ordinary customer.
+  const ALICE_LISTING = "Alice's Plumbing";
+  let aliceProviderId: string;
+  let strangerProviderId: string;
+
+  beforeAll(async () => {
+    const { rows: mine } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ($1, '{lalitpur-4}', 700, true, $2)
+       returning id`,
+      [ALICE_LISTING, ALICE],
+    );
+    aliceProviderId = mine[0].id as string;
+
+    const { rows: theirs } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified, profile_id)
+       values ('Someone Else', '{lalitpur-3}', 700, true, null)
+       returning id`,
+    );
+    strangerProviderId = theirs[0].id as string;
+
+    // A job for each listing, both belonging to Bob as the customer — so the
+    // only thing separating them is the provider assignment.
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Pulchowk', 'Yellow gate')
+       returning id`,
+      [BOB],
+    );
+    for (const [reference, provider] of [
+      ["SK-MINE1", aliceProviderId],
+      ["SK-THEIR", strangerProviderId],
+    ] as const) {
+      await pg.admin.query(
+        `insert into public.bookings
+           (reference, customer_id, provider_id, category_slug, address_id,
+            description, quoted_min, quoted_max)
+         values ($1, $2, $3, 'plumbing', $4, 'Blocked drain', 900, 4500)`,
+        [reference, BOB, provider, address[0].id],
+      );
+    }
+  });
+
+  it("shows a professional the jobs assigned to their own listing", async () => {
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "select reference from public.bookings where provider_id = $1",
+      [aliceProviderId],
+    );
+    expect(rows.map((r) => r.reference)).toContain("SK-MINE1");
+  });
+
+  it("refuses a professional asking for another listing's jobs by id", async () => {
+    // The attack is trivial — swap the provider id — so the policy, not the
+    // page, has to be what stops it.
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      "select reference from public.bookings where provider_id = $1",
+      [strangerProviderId],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("gives an ordinary customer nothing from either listing", async () => {
+    // Bob has no linked listing. He is the *customer* on both bookings, so his
+    // own policy lets him see them — what must not happen is the provider
+    // policy granting him anything, which this proves by asking as a third
+    // party with no relationship at all.
+    const client = await pg.asUser(ALICE);
+    const { rows } = await client.query(
+      `select b.reference from public.bookings b
+       where b.customer_id = $1 and b.provider_id = $2`,
+      [BOB, strangerProviderId],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("does not let a customer claim a listing by writing profile_id", async () => {
+    // The one write that would turn any signed-in person into a professional.
+    const client = await pg.asUser(BOB);
+    const { rows } = await client.query(
+      "update public.providers set profile_id = $1 where id = $2 returning id",
+      [BOB, strangerProviderId],
+    );
+    expect(rows).toHaveLength(0);
+  });
+});

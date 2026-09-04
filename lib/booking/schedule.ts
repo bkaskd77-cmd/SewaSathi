@@ -43,13 +43,22 @@ export type Slot = {
 };
 
 /** The wall-clock date in Nepal, for an instant. */
-function nptParts(date: Date): { y: number; m: number; d: number; h: number } {
+function nptParts(date: Date): {
+  y: number;
+  m: number;
+  d: number;
+  h: number;
+  min: number;
+} {
   const shifted = new Date(date.getTime() + NPT_OFFSET_MINUTES * 60_000);
   return {
     y: shifted.getUTCFullYear(),
     m: shifted.getUTCMonth(),
     d: shifted.getUTCDate(),
     h: shifted.getUTCHours(),
+    // Minutes matter for an instant, never for a slot — slots start on the
+    // hour by construction.
+    min: shifted.getUTCMinutes(),
   };
 }
 
@@ -160,4 +169,36 @@ export function formatSlotInstant(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
 
   return `${parts.y}-${pad(parts.m + 1)}-${pad(parts.d)} · ${pad(parts.h)}:00 – ${pad(end)}:00`;
+}
+
+/** Month names, both languages. Short enough not to need a formatter. */
+const MONTHS = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  ne: ["जनवरी", "फेब्रुअरी", "मार्च", "अप्रिल", "मे", "जुन", "जुलाई", "अगस्ट", "सेप्टेम्बर", "अक्टोबर", "नोभेम्बर", "डिसेम्बर"],
+} as const;
+
+/**
+ * "4 Sep 2026, 4:32 pm" — a moment, not a window.
+ *
+ * `formatSlotInstant` renders a booking *slot*, so it prints a two-hour range
+ * and an ISO-shaped date. Passing a settlement time through it produced
+ * "Paid on 2026-09-04 · 16:00 – 18:00", which states an hour the payment did
+ * not happen and a range that means nothing for an event. A payment has a
+ * moment; this is that.
+ *
+ * Nepal Time, like everything else here. Latin digits in both languages: the
+ * reader may need to match this against a bank statement or a gateway's own
+ * receipt, and neither of those is in Devanagari.
+ */
+export function formatInstant(iso: string, locale: "en" | "ne" = "en"): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+
+  const parts = nptParts(when);
+  const hour12 = parts.h % 12 === 0 ? 12 : parts.h % 12;
+  const suffix = parts.h < 12 ? "am" : "pm";
+  const minute = String(parts.min).padStart(2, "0");
+  const month = MONTHS[locale][parts.m];
+
+  return `${parts.d} ${month} ${parts.y}, ${hour12}:${minute} ${suffix}`;
 }

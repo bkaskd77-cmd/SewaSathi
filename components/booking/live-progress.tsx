@@ -26,9 +26,12 @@ import { cn } from "@/lib/utils";
 export function LiveProgress({
   bookingId,
   initialStatus,
+  settled,
 }: {
   bookingId: string;
   initialStatus: BookingStatus;
+  /** Whether the money has actually arrived — not the same as work finished. */
+  settled: boolean;
 }) {
   const t = useTranslations("booking");
   const router = useRouter();
@@ -62,7 +65,15 @@ export function LiveProgress({
         <p className="text-body-sm font-semibold text-primary">
           {t(`status.${status}`)}
         </p>
-        <p className="mt-1 text-body-md">{t(`whatNext.${status}`)}</p>
+        <p className="mt-1 text-body-md">
+          {/* "Completed" is about the work; being paid is a separate machine —
+              a booking can be finished and unpaid, which for cash is the normal
+              case. The banner has to read both or it contradicts the payment
+              panel directly below it. */}
+          {status === "completed" && settled
+            ? t("whatNext.completedPaid")
+            : t(`whatNext.${status}`)}
+        </p>
       </div>
 
       {/* Cancelled and no-provider are ends, not stages, so the track is

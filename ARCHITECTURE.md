@@ -154,6 +154,17 @@ Where a change on one side cannot reach the other.
   because a gateway's credentials cannot be verified any other way. `unknown`
   is never counted as healthy — an unverifiable dependency is what broke
   sign-in.
+- **A late cancellation costs the professional a trip, and nothing recovers
+  it.** The window blocks a customer from cancelling once a professional is
+  `en_route`, which covers the case that matters most, and `cancellation_fee`
+  is always 0 — see `lib/booking/cancellation.ts` for why a fee we cannot
+  collect is worse than none. What remains uncovered: a customer who cancels at
+  `accepted`, seconds before the professional sets off. That is a real cost
+  borne entirely by them. It is left open deliberately rather than papered over
+  with a charge: the instrument that fixes it is reputation — a completion and
+  reliability record on both sides — and that does not exist until Phase 10.
+  Revisit it then, as a policy decision, not a schema one; the columns are
+  already there.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.
