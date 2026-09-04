@@ -159,6 +159,50 @@ export async function createAddress(
   const supabase = createClient();
 
   try {
+    /*
+     * Do they already have this address?
+     *
+     * Without this, every booking from the same flat added another identical
+     * "home" to the list — five bookings, five rows, an address step where
+     * every option is the same option. Matching on the doorstep rather than
+     * the whole record: case and surrounding whitespace differ every time
+     * somebody retypes, and none of that makes it a different place.
+     *
+     * The label is not part of the match, on purpose. The same flat saved as
+     * "home" and later as "flat" is one place, and treating the label as
+     * identity would let the duplicates back in through the front door.
+     *
+     * `addresses_one_per_place_idx` enforces the same rule in the database.
+     * This lookup exists so the customer gets their existing address back
+     * instead of a constraint error.
+     */
+    const { data: existing } = await supabase
+      .from("addresses")
+      .select("id")
+      .eq("profile_id", profileId)
+      .eq("area_key", area.key)
+      .ilike("tole", parsed.tole.trim())
+      .ilike("landmark", parsed.landmark.trim())
+      .limit(1);
+
+    const already = existing?.[0]?.id as string | undefined;
+    if (already) {
+      // Still honour "save for next time" — choosing an address again is a
+      // reasonable signal that it is the one they want by default.
+      if (input.saveForNextTime !== false) {
+        await supabase
+          .from("addresses")
+          .update({ is_default: false })
+          .eq("profile_id", profileId)
+          .eq("is_default", true);
+        await supabase
+          .from("addresses")
+          .update({ is_default: true })
+          .eq("id", already);
+      }
+      return { ok: true, id: already };
+    }
+
     // The first address a customer saves is their default. A partial unique
     // index enforces one default per person, so this clears the old one first
     // rather than relying on the insert to win a race with itself.

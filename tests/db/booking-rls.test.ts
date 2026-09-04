@@ -817,3 +817,73 @@ describe("a provider's job list is theirs alone", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+/**
+ * One address per doorstep.
+ *
+ * `createAddress` inserted unconditionally, so every booking from the same flat
+ * added another identical "home" — a customer with five bookings saw five
+ * identical options on the address step, which is worse than showing none.
+ *
+ * The index is what makes it true. The data layer looks for a match first so
+ * the customer gets their existing address rather than an error, but that is a
+ * courtesy; this is the guarantee, and it has to hold against a caller that
+ * forgets to look.
+ */
+describe("an address cannot be saved twice", () => {
+  const place = {
+    area: "lalitpur-4",
+    city: "Lalitpur",
+    ward: 4,
+    tole: "Jhamsikhel",
+    landmark: "Blue gate",
+  };
+
+  const save = (
+    profile: string,
+    tole: string,
+    landmark: string,
+    label = "home",
+  ) =>
+    pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [profile, label, place.area, place.city, place.ward, tole, landmark],
+    );
+
+  it("refuses the same place twice for the same person", async () => {
+    await save(BOB, "Sanepa", "Green shutters");
+    await expect(save(BOB, "Sanepa", "Green shutters")).rejects.toThrow(
+      /duplicate key|unique/i,
+    );
+  });
+
+  it("treats different case and stray spaces as the same place", async () => {
+    // Somebody retyping their address does not capitalise it identically, and
+    // that is not a second home.
+    await save(BOB, "Kupondole", "Red door");
+    await expect(save(BOB, "  kupondole ", "RED DOOR")).rejects.toThrow(
+      /duplicate key|unique/i,
+    );
+  });
+
+  it("does not let a different label split one place into two", async () => {
+    // The label is not identity. "Sanepa / Green shutters" was already saved
+    // as "home" above, so saving it again as "flat" must still collide — the
+    // temptation to add `label` to the index is real, and doing so would put
+    // every duplicate straight back.
+    await expect(
+      save(BOB, "Sanepa", "Green shutters", "flat"),
+    ).rejects.toThrow(/duplicate key|unique/i);
+  });
+
+  it("still lets two people save the same building", async () => {
+    // Flatmates, or a landlord and a tenant. The key is per person.
+    await expect(save(ALICE, "Sanepa", "Green shutters")).resolves.toBeTruthy();
+  });
+
+  it("still lets one person save two different places", async () => {
+    await expect(save(BOB, "Sanepa", "Blue awning")).resolves.toBeTruthy();
+  });
+});
