@@ -172,6 +172,25 @@ export function PaymentPanel(props: PaymentPanelProps) {
     }
   }
 
+  /** Give up on a stuck attempt — after the gateway confirms it never paid. */
+  async function abandon() {
+    if (busy || !props.reference) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { abandonPaymentAction } = await import(
+        "@/app/[locale]/(app)/bookings/[id]/actions"
+      );
+      const result = await abandonPaymentAction(props.bookingId, props.reference);
+      if (result.ok) router.refresh();
+      else setError(result.reason ?? "failed");
+    } catch {
+      setError("network");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** Ask the gateway again, rather than just re-reading what we believed. */
   async function recheck() {
     if (busy || !props.reference) return;
@@ -321,6 +340,20 @@ export function PaymentPanel(props: PaymentPanelProps) {
                 <Loader2 aria-hidden="true" className="animate-spin" />
               ) : null}
               {t("processing.recheck")}
+            </Button>
+            {/* The way out. Not a cancel: the gateway is asked first, and an
+                attempt it reports as paid settles instead of being discarded.
+                Without this a customer who opened eSewa and changed their mind
+                could never pay the booking by any other method — and cash is
+                the common path here. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 mt-3"
+              onClick={() => void abandon()}
+              disabled={busy}
+            >
+              {t("processing.payAnotherWay")}
             </Button>
             {stale ? (
               <a

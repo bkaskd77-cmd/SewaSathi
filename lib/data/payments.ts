@@ -734,3 +734,61 @@ export async function findPaymentByReference(
   const payment = rowToPayment(data as Record<string, unknown>);
   return { payment, bookingId: payment.bookingId };
 }
+
+/**
+ * Give up on a gateway attempt and choose another way to pay.
+ *
+ * A customer who opens eSewa, changes their mind and closes the tab leaves an
+ * attempt sitting at `initiated` for ever. The panel correctly says money may
+ * be in flight — but with no way past it, the booking becomes unpayable by any
+ * other method. Cash is the common path here, so that is not a corner case,
+ * it is Tuesday.
+ *
+ * IT ASKS THE GATEWAY FIRST, AND THAT IS THE WHOLE SAFETY OF IT. Marking an
+ * attempt failed when the customer actually paid would show them as owing
+ * money they have already handed over. So this runs the same verification the
+ * return route does: if the gateway says paid, it settles and the abandon
+ * never happens. Only an explicit "not paid" from the gateway releases the
+ * row. A gateway we cannot reach refuses — an unanswered question is not a no.
+ */
+export async function abandonPayment(input: {
+  reference: string;
+  actorId: string;
+}): Promise<{ ok: true; settled: boolean } | { ok: false; reason: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("payments")
+    .select(COLUMNS)
+    .eq("our_reference", input.reference)
+    .maybeSingle();
+
+  if (!data) return { ok: false, reason: "unknownReference" };
+  const payment = rowToPayment(data as Record<string, unknown>);
+
+  const booking = await readBooking(payment.bookingId);
+  if (!booking || booking.customer_id !== input.actorId) {
+    return { ok: false, reason: "notYours" };
+  }
+  if (payment.status === "paid") return { ok: true, settled: true };
+
+  // The gateway's answer decides, not the customer's intent.
+  const verified = await verifyAndSettle(input.reference, {});
+  if (verified.ok) return { ok: true, settled: true };
+  if (verified.reason === "verificationUnavailable") {
+    return { ok: false, reason: "gatewayUnavailable" };
+  }
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ status: "failed", failure_reason: "abandonedByCustomer" })
+    .eq("id", payment.id)
+    .in("status", ["pending", "initiated"]);
+
+  if (error) {
+    console.error(`[payments] abandon failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+  return { ok: true, settled: false };
+}

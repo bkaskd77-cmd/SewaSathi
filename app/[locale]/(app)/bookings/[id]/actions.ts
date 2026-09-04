@@ -7,6 +7,7 @@ import { site } from "@/lib/config/site";
 import { cancelBooking, getBooking } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
 import {
+  abandonPayment,
   approveFinalAmount,
   confirmCashPayment,
   disputeAmount,
@@ -158,4 +159,22 @@ export async function recheckPaymentAction(
   const result = await verifyAndSettle(reference, {});
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: result.ok };
+}
+
+/**
+ * "Pay a different way" on an attempt that never came back.
+ *
+ * Not a cancel: the gateway is asked first, and a payment it reports as
+ * completed settles instead of being thrown away. See `abandonPayment`.
+ */
+export async function abandonPaymentAction(
+  bookingId: string,
+  reference: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await abandonPayment({ reference, actorId: profile.id });
+  revalidatePath(`/bookings/${bookingId}`);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
 }
