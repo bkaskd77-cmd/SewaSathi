@@ -628,6 +628,41 @@ follows from that.
   eSewa). Client Components import `@/lib/payments/client`. The linter enforces
   both, and the bundle build is what caught it the first time.
 
+## Security
+
+`SECURITY.md` is the map: every server action and route handler with who may
+call it, what it may act on and where that is enforced; the data inventory;
+and the admin model. It is updated in the same commit as anything that adds an
+endpoint or stores a new kind of personal data.
+
+- **The actor comes from the session, never from the caller.** Every action
+  re-reads `getSessionProfile()` and passes the id down as `actorId`; the data
+  layer re-reads the subject and decides. Three holes have been found this way
+  and all three were the same shape — an id arrived from the browser and
+  nothing asked whose it was.
+- **Enforce it in the database where a rule has no legitimate exception.**
+  `enforce_booking_address_ownership` has no service-role bypass, because no
+  path books a job at an address its customer does not own.
+- **The uploaded file is whatever its first bytes say it is.** `lib/security/image.ts`
+  checks size before decoding, magic bytes rather than the content type,
+  dimensions from the file's own header, and strips EXIF — a photograph taken
+  in somebody's kitchen carries that kitchen's coordinates.
+- **`security_events` is append-only and the trigger refuses UPDATE and DELETE
+  for every caller, service role included.** A log the application can edit
+  proves nothing. `lib/audit` never throws: the event already happened.
+- **Identity documents are the owner's and admins', nobody else's**, in a
+  private bucket, and every admin read is written to the log by
+  `recordDocumentAccess`. It is a separate function so it cannot be quietly
+  skipped.
+- **The db suite reads the catalog, not a list somebody maintained.** A table
+  added later without policies fails `tests/db/booking-rls.test.ts` the moment
+  it exists. Nothing in `supabase/migrations/` is skipped by the harness any
+  more — the storage schema is modelled.
+- **`npm run build` runs `check:secrets`**, which scans the client bundle for
+  the value and the name of every secret. Next decides what is client code by
+  tracing imports, so a server module can become client code without being
+  edited.
+
 ## Schema
 
 `supabase/migrations/`, applied in filename order. If it is not in a migration

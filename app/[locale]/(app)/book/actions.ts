@@ -16,6 +16,7 @@ import {
   type CreateBookingResult,
 } from "@/lib/data/bookings";
 import { listProviders } from "@/lib/data/providers";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import { rankProviders } from "@/lib/data/ranking";
 
 /**
@@ -115,6 +116,12 @@ export async function confirmBookingAction(input: {
 }): Promise<CreateBookingResult> {
   const profile = await requireProfile();
   const locale = (await getLocale()) as Locale;
+
+  // A real customer books one job, occasionally two. Twenty in an hour is a
+  // script, and every booking dispatches to real professionals — the cost of
+  // this one being abused is other people's time, not ours.
+  const limit = await checkRateLimit("booking", profile.id);
+  if (!limit.ok) return { ok: false, errors: { form: "tooManyRequests" } };
 
   let addressId = input.addressId ?? null;
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
 import { hasSupabaseConfig } from "@/lib/env";
+import { rateLimitStore } from "@/lib/server/rate-limit";
 
 /**
  * Can this product actually serve a customer right now?
@@ -274,6 +275,30 @@ async function checkServiceRole(): Promise<Check> {
   }
 }
 
+/**
+ * Is the rate limiter counting somewhere both instances can see?
+ *
+ * In-process counters are per serverless instance, so a burst spread across
+ * instances gets a multiple of every ceiling and a cold start resets them. As
+ * a soft cost ceiling that is honest; as a control it is not, and the
+ * difference is invisible from the outside — which is exactly what this
+ * endpoint exists to make visible.
+ */
+function checkRateLimiter(): Check {
+  return rateLimitStore() === "shared"
+    ? {
+        name: "rateLimit",
+        state: "ok",
+        detail: "Shared store — the ceilings hold across instances.",
+      }
+    : {
+        name: "rateLimit",
+        state: "unknown",
+        detail:
+          "In-process counters. Each serverless instance enforces its own ceiling, so the real limit is a multiple of the configured one. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+      };
+}
+
 /** Triage falls back to the keyword matcher without a key, so this is a warning. */
 function checkTriage(): Check {
   return process.env.ANTHROPIC_API_KEY
@@ -398,6 +423,7 @@ export async function GET(request: Request) {
       checkRegion(),
     ])),
     checkTriage(),
+    checkRateLimiter(),
   ];
 
   if (deepAllowed) checks.push(await checkSmsDelivery());

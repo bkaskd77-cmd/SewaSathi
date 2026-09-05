@@ -531,7 +531,8 @@
           "notAnImage": "That file is not a photo.",
           "unsupportedFormat": "Please use a photo from your camera — a JPG.",
           "tooManyPixels": "That photo is too large to display. Try a smaller one."
-        }
+        },
+        "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again."
       }
     },
     "status": {
@@ -814,7 +815,8 @@
       "landline": "That's a landline. We can only text a mobile.",
       "prefix": "Mobile numbers here start 97 or 98.",
       "tooShort": "Too short — a mobile number is 10 digits.",
-      "tooLong": "Too long — a mobile number is 10 digits."
+      "tooLong": "Too long — a mobile number is 10 digits.",
+      "tooManyRequests": "That is a lot of applications at once. Wait a minute and try again."
     },
     "standards": "Before you join, read <link>how we handle under-reported jobs</link> — what we count, what we never count, and what each step costs."
   },
