@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Provider } from "@/lib/data/providers";
 import { needsReplacement, pickAlternatives } from "@/lib/data/recommendations";
-import { withdrawalPenalty, scoreProvider } from "@/lib/data/ranking";
+import { withdrawalRankingPenalty, scoreProvider } from "@/lib/data/ranking";
 
 /**
  * What a customer is offered when their professional pulls out.
@@ -106,14 +106,14 @@ describe("the search widens rather than coming back empty", () => {
 
 describe("a habit of pulling out costs list position", () => {
   it("costs nothing when there is no history", () => {
-    expect(withdrawalPenalty(provider().stats)).toBe(0);
+    expect(withdrawalRankingPenalty(provider().stats)).toBe(0);
   });
 
   it("barely registers for one withdrawal in a long record", () => {
     const seasoned = provider({
       stats: { ...provider().stats, jobsAccepted: 200, withdrawals: 1 },
     });
-    expect(withdrawalPenalty(seasoned.stats)).toBeLessThan(0.02);
+    expect(withdrawalRankingPenalty(seasoned.stats)).toBeLessThan(0.02);
   });
 
   it("bites when one job in three is abandoned", () => {
@@ -122,7 +122,7 @@ describe("a habit of pulling out costs list position", () => {
     });
     // The full penalty: more than double the verification bonus, so this
     // outweighs a badge rather than being cancelled by one.
-    expect(withdrawalPenalty(flaky.stats)).toBeCloseTo(0.12, 5);
+    expect(withdrawalRankingPenalty(flaky.stats)).toBeCloseTo(0.12, 5);
   });
 
   it("does not let a single data point condemn a new professional", () => {
@@ -135,8 +135,8 @@ describe("a habit of pulling out costs list position", () => {
     const flaky = provider({
       stats: { ...provider().stats, jobsAccepted: 30, withdrawals: 10 },
     });
-    expect(withdrawalPenalty(newcomer.stats)).toBeLessThan(
-      withdrawalPenalty(flaky.stats),
+    expect(withdrawalRankingPenalty(newcomer.stats)).toBeLessThan(
+      withdrawalRankingPenalty(flaky.stats),
     );
   });
 

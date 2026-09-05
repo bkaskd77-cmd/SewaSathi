@@ -108,7 +108,14 @@ export const VERIFIED_BONUS = 0.05;
  * failure rate on a single data point, so five phantom clean jobs sit under
  * everybody until their own record outweighs them.
  */
-export const WITHDRAWAL_PENALTY_MAX = 0.12;
+export const WITHDRAWAL_RANKING_PENALTY_MAX = 0.12;
+/*
+ * NOT MONEY. This is a subtraction from a relevance score — how far down the
+ * list somebody appears — and nothing anywhere converts it into rupees. It is
+ * named for what it costs because "penalty" beside a number reads as a fine,
+ * and a professional who believed we fined them for withdrawing would be
+ * right to leave.
+ */
 /** Phantom clean jobs, so a thin record cannot swing the rate. */
 const WITHDRAWAL_PRIOR = 5;
 /** The rate at which the full penalty applies. One job in five is a pattern. */
@@ -149,13 +156,13 @@ export function bayesianRating(average: number, count: number): number {
 
 /**
  * How much this professional's record of pulling out costs them, 0 to
- * WITHDRAWAL_PENALTY_MAX. Exported so a future provider dashboard can show
+ * WITHDRAWAL_RANKING_PENALTY_MAX. Exported so a future provider dashboard can show
  * somebody the number rather than leaving them to guess why work dried up.
  */
-export function withdrawalPenalty(stats: Provider["stats"]): number {
+export function withdrawalRankingPenalty(stats: Provider["stats"]): number {
   if (stats.withdrawals <= 0) return 0;
   const rate = stats.withdrawals / (stats.jobsAccepted + WITHDRAWAL_PRIOR);
-  return WITHDRAWAL_PENALTY_MAX * clamp01(rate / WITHDRAWAL_RATE_CEILING);
+  return WITHDRAWAL_RANKING_PENALTY_MAX * clamp01(rate / WITHDRAWAL_RATE_CEILING);
 }
 
 export type ScoreParts = Record<keyof RankingWeights, number>;
@@ -213,7 +220,7 @@ export function scoreProvider(
     score += weights[key] * parts[key];
   }
   if (provider.isVerified) score += VERIFIED_BONUS;
-  score -= withdrawalPenalty(provider.stats);
+  score -= withdrawalRankingPenalty(provider.stats);
 
   return { score, parts };
 }

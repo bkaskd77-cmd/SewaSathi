@@ -78,3 +78,17 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Claims: `/legal/terms`, `/legal/privacy` and `/legal/refunds` are presented as the terms a customer agrees to at sign-in. They are first drafts written by a developer, not by a lawyer, and they have not been reviewed against Nepali consumer, privacy or e-commerce law.
 - Lives in: `lib/content/legal/*.ts`, rendered by `app/[locale]/(app)/legal/[slug]/page.tsx`
 - Replaced by: review and revision by a Nepali lawyer. The pages carry a visible draft notice until then; removing that notice is part of resolving this entry.
+
+## Ask at merchant onboarding: gateway-funded cashback
+
+Not a blocker — a question that must be asked while somebody from eSewa and
+Khalti is on the phone, because it is far harder to raise afterwards.
+
+Both run cashback and promo campaigns for merchants. If either funds an
+incentive for paying through them, the customer-side digital incentive costs us
+nothing and reaches exactly the customers we would otherwise pay to reach. Ask
+what campaigns are open to a new merchant, what the merchant has to fund, and
+whether the platform can be listed in their own app.
+
+Until then the incentive is the four true things on the payment screen
+(`components/booking/digital-benefits.tsx`) and no money at all.

@@ -6,6 +6,7 @@ import { Banknote, Info, Pencil, Smartphone, Wallet } from "lucide-react";
 import { FieldError } from "@/components/auth/field-error";
 import { Badge } from "@/components/ui/badge";
 import type { FlowStep } from "@/lib/booking";
+import { DigitalBenefits } from "@/components/booking/digital-benefits";
 import { cn } from "@/lib/utils";
 
 export type PaymentMethod = "cash" | "esewa" | "khalti";
@@ -128,6 +129,10 @@ export function StepReview({
             );
           })}
         </div>
+
+        {/* Beside the buttons, not after the choice: a reason revealed once
+            somebody has already picked cannot inform the picking. */}
+        <DigitalBenefits className="mt-4 rounded-xl border border-border bg-muted/30 p-3" />
       </div>
 
       {/*

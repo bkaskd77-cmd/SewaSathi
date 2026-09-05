@@ -484,7 +484,7 @@ the customer picked and waited for ever if they never opened the app.
   what keeps them out of the customer's replacement list, and what
   `enforce_booking_immutability` checks before letting any caller assign them
   again. `provider_stats.withdrawals` and `.declines` are the same fact counted
-  for ranking, and `withdrawalPenalty` in `lib/data/ranking.ts` is where it
+  for ranking, and `withdrawalRankingPenalty` in `lib/data/ranking.ts` is where it
   costs list position — a rate with a prior, subtracted rather than blended in,
   because the six weights describe how well somebody works and this describes
   whether they show up.
@@ -541,16 +541,41 @@ follows from that.
   a notification key, so Phase 13 sends it over SMS by adding a channel.
 - **Digital is paid out sooner because it is verified sooner** —
   `lib/payments/payout.ts` holds every lever in one place. Live: digital
-  settles at **13%** (`digitalDiscountBps` 200) against cash's 15%, digital
-  pays out in 24 hours and cash in 7 days.
+  settles at **13%** (`digitalCommissionReductionBps` 200) against cash's 15%,
+  digital pays out in 24 hours and cash in 7 days. **Every number in
+  `payout.ts` moves money between us and the professional — none of it touches
+  what the customer pays.** The first name for that constant was
+  `digitalDiscountBps` and it was misread as a customer discount by the person
+  choosing the number, so the rule is now: a money constant is named for who
+  pays it.
 - **There is no cash surcharge, and that is not the discount with the sign
   flipped.** The two produce nearly the same gap and are morally nothing alike:
   cash in Nepal is not a preference, it is the only instrument a lot of people
   have, and those people skew older and poorer. A surcharge would tax them for
   our fraud problem and land hardest on the professionals who serve them. **A
   discount rewards a choice; a surcharge punishes a circumstance.**
-  `cashSurchargeBps` stays 0.
-- **The customer-side incentive is unbuilt until there is a baseline.**
+  `cashCommissionSurchargeBps` stays 0.
+- **The customer-side incentive is non-monetary and it is already built.**
+  `components/booking/digital-benefits.tsx` says what digital actually gets a
+  customer, at both places they choose a method: a refund comes straight back
+  to them, nothing to confirm afterwards, a receipt they can show a landlord or
+  an office, no cash in the house. All four are true, none costs a rupee, and
+  every line is written as a benefit — "refunds come straight back to you" and
+  "cash refunds are slow" carry the same information and the second reads as
+  telling somebody off for being poor. Shown beside the buttons, not after the
+  choice, because a reason revealed afterwards cannot inform the choice.
+  **If money is ever added it is credit toward a next booking, never money off
+  this one** — cheaper, it earns the second booking, and it does not make cash
+  customers feel taxed. Before spending anything, ask eSewa and Khalti at
+  merchant onboarding which cashback campaigns we can join: a gateway-funded
+  incentive costs us nothing and reaches the same customer.
+- **A money constant is named for who pays it.** `digitalDiscountBps` was
+  misread as a customer discount by the person setting the number; it is
+  `digitalCommissionReductionBps` now, and every constant in `payout.ts` says
+  in its own comment that it moves money between us and the professional and
+  never touches the customer's price. `WITHDRAWAL_RANKING_PENALTY_MAX` says
+  "ranking" for the same reason — a penalty beside a number reads as a fine.
+- **The cash-share baseline comes before any money is spent.**
   `payment_mix_signals` and `lib/data/payment-mix.ts` are that baseline — cash
   share by category, by ward and by month, reported **by value as well as by
   count**, because cash tends to be the big jobs and a platform reading only

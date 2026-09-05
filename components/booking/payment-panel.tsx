@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { DigitalBenefits } from "@/components/booking/digital-benefits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -602,6 +603,11 @@ export function PaymentPanel(props: PaymentPanelProps) {
           })}
         </div>
       </fieldset>
+
+      {/* The same four true things, at the second place somebody chooses a
+          method — the job is done and they are paying now. See
+          components/booking/digital-benefits.tsx. */}
+      <DigitalBenefits className="mt-4 rounded-xl border border-border bg-muted/30 p-3" />
 
       <Button
         className="btn-tactile btn-beacon mt-4 w-full sm:w-auto"

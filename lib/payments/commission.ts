@@ -16,6 +16,14 @@
  * is no rounding drift to argue about six months later.
  */
 
+/**
+ * 15%, IN BASIS POINTS, CHARGED TO THE PROFESSIONAL.
+ *
+ * It comes out of what they are paid; it is never added to what the customer
+ * is quoted or billed. The customer's price is the band on the booking and the
+ * final amount agreed on site, and no constant in this module or in `payout.ts`
+ * can move either of them.
+ */
 export const COMMISSION_BPS = 1500;
 
 export type Split = {

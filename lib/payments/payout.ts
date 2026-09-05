@@ -22,9 +22,20 @@
  *   3. INSTANT PAYOUT. An opt-in fee to get money the same day. Turns the
  *      hold time into a service rather than only a cost, and it prices the
  *      float honestly.
- *   4. CUSTOMER SIDE. A credit or small discount for paying digitally. Often
- *      the strongest of the four, because the customer usually picks the
- *      method and has no stake in the professional's fee at all.
+ *   4. CUSTOMER SIDE. DELIBERATELY NOT A PRICE LEVER, and there is no constant
+ *      for it here. What digital actually gets a customer is said plainly at
+ *      the moment they choose — refunds straight back to them, nothing to
+ *      confirm afterwards, a receipt they can show a landlord or an office,
+ *      no cash in the house. That costs nothing and is true.
+ *
+ *      If money is ever added it will be CREDIT TOWARD A NEXT BOOKING, never
+ *      money off this one: it is cheaper, it drives a second booking, and it
+ *      does not make the customers who can only pay cash feel taxed for it.
+ *      A discount off the current job would do the opposite of all three.
+ *
+ *      Before spending anything, ask eSewa and Khalti during merchant
+ *      onboarding what cashback campaigns we can join. If the gateway funds
+ *      it, the incentive costs us nothing and reaches the same customer.
  *
  * NOT a lever: ranking. Placing digital-preferring professionals higher would
  * make list position depend on something the customer chose, and the list is
@@ -41,12 +52,23 @@ export const PAYOUT_RULES = {
   /** Lever 1. Reconciled from a customer's confirmation, so it waits. */
   cashHoldHours: 24 * 7,
   /**
-   * Lever 2. Basis points taken OFF the commission for digital. Live at 200,
-   * so a digital job is settled at 13% against cash's 15%.
+   * Lever 2. Basis points taken OFF THE PLATFORM FEE CHARGED TO THE
+   * PROFESSIONAL when a job settles digitally. Live at 200, so a digital job
+   * is settled at 13% commission against cash's 15%.
+   *
+   * THE CUSTOMER PAYS THE SAME AMOUNT WHATEVER METHOD THEY CHOOSE. Nothing in
+   * this product changes the price a customer is quoted or billed based on how
+   * they pay. This moves what the professional keeps, and nothing else.
+   *
+   * It was called `digitalDiscountBps` and was misread as a customer discount
+   * by the person who set the number — which is the whole argument for the
+   * longer name.
    */
-  digitalDiscountBps: 200,
+  digitalCommissionReductionBps: 200,
   /**
-   * Lever 2. Basis points ADDED to the commission for cash. DELIBERATELY ZERO,
+   * Lever 2. Basis points ADDED to the platform fee charged to the
+   * professional on a cash job. Not a charge to the customer, who pays the
+   * quoted amount either way. DELIBERATELY ZERO,
    * and it is not the same decision as the discount with the sign flipped.
    *
    * The two are arithmetically interchangeable — a 2% discount on digital and
@@ -59,9 +81,12 @@ export const PAYOUT_RULES = {
    * A discount rewards a choice. A surcharge punishes a circumstance. Leave
    * this at zero.
    */
-  cashSurchargeBps: 0,
-  /** Lever 3. What an opt-in same-day payout costs. 0 = not offered. */
-  instantPayoutBps: 0,
+  cashCommissionSurchargeBps: 0,
+  /**
+   * Lever 3. What an opt-in same-day payout costs THE PROFESSIONAL, in basis
+   * points of their own earning. Never touches the customer. 0 = not offered.
+   */
+  instantPayoutFeeBps: 0,
 } as const;
 
 /** Cash is the only method we do not hear about from a gateway. */
@@ -70,15 +95,21 @@ export function isDigital(method: string): boolean {
 }
 
 /**
- * The rate for one settlement, before it is frozen onto the booking.
+ * The COMMISSION rate for one settlement — what the platform takes from the
+ * professional — before it is frozen onto the booking.
+ *
+ * Nothing here reaches the customer's price. They are quoted a band, they
+ * agree a final amount on site, and they pay that amount whichever method they
+ * pick. Every number in this file moves money between us and the
+ * professional.
  *
  * Returns the base rate untouched while both differentials are zero, so the
  * incentive can be switched on without touching any caller.
  */
 export function commissionBpsFor(method: string, baseBps: number): number {
   const adjusted = isDigital(method)
-    ? baseBps - PAYOUT_RULES.digitalDiscountBps
-    : baseBps + PAYOUT_RULES.cashSurchargeBps;
+    ? baseBps - PAYOUT_RULES.digitalCommissionReductionBps
+    : baseBps + PAYOUT_RULES.cashCommissionSurchargeBps;
   // Never below zero and never above the whole amount, whatever is configured.
   return Math.max(0, Math.min(10_000, adjusted));
 }

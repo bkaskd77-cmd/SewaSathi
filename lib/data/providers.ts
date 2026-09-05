@@ -56,7 +56,7 @@ export type ProviderStats = {
    * withdrawal in two hundred and one in three are not the same person.
    */
   jobsAccepted: number;
-  /** Accepted a job and then pulled out. See `withdrawalPenalty` in ranking. */
+  /** Accepted a job and then pulled out. See `withdrawalRankingPenalty` — list position, never money. */
   withdrawals: number;
 };
 

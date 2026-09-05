@@ -721,6 +721,13 @@
         "providerUnavailable": "That professional is not taking this work now.",
         "failed": "That didn't go through. Try again."
       }
+    },
+    "digital": {
+      "heading": "Paying with eSewa or Khalti also means",
+      "refund": "A refund comes straight back to your wallet.",
+      "automatic": "Nothing to confirm afterwards — the amount records itself.",
+      "receipt": "A proper receipt, to show a landlord, an office or your family.",
+      "noCash": "No cash in the house, and nobody hunting for change."
     }
   },
   "safety": {

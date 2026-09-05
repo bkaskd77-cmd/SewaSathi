@@ -178,7 +178,7 @@ describe("digital is paid out sooner, and the levers stay off until chosen", () 
     );
   });
 
-  it("discounts digital and leaves cash exactly where it was", () => {
+  it("reduces the professional's commission on digital and leaves cash alone", () => {
     /*
      * The asymmetry is the decision, not an oversight. A discount on digital
      * and a surcharge on cash are arithmetically almost the same gap and
@@ -189,9 +189,9 @@ describe("digital is paid out sooner, and the levers stay off until chosen", () 
      */
     expect(commissionBpsFor("cash", COMMISSION_BPS)).toBe(COMMISSION_BPS);
     expect(commissionBpsFor("esewa", COMMISSION_BPS)).toBe(
-      COMMISSION_BPS - PAYOUT_RULES.digitalDiscountBps,
+      COMMISSION_BPS - PAYOUT_RULES.digitalCommissionReductionBps,
     );
-    expect(PAYOUT_RULES.cashSurchargeBps).toBe(0);
+    expect(PAYOUT_RULES.cashCommissionSurchargeBps).toBe(0);
   });
 
   it("passes the discount through to what the professional keeps", () => {
