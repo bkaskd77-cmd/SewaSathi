@@ -119,7 +119,13 @@ describe("one customer cannot see another's booking", () => {
          values ('SK-FORGE', $1, 'plumbing', $2, 'Forged booking', 900, 4500)`,
         [BOB, mine[0].id],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).// Two independent rules refuse this now and either is enough: the insert
+      // policy (the customer_id is not the caller's) and the address-ownership
+      // trigger (the address is not that customer's). The trigger happens to
+      // fire first, which is why this asserts the refusal rather than one
+      // specific sentence — a test that pins the wording would fail the next
+      // time a second lock is added, and a second lock is good news.
+      rejects.toThrow(/row-level security|somebody else's address/i);
   });
 
   it("cannot reach another customer's booking history", async () => {
@@ -1678,5 +1684,258 @@ describe("the payment mix is support's baseline, not a public number", () => {
     await expect(
       alice.query("select * from public.payment_mix_signals"),
     ).rejects.toThrow(/permission denied/i);
+  });
+});
+
+/*
+ * A BOOKING MAY ONLY BE MADE AT AN ADDRESS ITS CUSTOMER OWNS.
+ *
+ * Found in the Phase 9 audit, and it is the same shape as the two holes that
+ * shipped before it: an id arrived from the browser and nothing checked whose
+ * it was. The insert policy validated `customer_id` and stopped, so a booking
+ * could be made at any address whose uuid somebody had — and the address goes
+ * to the professional who accepts the job, which means a stranger at that
+ * door. Address ids are uuids, but "you need to know a uuid first" is not a
+ * control on a product whose sensitive core is people's homes.
+ */
+describe("a booking cannot be made at somebody else's address", () => {
+  it("refuses a customer booking at another customer's address", async () => {
+    const { rows: bobAddress } = await pg.admin.query(
+      "select id from public.addresses where profile_id = $1 limit 1",
+      [BOB],
+    );
+    const alice = await pg.asUser(ALICE);
+
+    await expect(
+      alice.query(
+        `insert into public.bookings
+           (reference, customer_id, category_slug, address_id, description,
+            quoted_min, quoted_max)
+         values ('SK-STEAL', $1, 'plumbing', $2, 'Send somebody here', 900, 4500)`,
+        [ALICE, bobAddress[0].id],
+      ),
+    ).rejects.toThrow(/somebody else's address/i);
+  });
+
+  it("refuses the server too — there is no legitimate caller for it", async () => {
+    // Unlike the immutability trigger, this one has no service-role exception.
+    // No path in this product books a job at an address its customer does not
+    // own, so an exception could only ever be a bug with permission.
+    const { rows: bobAddress } = await pg.admin.query(
+      "select id from public.addresses where profile_id = $1 limit 1",
+      [BOB],
+    );
+    await expect(
+      pg.admin.query(
+        `insert into public.bookings
+           (reference, customer_id, category_slug, address_id, description,
+            quoted_min, quoted_max)
+         values ('SK-STEA2', $1, 'plumbing', $2, 'Send somebody here', 900, 4500)`,
+        [ALICE, bobAddress[0].id],
+      ),
+    ).rejects.toThrow(/somebody else's address/i);
+  });
+
+  it("refuses an address that does not exist at all", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.bookings
+           (reference, customer_id, category_slug, address_id, description,
+            quoted_min, quoted_max)
+         values ('SK-STEA3', $1, 'plumbing', '00000000-0000-4000-8000-000000000000',
+                 'Nowhere', 900, 4500)`,
+        [ALICE],
+      ),
+    ).rejects.toThrow(/does not exist|violates foreign key/i);
+  });
+
+  it("still allows a customer to book at their own", async () => {
+    const { rows: mine } = await pg.admin.query(
+      "select id from public.addresses where profile_id = $1 limit 1",
+      [ALICE],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max)
+       values ('SK-OWNOK', $1, 'plumbing', $2, 'My own tap', 900, 4500)
+       returning id`,
+      [ALICE, mine[0].id],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("cannot be moved to somebody else's address afterwards", async () => {
+    const { rows: bobAddress } = await pg.admin.query(
+      "select id from public.addresses where profile_id = $1 limit 1",
+      [BOB],
+    );
+    await expect(
+      pg.admin.query(
+        "update public.bookings set address_id = $1 where reference = 'SK-OWNOK'",
+        [bobAddress[0].id],
+      ),
+    ).rejects.toThrow(/somebody else's address/i);
+  });
+});
+
+/*
+ * EVERY TABLE, NOT EVERY TABLE SOMEBODY REMEMBERED.
+ *
+ * The per-table cases above prove the policies we thought to write. This block
+ * proves the ones we did not: it reads the catalog, so a table added in a
+ * later phase — provider documents, KYC, anything Phase 10 brings — fails here
+ * the moment it exists without policies, rather than the moment somebody reads
+ * it back in production.
+ *
+ * Supabase grants `anon` and `authenticated` full table privileges by default,
+ * so RLS is the ONLY thing between a stranger and every row in this database.
+ * That is the normal Supabase posture and it is why "the policy exists" is not
+ * the question worth asking. The question is whether it restricts.
+ */
+describe("RLS covers every table, including ones nobody has written a test for", () => {
+  /** Readable by anybody, on purpose: the catalogue and the public directory. */
+  const PUBLIC_TO_ANON = new Set([
+    "categories",
+    "providers",
+    "provider_categories",
+    "provider_reviews",
+    "provider_stats",
+  ]);
+
+  /** The one table a stranger may write to: the "join us" form. */
+  const ANON_MAY_WRITE = new Set(["provider_leads"]);
+
+  const tables = async (): Promise<
+    Array<{ relname: string; rls: boolean; policies: number }>
+  > => {
+    const { rows } = await pg.admin.query(`
+      select c.relname,
+             c.relrowsecurity as rls,
+             (select count(*) from pg_policy p where p.polrelid = c.oid)::int as policies
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+      order by c.relname
+    `);
+    return rows as Array<{ relname: string; rls: boolean; policies: number }>;
+  };
+
+  it("has row level security enabled on every table", async () => {
+    const without = (await tables()).filter((t) => !t.rls).map((t) => t.relname);
+    expect(without).toEqual([]);
+  });
+
+  it("has at least one policy on every table", async () => {
+    // RLS with no policies denies everything, which is safe but is almost
+    // always a mistake rather than a decision — the table is unreachable and
+    // whoever wrote it has not noticed yet.
+    const bare = (await tables())
+      .filter((t) => t.policies === 0)
+      .map((t) => t.relname);
+    expect(bare).toEqual([]);
+  });
+
+  it("shows a stranger nothing but the catalogue", async () => {
+    const anon = await pg.asAnon();
+    const leaked: string[] = [];
+
+    for (const { relname } of await tables()) {
+      if (PUBLIC_TO_ANON.has(relname)) continue;
+      const { rows } = await anon.query(
+        `select 1 from public.${relname} limit 1`,
+      );
+      if (rows.length > 0) leaked.push(relname);
+    }
+
+    expect(leaked).toEqual([]);
+  });
+
+  it("still shows a stranger the catalogue, because a shop has to have a window", async () => {
+    // The other half of the same guarantee. A test that only proves things are
+    // hidden passes just as well on a database that has locked the product
+    // out of its own front page.
+    const anon = await pg.asAnon();
+    const { rows } = await anon.query("select 1 from public.categories limit 1");
+    expect(rows.length).toBe(1);
+  });
+
+  it("lets a stranger write to nothing but the join form", async () => {
+    const { rows } = await pg.admin.query(`
+      select distinct c.relname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and p.polcmd <> 'r'
+        and p.polpermissive
+        and 'anon' = any (select rolname from pg_roles where oid = any (p.polroles))
+      order by 1
+    `);
+    const writable = (rows as Array<{ relname: string }>).map((r) => r.relname);
+    expect(writable.filter((t) => !ANON_MAY_WRITE.has(t))).toEqual([]);
+  });
+
+  it("has no private table readable by every signed-in person", async () => {
+    /*
+     * The failure this is here for: a SELECT policy of `using (true)`. It
+     * exists, it is listed, the advisor is happy, and it restricts nothing —
+     * which is worse than no policy, because the table now reads as covered.
+     */
+    const { rows } = await pg.admin.query(`
+      select c.relname, p.polname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and p.polcmd in ('r', '*')
+        and p.polpermissive
+        and coalesce(pg_get_expr(p.polqual, p.polrelid), 'true') in ('true', '(true)')
+      order by 1, 2
+    `);
+    const open = (rows as Array<{ relname: string; polname: string }>)
+      .filter((r) => !PUBLIC_TO_ANON.has(r.relname))
+      .map((r) => `${r.relname}: ${r.polname}`);
+    expect(open).toEqual([]);
+  });
+
+  it("has no personal table that every signed-in person can read in full", async () => {
+    /*
+     * The blunt version of the per-table cases above, and the one that catches
+     * a table nobody wrote a case for.
+     *
+     * "Everyone sees everything" is the hole. "The owner sees all of it" is
+     * the point — the first draft of this asserted that NOBODY saw the whole
+     * table and flagged `booking_refusals`, where every fixture row happens to
+     * belong to the same customer. A test that cannot tell those apart would
+     * have had us weaken a correct policy.
+     */
+    const alice = await pg.asUser(ALICE);
+    const bob = await pg.asUser(BOB);
+    const shared: string[] = [];
+
+    for (const { relname } of await tables()) {
+      if (PUBLIC_TO_ANON.has(relname)) continue;
+
+      const { rows: all } = await pg.admin.query(
+        `select count(*)::int as n from public.${relname}`,
+      );
+      if ((all[0] as { n: number }).n < 2) continue;
+
+      const seen = await Promise.all(
+        [alice, bob].map(async (client) => {
+          const { rows } = await client.query(
+            `select count(*)::int as n from public.${relname}`,
+          );
+          return (rows[0] as { n: number }).n;
+        }),
+      );
+
+      if (seen.every((n) => n === (all[0] as { n: number }).n)) {
+        shared.push(relname);
+      }
+    }
+
+    expect(shared).toEqual([]);
   });
 });

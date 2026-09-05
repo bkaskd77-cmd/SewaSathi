@@ -217,6 +217,29 @@ export async function createBooking(
 
   const supabase = createClient();
 
+  /*
+   * IS THIS ADDRESS THEIRS?
+   *
+   * The id arrives from the browser and nothing used to check whose it was.
+   * The insert policy validated `customer_id` and stopped there, so a booking
+   * could be made at any address whose uuid somebody had — and a booking
+   * carries its address to the professional who accepts it, which means a
+   * stranger at that door.
+   *
+   * The read is RLS-scoped, so "not yours" and "does not exist" are the same
+   * empty answer, which is the right answer to both. The database refuses it
+   * too (`enforce_booking_address_ownership`), for every caller including the
+   * service role; this check is here so the customer gets a sentence rather
+   * than a constraint error.
+   */
+  const { data: address } = await supabase
+    .from("addresses")
+    .select("id")
+    .eq("id", parsed.data.addressId)
+    .maybeSingle();
+
+  if (!address) return { ok: false, errors: { address: "pickAddress" } };
+
   // One retry, because the only way this collides is a reference clash, and a
   // customer should never see that as an error.
   for (let attempt = 0; attempt < 2; attempt += 1) {
