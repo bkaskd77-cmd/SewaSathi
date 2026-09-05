@@ -2,6 +2,7 @@ import "server-only";
 
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { checkUploadedImage } from "@/lib/security/image";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -22,12 +23,6 @@ const BUCKET = "booking-photos";
 /** Long enough to load the page and look at it, short enough not to leak. */
 const SIGNED_URL_SECONDS = 60 * 10;
 
-/** Base64 (no data: prefix) to bytes, without pulling in a dependency. */
-function decodeBase64(data: string): Uint8Array {
-  const binary = Buffer.from(data, "base64");
-  return new Uint8Array(binary);
-}
-
 export type UploadResult =
   | { ok: true; path: string }
   | { ok: false; reason: string };
@@ -43,12 +38,24 @@ export async function uploadBookingPhoto(
     return { ok: false, reason: "notConfigured" };
   }
 
-  const bytes = decodeBase64(base64);
-  // The bucket enforces this too. Checking here turns a storage error into a
-  // sentence the person can act on.
-  if (bytes.byteLength > 2 * 1024 * 1024) {
-    return { ok: false, reason: "tooLarge" };
-  }
+  /*
+   * IS THIS A PHOTOGRAPH?
+   *
+   * It used to be enough to be under two megabytes, and it was then stored
+   * labelled `image/jpeg` — a label we made up on the caller's behalf. The
+   * bucket believes that label, the browser compressor is code the caller
+   * controls, and none of it is a check. `checkUploadedImage` reads the first
+   * bytes of the file instead, reads the dimensions out of the file's own
+   * header, and hands back a copy with the metadata removed.
+   *
+   * The EXIF removal is the half that matters most here and is easiest to
+   * forget: a photograph of a leaking pipe taken in somebody's kitchen carries
+   * the GPS coordinates of that kitchen, and this product then hands it to a
+   * stranger who is about to visit. Nothing we do needs it.
+   */
+  const checked = checkUploadedImage(base64);
+  if (!checked.ok) return { ok: false, reason: checked.reason };
+  const bytes = checked.bytes;
 
   // The first path segment is the owner, which is what every storage policy
   // compares against.

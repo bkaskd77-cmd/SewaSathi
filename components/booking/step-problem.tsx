@@ -29,6 +29,18 @@ export type CategoryOption = {
  * `prepareImage` the hero uses — and imported dynamically for the same reason:
  * most people never attach one and should not download the encoder.
  */
+/**
+ * Rejections the customer can act on. Everything else is ours — a storage
+ * outage, a missing key — and collapses to "try again", which is the only
+ * useful thing to say about a fault they cannot fix.
+ */
+const KNOWN_PHOTO_ERRORS = [
+  "tooLarge",
+  "notAnImage",
+  "unsupportedFormat",
+  "tooManyPixels",
+] as const;
+
 export function StepProblem({
   categories,
   category,
@@ -83,7 +95,13 @@ export function StepProblem({
         onPhoto({ path: result.path, preview: prepared.previewUrl });
       } else {
         onPhoto({ path: null, preview: null });
-        setPhotoError(tErr("photoFailed"));
+        // The server's own reason where there is copy for it: somebody who
+        // picked a PNG or a screenshot should be told that, not told "failed".
+        setPhotoError(
+          (KNOWN_PHOTO_ERRORS as readonly string[]).includes(result.reason)
+            ? tErr(`photo.${result.reason}`)
+            : tErr("photoFailed"),
+        );
       }
     } finally {
       setBusy(false);

@@ -525,7 +525,13 @@
         "providerUnavailable": "That professional is no longer available. Choose another, or let us pick.",
         "photoFailed": "That photo would not upload. You can book without it.",
         "badRequest": "Something about this request is not right. Start again from the first step.",
-        "saveFailed": "We could not save that. Check your connection and try again."
+        "saveFailed": "We could not save that. Check your connection and try again.",
+        "photo": {
+          "tooLarge": "That photo is too big. Try a smaller one.",
+          "notAnImage": "That file is not a photo.",
+          "unsupportedFormat": "Please use a photo from your camera — a JPG.",
+          "tooManyPixels": "That photo is too large to display. Try a smaller one."
+        }
       }
     },
     "status": {
