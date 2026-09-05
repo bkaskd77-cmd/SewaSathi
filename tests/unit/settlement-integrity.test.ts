@@ -14,6 +14,14 @@ import {
   BAND_REVIEW_THRESHOLD_PCT,
   type PricingSignal,
 } from "@/lib/data/pricing-signals";
+import {
+  hasBaseline,
+  mixByCategory,
+  mixByMonth,
+  mixByWard,
+  overallMix,
+  type PaymentMixRow,
+} from "@/lib/data/payment-mix";
 
 /**
  * Under-reporting, and the four things that make it not worth doing.
@@ -170,16 +178,123 @@ describe("digital is paid out sooner, and the levers stay off until chosen", () 
     );
   });
 
-  it("leaves the commission untouched while both differentials are zero", () => {
-    // Shipped off on purpose: the hold times are a real operational fact and
-    // already do useful work, and the rate differential is a business decision
-    // that has not been taken.
+  it("discounts digital and leaves cash exactly where it was", () => {
+    /*
+     * The asymmetry is the decision, not an oversight. A discount on digital
+     * and a surcharge on cash are arithmetically almost the same gap and
+     * morally nothing alike: cash in Nepal is not a preference, it is the only
+     * instrument a lot of people have, and taxing it would charge the poorest
+     * customers for our fraud problem. A discount rewards a choice; a
+     * surcharge punishes a circumstance.
+     */
     expect(commissionBpsFor("cash", COMMISSION_BPS)).toBe(COMMISSION_BPS);
-    expect(commissionBpsFor("esewa", COMMISSION_BPS)).toBe(COMMISSION_BPS);
+    expect(commissionBpsFor("esewa", COMMISSION_BPS)).toBe(
+      COMMISSION_BPS - PAYOUT_RULES.digitalDiscountBps,
+    );
+    expect(PAYOUT_RULES.cashSurchargeBps).toBe(0);
+  });
+
+  it("passes the discount through to what the professional keeps", () => {
+    // A lever nothing reads is a comment. Same job, same amount, two methods.
+    const cash = settleSplit({
+      amount: 2000,
+      quotedMin: 900,
+      commissionBps: commissionBpsFor("cash", COMMISSION_BPS),
+    });
+    const digital = settleSplit({
+      amount: 2000,
+      quotedMin: 900,
+      commissionBps: commissionBpsFor("khalti", COMMISSION_BPS),
+    });
+    expect(digital.providerEarning).toBeGreaterThan(cash.providerEarning);
   });
 
   it("can never configure a rate outside 0-100%", () => {
     expect(commissionBpsFor("cash", 9_900)).toBeLessThanOrEqual(10_000);
     expect(commissionBpsFor("esewa", 0)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("the cash share, before any money is spent moving it", () => {
+  const row = (over: Partial<PaymentMixRow> = {}): PaymentMixRow => ({
+    categorySlug: "plumbing",
+    areaKey: "lalitpur-4",
+    month: "2026-09-01",
+    settledJobs: 10,
+    cashJobs: 6,
+    cashPct: 60,
+    gross: 20_000,
+    cashGross: 12_000,
+    ...over,
+  });
+
+  it("reports the share of money, not only the share of jobs", () => {
+    /*
+     * The two diverge in the direction that matters: cash tends to be the big
+     * jobs. Here half the jobs are cash and three quarters of the money is —
+     * a platform reading only the first number would think its exposure was
+     * half what it is.
+     */
+    const rows = [
+      row({ settledJobs: 5, cashJobs: 5, gross: 30_000, cashGross: 30_000 }),
+      row({ settledJobs: 5, cashJobs: 0, gross: 10_000, cashGross: 0 }),
+    ];
+    const all = overallMix(rows);
+    expect(all.cashPct).toBe(50);
+    expect(all.cashValuePct).toBe(75);
+  });
+
+  it("splits by category and by ward, the two axes a decision is taken on", () => {
+    const rows = [
+      row({ categorySlug: "plumbing", areaKey: "lalitpur-4" }),
+      row({ categorySlug: "painting", areaKey: "kathmandu-16", cashJobs: 1, cashGross: 2_000 }),
+    ];
+    expect(mixByCategory(rows).map((m) => m.key).sort()).toEqual([
+      "painting",
+      "plumbing",
+    ]);
+    expect(mixByWard(rows).map((m) => m.key).sort()).toEqual([
+      "kathmandu-16",
+      "lalitpur-4",
+    ]);
+  });
+
+  it("orders by money at risk, so the biggest exposure is read first", () => {
+    const rows = [
+      row({ categorySlug: "small", gross: 10_000, cashGross: 1_000 }),
+      row({ categorySlug: "big", gross: 10_000, cashGross: 9_000 }),
+    ];
+    expect(mixByCategory(rows)[0].key).toBe("big");
+  });
+
+  it("puts months in order, because a baseline is a before and an after", () => {
+    const rows = [
+      row({ month: "2026-10-01" }),
+      row({ month: "2026-08-01" }),
+      row({ month: "2026-09-01" }),
+    ];
+    expect(mixByMonth(rows).map((m) => m.key)).toEqual([
+      "2026-08-01",
+      "2026-09-01",
+      "2026-10-01",
+    ]);
+  });
+
+  it("refuses to call a handful of jobs a baseline", () => {
+    // Spending real money against one or two customers' habits is how an
+    // incentive gets credited with a change it did not cause.
+    expect(hasBaseline(overallMix([row({ settledJobs: 8, cashJobs: 5 })]))).toBe(
+      false,
+    );
+    expect(
+      hasBaseline(overallMix([row({ settledJobs: 40, cashJobs: 25 })])),
+    ).toBe(true);
+  });
+
+  it("says nothing rather than dividing by zero", () => {
+    const empty = overallMix([]);
+    expect(empty.cashPct).toBe(0);
+    expect(empty.cashValuePct).toBe(0);
+    expect(hasBaseline(empty)).toBe(false);
   });
 });

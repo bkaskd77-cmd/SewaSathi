@@ -533,12 +533,26 @@ follows from that.
   afterwards, when the professional has left and saying so costs nothing. It is
   a notification key, so Phase 13 sends it over SMS by adding a channel.
 - **Digital is paid out sooner because it is verified sooner** —
-  `lib/payments/payout.ts` holds every lever in one place: hold time per method
-  (real, and doing the work today), a commission differential either way, an
-  opt-in instant payout, and the customer-side incentive. All the
-  differentials ship at zero; turning one on is one edit there. Ranking is
-  deliberately **not** a lever — list position must not depend on how the
-  customer chose to pay.
+  `lib/payments/payout.ts` holds every lever in one place. Live: digital
+  settles at **13%** (`digitalDiscountBps` 200) against cash's 15%, digital
+  pays out in 24 hours and cash in 7 days.
+- **There is no cash surcharge, and that is not the discount with the sign
+  flipped.** The two produce nearly the same gap and are morally nothing alike:
+  cash in Nepal is not a preference, it is the only instrument a lot of people
+  have, and those people skew older and poorer. A surcharge would tax them for
+  our fraud problem and land hardest on the professionals who serve them. **A
+  discount rewards a choice; a surcharge punishes a circumstance.**
+  `cashSurchargeBps` stays 0.
+- **The customer-side incentive is unbuilt until there is a baseline.**
+  `payment_mix_signals` and `lib/data/payment-mix.ts` are that baseline — cash
+  share by category, by ward and by month, reported **by value as well as by
+  count**, because cash tends to be the big jobs and a platform reading only
+  the job count would think its exposure half what it is. Never grouped by
+  professional: the customer picks the method, and a per-person cash share read
+  as a suspicion list would punish somebody for the neighbourhood they serve.
+  It is not a ranking input and not a signal in the enforcement ladder.
+- Ranking is deliberately **not** a payout lever — list position must not
+  depend on how the customer chose to pay.
 - **The enforcement ladder is public** — `/providers/standards`, both
   languages, linked from `/providers/join` before anybody signs up. Five steps,
   each naming what triggered it and how it lifts, with what is *never* a signal

@@ -15,6 +15,7 @@ import {
   type PaymentStatus,
 } from "@/lib/payments";
 import { notifyAll } from "@/lib/notify";
+import type { PaymentMixRow } from "@/lib/data/payment-mix";
 import type { PricingSignal } from "@/lib/data/pricing-signals";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -1211,6 +1212,47 @@ export async function listPricingSignals(): Promise<PricingSignal[]> {
       .sort((a, b) => b.belowFloorPct - a.belowFloorPct);
   } catch (thrown) {
     console.error(`[pricing] signals threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
+
+/**
+ * Cash versus digital, by category, ward and month.
+ *
+ * The baseline the customer-side payment incentive will be measured against —
+ * see `lib/data/payment-mix.ts` for why it has to exist before that money is
+ * spent. Service role for the same reason as the pricing signals: a view runs
+ * with the caller's own policies, so anybody else reading it would get an
+ * average of their own two rows.
+ */
+export async function listPaymentMix(): Promise<PaymentMixRow[]> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("payment_mix_signals")
+      .select("*");
+
+    if (error || !data) {
+      if (error) {
+        console.error(`[payments] mix failed — ${describeError(error)}`);
+      }
+      return [];
+    }
+
+    return (data as Array<Record<string, unknown>>).map((row) => ({
+      categorySlug: row.category_slug as string,
+      areaKey: row.area_key as string,
+      month: String(row.month ?? ""),
+      settledJobs: Number(row.settled_jobs ?? 0),
+      cashJobs: Number(row.cash_jobs ?? 0),
+      cashPct: Number(row.cash_pct ?? 0),
+      gross: Number(row.gross ?? 0),
+      cashGross: Number(row.cash_gross ?? 0),
+    }));
+  } catch (thrown) {
+    console.error(`[payments] mix threw — ${describeError(thrown)}`);
     return [];
   }
 }

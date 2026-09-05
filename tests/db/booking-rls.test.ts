@@ -1661,3 +1661,22 @@ describe("the pricing signal is support's number, not a customer's", () => {
     ).rejects.toThrow(/permission denied/i);
   });
 });
+
+describe("the payment mix is support's baseline, not a public number", () => {
+  it("aggregates settled jobs by category, ward and month", async () => {
+    const { rows } = await pg.admin.query(
+      "select * from public.payment_mix_signals",
+    );
+    expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it("is not readable by a signed-in person", async () => {
+    // Same rule as the pricing signals: a view runs with the caller's own
+    // policies, so a customer would see their own rows and get an average of
+    // nothing — a confident number that means nothing is worse than no number.
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query("select * from public.payment_mix_signals"),
+    ).rejects.toThrow(/permission denied/i);
+  });
+});

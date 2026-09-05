@@ -40,9 +40,25 @@ export const PAYOUT_RULES = {
   digitalHoldHours: 24,
   /** Lever 1. Reconciled from a customer's confirmation, so it waits. */
   cashHoldHours: 24 * 7,
-  /** Lever 2. Basis points taken OFF the commission for digital. 0 = off. */
-  digitalDiscountBps: 0,
-  /** Lever 2. Basis points ADDED to the commission for cash. 0 = off. */
+  /**
+   * Lever 2. Basis points taken OFF the commission for digital. Live at 200,
+   * so a digital job is settled at 13% against cash's 15%.
+   */
+  digitalDiscountBps: 200,
+  /**
+   * Lever 2. Basis points ADDED to the commission for cash. DELIBERATELY ZERO,
+   * and it is not the same decision as the discount with the sign flipped.
+   *
+   * The two are arithmetically interchangeable — a 2% discount on digital and
+   * a 2% surcharge on cash produce nearly the same gap — and they are morally
+   * nothing alike. Cash in Nepal is not a preference; for a large part of the
+   * country it is the only instrument there is, and the people paying with it
+   * skew older and poorer. A surcharge would tax them for OUR fraud problem,
+   * and it would land hardest on the professionals serving them.
+   *
+   * A discount rewards a choice. A surcharge punishes a circumstance. Leave
+   * this at zero.
+   */
   cashSurchargeBps: 0,
   /** Lever 3. What an opt-in same-day payout costs. 0 = not offered. */
   instantPayoutBps: 0,
