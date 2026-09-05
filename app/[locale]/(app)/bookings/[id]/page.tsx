@@ -4,6 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ArrowLeft, MapPin, Phone, ShieldCheck } from "lucide-react";
 
+import {
+  Alternatives,
+  type AlternativeOption,
+} from "@/components/booking/alternatives";
 import { CancelBooking } from "@/components/booking/cancel-booking";
 import { LiveProgress } from "@/components/booking/live-progress";
 import { ProviderCard } from "@/components/booking/provider-card";
@@ -23,12 +27,12 @@ import { site } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
-import { getBooking } from "@/lib/data/bookings";
+import { getBooking, listRefusals } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
 import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
-import { getProvider } from "@/lib/data/providers";
+import { getProvider, listAlternatives } from "@/lib/data/providers";
 import { availableMethods, judgeFinalAmount } from "@/lib/payments";
 import { formatNpr } from "@/lib/utils";
 
@@ -63,6 +67,7 @@ export default async function BookingDetailPage({
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.detail");
   const tServices = await getTranslations("services");
+  const tAlternatives = await getTranslations("booking.alternatives");
 
   const profile = await getSessionProfile();
   if (!profile) {
@@ -96,6 +101,53 @@ export default async function BookingDetailPage({
   const providerPhone = booking.providerId
     ? await getProviderPhone(booking.providerId)
     : null;
+
+  /*
+   * DID SOMEBODY WALK AWAY FROM THIS JOB?
+   *
+   * `pending` on its own means "waiting", and that is what the page said in
+   * both cases — the ordinary wait after booking, and the very different one
+   * where the professional the customer chose has just pulled out. The second
+   * is not a wait at all: it is a decision the customer has to make again, and
+   * they can only make it if we hand them somebody to make it about.
+   */
+  const refusals = booking.status === "pending" ? await listRefusals(booking.id) : [];
+  const released = refusals.length > 0;
+
+  /*
+   * The replacements.
+   *
+   * Whoever refused is excluded — offering somebody back the job they just
+   * turned down is the one thing this list must never do — and so is the
+   * customer's original choice if they are the one who refused. The widening
+   * from ward to city to anywhere is `pickAlternatives`; the empty case is
+   * handled inside the component, because "nobody is free" needs a phone
+   * number rather than a blank space.
+   */
+  const alternatives = released
+    ? await listAlternatives({
+        category: booking.categorySlug,
+        area: address?.areaKey ?? null,
+        urgency: booking.urgency,
+        exclude: refusals.map((refusal) => refusal.providerId),
+      })
+    : [];
+
+  const options: AlternativeOption[] = alternatives.map((option) => ({
+    id: option.provider.id,
+    name: option.provider.displayName,
+    photoUrl: option.provider.photoUrl,
+    verified: option.provider.isVerified,
+    reach: option.reach,
+    ratingLabel: `${option.provider.stats.ratingAvg.toFixed(1)} (${option.provider.stats.ratingCount})`,
+    jobsLabel: tAlternatives("jobsDone", {
+      n: String(option.provider.stats.jobsCompleted),
+    }),
+    rateLabel: tAlternatives("from", {
+      amount: formatNpr(option.provider.baseRate, { locale }),
+    }),
+    availability: option.provider.availability,
+  }));
 
   const area = address ? findArea(address.areaKey) : null;
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
@@ -193,8 +245,27 @@ export default async function BookingDetailPage({
           bookingId={booking.id}
           initialStatus={booking.status}
           settled={Boolean(settled)}
+          released={released}
         />
       </NextIntlClientProvider>
+
+      {/* Somebody said no. This is the answer to it, and it sits directly
+          under the banner that delivered the news rather than at the bottom of
+          the page: the customer's next action should be the next thing they
+          see. */}
+      {released ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <Alternatives
+            bookingId={booking.id}
+            options={options}
+            categoryHref={`/services/${booking.categorySlug}`}
+            supportPhone={site.supportPhone}
+          />
+        </NextIntlClientProvider>
+      ) : null}
 
       {/* Only from acceptance onward. Before that nobody has agreed to the job,
           and showing the card at `pending` said "we do not have a number for

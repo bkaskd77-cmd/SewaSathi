@@ -83,6 +83,37 @@ export const EMERGENCY_WEIGHTS: RankingWeights = {
  */
 export const VERIFIED_BONUS = 0.05;
 
+/**
+ * What a withdrawal costs, in list position.
+ *
+ * A professional may pull out of a job they accepted — a van breaks down, a
+ * job overruns, and a product that forbids it produces people who simply never
+ * turn up, which is worse for the customer than an honest early no. Allowed is
+ * not free, though: somebody was left waiting on a decision they had already
+ * made, and the only lever that reaches a professional who is not reading a
+ * dashboard is how often they are shown.
+ *
+ * SUBTRACTED, NOT BLENDED IN, for the same reason `VERIFIED_BONUS` is added
+ * rather than weighted: the six weights describe how well somebody does the
+ * work, and this describes whether they show up for it. Mixing them would mean
+ * a withdrawal could be offset by being cheap or nearby, which is exactly the
+ * trade we do not want to offer. It is capped at more than twice the
+ * verification bonus, so a habitual withdrawer sinks below a comparable
+ * unverified professional and stays there.
+ *
+ * A RATE, WITH A PRIOR, NOT A COUNT. Counting raw withdrawals punishes the
+ * busiest people on the platform: one withdrawal in two hundred jobs is noise,
+ * one in three is a pattern. The prior stops the reverse gaming too — somebody
+ * with one accepted job and one withdrawal would otherwise read as a 100%
+ * failure rate on a single data point, so five phantom clean jobs sit under
+ * everybody until their own record outweighs them.
+ */
+export const WITHDRAWAL_PENALTY_MAX = 0.12;
+/** Phantom clean jobs, so a thin record cannot swing the rate. */
+const WITHDRAWAL_PRIOR = 5;
+/** The rate at which the full penalty applies. One job in five is a pattern. */
+const WITHDRAWAL_RATE_CEILING = 0.2;
+
 /** Ratings below this are treated as the floor of the useful range. */
 const RATING_FLOOR = 3.5;
 /** Prior strength: a provider needs ~20 ratings before their own average wins. */
@@ -114,6 +145,17 @@ export function bayesianRating(average: number, count: number): number {
     (count * average + RATING_PRIOR_COUNT * RATING_PRIOR_MEAN) /
     (count + RATING_PRIOR_COUNT)
   );
+}
+
+/**
+ * How much this professional's record of pulling out costs them, 0 to
+ * WITHDRAWAL_PENALTY_MAX. Exported so a future provider dashboard can show
+ * somebody the number rather than leaving them to guess why work dried up.
+ */
+export function withdrawalPenalty(stats: Provider["stats"]): number {
+  if (stats.withdrawals <= 0) return 0;
+  const rate = stats.withdrawals / (stats.jobsAccepted + WITHDRAWAL_PRIOR);
+  return WITHDRAWAL_PENALTY_MAX * clamp01(rate / WITHDRAWAL_RATE_CEILING);
 }
 
 export type ScoreParts = Record<keyof RankingWeights, number>;
@@ -171,6 +213,7 @@ export function scoreProvider(
     score += weights[key] * parts[key];
   }
   if (provider.isVerified) score += VERIFIED_BONUS;
+  score -= withdrawalPenalty(provider.stats);
 
   return { score, parts };
 }

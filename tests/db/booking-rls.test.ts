@@ -1079,6 +1079,15 @@ describe("open jobs, and who may take them", () => {
        values ('Unclaimed Sparks', '{lalitpur-4}', 900, true, null)
        returning id`,
     );
+    // Given the category and the ward deliberately: this listing *could* do
+    // the job, so the only thing left to refuse the write is the `with check`
+    // clause — which is what this test is about. Without it the immutability
+    // trigger raises first and the policy is never exercised.
+    await pg.admin.query(
+      `insert into public.provider_categories (provider_id, category_slug)
+       values ($1, 'electrical') on conflict do nothing`,
+      [stranger[0].id],
+    );
     const client = await pg.asUser(ALICE);
     await expect(
       client.query(
@@ -1199,5 +1208,291 @@ describe("releasing a job, rather than cancelling it", () => {
         [id],
       ),
     ).rejects.toThrow(/cannot go from in_progress to pending/i);
+  });
+});
+
+/*
+ * A REFUSAL IS A FACT, AND THREE THINGS DEPEND ON IT.
+ *
+ * When a professional says no, the job must not be offered back to them, the
+ * customer must not be handed them as a suggestion, and the count against
+ * their listing must go up. All three read one table, and the table is written
+ * by a trigger rather than by the button — because the button is not the only
+ * way a booking loses its professional, and a rule that lives in one caller is
+ * a rule the second caller does not have.
+ *
+ * The case that made this necessary: a professional refusing a job still at
+ * `pending` wrote a status identical to the one already there. No transition,
+ * no trigger, `provider_id` untouched — the job stayed theirs and their screen
+ * went on saying it was waiting for them.
+ */
+describe("saying no to a job, and what it costs", () => {
+  const CARL = "33333333-3333-4333-8333-333333333333";
+  const DEEPA = "44444444-4444-4444-8444-444444444444";
+
+  let carlListing: string;
+  let deepaListing: string;
+  let jobAddress: string;
+
+  const freshJob = async (reference: string, provider: string | null) => {
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max, provider_id, first_choice_provider_id)
+       values ($1, $2, 'ac-servicing', $3, 'AC not cooling', 1200, 6000, $4, $4)
+       returning id`,
+      [reference, ALICE, jobAddress, provider],
+    );
+    return rows[0].id as string;
+  };
+
+  beforeAll(async () => {
+    for (const [id, name, phone] of [
+      [CARL, "Carl", "+9779800000021"],
+      [DEEPA, "Deepa", "+9779800000022"],
+    ] as const) {
+      await pg.admin.query("insert into auth.users (id) values ($1)", [id]);
+      await pg.admin.query(
+        `insert into public.profiles (id, full_name, phone, role)
+         values ($1, $2, $3, 'provider')
+         on conflict (id) do update set full_name = excluded.full_name`,
+        [id, name, phone],
+      );
+    }
+
+    for (const [profile, name] of [
+      [CARL, "Carl Cooling"],
+      [DEEPA, "Deepa Cooling"],
+    ] as const) {
+      const { rows } = await pg.admin.query(
+        `insert into public.providers
+           (display_name, service_areas, base_rate, is_verified, profile_id)
+         values ($1, '{lalitpur-4}', 1200, true, $2)
+         returning id`,
+        [name, profile],
+      );
+      const id = rows[0].id as string;
+      await pg.admin.query(
+        `insert into public.provider_categories (provider_id, category_slug)
+         values ($1, 'ac-servicing') on conflict do nothing`,
+        [id],
+      );
+      if (profile === CARL) carlListing = id;
+      else deepaListing = id;
+    }
+
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'flat', 'lalitpur-4', 'Lalitpur', 4, 'Kupondole', 'Red door')
+       returning id`,
+      [ALICE],
+    );
+    jobAddress = address[0].id as string;
+  });
+
+  it("cannot be done by the professional's own browser write", async () => {
+    /*
+     * THE FINDING THAT SHAPED THIS WHOLE PATH, and it is a property of
+     * Postgres rather than a missing policy.
+     *
+     * On UPDATE the table's SELECT policies are applied to the NEW row as well
+     * as the update policy's own `with check`: an update may not make a row
+     * vanish from the person making it. An unassigned booking is exactly that
+     * to the professional letting go of it — it stops matching "Providers read
+     * their assigned bookings" the instant `provider_id` is null. No update
+     * policy can rescue that, which is why a release is a server-side write
+     * with the ownership proved by an RLS read first.
+     */
+    const job = await freshJob("SK-WD001", carlListing);
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [job],
+    );
+
+    const carl = await pg.asUser(CARL);
+    await expect(
+      carl.query(
+        `update public.bookings set status = 'pending', provider_id = null
+         where id = $1`,
+        [job],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it("is the professional's own job to give up, and RLS says so", async () => {
+    // The half that still goes through the policies: the read that proves the
+    // job is theirs before the server writes anything.
+    const carl = await pg.asUser(CARL);
+    const { rows } = await carl.query(
+      "select provider_id from public.bookings where reference = 'SK-WD001'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].provider_id).toBe(carlListing);
+  });
+
+  it("records the withdrawal against the professional", async () => {
+    const job = await freshJob("SK-WD002", carlListing);
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [job],
+    );
+    const before = await pg.admin.query(
+      "select withdrawals from public.provider_stats where provider_id = $1",
+      [carlListing],
+    );
+
+    await pg.admin.query(
+      "update public.bookings set status = 'pending', provider_id = null where id = $1",
+      [job],
+    );
+
+    const { rows: refusal } = await pg.admin.query(
+      "select kind from public.booking_refusals where booking_id = $1",
+      [job],
+    );
+    expect(refusal[0].kind).toBe("withdrawn");
+
+    const { rows: after } = await pg.admin.query(
+      "select withdrawals from public.provider_stats where provider_id = $1",
+      [carlListing],
+    );
+    expect(Number(after[0].withdrawals)).toBe(
+      Number(before.rows[0]?.withdrawals ?? 0) + 1,
+    );
+  });
+
+  it("records a refusal before acceptance too, where there is no transition", async () => {
+    // pending -> pending is not a status change. The fact that identifies this
+    // refusal is `provider_id` going to null, which is why the trigger fires
+    // on the row rather than on the status column.
+    const job = await freshJob("SK-DC001", carlListing);
+
+    await pg.admin.query(
+      "update public.bookings set provider_id = null where id = $1",
+      [job],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select kind from public.booking_refusals where booking_id = $1",
+      [job],
+    );
+    expect(rows[0].kind).toBe("declined");
+  });
+
+  it("never offers the job back to the professional who refused it", async () => {
+    const job = await freshJob("SK-DC002", carlListing);
+    await pg.admin.query(
+      "update public.bookings set provider_id = null, opened_at = now() where id = $1",
+      [job],
+    );
+
+    const carl = await pg.asUser(CARL);
+    const { rows } = await carl.query(
+      "select id from public.bookings where id = $1",
+      [job],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("still offers it to everybody else who can do it", async () => {
+    // The other half of the same policy: refusing must remove the job from one
+    // professional's list, not from the pool.
+    const { rows } = await (await pg.asUser(DEEPA)).query(
+      "select reference from public.bookings where reference = 'SK-DC002'",
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("refuses to hand the job back to them even when the customer asks", async () => {
+    // The customer's own suggestion list excludes them, but the list is a
+    // screen and this is the rule. Raised rather than silently ignored: a
+    // caller must not be able to mistake it for having worked.
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query(
+        `update public.bookings set provider_id = $1
+         where reference = 'SK-DC002'`,
+        [carlListing],
+      ),
+    ).rejects.toThrow(/already turned this job down/i);
+  });
+
+  it("lets the customer pick somebody who does cover the job", async () => {
+    const alice = await pg.asUser(ALICE);
+    const { rows } = await alice.query(
+      `update public.bookings set provider_id = $1
+       where reference = 'SK-DC002' returning provider_id`,
+      [deepaListing],
+    );
+    expect(rows[0].provider_id).toBe(deepaListing);
+  });
+
+  it("refuses a professional who does not cover the ward or the category", async () => {
+    /*
+     * This was a hole before the customer could re-pick at all: the customer
+     * update policy made every column on their own booking writable, so a
+     * booking could be assigned to a listing that had never heard of it. It is
+     * load-bearing now that re-picking is a real path, and it is enforced for
+     * every caller rather than in the one action that uses it.
+     */
+    const { rows: outsider } = await pg.admin.query(
+      `insert into public.providers
+         (display_name, service_areas, base_rate, is_verified)
+       values ('Bhaktapur Cooling', '{bhaktapur-2}', 1200, true)
+       returning id`,
+    );
+    await pg.admin.query(
+      `insert into public.provider_categories (provider_id, category_slug)
+       values ($1, 'ac-servicing') on conflict do nothing`,
+      [outsider[0].id],
+    );
+
+    const job = await freshJob("SK-FAR01", null);
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query("update public.bookings set provider_id = $1 where id = $2", [
+        outsider[0].id,
+        job,
+      ]),
+    ).rejects.toThrow(/does not cover this job/i);
+  });
+
+  it("counts acceptances, so a withdrawal rate has a denominator", async () => {
+    const job = await freshJob("SK-AC001", deepaListing);
+    const before = await pg.admin.query(
+      "select jobs_accepted from public.provider_stats where provider_id = $1",
+      [deepaListing],
+    );
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [job],
+    );
+    const { rows } = await pg.admin.query(
+      "select jobs_accepted from public.provider_stats where provider_id = $1",
+      [deepaListing],
+    );
+    expect(Number(rows[0].jobs_accepted)).toBe(
+      Number(before.rows[0]?.jobs_accepted ?? 0) + 1,
+    );
+  });
+
+  it("keeps a refusal readable by the customer whose job it was", async () => {
+    // The booking page reads this to know a professional walked away rather
+    // than none having taken it yet — the difference between "we are looking"
+    // and "here are three others".
+    const { rows } = await (await pg.asUser(ALICE)).query(
+      `select r.kind from public.booking_refusals r
+       join public.bookings b on b.id = r.booking_id
+       where b.reference = 'SK-DC002'`,
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("does not show one professional's refusals to another", async () => {
+    const { rows } = await (await pg.asUser(DEEPA)).query(
+      "select id from public.booking_refusals",
+    );
+    expect(rows).toHaveLength(0);
   });
 });

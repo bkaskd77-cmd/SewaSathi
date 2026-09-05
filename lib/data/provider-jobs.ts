@@ -343,10 +343,45 @@ export async function declineJob(input: {
    * The database clears `accepted_at`, `en_route_at` and `provider_id` on the
    * way back — see `enforce_booking_transition`.
    */
-  const { data, error } = await createClient()
+  /*
+   * `provider_id: null` IS THE RELEASE, and it is a SERVER-SIDE write.
+   *
+   * Two separate things were wrong here.
+   *
+   * The first: on a job still at PENDING — the first-choice professional
+   * saying no before ever accepting — `pending -> pending` is not a status
+   * change, so the transition trigger returned early and never cleared
+   * `provider_id`. The old code wrote a status identical to the one already
+   * there and nothing else happened: the job stayed theirs, their screen went
+   * on saying it was waiting for them, and the customer was told about a
+   * withdrawal that had not happened to their booking. Clearing `provider_id`
+   * explicitly is what makes both paths mean the same thing — nobody holds
+   * this job.
+   *
+   * The second: this cannot go through RLS at all, and that is a property of
+   * Postgres rather than a missing policy. On UPDATE the table's SELECT
+   * policies are applied to the NEW row — an update may not make a row vanish
+   * from the person making it — and an unassigned booking is exactly that to
+   * the professional letting it go. Every update policy in the world fails
+   * that check. See the note in 20260905000003_reliability.sql.
+   *
+   * So ownership is established through RLS above (`readAssignedBooking` reads
+   * under the caller's own policies and the id is compared) and the release is
+   * written by the server, guarded on `provider_id` so a professional who has
+   * already lost the job releases nothing.
+   */
+  const { data, error } = await createAdminClient()
     .from("bookings")
-    .update({ status: "pending", opened_at: new Date().toISOString() })
+    .update({
+      status: "pending",
+      provider_id: null,
+      // Straight into the pool. The customer has already waited through one
+      // first-refusal window; making them wait through a second one for a
+      // professional who has just said no would punish them for choosing.
+      opened_at: new Date().toISOString(),
+    })
     .eq("id", input.bookingId)
+    .eq("provider_id", me.providerId)
     .select("id");
 
   if (error) {
@@ -366,6 +401,30 @@ export async function declineJob(input: {
     changed_by_role: "provider",
     note: `withdrew: ${input.reason?.trim().slice(0, 250) || "no reason given"}`,
   });
+
+  /*
+   * The reason, onto the refusal the trigger has just written.
+   *
+   * The row itself is the database's — every path that releases a booking
+   * produces one, including paths nobody has written yet — but the trigger
+   * cannot know what the professional typed. Failing to attach it must not
+   * fail the withdrawal: the refusal is recorded either way, and a missing
+   * sentence is not worth telling somebody their release did not happen.
+   */
+  const reason = input.reason?.trim().slice(0, 300);
+  if (reason) {
+    try {
+      await createAdminClient()
+        .from("booking_refusals")
+        .update({ reason })
+        .eq("booking_id", input.bookingId)
+        .eq("provider_id", me.providerId);
+    } catch (thrown) {
+      console.error(
+        `[provider-jobs] could not attach the refusal reason — ${describeError(thrown)}`,
+      );
+    }
+  }
 
   await notify({
     recipientId: booking.customer_id,

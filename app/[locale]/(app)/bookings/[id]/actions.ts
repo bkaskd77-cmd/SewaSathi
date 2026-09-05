@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/session";
 import { checkDispatchNow } from "@/lib/data/dispatch";
 import { site } from "@/lib/config/site";
-import { cancelBooking, getBooking } from "@/lib/data/bookings";
+import { cancelBooking, chooseProvider, getBooking } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
 import {
   abandonPayment,
@@ -204,4 +204,36 @@ export async function checkForProviderAction(
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true, changed: outcome.changed };
+}
+
+
+/**
+ * The customer picking a replacement after somebody refused.
+ *
+ * One tap, and it is the whole point of the suggestions: everything else about
+ * the job is unchanged, so sending the customer back through the booking flow
+ * to re-enter their own address would be asking them to pay twice for one
+ * decision. The session is re-read here and every other check is in
+ * `chooseProvider` and, under it, in the database — a professional who does
+ * not cover the job, or who has already turned it down, is refused by the
+ * trigger whatever this action believes.
+ */
+export async function chooseProviderAction(
+  bookingId: string,
+  providerId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await chooseProvider({
+    bookingId,
+    providerId,
+    actorId: profile.id,
+  });
+  if (result.ok) {
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath("/bookings");
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
 }

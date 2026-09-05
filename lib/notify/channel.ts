@@ -21,6 +21,8 @@ export type NotificationKind =
   | "booking.completed"
   | "booking.cancelled"
   | "booking.declined"
+  /** The customer picked this professional after somebody else refused. */
+  | "booking.assigned"
   | "booking.amountEntered"
   | "booking.paid"
   /** First refusal lapsed; the job is now open to other professionals. */

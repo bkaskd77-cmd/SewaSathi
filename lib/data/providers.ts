@@ -10,6 +10,10 @@ import {
   rethrowFrameworkSignal,
 } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import {
+  pickAlternatives,
+  type Alternative,
+} from "@/lib/data/recommendations";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -37,6 +41,13 @@ export type ProviderStats = {
   completionRate: number;
   avgResponseMinutes: number;
   lastActiveMinutesAgo: number;
+  /**
+   * Jobs accepted, ever. The denominator a withdrawal rate needs: one
+   * withdrawal in two hundred and one in three are not the same person.
+   */
+  jobsAccepted: number;
+  /** Accepted a job and then pulled out. See `withdrawalPenalty` in ranking. */
+  withdrawals: number;
 };
 
 export type Provider = {
@@ -67,7 +78,14 @@ export type Review = {
 
 /** DEVELOPMENT DATA. Replaced by real provider onboarding in Phase 10. */
 const SEED_PROVIDERS = providerSeed as Array<
-  Omit<Provider, "photoUrl"> & { photoUrl?: string | null }
+  Omit<Provider, "photoUrl" | "stats"> & {
+    photoUrl?: string | null;
+    // The reliability counters are written by the database, never authored, so
+    // the seed does not carry them. A fresh clone with no keys therefore reads
+    // every professional as having withdrawn from nothing — which is true of a
+    // product that has taken no bookings.
+    stats: Omit<Provider["stats"], "jobsAccepted" | "withdrawals">;
+  }
 >;
 const SEED_REVIEWS = reviewSeed as Review[];
 
@@ -86,6 +104,7 @@ function seedProviders(): Provider[] {
   return SEED_PROVIDERS.map((provider) => ({
     ...provider,
     photoUrl: provider.photoUrl ?? null,
+    stats: { ...provider.stats, jobsAccepted: 0, withdrawals: 0 },
   }));
 }
 
@@ -131,6 +150,8 @@ type ProviderRow = {
     completion_rate: number;
     avg_response_minutes: number;
     last_active_at: string | null;
+    jobs_accepted: number | null;
+    withdrawals: number | null;
   } | null;
 };
 
@@ -165,12 +186,14 @@ function fromRow(row: ProviderRow): Provider {
       completionRate: stats?.completion_rate ?? 0,
       avgResponseMinutes: stats?.avg_response_minutes ?? 120,
       lastActiveMinutesAgo: lastActive,
+      jobsAccepted: stats?.jobs_accepted ?? 0,
+      withdrawals: stats?.withdrawals ?? 0,
     },
   };
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, last_active_at)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, last_active_at, jobs_accepted, withdrawals)";
 
 /**
  * Providers in one category, filtered but not yet ranked.
@@ -355,3 +378,26 @@ export const getCategoryCounts = cache(
     }
   },
 );
+
+/**
+ * Replacements for a job whose professional has gone.
+ *
+ * Deliberately reads the category WITHOUT an area filter and lets
+ * `pickAlternatives` do the widening. Filtering by ward in the query would
+ * make "nobody in your ward" and "nobody at all" the same empty list, and they
+ * need completely different answers on screen: one is three names twenty
+ * minutes away, the other is a phone number.
+ */
+export async function listAlternatives(input: {
+  category: string;
+  area?: string | null;
+  urgency?: string | null;
+  exclude?: readonly string[];
+}): Promise<Alternative[]> {
+  const providers = await listProviders({ category: input.category });
+  return pickAlternatives(providers, {
+    area: input.area,
+    urgency: input.urgency,
+    exclude: input.exclude,
+  });
+}

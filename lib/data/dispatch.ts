@@ -34,6 +34,7 @@ type Row = {
   urgency: string;
   created_at: string;
   opened_at: string | null;
+  reassigned_at: string | null;
 };
 
 /**
@@ -52,6 +53,7 @@ export async function applyDispatch(
     row.created_at,
     (row.urgency as Urgency) ?? "routine",
     now,
+    row.reassigned_at,
   );
 
   if (stage === "first-refusal") return { changed: false, stage };
@@ -111,7 +113,7 @@ export async function applyDispatch(
 }
 
 const COLUMNS =
-  "id, reference, customer_id, provider_id, urgency, created_at, opened_at";
+  "id, reference, customer_id, provider_id, urgency, created_at, opened_at, reassigned_at";
 
 /** Every pending booking, oldest first. The cron's input. */
 export async function sweepDispatch(

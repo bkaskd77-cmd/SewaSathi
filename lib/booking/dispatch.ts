@@ -77,9 +77,21 @@ export function dispatchStage(
   createdAt: string,
   urgency: Urgency,
   now: Date = new Date(),
+  /**
+   * When the customer last chose a professional themselves, if they have.
+   *
+   * The clock runs from here instead, and both windows move with it. A
+   * replacement picked forty minutes into an emergency would otherwise be
+   * widened away from in the very next sweep — first refusal already spent, on
+   * somebody the customer had just this second chosen — and given up on five
+   * minutes later. Somebody who has actively re-picked has not given up, so
+   * neither do we.
+   */
+  reassignedAt?: string | null,
 ): DispatchStage {
   const windows = DISPATCH_WINDOWS[urgency] ?? DISPATCH_WINDOWS.routine;
-  const ageMinutes = (now.getTime() - new Date(createdAt).getTime()) / 60_000;
+  const from = reassignedAt ? new Date(reassignedAt) : new Date(createdAt);
+  const ageMinutes = (now.getTime() - from.getTime()) / 60_000;
 
   if (ageMinutes >= windows.giveUpMinutes) return "give-up";
   if (ageMinutes >= windows.firstRefusalMinutes) return "open";

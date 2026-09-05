@@ -29,11 +29,19 @@ export function LiveProgress({
   bookingId,
   initialStatus,
   settled,
+  released,
 }: {
   bookingId: string;
   initialStatus: BookingStatus;
   /** Whether the money has actually arrived — not the same as work finished. */
   settled: boolean;
+  /**
+   * Whether a professional has refused this job, rather than none having taken
+   * it yet. Both are `pending`; they are not remotely the same news, and a
+   * banner that says "we are alerting professionals" to somebody whose
+   * professional just pulled out is the product hiding from them.
+   */
+  released?: boolean;
 }) {
   const t = useTranslations("booking");
   const router = useRouter();
@@ -67,7 +75,9 @@ export function LiveProgress({
         className="animate-pop-in mt-6 rounded-xl border border-primary/25 bg-primary/[0.05] p-4"
       >
         <p className="text-body-sm font-semibold text-primary">
-          {t(`status.${status}`)}
+          {status === "pending" && released
+            ? t("status.released")
+            : t(`status.${status}`)}
         </p>
         <p className="mt-1 text-body-md">
           {/* "Completed" is about the work; being paid is a separate machine —
@@ -76,7 +86,9 @@ export function LiveProgress({
               panel directly below it. */}
           {status === "completed" && settled
             ? t("whatNext.completedPaid")
-            : t(`whatNext.${status}`)}
+            : status === "pending" && released
+              ? t("whatNext.releasedPending")
+              : t(`whatNext.${status}`)}
         </p>
 
         {/* Waiting is the one state where the customer has something useful to
@@ -85,7 +97,7 @@ export function LiveProgress({
             window has lapsed the job widens to everybody who can do it, right
             now, rather than at tomorrow's sweep. Tapping it early is harmless:
             the stage comes from timestamps, so nothing moves before it is due. */}
-        {status === "pending" ? (
+        {status === "pending" && !released ? (
           <Button
             variant="outline"
             size="sm"

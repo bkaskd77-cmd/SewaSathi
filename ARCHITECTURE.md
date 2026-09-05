@@ -50,6 +50,12 @@ imported by their internal paths. `booking` and `auth` went first because they
 are the newest and the least depended on, which made them a safe place to prove
 the rule. Extending it is mechanical; do it against a green suite.
 
+`lib/data/recommendations.ts` is pure, like `ranking.ts`: it decides which
+professionals a customer is offered after a refusal, and the widening from
+ward to city to anywhere is a product rule that has to be testable without a
+database. The read that feeds it is `listAlternatives` in
+`lib/data/providers.ts`.
+
 ### Why `data` is shared rather than split per feature
 
 `lib/data/{providers,categories,ranking}` is read by services, booking *and*
@@ -128,6 +134,23 @@ Where a change on one side cannot reach the other.
   policy expressions run with the caller's privileges, so it keeps `execute`
   for `authenticated`. Supabase's Security Advisor asks for it anyway; the
   answer is no, and the test that would fail is in the db suite.
+- **An UPDATE may not make a row invisible to the person making it.** Postgres
+  applies a table's SELECT policies to the *new* row on UPDATE, on top of the
+  update policy's own `with check`. So a professional cannot write their own
+  release: the moment `provider_id` is null the booking stops matching
+  "Providers read their assigned bookings" and the write is refused whatever
+  the update policy says — proved by adding one with `with check (true)` and
+  watching it fail identically. `declineJob` therefore proves ownership with an
+  RLS **read** and writes the release under the service role. Any future "hand
+  this back" path has the same shape.
+- **A refusal is a row, not a status.** `booking_refusals` holds one
+  professional saying no to one job, written by a trigger so every release path
+  records it. Three things read it and all three would be wrong without it: the
+  open-job policy (never re-offer a job to whoever refused it), the customer's
+  replacement suggestions (never lead with them), and
+  `enforce_booking_immutability`, which refuses an assignment back to them from
+  any caller. `provider_stats.withdrawals` / `.declines` are the same fact
+  counted for ranking; `booking_status_history` remains the narrative.
 - **A notification carries a key, not a sentence.** `kind` is a message-catalogue
   key and `params` are its placeholders, so every channel renders in the
   *reader's* language at delivery. A sentence baked in English at write time

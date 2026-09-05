@@ -322,6 +322,122 @@ export async function getBooking(
   }
 }
 
+/**
+ * Who has already said no to this booking.
+ *
+ * Read through RLS — "Customers read refusals on their bookings" — so a
+ * customer sees the refusals on their own job and nobody else's. Used for two
+ * things that must agree: the screen that says a professional pulled out, and
+ * the suggestion list that must not offer that professional back.
+ */
+export async function listRefusals(
+  bookingId: string,
+): Promise<Array<{ providerId: string; kind: string; createdAt: string }>> {
+  if (!hasSupabaseConfig()) return [];
+  try {
+    const { data, error } = await createClient()
+      .from("booking_refusals")
+      .select("provider_id, kind, created_at")
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false });
+
+    if (error || !data) return [];
+    return data.map((row) => ({
+      providerId: row.provider_id as string,
+      kind: row.kind as string,
+      createdAt: row.created_at as string,
+    }));
+  } catch {
+    // A booking page that cannot read its refusals is still a correct booking
+    // page: it simply offers no replacements, and the support line is there.
+    return [];
+  }
+}
+
+/**
+ * The customer picks a replacement.
+ *
+ * Everything about this is re-checked here, and then re-checked again by the
+ * database: `enforce_booking_immutability` refuses an assignment to a
+ * professional who does not cover the job or who has already refused it, for
+ * every caller including this one. Two layers because they fail differently —
+ * this one can say *why* on a screen, and that one holds even when a future
+ * caller forgets to ask.
+ *
+ * The write goes through the service role rather than the customer's own
+ * policy. The customer may legally set `provider_id` on their own pending
+ * booking, but `opened_at` and `reassigned_at` are dispatch state, not theirs
+ * to edit — a browser that can clear `opened_at` can hide its own job from the
+ * pool indefinitely. So the decision is made here with the caller's identity
+ * known, and the write is made by the server.
+ */
+export async function chooseProvider(input: {
+  bookingId: string;
+  providerId: string;
+  actorId: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  // Through RLS: a customer can only read their own booking, so this is the
+  // ownership check as well as the read.
+  const booking = await getBooking(input.bookingId);
+  if (!booking) return { ok: false, reason: "notYours" };
+  if (booking.status !== "pending") return { ok: false, reason: "notWaiting" };
+  if (booking.providerId) return { ok: false, reason: "alreadyAssigned" };
+
+  const provider = await getProvider(input.providerId);
+  if (!provider || !provider.categories.includes(booking.categorySlug)) {
+    return { ok: false, reason: "providerUnavailable" };
+  }
+
+  const refusals = await listRefusals(input.bookingId);
+  if (refusals.some((r) => r.providerId === input.providerId)) {
+    return { ok: false, reason: "alreadyRefused" };
+  }
+
+  const { data, error } = await createAdminClient()
+    .from("bookings")
+    .update({
+      provider_id: input.providerId,
+      // Theirs alone again, and the dispatch clock restarts from here — see
+      // the note on `reassigned_at`. Without both, the next sweep would widen
+      // the job away from somebody the customer chose seconds ago.
+      opened_at: null,
+      reassigned_at: new Date().toISOString(),
+    })
+    .eq("id", input.bookingId)
+    .eq("customer_id", input.actorId)
+    .eq("status", "pending")
+    .is("provider_id", null)
+    .select("id");
+
+  if (error) {
+    console.error(`[bookings] re-pick failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+  // Zero rows means somebody claimed it between the read and the write. Not an
+  // error: the customer wanted a professional and now has one.
+  if ((data?.length ?? 0) === 0) return { ok: false, reason: "alreadyAssigned" };
+
+  const listing = await createAdminClient()
+    .from("providers")
+    .select("profile_id")
+    .eq("id", input.providerId)
+    .maybeSingle();
+
+  const profileId = (listing.data?.profile_id as string | null) ?? null;
+  if (profileId) {
+    await notify({
+      recipientId: profileId,
+      kind: "booking.assigned",
+      params: { reference: booking.reference },
+      bookingId: input.bookingId,
+    });
+  }
+
+  return { ok: true };
+}
+
 export type StatusEvent = {
   fromStatus: string | null;
   toStatus: string;

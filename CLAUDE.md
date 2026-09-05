@@ -468,6 +468,27 @@ the customer picked and waited for ever if they never opened the app.
   because it is scoped to one booking the caller owns and can only apply what
   was already due: tapping it early reports "still with your professional" and
   moves nothing.
+- **A refusal is a fact about the professional, not just about the booking.**
+  Declining is allowed — forbidding it produces people who simply never turn
+  up — but it is counted. `booking_refusals` holds one professional saying no
+  to one job and is written by a trigger, so every release path records it and
+  not just today's button. It is what stops a refused job being offered
+  straight back to the person who refused it (the open-job policy reads it),
+  what keeps them out of the customer's replacement list, and what
+  `enforce_booking_immutability` checks before letting any caller assign them
+  again. `provider_stats.withdrawals` and `.declines` are the same fact counted
+  for ranking, and `withdrawalPenalty` in `lib/data/ranking.ts` is where it
+  costs list position — a rate with a prior, subtracted rather than blended in,
+  because the six weights describe how well somebody works and this describes
+  whether they show up.
+- **A withdrawal is answered with names, never with "we are looking".** The
+  customer's booking page reads its refusals; if there are any, it shows three
+  ranked alternatives with one tap to book each, and a phone number when there
+  are none. `lib/data/recommendations.ts` is the rule — ward first, then the
+  rest of the city, then anywhere, each suggestion carrying how far it reached
+  — and re-picking sets `reassigned_at`, which the dispatch clock is measured
+  from. Without that anchor the next sweep would widen the job away from
+  somebody the customer chose seconds earlier.
 - **`provider_can_serve` is `security definer`** because a policy on `bookings`
   that reads `addresses` re-enters `bookings` through *its* policy — the same
   recursion `is_admin()` exists to break, found the same way.
@@ -547,6 +568,15 @@ clause, so `enforce_booking_immutability` (a BEFORE UPDATE trigger) is the rule;
 `auth.uid()` is null for the service role, which is how the server's own writes
 pass through. Found by the db suite, not by reading the code — add a case there
 before widening any update policy.
+
+**An UPDATE may not make a row invisible to the person making it.** Postgres
+applies the table's SELECT policies to the *new* row on UPDATE, on top of the
+update policy's own `with check`. A professional therefore cannot write their
+own release — the instant `provider_id` is null the booking stops matching
+"Providers read their assigned bookings" — and no update policy can rescue it;
+one with `with check (true)` fails identically. The shape that works is the one
+`declineJob` uses: prove ownership with an RLS **read**, then write under the
+service role. Expect this again for any "hand it back" or "give it up" path.
 
 **`is_admin()` must keep `execute` for `authenticated`, and Supabase's Security
 Advisor will keep telling you to take it away.** Six policies call it —

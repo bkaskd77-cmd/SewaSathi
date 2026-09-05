@@ -534,7 +534,8 @@
       "in_progress": "Work in progress",
       "completed": "Completed",
       "cancelled": "Cancelled",
-      "no_provider_found": "No professional found"
+      "no_provider_found": "No professional found",
+      "released": "Professional pulled out"
     },
     "whatNext": {
       "pending": "We are alerting professionals now. You will get a call as soon as one accepts.",
@@ -545,7 +546,7 @@
       "cancelled": "This booking was cancelled. Nothing is owed.",
       "no_provider_found": "Nobody was free for this one. Call us and we will arrange it by hand.",
       "completedPaid": "All done and paid. Thank you — we hope the work was good.",
-      "releasedPending": "Your professional had to pull out. We're finding someone else — nothing else for you to do."
+      "releasedPending": "The professional you chose has pulled out. Pick someone else below — everything about the job stays as it is."
     },
     "detail": {
       "back": "All bookings",
@@ -661,16 +662,49 @@
       }
     },
     "notifications": {
-      "booking.accepted": "Accepted",
-      "booking.en_route": "On the way",
-      "booking.in_progress": "Work started",
-      "booking.completed": "Work done",
-      "booking.cancelled": "Cancelled",
-      "booking.declined": "Professional withdrew",
-      "booking.amountEntered": "Amount to check",
-      "booking.paid": "Paid",
-      "booking.widened": "Still looking",
-      "booking.noProviderFound": "Nobody available"
+      "accepted": "Accepted",
+      "en_route": "On the way",
+      "in_progress": "Work started",
+      "completed": "Work done",
+      "cancelled": "Cancelled",
+      "declined": "Professional withdrew",
+      "amountEntered": "Amount to check",
+      "paid": "Paid",
+      "widened": "Still looking",
+      "noProviderFound": "Nobody available",
+      "assigned": "Professional chosen"
+    },
+    "alternatives": {
+      "heading": "Choose someone else",
+      "body": "These professionals do the same work. One tap books them — your problem, address and time stay as they are.",
+      "verified": "ID verified",
+      "choose": "Book {name}",
+      "jobsDone": "{n} jobs",
+      "from": "from {amount}",
+      "reach": {
+        "ward": "In your area",
+        "city": "Nearby",
+        "anywhere": "Further away"
+      },
+      "availability": {
+        "now": "Available now",
+        "today": "Available today",
+        "scheduled": "By appointment"
+      },
+      "browseAll": "See everyone",
+      "callInstead": "Call us instead",
+      "none": {
+        "title": "Nobody else is free right now",
+        "body": "We would rather tell you than leave you watching this page. Call us and we will find somebody by hand.",
+        "call": "Call {phone}"
+      },
+      "errors": {
+        "alreadyAssigned": "Somebody has already taken this job. Look again to see who.",
+        "alreadyRefused": "That professional has already turned this job down.",
+        "notWaiting": "This booking has moved on. Look again.",
+        "providerUnavailable": "That professional is not taking this work now.",
+        "failed": "That didn't go through. Try again."
+      }
     }
   },
   "safety": {

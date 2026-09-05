@@ -177,6 +177,7 @@ export type Database = {
           cancellation_fee: number;
           first_choice_provider_id: string | null;
           opened_at: string | null;
+          reassigned_at: string | null;
         };
         Insert: {
           id?: string;
@@ -216,8 +217,31 @@ export type Database = {
           cancellation_fee?: number;
           first_choice_provider_id?: string | null;
           opened_at?: string | null;
+          reassigned_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
+        Relationships: [];
+      };
+      booking_refusals: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          kind: string;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          kind?: string;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["booking_refusals"]["Insert"]
+        >;
         Relationships: [];
       };
       booking_status_history: {
@@ -457,6 +481,10 @@ export type Database = {
           jobs_completed: number;
           completion_rate: number;
           avg_response_minutes: number;
+          jobs_accepted: number;
+          withdrawals: number;
+          declines: number;
+          last_withdrawal_at: string | null;
           last_active_at: string | null;
           updated_at: string;
         };
@@ -467,6 +495,10 @@ export type Database = {
           jobs_completed?: number;
           completion_rate?: number;
           avg_response_minutes?: number;
+          jobs_accepted?: number;
+          withdrawals?: number;
+          declines?: number;
+          last_withdrawal_at?: string | null;
           last_active_at?: string | null;
           updated_at?: string;
         };

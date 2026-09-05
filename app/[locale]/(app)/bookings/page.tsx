@@ -107,7 +107,12 @@ export default async function BookingsPage() {
                           aria-hidden="true"
                           className="size-1.5 rounded-full bg-primary"
                         />
-                        {tNote(`notifications.${unread.get(booking.id)!.kind}`)}
+                        {/* The kind is "booking.declined"; next-intl reads a dot as nesting,
+                            so the catalogue key drops the prefix. Passing the raw kind
+                            printed `booking.notifications.booking.declined` on the page. */}
+                        {tNote(
+                          `notifications.${unread.get(booking.id)!.kind.replace("booking.", "")}`,
+                        )}
                       </span>
                     ) : null}
                   </div>

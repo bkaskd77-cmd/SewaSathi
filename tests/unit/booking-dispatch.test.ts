@@ -109,3 +109,39 @@ describe("an unknown urgency still gets a schedule", () => {
     expect(stage).toBe("first-refusal");
   });
 });
+
+describe("choosing a replacement restarts the clock", () => {
+  /*
+   * The bug this exists to prevent, in full: a professional withdraws forty
+   * minutes into an emergency, the customer picks somebody else from the
+   * suggestions, and the very next sweep — reading the booking's age — finds
+   * first refusal long spent and widens the job away from the person they had
+   * just this second chosen. Five minutes later it gives up on them entirely.
+   *
+   * Both windows move together on purpose. Somebody who has actively re-picked
+   * has not given up, so neither do we.
+   */
+  const RECHOSEN = at(40).toISOString();
+
+  it("gives a re-picked professional their own first refusal", () => {
+    expect(dispatchStage(BOOKED, "emergency", at(42), RECHOSEN)).toBe(
+      "first-refusal",
+    );
+  });
+
+  it("still widens once that window has actually passed", () => {
+    expect(dispatchStage(BOOKED, "emergency", at(46), RECHOSEN)).toBe("open");
+  });
+
+  it("does not give up on a job the customer has just re-picked", () => {
+    // 50 minutes old, past the 45-minute give-up — but 10 minutes into the
+    // replacement's own window.
+    expect(dispatchStage(BOOKED, "emergency", at(50), RECHOSEN)).not.toBe(
+      "give-up",
+    );
+  });
+
+  it("is the booking's age when nobody has re-picked", () => {
+    expect(dispatchStage(BOOKED, "emergency", at(50), null)).toBe("give-up");
+  });
+});
