@@ -92,3 +92,9 @@ whether the platform can be listed in their own app.
 
 Until then the incentive is the four true things on the payment screen
 (`components/booking/digital-benefits.tsx`) and no money at all.
+
+### BLOCKER: next-14-advisories
+- Status: unresolved
+- Claims: nothing to a visitor — this one is not a promise on a screen, it is a way in that nobody in this repository wrote. `npm audit` reports two high-severity entries, Next itself and postcss beneath it, and `fixAvailable` for both is `next@16`. Most of the individual advisories do not describe this deployment (the Image Optimizer ones need `next/image` with `remotePatterns`, which this app does not use; several denial-of-service ones are specific to self-hosting). Three plausibly do reach us on Vercel: cache poisoning of React Server Component responses, cache confusion of response bodies for requests with bodies, and unauthenticated disclosure of internal Server Function endpoints. The last matters most, because every write in this product is a server action.
+- Lives in: `package.json` (`next@14`), and `.github/workflows/ci.yml`, which gates at `critical` rather than `high` so CI is not red on every commit until this lands — an always-red check is a check nobody reads.
+- Replaced by: the upgrade to Next 16 across next-intl and the whole route table, with `npm run verify` green afterwards, and `--audit-level=high` restored in CI. It is its own piece of work and deliberately not done inside a security phase whose brief was to break nothing.

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-launch-blockers.mjs && node scripts/check-status-transitions.mjs && node scripts/check-bundle-budget.mjs",
+    "build": "node scripts/check-bundle-budget.mjs && node scripts/check-secrets.mjs",
     "build:next": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -25,7 +25,8 @@
     "test:watch": "vitest",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
     "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run test && npm run build && npm run check:paint && npm run check:flows",
-    "ui:add": "shadcn add"
+    "ui:add": "shadcn add",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",

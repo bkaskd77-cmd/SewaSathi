@@ -149,10 +149,29 @@ async function main() {
     });
 
     for (const path of PAGES) {
+      const violations = [];
       const page = await browser.newPage({
         viewport: { width: 390, height: 844 },
       });
       try {
+      /*
+       * A CONTENT SECURITY POLICY THAT BLOCKS SOMETHING FAILS SILENTLY.
+       *
+       * The page still paints — that is the whole point of a policy, it
+       * removes one script and carries on — so the check above would go on
+       * saying "ok" while a bundle, a style or a websocket was being refused
+       * in every visitor's browser. Chromium reports each refusal to the
+       * console, so this reads them and treats one as a failure.
+       *
+       * That makes the policy in next.config.mjs testable: tighten a directive
+       * too far and this says which one, here, rather than a customer finding
+       * out that the live booking page stopped updating.
+       */
+      page.on("console", (message) => {
+        const text = message.text();
+        if (/content security policy/i.test(text)) violations.push(text);
+      });
+
         const response = await page.goto(`${origin}${path}`, {
           waitUntil: "load",
         });
@@ -173,7 +192,11 @@ async function main() {
         if (fcp !== null && !(fcp > 0)) {
           failures.push(`${path} reported a first-contentful-paint of ${fcp}.`);
         }
-        results.push({ path, status, fcp });
+        for (const violation of violations) {
+          failures.push(`${path} violated its own CSP — ${violation}`);
+        }
+
+        results.push({ path, status, fcp, violations: violations.length });
       } finally {
         await page.close();
       }
@@ -184,10 +207,11 @@ async function main() {
   }
 
   console.log("\nPaint check");
-  for (const { path, status, fcp } of results) {
-    const state = fcp > 0 ? "ok  " : "FAIL";
+  for (const { path, status, fcp, violations } of results) {
+    const state = fcp > 0 && !violations ? "ok  " : "FAIL";
     const value = fcp === null ? "no FCP" : `FCP ${Math.round(fcp)}ms`;
-    console.log(`  ${state}  ${path.padEnd(24)} HTTP ${status}  ${value}`);
+    const csp = violations ? `  ${violations} CSP violation(s)` : "";
+    console.log(`  ${state}  ${path.padEnd(24)} HTTP ${status}  ${value}${csp}`);
   }
 
   if (failures.length > 0) {
@@ -197,7 +221,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("  Every page painted.\n");
+  console.log("  Every page painted, and nothing was refused by the policy.\n");
 }
 
 main().catch((error) => {

@@ -24,6 +24,20 @@ jobs:
 
       - run: npm ci
 
+      # A dependency with a known advisory is a way in that nobody in this
+      # repository wrote, so this fails the build rather than printing a
+      # warning somebody scrolls past.
+      #
+      # GATED AT `critical`, NOT `high`, AND THAT IS A DECISION WITH AN EXPIRY.
+      # Today's two high-severity advisories are both Next 14 and both resolve
+      # only by upgrading to Next 16 — a major version, across next-intl and
+      # every route in the app. Gating at `high` today would mean a red CI on
+      # every commit until that migration lands, and a check that is always red
+      # is a check nobody reads. The upgrade is a named launch blocker rather
+      # than a note here; when it lands, this drops back to `high`.
+      - name: Dependency advisories
+        run: npm audit --audit-level=critical --omit=dev
+
       - run: npm run lint
 
       - run: npm run typecheck
