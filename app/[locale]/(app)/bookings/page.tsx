@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { CalendarDays, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronRight, Plus } from "lucide-react";
 
 import { StatusBadge } from "@/components/booking/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -63,11 +63,30 @@ export default async function BookingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <header className="animate-rise">
-        <h1 className="font-display text-display-md">{t("title")}</h1>
-        <p className="mt-2 text-body-md text-muted-foreground">
-          {firstName ? t("leadNamed", { name: firstName }) : t("lead")}
-        </p>
+      {/* THE WAY OUT OF THIS PAGE IS FORWARDS.
+          Somebody looking at their bookings is a customer who already trusts
+          us enough to have used the product — the single most likely person to
+          book again — and until now the only route to a second booking was the
+          logo, back to the homepage, then down to the services grid. Three
+          taps and a scroll to reach the thing we most want them to do. It sits
+          in the header rather than at the bottom of the list, because a
+          customer with fifteen bookings should not have to scroll past all of
+          them to find it. */}
+      <header className="animate-rise flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-display-md">{t("title")}</h1>
+          <p className="mt-2 text-body-md text-muted-foreground">
+            {firstName ? t("leadNamed", { name: firstName }) : t("lead")}
+          </p>
+        </div>
+        {bookings.length > 0 ? (
+          <Button variant="gold" asChild className="btn-tactile shrink-0">
+            <Link href="/services">
+              <Plus aria-hidden="true" />
+              {t("bookAnother")}
+            </Link>
+          </Button>
+        ) : null}
       </header>
 
       {bookings.length === 0 ? (
@@ -79,7 +98,10 @@ export default async function BookingsPage() {
             description={t("emptyBody")}
             action={
               <Button variant="gold" size="lg" asChild className="btn-tactile">
-                <Link href="/#services">{t("browse")}</Link>
+                {/* The catalogue, not a homepage anchor: it is searchable,
+                    filterable and shareable, and it is the same destination as
+                    the header button so the two never disagree. */}
+                <Link href="/services">{t("browse")}</Link>
               </Button>
             }
           />

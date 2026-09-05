@@ -372,7 +372,8 @@
       "emptyTitle": "No bookings yet",
       "emptyBody": "Once you book a professional, the job shows up here with its time, status and agreed price — and you can call them from it.",
       "browse": "Browse services",
-      "phoneNote": "Booked over the phone? Call <phone>+977 9800 000 000</phone> and we’ll add it to your account."
+      "phoneNote": "Booked over the phone? Call <phone>+977 9800 000 000</phone> and we’ll add it to your account.",
+      "bookAnother": "Book another service"
     },
     "account": {
       "title": "Account",

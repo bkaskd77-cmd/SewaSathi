@@ -725,6 +725,18 @@ three seconds of waiting before a byte is sent, on a product where nothing had
 gone wrong. `vercel.json` now pins `"regions": ["sin1"]`, which is also far
 closer to Nepal than Virginia is.
 
+**Speed is a standing task, not a phase.** The region move was the big step and
+it is done — `sin1`, 28ms to the database, measured. What remains is smaller
+and gets taken a step at a time as the product grows, because each one costs
+something in complexity and none is worth paying for before it is needed. In
+the order they are likely to matter: caching the catalogue reads so a filtered
+`/services` does not re-query per visitor; splitting the site header's session
+read out of the shared layout so public pages can be statically served;
+image handling once there are photographs and galleries; and pagination on
+`/bookings` and the provider job list once anybody has more rows than fits a
+screen. Revisit after any phase that adds data volume — the app currently has
+almost none, and that is exactly why it must not be assumed to be fast later.
+
 **So the standing rule: the serverless region and the database region are one
 decision, not two.** Anything that changes either is a latency change and says
 so in the summary. Everything below follows from the same arithmetic — a round
@@ -802,6 +814,14 @@ the catch-all that puts an unknown path back inside the locale tree so
 fills the first, Phase 10 makes the second editable — but they exist now
 because the account menu links to them and a 404 from your own menu reads as
 a broken product.
+
+**`/bookings` is a list, and it needs to become a dashboard.** A full redesign
+is owed — the customer's home inside the product, not a stack of identical
+cards. Until then it carries the one thing it was missing: a visible way to
+book again. Somebody looking at their bookings is the most likely person on
+the platform to book a second time, and the only route was the logo, the
+homepage and a scroll. The button goes to `/services`, the same destination as
+the empty state, so the two can never disagree.
 
 `components/shared/empty-state.tsx` is the shape: quiet, no warning colour, and
 always an action. A screen that says "nothing here" and offers no way forward
