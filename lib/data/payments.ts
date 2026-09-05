@@ -14,6 +14,7 @@ import {
   type PaymentMethod,
   type PaymentStatus,
 } from "@/lib/payments";
+import { recordSecurityEvent } from "@/lib/audit";
 import { notifyAll } from "@/lib/notify";
 import type { PaymentMixRow } from "@/lib/data/payment-mix";
 import type { PricingSignal } from "@/lib/data/pricing-signals";
@@ -209,6 +210,31 @@ export async function recordFinalAmount(input: {
     return { ok: false, reason: "saveFailed" };
   }
 
+  /*
+   * TWO RECORDS OF THE SAME MOMENT, and they are not redundant.
+   *
+   * `booking_status_history` is the booking's story and the customer's own
+   * page can read parts of it. `security_events` is the evidence: append-only
+   * in the database, unreadable by anybody but an admin, and it survives a
+   * booking being edited or deleted. The figure a professional typed while
+   * standing in somebody's kitchen is the single most disputed fact in this
+   * product, so it goes in both.
+   */
+  await recordSecurityEvent({
+    kind: "payment.amountRecorded",
+    actorId: input.actorId,
+    actorRole: "provider",
+    subjectType: "booking",
+    subjectId: input.bookingId,
+    detail: {
+      amount: input.amount,
+      verdict: verdict.outcome,
+      quotedMin: booking.quoted_min,
+      quotedMax: booking.quoted_max,
+      reasonGiven: Boolean(input.reason?.trim()),
+    },
+  });
+
   // Written to the history so a dispute has the figure, the reason and who
   // entered it — the whole point of an append-only trail.
   await supabase.from("booking_status_history").insert({
@@ -262,6 +288,18 @@ export async function approveFinalAmount(input: {
     changed_by: input.actorId,
     changed_by_role: "customer",
     note: `customer approved ${input.amount}`,
+  });
+
+  // The other half of the disputed moment: the professional typed a figure
+  // over the band and the customer agreed to it. Both sides, both timestamped,
+  // in a table neither of them can edit.
+  await recordSecurityEvent({
+    kind: "payment.amountApproved",
+    actorId: input.actorId,
+    actorRole: "customer",
+    subjectType: "booking",
+    subjectId: input.bookingId,
+    detail: { amount: input.amount },
   });
 
   return { ok: true };
@@ -628,6 +666,23 @@ async function settlePaid(
 
   await sendReceipts(settled, booking);
 
+  await recordSecurityEvent({
+    kind: "payment.settled",
+    actorRole: "system",
+    subjectType: "payment",
+    subjectId: settled.ourReference,
+    detail: {
+      bookingId: settled.bookingId,
+      amount: settled.amount,
+      method: settled.method,
+      platformFee: split.platformFee,
+      providerEarning: split.providerEarning,
+      commissionBps: split.commissionBps,
+      basis: split.basis,
+      floorApplied: split.floorApplied,
+    },
+  });
+
   return { ok: true, payment: settled };
 }
 
@@ -826,6 +881,17 @@ async function flagAmountMismatch(input: {
       bookingId: input.booking.id,
     })),
   );
+
+  // The one a person will be asked to adjudicate. Both figures, kept where
+  // neither party can reach them.
+  await recordSecurityEvent({
+    kind: "payment.mismatch",
+    actorId: input.actorId,
+    actorRole: "customer",
+    subjectType: "booking",
+    subjectId: input.booking.id,
+    detail: { recorded: input.recorded, reported: input.reported },
+  });
 }
 
 /**
@@ -1141,6 +1207,15 @@ export async function resolveCommissionAppeal(input: {
       resolution_note: input.note?.trim().slice(0, 600) ?? null,
     })
     .eq("id", appeal.id);
+
+  await recordSecurityEvent({
+    kind: "commission.appealResolved",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "booking",
+    subjectId: appeal.booking_id as string,
+    detail: { appealId: appeal.id, upheld: input.uphold },
+  });
 
   if (!input.uphold) return { ok: true };
 

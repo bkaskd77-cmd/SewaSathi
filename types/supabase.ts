@@ -260,6 +260,70 @@ export type Database = {
         >;
         Relationships: [];
       };
+      security_events: {
+        Row: {
+          id: number;
+          at: string;
+          actor_id: string | null;
+          actor_role: string;
+          kind: string;
+          subject_type: string | null;
+          subject_id: string | null;
+          detail: Record<string, unknown>;
+          request_ip: string | null;
+          user_agent: string | null;
+        };
+        Insert: {
+          at?: string;
+          actor_id?: string | null;
+          actor_role?: string;
+          kind: string;
+          subject_type?: string | null;
+          subject_id?: string | null;
+          detail?: Record<string, unknown>;
+          request_ip?: string | null;
+          user_agent?: string | null;
+        };
+        /* Append-only in the database. There is no legitimate update. */
+        Update: never;
+        Relationships: [];
+      };
+      provider_documents: {
+        Row: {
+          id: string;
+          provider_id: string | null;
+          profile_id: string;
+          kind: string;
+          storage_path: string;
+          mime_type: string;
+          byte_size: number;
+          status: string;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          rejection_reason: string | null;
+          uploaded_at: string;
+          delete_after: string | null;
+        };
+        Insert: {
+          id?: string;
+          provider_id?: string | null;
+          profile_id: string;
+          kind: string;
+          storage_path: string;
+          mime_type: string;
+          byte_size: number;
+          status?: string;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          rejection_reason?: string | null;
+          uploaded_at?: string;
+          delete_after?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_documents"]["Insert"]
+        >;
+        Relationships: [];
+      };
       booking_refusals: {
         Row: {
           id: string;

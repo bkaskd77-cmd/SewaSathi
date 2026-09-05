@@ -29,9 +29,11 @@ import { Client } from "pg";
  * when reading a green result: this proves the policies are right, not that
  * Supabase's auth is.
  *
- * The storage migration is skipped — it needs Supabase's `storage` schema,
- * which is not part of Postgres. Its policies are noted as untested in
- * ARCHITECTURE.md rather than pretended over.
+ * Supabase's `storage` schema is modelled rather than skipped — two tables and
+ * `storage.foldername`, which is what every object policy uses to scope a file
+ * to its owner. It used to be skipped, which meant the one bucket holding
+ * photographs of the inside of people's homes was the one migration with no
+ * test at all.
  */
 
 const PG_BIN = "/usr/lib/postgresql/16/bin";
@@ -121,6 +123,45 @@ begin
 end
 $$;
 
+-- Supabase Storage, modelled far enough to run its policies.
+--
+-- Two tables and one function. storage.foldername is the one that matters:
+-- every policy in this product scopes an object to its owner by comparing the
+-- first path segment to auth.uid(), so a shim that got it wrong would make
+-- those policies pass here and fail in production. It returns the directory
+-- segments — everything except the filename — exactly as Supabase's does.
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[],
+  created_at timestamptz not null default now()
+);
+
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id) on delete cascade,
+  name text not null,
+  owner uuid,
+  created_at timestamptz not null default now(),
+  metadata jsonb
+);
+
+alter table storage.objects enable row level security;
+
+create or replace function storage.foldername(name text)
+returns text[]
+language sql
+immutable
+as $$
+  select (string_to_array(name, '/'))[
+    1 : greatest(array_length(string_to_array(name, '/'), 1) - 1, 0)
+  ];
+$$;
+
 -- Supabase hands anon and authenticated EXECUTE on every function created in
 -- the public schema, as a default privilege — a *direct* grant, not one inherited from
 -- PUBLIC. Without this line the harness was more locked-down than the real
@@ -132,7 +173,16 @@ alter default privileges in schema public
 `;
 
 /** Migrations that need Supabase-only schemas we cannot stand up here. */
-const SKIP = new Set(["20260901000002_booking_photos.sql"]);
+/*
+ * Nothing is skipped any more, and what used to be skipped is the point.
+ *
+ * `20260901000002_booking_photos.sql` was excluded because it touches
+ * `storage.*`, which plain Postgres does not have — so the one bucket holding
+ * photographs of the inside of people's homes was the one migration with no
+ * test at all. The shim below models enough of Supabase Storage to run those
+ * policies for real, which is how they get proved rather than assumed.
+ */
+const SKIP = new Set<string>();
 
 export async function startPostgres(): Promise<Harness> {
   const root = mkdtempSync(path.join(tmpdir(), "sk-pg-"));
@@ -208,6 +258,9 @@ export async function startPostgres(): Promise<Harness> {
   await admin.query(`
     grant usage on schema public to authenticated, anon;
     grant usage on schema auth to authenticated, anon;
+    grant usage on schema storage to authenticated, anon;
+    grant select, insert, update on storage.objects to authenticated, anon;
+    grant select on storage.buckets to authenticated, anon;
     do $$
     declare rel record;
     begin

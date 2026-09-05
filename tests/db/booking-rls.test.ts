@@ -1939,3 +1939,244 @@ describe("RLS covers every table, including ones nobody has written a test for",
     expect(shared).toEqual([]);
   });
 });
+
+/*
+ * THE LOG HAS TO BE UNWRITEABLE BY THE THING BEING LOGGED.
+ *
+ * A log the application can edit proves nothing. The first thing anybody
+ * holding our service role key would do is tidy up after themselves, and the
+ * first thing a careless migration would do is "clean up old rows" — so the
+ * trigger refuses UPDATE and DELETE for every caller, including the service
+ * role that writes it. Retention, when it is decided, is a deliberate
+ * migration that drops the trigger, says why, and puts it back.
+ */
+describe("the security log is append-only and admin-only", () => {
+  let eventId: string;
+
+  beforeAll(async () => {
+    const { rows } = await pg.admin.query(
+      `insert into public.security_events (kind, actor_id, actor_role, subject_type, subject_id, detail)
+       values ('payment.amountRecorded', $1, 'provider', 'booking', 'SK-AUDIT', '{"amount": 2000}'::jsonb)
+       returning id`,
+      [ALICE],
+    );
+    eventId = rows[0].id as string;
+  });
+
+  it("refuses an update, even from the server", async () => {
+    await expect(
+      pg.admin.query(
+        "update public.security_events set detail = '{}'::jsonb where id = $1",
+        [eventId],
+      ),
+    ).rejects.toThrow(/append-only/i);
+  });
+
+  it("refuses a delete, even from the server", async () => {
+    await expect(
+      pg.admin.query("delete from public.security_events where id = $1", [eventId]),
+    ).rejects.toThrow(/append-only/i);
+  });
+
+  it("is invisible to the person it is about", async () => {
+    // Alice is the actor on that row. She still cannot read it: an audit log
+    // somebody can read is an audit log they know how to work around.
+    const { rows } = await (await pg.asUser(ALICE)).query(
+      "select id from public.security_events",
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("cannot be forged from a browser", async () => {
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query(
+        `insert into public.security_events (kind, actor_id, actor_role)
+         values ('auth.signedIn', $1, 'admin')`,
+        [BOB],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+});
+
+/*
+ * IDENTITY DOCUMENTS, BEFORE THERE ARE ANY.
+ *
+ * Phase 10 collects citizenship certificates, PAN cards and photographs of
+ * people's faces. These cases exist now, against an empty table, because a
+ * storage model tested after the data arrives is a model whose first test
+ * subject is somebody's citizenship certificate.
+ */
+describe("identity documents are the owner's and the admin's, nobody else's", () => {
+  beforeAll(async () => {
+    await pg.admin.query(
+      `insert into public.provider_documents
+         (profile_id, kind, storage_path, mime_type, byte_size)
+       values ($1, 'citizenship', $2, 'image/jpeg', 120000)
+       on conflict (storage_path) do nothing`,
+      [ALICE, `${ALICE}/citizenship/doc-1.jpg`],
+    );
+  });
+
+  it("lets the owner see their own", async () => {
+    const { rows } = await (await pg.asUser(ALICE)).query(
+      "select id from public.provider_documents",
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("hides it from every other signed-in person", async () => {
+    // Not other professionals, not customers, not their own customers. The
+    // verification badge is what the product shows; the document behind it is
+    // never shown to anybody.
+    const { rows } = await (await pg.asUser(BOB)).query(
+      "select id from public.provider_documents",
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("hides it from a stranger entirely", async () => {
+    const { rows } = await (await pg.asAnon()).query(
+      "select id from public.provider_documents",
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("cannot be uploaded, edited or approved from a browser", async () => {
+    // Uploads and review decisions go through the service role after the
+    // server has checked who is asking — the same rule as payments, because a
+    // row a client can write is a row an attacker can forge. Marking your own
+    // document `verified` is the specific forgery this prevents.
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query(
+        `insert into public.provider_documents
+           (profile_id, kind, storage_path, mime_type, byte_size, status)
+         values ($1, 'citizenship', $2, 'image/jpeg', 100, 'verified')`,
+        [ALICE, `${ALICE}/citizenship/forged.jpg`],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+
+    const updated = await alice.query(
+      "update public.provider_documents set status = 'verified'",
+    );
+    expect(updated.rowCount).toBe(0);
+  });
+});
+
+/*
+ * THE PHOTOGRAPHS OF THE INSIDE OF PEOPLE'S HOMES.
+ *
+ * These policies shipped in Phase 6 and had never been run by a test: the
+ * harness skipped their migration because plain Postgres has no `storage`
+ * schema, so the one bucket holding pictures of somebody's kitchen was the one
+ * thing with no coverage. The shim in tests/support/postgres.ts models enough
+ * of Supabase Storage to run them for real.
+ */
+describe("booking photos are the customer's, and the professional's only while the job is live", () => {
+  const CARL_ID = "33333333-3333-4333-8333-333333333333";
+  let photoPath: string;
+  let liveJob: string;
+  let carlListing: string;
+
+  beforeAll(async () => {
+    const { rows: listing } = await pg.admin.query(
+      "select id from public.providers where display_name = 'Carl Cooling' limit 1",
+    );
+    carlListing = listing[0].id as string;
+
+    photoPath = `${ALICE}/kitchen.jpg`;
+    await pg.admin.query(
+      `insert into storage.objects (bucket_id, name, owner)
+       values ('booking-photos', $1, $2)`,
+      [photoPath, ALICE],
+    );
+
+    const { rows: address } = await pg.admin.query(
+      "select id from public.addresses where profile_id = $1 limit 1",
+      [ALICE],
+    );
+    const { rows: booking } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max, photo_url, provider_id)
+       values ('SK-PHOTO', $1, 'ac-servicing', $2, 'Photo of the unit', 1200, 6000, $3, $4)
+       returning id`,
+      [ALICE, address[0].id, photoPath, carlListing],
+    );
+    liveJob = booking[0].id as string;
+  });
+
+  it("lets the customer read their own photo", async () => {
+    const { rows } = await (await pg.asUser(ALICE)).query(
+      "select name from storage.objects where bucket_id = 'booking-photos'",
+    );
+    expect(rows.map((r) => r.name)).toContain(photoPath);
+  });
+
+  it("hides it from another customer", async () => {
+    const { rows } = await (await pg.asUser(BOB)).query(
+      "select name from storage.objects where name = $1",
+      [photoPath],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("hides it from a stranger", async () => {
+    // The bucket is private, so there is no URL to guess either. This is the
+    // second lock: even holding the object's name gets nothing.
+    const { rows } = await (await pg.asAnon()).query(
+      "select name from storage.objects where name = $1",
+      [photoPath],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("shows it to the assigned professional once the job is accepted", async () => {
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [liveJob],
+    );
+    const { rows } = await (await pg.asUser(CARL_ID)).query(
+      "select name from storage.objects where name = $1",
+      [photoPath],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("takes it away again when the job is over", async () => {
+    // The window closes. A professional who did a job in January does not
+    // keep a view into that kitchen for ever.
+    await pg.admin.query(
+      `update public.bookings set status = 'en_route' where id = $1`,
+      [liveJob],
+    );
+    await pg.admin.query(
+      `update public.bookings set status = 'in_progress' where id = $1`,
+      [liveJob],
+    );
+    await pg.admin.query(
+      `update public.bookings set status = 'completed' where id = $1`,
+      [liveJob],
+    );
+    const { rows } = await (await pg.asUser(CARL_ID)).query(
+      "select name from storage.objects where name = $1",
+      [photoPath],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("refuses an upload into somebody else's folder", async () => {
+    // The path's first segment is the owner and the policy compares it to
+    // auth.uid(). Without that, one customer writes into another's folder and
+    // the read policy then hands it to the wrong person.
+    const bob = await pg.asUser(BOB);
+    await expect(
+      bob.query(
+        `insert into storage.objects (bucket_id, name, owner)
+         values ('booking-photos', $1, $2)`,
+        [`${ALICE}/planted.jpg`, BOB],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+});

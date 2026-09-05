@@ -4,6 +4,8 @@ import { getLocale } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { recordSecurityEvent } from "@/lib/audit";
+import { getSessionProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -21,6 +23,22 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function signOutAction() {
   const locale = (await getLocale()) as Locale;
+
+  // Read before the session is destroyed — afterwards there is nobody to
+  // attribute it to, and an unattributed sign-out is not worth recording.
+  const profile = await getSessionProfile();
+
   await createClient().auth.signOut();
+
+  if (profile) {
+    await recordSecurityEvent({
+      kind: "auth.signedOut",
+      actorId: profile.id,
+      actorRole: profile.role,
+      subjectType: "profile",
+      subjectId: profile.id,
+    });
+  }
+
   redirect({ href: "/", locale });
 }
