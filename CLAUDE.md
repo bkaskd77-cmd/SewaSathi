@@ -745,6 +745,11 @@ trip is the unit of cost, and the job is to make fewer of them.
   out of static rendering for ever, and nothing about a category list varies by
   visitor. Anything that depends on who is asking keeps `createClient()` —
   with the public one there is no who.
+- **`/api/health` reports the region and the measured distance to the
+  database** — `server.region`, three samples, median. A region setting that
+  silently failed to apply is exactly this endpoint's kind of fault: it lives
+  in somebody else's dashboard and no local check can see it. It is a URL, so
+  it needs no checkout to read.
 - **`npm run check:timing`** measures time to first byte per route, median and
   worst of N. It refuses to report a blocked request as fast: Vercel stamps
   `x-vercel-id`, and without that header the request never arrived. Same

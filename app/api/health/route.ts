@@ -118,6 +118,7 @@ async function checkDatabase(): Promise<Check> {
       detail: "Supabase is not configured — every page is serving seed data.",
     };
   }
+  const startedAt = performance.now();
   try {
     const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/categories?select=slug&limit=1`;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -127,7 +128,11 @@ async function checkDatabase(): Promise<Check> {
       cache: "no-store",
     });
     return response.ok
-      ? { name: "database", state: "ok", detail: "Categories readable." }
+      ? {
+          name: "database",
+          state: "ok",
+          detail: `Categories readable in ${Math.round(performance.now() - startedAt)}ms.`,
+        }
       : {
           name: "database",
           state: "down",
@@ -281,6 +286,94 @@ function checkTriage(): Check {
       };
 }
 
+/**
+ * WHERE IS THIS FUNCTION RUNNING, AND HOW FAR IS THE DATABASE?
+ *
+ * The single largest performance fault this product has had was not in the
+ * code: functions defaulted to `iad1` (Washington DC) while Supabase sits in
+ * `ap-southeast-1` (Singapore). Every query crossed the Pacific — about 250ms
+ * — and a signed-in page makes a dozen of them. The app felt broken with
+ * almost no data in it, because the cost was distance and distance does not
+ * care how many rows there are.
+ *
+ * `vercel.json` pins the region now, and this check is how anybody confirms it
+ * actually applied — from a browser, with no checkout, no Node and no
+ * terminal. A setting that silently fails to apply is exactly the class of
+ * fault this endpoint exists for: it lives in somebody else's dashboard and
+ * nothing in `npm run verify` can see it.
+ *
+ * The round trip is measured rather than assumed, because the region name
+ * being right is not proof — it is the milliseconds that customers feel.
+ */
+const EXPECTED_REGION = "sin1";
+/** Same region as the database should be single-digit or low-double-digit ms. */
+const CLOSE_ENOUGH_MS = 80;
+
+async function checkRegion(): Promise<Check> {
+  const region = process.env.VERCEL_REGION;
+
+  if (!region) {
+    return {
+      name: "server.region",
+      state: "unknown",
+      detail:
+        "Not running on Vercel, so there is no region to check. Locally this is expected.",
+    };
+  }
+
+  if (!hasSupabaseConfig()) {
+    return {
+      name: "server.region",
+      state: "unknown",
+      detail: `Running in ${region}, but Supabase is unconfigured so the distance cannot be measured.`,
+    };
+  }
+
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/categories?select=slug&limit=1`;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  const samples: number[] = [];
+
+  try {
+    // Three, and the median: the first call after a cold start pays for the
+    // TLS handshake and would libel a perfectly good region.
+    for (let i = 0; i < 3; i += 1) {
+      const started = performance.now();
+      await fetch(url, {
+        headers: { apikey: key, authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
+        cache: "no-store",
+      });
+      samples.push(performance.now() - started);
+    }
+  } catch (error) {
+    return {
+      name: "server.region",
+      state: "unknown",
+      detail: `Running in ${region}; could not measure the database: ${(error as Error).message}`,
+    };
+  }
+
+  const median = Math.round(samples.sort((a, b) => a - b)[1]);
+  const where = region === EXPECTED_REGION ? region : `${region} (expected ${EXPECTED_REGION})`;
+
+  if (median <= CLOSE_ENOUGH_MS) {
+    return {
+      name: "server.region",
+      state: "ok",
+      detail: `${where} — database round trip ${median}ms.`,
+    };
+  }
+
+  return {
+    name: "server.region",
+    state: "down",
+    detail:
+      `${where} — database round trip ${median}ms, which is a continent away. ` +
+      `Every page makes several of these. Check "regions" in vercel.json and ` +
+      `redeploy; a region change needs a new deployment to take effect.`,
+  };
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wantsDeep = url.searchParams.get("deep") === "1";
@@ -302,6 +395,7 @@ export async function GET(request: Request) {
       checkAuthConfig(),
       checkDatabase(),
       checkServiceRole(),
+      checkRegion(),
     ])),
     checkTriage(),
   ];
