@@ -25,6 +25,16 @@ export type NotificationKind =
   | "booking.assigned"
   | "booking.amountEntered"
   | "booking.paid"
+  /**
+   * The receipt, to both sides, on every settlement.
+   *
+   * Carries the recorded amount, which is the point: somebody who paid Rs
+   * 2,000 and receives a receipt for Rs 1,000 finds out after the professional
+   * has left, when saying so costs them nothing.
+   */
+  | "payment.receipt"
+  /** The two figures for a cash job disagreed. Nothing settles until a person looks. */
+  | "payment.mismatch"
   /** First refusal lapsed; the job is now open to other professionals. */
   | "booking.widened"
   /** Nobody took it. The booking has ended rather than waiting for ever. */

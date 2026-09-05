@@ -10,7 +10,7 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatSlotInstant } from "@/lib/booking";
+import { formatInstant, formatSlotInstant } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategory } from "@/lib/data/categories";
 import {
@@ -161,6 +161,9 @@ export default async function ProviderJobsPage() {
                     paymentStatus="pending"
                     paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                     earningLabel={null}
+                    floorLabel={null}
+                    appealStatus={null}
+                    payoutLabel={null}
                   />
                 </div>
               ))}
@@ -212,6 +215,21 @@ export default async function ProviderJobsPage() {
                     job.providerEarning !== null
                       ? formatNpr(job.providerEarning, { locale })
                       : null
+                  }
+                  /* The floor is only mentioned when it actually cost them
+                     something: the fee basis is above what was collected. A
+                     rule that is invisible until it takes money is the kind
+                     that loses honest professionals. */
+                  floorLabel={
+                    job.commissionBasis !== null &&
+                    job.finalAmount !== null &&
+                    job.commissionBasis > job.finalAmount
+                      ? formatNpr(job.commissionBasis, { locale })
+                      : null
+                  }
+                  appealStatus={job.appealStatus}
+                  payoutLabel={
+                    job.payoutDueAt ? formatInstant(job.payoutDueAt, locale) : null
                   }
                 />
               </div>

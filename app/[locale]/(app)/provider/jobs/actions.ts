@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getSessionProfile } from "@/lib/auth/session";
 import { type BookingStatus } from "@/lib/booking";
-import { recordFinalAmount } from "@/lib/data/payments";
+import { openCommissionAppeal, recordFinalAmount } from "@/lib/data/payments";
 import { advanceJob, claimJob, declineJob } from "@/lib/data/provider-jobs";
 
 /**
@@ -102,4 +102,34 @@ export async function claimJobAction(
     revalidatePath(`/bookings/${bookingId}`);
   }
   return result;
+}
+
+
+/**
+ * "This job really was smaller than the band."
+ *
+ * The commission floor charges the fee on the published minimum, which is what
+ * makes under-reporting pointless — and occasionally lands on a job that
+ * genuinely was a five-minute washer. Every check is in
+ * `openCommissionAppeal`: it re-reads the booking, confirms this professional
+ * did it, and refuses an appeal against a floor that was never applied. One
+ * per booking, decided by a person.
+ */
+export async function appealCommissionAction(
+  bookingId: string,
+  reason: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await openCommissionAppeal({
+    bookingId,
+    actorId: profile.id,
+    reason,
+  });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
 }

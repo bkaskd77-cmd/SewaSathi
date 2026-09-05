@@ -1496,3 +1496,168 @@ describe("saying no to a job, and what it costs", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+/*
+ * THE SETTLEMENT COLUMNS ARE THE SERVER'S.
+ *
+ * The commission floor only removes the motive to under-report if the figures
+ * it is computed from cannot be edited by the people it applies to. RLS is
+ * row-level, so every column on an updatable row is updatable — which is how
+ * the original money bug happened — and the answer is the same trigger that
+ * already guards the price: name the columns.
+ *
+ * `customer_reported_amount` and `amount_mismatch_at` matter most. They are
+ * the record of a customer's independent answer and of the two figures
+ * disagreeing; a browser that could write either could erase the only evidence
+ * a cash handover produces.
+ */
+describe("the settlement figures cannot be typed from a browser", () => {
+  let liveBooking: string;
+
+  beforeAll(async () => {
+    // A booking of Alice's that is still updatable by her: earlier tests in
+    // this file end hers, and an update matching zero rows would pass these
+    // assertions without the trigger ever running.
+    const { rows: address } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Sanepa', 'Green gate')
+       returning id`,
+      [ALICE],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max)
+       values ('SK-FEE01', $1, 'plumbing', $2, 'Leaking tap', 900, 4500)
+       returning id`,
+      [ALICE, address[0].id],
+    );
+    liveBooking = rows[0].id as string;
+  });
+
+  const columns = [
+    ["commission_basis", "400"],
+    ["commission_floor_waived", "true"],
+    ["customer_reported_amount", "100"],
+    ["amount_mismatch_at", "now()"],
+    ["payout_due_at", "now()"],
+  ] as const;
+
+  for (const [column, value] of columns) {
+    it(`refuses a customer writing ${column}`, async () => {
+      const alice = await pg.asUser(ALICE);
+      await expect(
+        alice.query(
+          `update public.bookings set ${column} = ${value} where id = $1`,
+          [liveBooking],
+        ),
+      ).rejects.toThrow(/not editable from a browser/i);
+    });
+  }
+
+  it("still lets the server write them", async () => {
+    // auth.uid() is null for the service role, which is how every legitimate
+    // settlement passes through the same trigger untouched.
+    const { rows } = await pg.admin.query(
+      `update public.bookings
+       set commission_basis = 900, customer_reported_amount = 1500,
+           payout_due_at = now()
+       where id = $1 returning commission_basis`,
+      [liveBooking],
+    );
+    expect(Number(rows[0].commission_basis)).toBe(900);
+  });
+});
+
+describe("an appeal against the commission floor", () => {
+  it("is readable by the professional whose job it was", async () => {
+    const { rows: listing } = await pg.admin.query(
+      "select id from public.providers where profile_id = $1 limit 1",
+      [ALICE],
+    );
+    const { rows: booking } = await pg.admin.query(
+      "select id from public.bookings where customer_id = $1 limit 1",
+      [BOB],
+    );
+    await pg.admin.query(
+      `insert into public.commission_appeals (booking_id, provider_id, reason)
+       values ($1, $2, 'Only needed a washer')`,
+      [booking[0].id, listing[0].id],
+    );
+
+    const { rows } = await (await pg.asUser(ALICE)).query(
+      "select reason from public.commission_appeals",
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("is invisible to everybody else", async () => {
+    const { rows } = await (await pg.asUser(BOB)).query(
+      "select id from public.commission_appeals",
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("cannot be raised, edited or withdrawn from a browser", async () => {
+    // An appeal decides money, so it follows the same rule as `payments`: RLS
+    // grants nobody insert or update, and the write happens in lib/data under
+    // the service role after the ownership check.
+    const { rows: booking } = await pg.admin.query(
+      "select id from public.bookings where customer_id = $1 limit 1",
+      [ALICE],
+    );
+    const { rows: listing } = await pg.admin.query(
+      "select id from public.providers where profile_id = $1 limit 1",
+      [ALICE],
+    );
+    const alice = await pg.asUser(ALICE);
+
+    await expect(
+      alice.query(
+        `insert into public.commission_appeals (booking_id, provider_id, reason)
+         values ($1, $2, 'let me off')`,
+        [booking[0].id, listing[0].id],
+      ),
+    ).rejects.toThrow(/row-level security|permission denied/i);
+
+    // An update with no policy behind it is not an error — it simply matches
+    // nothing, which is the quieter half of the same guarantee.
+    const updated = await alice.query(
+      "update public.commission_appeals set status = 'upheld'",
+    );
+    expect(updated.rowCount).toBe(0);
+  });
+
+  it("allows only one per booking, so a queue cannot be flooded", async () => {
+    const { rows } = await pg.admin.query(
+      "select booking_id, provider_id from public.commission_appeals limit 1",
+    );
+    await expect(
+      pg.admin.query(
+        `insert into public.commission_appeals (booking_id, provider_id, reason)
+         values ($1, $2, 'again')`,
+        [rows[0].booking_id, rows[0].provider_id],
+      ),
+    ).rejects.toThrow(/duplicate key|unique/i);
+  });
+});
+
+describe("the pricing signal is support's number, not a customer's", () => {
+  it("aggregates settled jobs per category for the service role", async () => {
+    const { rows } = await pg.admin.query(
+      "select * from public.category_pricing_signals",
+    );
+    expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it("is not readable by a signed-in person at all", async () => {
+    // A view runs with the caller's own policies, so a customer reading it
+    // would see their own two rows and get a meaningless average — worse than
+    // no number, because it looks like one.
+    const alice = await pg.asUser(ALICE);
+    await expect(
+      alice.query("select * from public.category_pricing_signals"),
+    ).rejects.toThrow(/permission denied/i);
+  });
+});

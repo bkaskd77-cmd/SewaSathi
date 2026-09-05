@@ -4,6 +4,7 @@ import { BadgeCheck, HandCoins, Timer } from "lucide-react";
 
 import { JoinForm } from "@/components/providers/join-form";
 import { Card } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaCity, areaName, areasByCity } from "@/lib/config/areas";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
@@ -94,6 +95,26 @@ export default async function JoinPage() {
           </li>
         ))}
       </ul>
+
+      {/* BEFORE the form, not after it and not in the terms.
+          The enforcement ladder only deters if somebody reads it, and the one
+          moment they will is while deciding whether to join. Agreeing to rules
+          you were shown is a different thing from discovering them later. */}
+      <p
+        className="animate-rise mt-6 text-body-sm text-muted-foreground"
+        style={{ animationDelay: "200ms" }}
+      >
+        {t.rich("standards", {
+          link: (chunks) => (
+            <Link
+              href="/providers/standards"
+              className="font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
+      </p>
 
       <div className="animate-rise mt-8" style={{ animationDelay: "240ms" }}>
         <JoinForm action={joinAction} trades={trades} areas={areas} />

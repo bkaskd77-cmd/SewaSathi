@@ -108,3 +108,32 @@ export function canSettle(
       return { ok: false, reason: "invalidAmount" };
   }
 }
+
+/**
+ * Should the cash screen hide the professional's figure?
+ *
+ * YES when the figure sits inside the published band, because nothing has
+ * shown it to the customer yet and their independent answer is the only
+ * evidence that a cash handover produces. Asking them to approve a number
+ * somebody else typed is a rubber stamp — the professional who pockets Rs
+ * 2,000 and records 1,000 needs exactly one tired tap.
+ *
+ * NO when it went over the band, because the customer has already been shown
+ * that exact figure and has explicitly approved it. Hiding it then would be
+ * theatre: they know the number, and pretending otherwise only makes the
+ * screen harder to answer. It would also punish the honest overrun — the case
+ * the approval flow exists for.
+ *
+ * Pure, and exported to the client on purpose: the panel needs to know which
+ * screen to draw. It is never the enforcement — `confirmCashPayment` compares
+ * the figures on the server, whatever the browser decided to render.
+ */
+export function blindCashEntry(input: {
+  method: string;
+  finalAmount: number | null;
+  quotedMax: number;
+}): boolean {
+  if (input.method !== "cash") return false;
+  if (input.finalAmount === null) return false;
+  return input.finalAmount <= input.quotedMax;
+}

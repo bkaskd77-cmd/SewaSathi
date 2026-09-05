@@ -4,6 +4,7 @@ import { about } from "@/lib/content/pages/about";
 import { complaint } from "@/lib/content/pages/complaint";
 import { contact } from "@/lib/content/pages/contact";
 import { help } from "@/lib/content/pages/help";
+import { standards } from "@/lib/content/pages/standards";
 
 /**
  * The information pages the footer links to.
@@ -17,6 +18,10 @@ const PAGES: Record<string, LocalisedDocument> = {
   contact,
   help,
   "help/complaint": complaint,
+  // The enforcement ladder, linked from /providers/join. Deterrence that
+  // nobody can read is not deterrence — it is a trap, and it drives away the
+  // honest half while the rest simply learn the thresholds by experiment.
+  "providers/standards": standards,
 };
 
 export function isInfoPage(slug: string): boolean {

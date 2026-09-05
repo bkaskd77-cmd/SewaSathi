@@ -4,13 +4,18 @@ import { randomBytes } from "node:crypto";
 
 import {
   canSettle,
+  commissionBasis,
+  commissionBpsFor,
   gatewayFor,
   judgeFinalAmount,
-  splitAmount,
+  payoutDueAt,
+  settleSplit,
   COMMISSION_BPS,
   type PaymentMethod,
   type PaymentStatus,
 } from "@/lib/payments";
+import { notifyAll } from "@/lib/notify";
+import type { PricingSignal } from "@/lib/data/pricing-signals";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -86,12 +91,13 @@ async function readBooking(bookingId: string) {
   const { data } = await createAdminClient()
     .from("bookings")
     .select(
-      "id, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method",
+      "id, reference, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at",
     )
     .eq("id", bookingId)
     .maybeSingle();
   return data as {
     id: string;
+    reference: string;
     customer_id: string;
     provider_id: string | null;
     status: string;
@@ -100,6 +106,9 @@ async function readBooking(bookingId: string) {
     final_amount: number | null;
     final_amount_approved_at: string | null;
     payment_method: string;
+    commission_floor_waived: boolean;
+    customer_reported_amount: number | null;
+    amount_mismatch_at: string | null;
   } | null;
 }
 
@@ -578,9 +587,30 @@ async function settlePaid(
 
   const settled = rowToPayment(data[0] as Record<string, unknown>);
 
-  // Freeze what the platform took and what the professional earned, at the
-  // rate in force today. See lib/payments/commission.ts.
-  const split = splitAmount(settled.amount, COMMISSION_BPS);
+  /*
+   * Freeze the split, and freeze it against the FLOOR rather than the reported
+   * amount. See lib/payments/commission.ts for why that is the whole answer to
+   * under-reporting: the band is ours, so reporting less than it earns the
+   * professional nothing, and the motive disappears instead of the number
+   * having to be policed.
+   *
+   * The rate itself comes from `commissionBpsFor`, which is where a digital
+   * discount or a cash surcharge would apply. Both are zero today, so this is
+   * the base rate until somebody deliberately chooses otherwise — but every
+   * settlement already stores the rate that was used, so turning an incentive
+   * on never rewrites what anybody was already told they had earned.
+   */
+  const booking = await readBooking(settled.bookingId);
+  const commissionBps = commissionBpsFor(settled.method, COMMISSION_BPS);
+  const split = settleSplit({
+    amount: settled.amount,
+    quotedMin: booking?.quoted_min ?? 0,
+    commissionBps,
+    floorWaived: booking?.commission_floor_waived ?? false,
+  });
+
+  const settledAt = new Date(settled.settledAt ?? new Date().toISOString());
+
   await supabase
     .from("bookings")
     .update({
@@ -588,22 +618,100 @@ async function settlePaid(
       platform_fee: split.platformFee,
       provider_earning: split.providerEarning,
       commission_bps: split.commissionBps,
+      commission_basis: split.basis,
+      // Stored, never recomputed on read: a professional told Thursday is paid
+      // on Thursday even if the hold times move on Wednesday.
+      payout_due_at: payoutDueAt(settledAt, settled.method).toISOString(),
     })
     .eq("id", settled.bookingId);
+
+  await sendReceipts(settled, booking);
 
   return { ok: true, payment: settled };
 }
 
 /**
- * Cash: the customer confirms they handed the money over.
+ * A receipt, to both sides, on every settlement.
  *
- * The customer is the oracle here — there is no server to ask — so this
- * checks that the caller *is* the customer before settling. That check cannot
- * live in the gateway adapter, which has no idea who is asking.
+ * The point is the number and who sees it. A customer who handed over Rs 2,000
+ * and receives a receipt for Rs 1,000 notices — and notices *afterwards*, when
+ * the professional has left and saying so costs them nothing. That is a
+ * different thing from asking them to check a figure while somebody is
+ * standing in their kitchen waiting for the tap.
+ *
+ * It goes to the professional too, and not as a courtesy: it is the same
+ * figure, so a professional whose recorded amount was wrong finds out at the
+ * same moment the customer does.
+ *
+ * A KEY, NOT A SENTENCE — so Phase 13 sends exactly this over SMS by adding a
+ * channel and changing nothing here. Notifications never throw: the money has
+ * already moved, and a dead gateway must not roll that back.
+ */
+async function sendReceipts(
+  settled: Payment,
+  booking: { reference: string; customer_id: string; provider_id: string | null } | null,
+): Promise<void> {
+  if (!booking) return;
+
+  const params = {
+    reference: booking.reference,
+    amount: String(settled.amount),
+    method: settled.method,
+  };
+
+  const recipients: string[] = [booking.customer_id];
+
+  if (booking.provider_id) {
+    const { data } = await createAdminClient()
+      .from("providers")
+      .select("profile_id")
+      .eq("id", booking.provider_id)
+      .maybeSingle();
+    const profileId = (data?.profile_id as string | null) ?? null;
+    if (profileId) recipients.push(profileId);
+  }
+
+  await notifyAll(
+    recipients.map((recipientId) => ({
+      recipientId,
+      kind: "payment.receipt" as const,
+      params,
+      bookingId: settled.bookingId,
+    })),
+  );
+}
+
+/**
+ * Cash: the customer says what they actually handed over.
+ *
+ * BLIND, AND THAT IS THE WHOLE MECHANISM. The screen does not show the
+ * professional's figure before the customer types theirs — see
+ * `blindCashEntry` for exactly when. The old version asked the customer to
+ * *approve* a number somebody else had entered, which is a rubber stamp: a
+ * professional who takes Rs 2,000 and records 1,000 needs only a tired
+ * customer tapping the green button, and nothing in the product would ever
+ * know. Asking them to state the figure independently turns the one witness a
+ * cash handover has into an actual witness.
+ *
+ * A MISMATCH SETTLES NOTHING. Both numbers are kept, the booking is stamped,
+ * both sides are told, and it becomes a support queue. Marking it paid on
+ * either figure would be picking a side of a dispute with no evidence, and
+ * quietly settling on the professional's figure is precisely the outcome the
+ * mechanism exists to prevent.
+ *
+ * The customer is still the only oracle there is for cash — there is no server
+ * to ask — so this also checks that the caller *is* the customer. That check
+ * cannot live in the gateway adapter, which has no idea who is asking.
  */
 export async function confirmCashPayment(input: {
   reference: string;
   actorId: string;
+  /**
+   * What the customer says they paid. Optional so an over-band settlement —
+   * where they have already seen and approved the exact figure, so there is
+   * nothing to be blind about — can confirm without retyping it.
+   */
+  amountPaid?: number;
 }): Promise<SettleOutcome> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
 
@@ -623,11 +731,100 @@ export async function confirmCashPayment(input: {
   if (!booking || booking.customer_id !== input.actorId) {
     return { ok: false, reason: "notYours" };
   }
+  // Already flagged. A second tap must not settle it — the whole point of the
+  // stamp is that a person looks before any money is called paid.
+  if (booking.amount_mismatch_at) {
+    return { ok: false, reason: "amountMismatch" };
+  }
+
+  const recorded = booking.final_amount ?? payment.amount;
+
+  if (input.amountPaid !== undefined && input.amountPaid !== recorded) {
+    await flagAmountMismatch({
+      booking,
+      recorded,
+      reported: input.amountPaid,
+      actorId: input.actorId,
+    });
+    return { ok: false, reason: "amountMismatch" };
+  }
+
+  // Kept even when it matches: agreement is evidence too, and a professional
+  // whose figures are confirmed by hundreds of customers has a record worth
+  // something when one of them does not.
+  if (input.amountPaid !== undefined) {
+    await supabase
+      .from("bookings")
+      .update({ customer_reported_amount: input.amountPaid })
+      .eq("id", booking.id);
+  }
 
   return settlePaid(payment, `cash:${payment.ourReference}`, {
     confirmedBy: input.actorId,
     at: new Date().toISOString(),
+    reportedAmount: input.amountPaid ?? null,
   });
+}
+
+/**
+ * The two figures disagree, so nothing is paid and a person is told.
+ *
+ * Deliberately does NOT decide who is right. The larger figure is not
+ * automatically the truth — a customer can mistype as easily as anybody — and
+ * a product that silently believed either side would be worse than one that
+ * stops. What it does guarantee is that both numbers survive, in a place a
+ * dispute can be read from later.
+ */
+async function flagAmountMismatch(input: {
+  booking: { id: string; reference: string; customer_id: string; provider_id: string | null; status: string };
+  recorded: number;
+  reported: number;
+  actorId: string;
+}): Promise<void> {
+  const supabase = createAdminClient();
+
+  await supabase
+    .from("bookings")
+    .update({
+      customer_reported_amount: input.reported,
+      amount_mismatch_at: new Date().toISOString(),
+    })
+    .eq("id", input.booking.id);
+
+  await supabase.from("booking_status_history").insert({
+    booking_id: input.booking.id,
+    from_status: input.booking.status,
+    to_status: input.booking.status,
+    changed_by: input.actorId,
+    changed_by_role: "customer",
+    note: `amount mismatch — professional recorded ${input.recorded}, customer reported ${input.reported}`,
+  });
+
+  const params = {
+    reference: input.booking.reference,
+    recorded: String(input.recorded),
+    reported: String(input.reported),
+  };
+
+  const recipients = [input.booking.customer_id];
+  if (input.booking.provider_id) {
+    const { data } = await supabase
+      .from("providers")
+      .select("profile_id")
+      .eq("id", input.booking.provider_id)
+      .maybeSingle();
+    const profileId = (data?.profile_id as string | null) ?? null;
+    if (profileId) recipients.push(profileId);
+  }
+
+  await notifyAll(
+    recipients.map((recipientId) => ({
+      recipientId,
+      kind: "payment.mismatch" as const,
+      params,
+      bookingId: input.booking.id,
+    })),
+  );
 }
 
 /**
@@ -791,4 +988,229 @@ export async function abandonPayment(input: {
     return { ok: false, reason: "saveFailed" };
   }
   return { ok: true, settled: false };
+}
+
+
+/* -------------------------------------------------------------------------
+ * The appeal, and the pricing signal.
+ *
+ * The commission floor is deliberately blunt, and a blunt rule with no appeal
+ * is how a platform loses the honest half of its supply. Two answers, at two
+ * different scales, and keeping them separate is the point:
+ *
+ *   per job      -> the professional appeals and a person decides
+ *   per category -> if jobs bunch under the floor, OUR band is wrong
+ *
+ * The second must never be read as a list of people to punish. A category
+ * where a third of jobs land under the published minimum is a category we have
+ * mispriced, and every one of those jobs was overcharged in fee by us.
+ * ------------------------------------------------------------------------- */
+
+export type Appeal = {
+  id: string;
+  status: string;
+  reason: string;
+  resolutionNote: string | null;
+  createdAt: string;
+};
+
+/** The appeal on one booking, if the professional has raised one. */
+export async function getCommissionAppeal(
+  bookingId: string,
+): Promise<Appeal | null> {
+  if (!hasSupabaseConfig()) return null;
+  try {
+    const { data } = await createAdminClient()
+      .from("commission_appeals")
+      .select("id, status, reason, resolution_note, created_at")
+      .eq("booking_id", bookingId)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      id: data.id as string,
+      status: data.status as string,
+      reason: data.reason as string,
+      resolutionNote: (data.resolution_note as string | null) ?? null,
+      createdAt: data.created_at as string,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "This job really was smaller than the band."
+ *
+ * Only the professional who did the job may raise it, only once, and only when
+ * the floor actually cost them something — an appeal against a fee that was
+ * never charged is noise in a queue a person has to read. RLS grants nobody
+ * insert on this table, so the write is here under the service role after the
+ * ownership check, exactly like every other write that decides money.
+ */
+export async function openCommissionAppeal(input: {
+  bookingId: string;
+  actorId: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const reason = input.reason.trim();
+  if (reason.length < 4) return { ok: false, reason: "reasonRequired" };
+
+  const booking = await readBooking(input.bookingId);
+  if (!booking) return { ok: false, reason: "bookingNotFound" };
+  if (!(await canBill(input.actorId, booking))) {
+    return { ok: false, reason: "notYours" };
+  }
+  if (booking.final_amount === null) return { ok: false, reason: "notStarted" };
+  if (booking.commission_floor_waived) return { ok: false, reason: "alreadyWaived" };
+
+  // Was the floor actually applied? Asked from the booking's own frozen band,
+  // not from the category's current price.
+  const basis = commissionBasis(booking.final_amount, booking.quoted_min);
+  if (basis <= booking.final_amount) {
+    return { ok: false, reason: "floorNotApplied" };
+  }
+
+  const { error } = await createAdminClient()
+    .from("commission_appeals")
+    .insert({
+      booking_id: booking.id,
+      provider_id: booking.provider_id!,
+      reason: reason.slice(0, 600),
+    });
+
+  if (error) {
+    // 23505 is the one-appeal-per-booking constraint doing its job.
+    if ((error as { code?: string }).code === "23505") {
+      return { ok: false, reason: "alreadyAppealed" };
+    }
+    console.error(`[payments] appeal failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Support decides. Upholding waives the floor and RECOMPUTES the split.
+ *
+ * Recomputed rather than adjusted by hand: the fee, the earning and the basis
+ * have to stay consistent with each other and with the amount charged, and a
+ * payout report that does not reconcile is a payout report nobody trusts. The
+ * rate that was frozen at settlement is reused, so a rate change since then
+ * never rewrites what somebody was already told they had earned.
+ *
+ * Phase 12 gives this a screen. It exists now because the appeal it resolves
+ * exists now, and an appeal nobody can answer is worse than no appeal.
+ */
+export async function resolveCommissionAppeal(input: {
+  appealId: string;
+  adminId: string;
+  uphold: boolean;
+  note?: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const supabase = createAdminClient();
+  const { data: appeal } = await supabase
+    .from("commission_appeals")
+    .select("id, booking_id, status")
+    .eq("id", input.appealId)
+    .maybeSingle();
+
+  if (!appeal) return { ok: false, reason: "notFound" };
+  if (appeal.status !== "open") return { ok: false, reason: "alreadyResolved" };
+
+  const { data: admin } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", input.adminId)
+    .maybeSingle();
+  if ((admin?.role as string | null) !== "admin") {
+    return { ok: false, reason: "notAdmin" };
+  }
+
+  await supabase
+    .from("commission_appeals")
+    .update({
+      status: input.uphold ? "upheld" : "rejected",
+      resolved_by: input.adminId,
+      resolved_at: new Date().toISOString(),
+      resolution_note: input.note?.trim().slice(0, 600) ?? null,
+    })
+    .eq("id", appeal.id);
+
+  if (!input.uphold) return { ok: true };
+
+  const booking = await readBooking(appeal.booking_id as string);
+  if (!booking || booking.final_amount === null) return { ok: true };
+
+  const { data: frozen } = await supabase
+    .from("bookings")
+    .select("commission_bps")
+    .eq("id", booking.id)
+    .maybeSingle();
+
+  const split = settleSplit({
+    amount: booking.final_amount,
+    quotedMin: booking.quoted_min,
+    commissionBps: (frozen?.commission_bps as number | null) ?? COMMISSION_BPS,
+    floorWaived: true,
+  });
+
+  await supabase
+    .from("bookings")
+    .update({
+      commission_floor_waived: true,
+      platform_fee: split.platformFee,
+      provider_earning: split.providerEarning,
+      commission_basis: split.basis,
+    })
+    .eq("id", booking.id);
+
+  return { ok: true };
+}
+
+/**
+ * Per-category pricing signals, read under the service role deliberately.
+ *
+ * The view aggregates `bookings`, and a view runs with the caller's own
+ * policies — so a customer reading it would see their own two rows and get a
+ * meaningless average. This is support's number, and it is meaningless unless
+ * it is everybody's.
+ */
+export async function listPricingSignals(): Promise<PricingSignal[]> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("category_pricing_signals")
+      .select("*");
+
+    if (error || !data) {
+      if (error) {
+        console.error(`[pricing] signals failed — ${describeError(error)}`);
+      }
+      return [];
+    }
+
+    return (data as Array<Record<string, unknown>>)
+      .map((row) => ({
+        categorySlug: row.category_slug as string,
+        settledJobs: Number(row.settled_jobs ?? 0),
+        belowFloorJobs: Number(row.below_floor_jobs ?? 0),
+        belowFloorPct: Number(row.below_floor_pct ?? 0),
+        aboveBandJobs: Number(row.above_band_jobs ?? 0),
+        quotedMin: Number(row.quoted_min ?? 0),
+        quotedMax: Number(row.quoted_max ?? 0),
+        medianFinal: Number(row.median_final ?? 0),
+        p25Final: Number(row.p25_final ?? 0),
+        p75Final: Number(row.p75_final ?? 0),
+      }))
+      .sort((a, b) => b.belowFloorPct - a.belowFloorPct);
+  } catch (thrown) {
+    console.error(`[pricing] signals threw — ${describeError(thrown)}`);
+    return [];
+  }
 }

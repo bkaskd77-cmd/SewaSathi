@@ -178,6 +178,11 @@ export type Database = {
           first_choice_provider_id: string | null;
           opened_at: string | null;
           reassigned_at: string | null;
+          commission_basis: number | null;
+          commission_floor_waived: boolean;
+          customer_reported_amount: number | null;
+          amount_mismatch_at: string | null;
+          payout_due_at: string | null;
         };
         Insert: {
           id?: string;
@@ -218,8 +223,41 @@ export type Database = {
           first_choice_provider_id?: string | null;
           opened_at?: string | null;
           reassigned_at?: string | null;
+          commission_basis?: number | null;
+          commission_floor_waived?: boolean;
+          customer_reported_amount?: number | null;
+          amount_mismatch_at?: string | null;
+          payout_due_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
+        Relationships: [];
+      };
+      commission_appeals: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          reason: string;
+          status: string;
+          resolved_by: string | null;
+          resolved_at: string | null;
+          resolution_note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          reason: string;
+          status?: string;
+          resolved_by?: string | null;
+          resolved_at?: string | null;
+          resolution_note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["commission_appeals"]["Insert"]
+        >;
         Relationships: [];
       };
       booking_refusals: {

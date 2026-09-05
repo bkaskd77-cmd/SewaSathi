@@ -63,6 +63,9 @@ export type Booking = {
   finalAmountApprovedAt: string | null;
   paymentMethod: PaymentMethod;
   paymentStatus: string;
+  /** Set when the customer's figure and the professional's disagreed. */
+  amountMismatchAt: string | null;
+  customerReportedAmount: number | null;
   createdAt: string;
   acceptedAt: string | null;
   completedAt: string | null;
@@ -129,7 +132,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, created_at, accepted_at, completed_at, cancelled_at";
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -152,6 +155,9 @@ function rowToBooking(row: Record<string, unknown>): Booking {
       (row.final_amount_approved_at as string | null) ?? null,
     paymentMethod: row.payment_method as PaymentMethod,
     paymentStatus: row.payment_status as string,
+    amountMismatchAt: (row.amount_mismatch_at as string | null) ?? null,
+    customerReportedAmount:
+      (row.customer_reported_amount as number | null) ?? null,
     createdAt: row.created_at as string,
     acceptedAt: (row.accepted_at as string | null) ?? null,
     completedAt: (row.completed_at as string | null) ?? null,

@@ -507,6 +507,44 @@ follows from that.
   give a reason, which is stored; above 2× nothing can be approved in-app at
   all. 2× is chosen so an honest overrun fits and a mistyped extra zero — 1,500
   becoming 15,000 — cannot. It is a customer protection, not a tuning knob.
+- **The fee is charged on `max(final_amount, quoted_min)`, and that is the
+  whole answer to under-reporting.** A professional who takes Rs 2,000 in cash
+  and records 1,000 satisfies every validation this product has — the figure is
+  in band, the customer is standing there, no server saw the notes. Policing
+  the number is chasing the symptom, so the payoff is removed instead: the band
+  is ours and frozen onto the booking, so reporting less earns nothing.
+  `settleSplit` is the one implementation; the fee is capped at what was
+  collected so an earning is never negative. An honest small job appeals
+  (`commission_appeals`, one per booking, decided by a person), and a whole
+  category bunching under its floor is **our** mispricing —
+  `category_pricing_signals` counts it per category and never per person,
+  because read the other way it becomes a list of people to punish for our own
+  wrong price.
+- **For cash the customer states the amount, they do not approve ours.**
+  `blindCashEntry` hides the professional's figure whenever it is inside the
+  band; over-band figures were already explicitly approved, so hiding them
+  would be theatre. A mismatch settles nothing — both numbers are kept,
+  `amount_mismatch_at` is stamped, both sides are told, and a person decides.
+  The screen carries the sentence that makes blind entry honest: *your 30-day
+  guarantee covers up to the amount you enter*. That belongs on the screen, not
+  in the terms.
+- **A receipt goes to both sides on every settlement**, carrying the recorded
+  amount. Somebody who paid 2,000 and receives a receipt for 1,000 notices —
+  afterwards, when the professional has left and saying so costs nothing. It is
+  a notification key, so Phase 13 sends it over SMS by adding a channel.
+- **Digital is paid out sooner because it is verified sooner** —
+  `lib/payments/payout.ts` holds every lever in one place: hold time per method
+  (real, and doing the work today), a commission differential either way, an
+  opt-in instant payout, and the customer-side incentive. All the
+  differentials ship at zero; turning one on is one edit there. Ranking is
+  deliberately **not** a lever — list position must not depend on how the
+  customer chose to pay.
+- **The enforcement ladder is public** — `/providers/standards`, both
+  languages, linked from `/providers/join` before anybody signs up. Five steps,
+  each naming what triggered it and how it lifts, with what is *never* a signal
+  named too (charging under the band, taking cash, turning work down). Steps 3
+  to 5 need a person. Deterrence nobody can read is not deterrence, it is a
+  trap — the honest leave and the rest learn the thresholds by experiment.
 - **Commission is 15% (`COMMISSION_BPS = 1500`)**, frozen onto the booking at
   the moment it settles so a later rate change never rewrites history. The fee
   is rounded and the professional gets the remainder, so the split always

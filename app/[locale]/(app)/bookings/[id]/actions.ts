@@ -122,11 +122,25 @@ export async function disputeAmountAction(
 export async function confirmCashAction(
   bookingId: string,
   reference: string,
+  /**
+   * What the customer says they handed over, typed without being shown the
+   * professional's figure. Undefined only where there is nothing to be blind
+   * about — an over-band amount they have already seen and approved.
+   */
+  amountPaid?: number,
 ): Promise<{ ok: boolean; reason?: string }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "notSignedIn" };
 
-  const result = await confirmCashPayment({ reference, actorId: profile.id });
+  if (amountPaid !== undefined && !Number.isInteger(amountPaid)) {
+    return { ok: false, reason: "invalidAmount" };
+  }
+
+  const result = await confirmCashPayment({
+    reference,
+    actorId: profile.id,
+    amountPaid,
+  });
   if (result.ok) revalidatePath(`/bookings/${bookingId}`);
   return { ok: result.ok, reason: result.ok ? undefined : result.reason };
 }

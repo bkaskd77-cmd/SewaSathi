@@ -134,6 +134,20 @@ Where a change on one side cannot reach the other.
   policy expressions run with the caller's privileges, so it keeps `execute`
   for `authenticated`. Supabase's Security Advisor asks for it anyway; the
   answer is no, and the test that would fail is in the db suite.
+- **The motive is removed rather than the report policed.** The platform fee is
+  charged on `max(final_amount, quoted_min)` (`settleSplit`), so under-reporting
+  a cash job earns nothing. The honest exceptions are handled at two different
+  scales and must never be confused: `commission_appeals` per job, decided by a
+  person, and `category_pricing_signals` per category — a band that jobs keep
+  landing under is our price being wrong, not our professionals.
+- **For cash, the customer is the witness.** `blindCashEntry` decides when the
+  screen hides the professional's figure; `confirmCashPayment` compares the two
+  server-side and settles nothing when they disagree. Both figures survive on
+  the booking, which is what a dispute is read from later.
+- **Every payout lever lives in `lib/payments/payout.ts`**, differentials at
+  zero until chosen. `payout_due_at` is frozen at settlement rather than
+  recomputed, so changing a hold time never moves a date somebody was already
+  given.
 - **An UPDATE may not make a row invisible to the person making it.** Postgres
   applies a table's SELECT policies to the *new* row on UPDATE, on top of the
   update policy's own `with check`. So a professional cannot write their own

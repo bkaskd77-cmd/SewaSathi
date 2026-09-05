@@ -44,6 +44,9 @@ const KNOWN_JOB_ERRORS = [
   "notYours",
   "reasonRequired",
   "tooLate",
+  "alreadyAppealed",
+  "alreadyWaived",
+  "floorNotApplied",
   // Somebody else got there first. A normal outcome in an open list, and the
   // one message that must not read like a fault.
   "alreadyTaken",
@@ -85,6 +88,18 @@ export type JobCardProps = {
   /** Pre-formatted: what this professional keeps after commission. */
   earningLabel: string | null;
   /**
+   * Set when the commission floor lifted the fee basis above what was
+   * collected — the fee is charged on the published minimum, so reporting less
+   * than the band earns nothing. Said out loud here, with the appeal beside
+   * it: a blunt rule the person it lands on cannot see is how a platform loses
+   * the honest half of its supply.
+   */
+  floorLabel: string | null;
+  /** open | upheld | rejected. Null when they have not appealed this job. */
+  appealStatus: string | null;
+  /** Pre-formatted date this settlement becomes payable. */
+  payoutLabel: string | null;
+  /**
    * An open job, offered to everybody who can do it rather than assigned.
    * The only action is to take it, and the customer's details are absent
    * until somebody has.
@@ -106,6 +121,8 @@ export function JobCard(props: JobCardProps) {
   const [declineReason, setDeclineReason] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [amountReason, setAmountReason] = React.useState("");
+  const [appealing, setAppealing] = React.useState(false);
+  const [appealReason, setAppealReason] = React.useState("");
 
   const claim = () =>
     void run(async () => {
@@ -155,6 +172,16 @@ export function JobCard(props: JobCardProps) {
       );
       const result = await declineJobAction(props.id, declineReason);
       if (result.ok) setDeclining(false);
+      return result;
+    });
+
+  const appeal = () =>
+    void run(async () => {
+      const { appealCommissionAction } = await import(
+        "@/app/[locale]/(app)/provider/jobs/actions"
+      );
+      const result = await appealCommissionAction(props.id, appealReason);
+      if (result.ok) setAppealing(false);
       return result;
     });
 
@@ -252,6 +279,67 @@ export function JobCard(props: JobCardProps) {
             <p className="animate-digit-in mt-1 tabular-nums">
               {t("payment.youKeep", { amount: props.earningLabel })}
             </p>
+          ) : null}
+
+          {/* When the payout lands, and why digital is sooner. The delay on
+              cash is a real operational fact — it is reconciled from a
+              confirmation somebody typed, not from a gateway — which is what
+              makes it fair to say out loud rather than a punishment. */}
+          {props.payoutLabel ? (
+            <p className="mt-1 text-caption text-muted-foreground">
+              {t("payment.payout", { date: props.payoutLabel })}
+            </p>
+          ) : null}
+
+          {props.floorLabel ? (
+            <div className="mt-2 border-t border-border/60 pt-2">
+              <p className="text-caption text-muted-foreground">
+                {t("payment.floor", { basis: props.floorLabel })}
+              </p>
+              {props.appealStatus ? (
+                <p className="mt-1 text-caption font-semibold text-primary">
+                  {t(`appeal.status.${props.appealStatus}`)}
+                </p>
+              ) : appealing ? (
+                <div className="animate-pop-in mt-2 space-y-2">
+                  <Label htmlFor={`appeal-${props.id}`}>
+                    {t("appeal.label")}
+                  </Label>
+                  <Input
+                    id={`appeal-${props.id}`}
+                    value={appealReason}
+                    onChange={(event) => setAppealReason(event.target.value)}
+                    placeholder={t("appeal.placeholder")}
+                    maxLength={600}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={appeal} disabled={busy}>
+                      {busy ? (
+                        <Loader2 aria-hidden="true" className="animate-spin" />
+                      ) : null}
+                      {t("appeal.submit")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAppealing(false)}
+                      disabled={busy}
+                    >
+                      {t("appeal.back")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-1 -ml-3"
+                  onClick={() => setAppealing(true)}
+                >
+                  {t("appeal.trigger")}
+                </Button>
+              )}
+            </div>
           ) : null}
         </div>
       ) : null}

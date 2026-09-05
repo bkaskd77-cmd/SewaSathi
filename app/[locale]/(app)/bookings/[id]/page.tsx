@@ -34,7 +34,11 @@ import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider, listAlternatives } from "@/lib/data/providers";
 import { needsReplacement } from "@/lib/data/recommendations";
-import { availableMethods, judgeFinalAmount } from "@/lib/payments";
+import {
+  availableMethods,
+  blindCashEntry,
+  judgeFinalAmount,
+} from "@/lib/payments";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -428,6 +432,15 @@ export default async function BookingDetailPage({
                   }
                 : null
             }
+            /* Blind entry for a cash job inside the band: the customer states
+               what they handed over instead of approving a figure somebody
+               else typed. See `blindCashEntry`. */
+            blind={blindCashEntry({
+              method: booking.paymentMethod,
+              finalAmount: booking.finalAmount,
+              quotedMax: booking.quotedMax,
+            })}
+            mismatch={Boolean(booking.amountMismatchAt)}
             failureReason={lastFailed?.failureReason ?? null}
             inFlightSince={inFlight?.initiatedAt ?? null}
             supportPhone={site.supportPhone}

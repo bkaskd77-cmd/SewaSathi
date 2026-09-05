@@ -7,6 +7,8 @@ import {
   Banknote,
   CheckCircle2,
   Loader2,
+  Phone,
+  ShieldCheck,
   Wallet,
 } from "lucide-react";
 
@@ -66,6 +68,18 @@ export type PaymentPanelProps = {
   /** Why the last attempt failed, for the retry copy. */
   failureReason: string | null;
   supportPhone: string;
+  /**
+   * Hide the professional's figure and ask the customer for their own.
+   *
+   * See `blindCashEntry`. True for a cash job settled inside the published
+   * band — where nothing has shown the customer a number yet, so their answer
+   * is real evidence. False when the figure went over the band, because they
+   * have already seen and approved that exact amount and hiding it would be
+   * theatre.
+   */
+  blind?: boolean;
+  /** Set once the two figures disagreed. Nothing settles until a person looks. */
+  mismatch?: boolean;
 };
 
 const METHOD_ICON: Record<PaymentMethod, typeof Wallet> = {
@@ -82,6 +96,7 @@ export function PaymentPanel(props: PaymentPanelProps) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [disputing, setDisputing] = React.useState(false);
+  const [amountPaid, setAmountPaid] = React.useState("");
   const [note, setNote] = React.useState("");
 
   /**
@@ -213,13 +228,25 @@ export function PaymentPanel(props: PaymentPanelProps) {
 
   async function confirmCash() {
     if (busy || !props.reference) return;
+    // Blind entry: the figure the professional recorded is not on this screen,
+    // so this is the customer's own answer rather than an approval of somebody
+    // else's. The server compares them; the browser only decides which screen
+    // to draw.
+    if (props.blind && !amountPaid.trim()) {
+      setError("amountRequired");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const { confirmCashAction } = await import(
         "@/app/[locale]/(app)/bookings/[id]/actions"
       );
-      const result = await confirmCashAction(props.bookingId, props.reference);
+      const result = await confirmCashAction(
+        props.bookingId,
+        props.reference,
+        props.blind ? Number(amountPaid) : undefined,
+      );
       if (result.ok) router.refresh();
       else setError(result.reason ?? "failed");
     } catch {
@@ -458,11 +485,66 @@ export function PaymentPanel(props: PaymentPanelProps) {
   }
 
   if (props.stage === "cashPending") {
+    /*
+     * THE MISMATCH. Nothing settles, and the screen says why in the customer's
+     * favour: they owe nothing until a person has looked. Settling quietly on
+     * the professional's figure is precisely the outcome the blind entry
+     * exists to prevent, and settling on the customer's would be picking the
+     * other side of a dispute with equally little evidence.
+     */
+    if (props.mismatch) {
+      return (
+        <Section tone="quiet" title={t("mismatch.title")}>
+          <p className="text-body-md">{t("mismatch.body")}</p>
+          <Button variant="outline" className="btn-tactile mt-4" asChild>
+            <a href={`tel:${props.supportPhone}`}>
+              <Phone aria-hidden="true" />
+              {t("mismatch.call", { phone: props.supportPhone })}
+            </a>
+          </Button>
+        </Section>
+      );
+    }
+
     return (
       <Section tone="quiet" title={t("cashPending.title")}>
-        <p className="text-body-md">
-          {t("cashPending.body", { final: props.finalLabel ?? "" })}
-        </p>
+        {props.blind ? (
+          <>
+            <p className="text-body-md">{t("cashPending.blindBody")}</p>
+
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="amount-paid">{t("cashPending.blindLabel")}</Label>
+              <Input
+                id="amount-paid"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={amountPaid}
+                onChange={(event) => setAmountPaid(event.target.value)}
+                placeholder={t("cashPending.blindPlaceholder")}
+                className="max-w-40 tabular-nums"
+              />
+              {/* THE SENTENCE THAT MAKES BLIND ENTRY HONEST, and it belongs
+                  here rather than in the terms nobody opens. Under-reporting
+                  needs the customer to go along with it; this is what it costs
+                  them if they do. It is also simply true — the guarantee is
+                  written against a recorded amount, and there is nothing to
+                  claim against a figure that was never recorded. */}
+              <p className="flex items-start gap-1.5 text-caption text-muted-foreground">
+                <ShieldCheck
+                  aria-hidden="true"
+                  className="mt-0.5 size-3.5 shrink-0 text-primary"
+                />
+                {t("cashPending.guarantee")}
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-body-md">
+            {t("cashPending.body", { final: props.finalLabel ?? "" })}
+          </p>
+        )}
+
         <Button
           className="btn-tactile mt-4"
           onClick={() => void confirmCash()}

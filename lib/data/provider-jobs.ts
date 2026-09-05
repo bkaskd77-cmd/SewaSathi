@@ -64,6 +64,17 @@ export type ProviderJob = {
   paymentMethod: string;
   /** What this professional keeps, frozen at settlement. Null until paid. */
   providerEarning: number | null;
+  /**
+   * The figure the fee was charged on. Differs from the amount collected only
+   * when the commission floor lifted it — which is exactly when a professional
+   * deserves to be told, rather than left to work out why the arithmetic looks
+   * wrong.
+   */
+  commissionBasis: number | null;
+  /** When this settlement becomes payable. Digital is days sooner than cash. */
+  payoutDueAt: string | null;
+  /** open | upheld | rejected, when they have appealed the floor on this job. */
+  appealStatus: string | null;
   customerName: string | null;
   customerPhone: string | null;
   addressLine: string | null;
@@ -97,7 +108,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -133,6 +144,7 @@ export async function listProviderJobs(
    */
   let byProfile = new Map<string, Record<string, unknown>>();
   let byAddress = new Map<string, Record<string, unknown>>();
+  let appealByBooking = new Map<string, string>();
   try {
     const admin = createAdminClient();
     // Array.from rather than spreading a Set: the tsconfig target predates
@@ -144,13 +156,23 @@ export async function listProviderJobs(
       new Set(rows.map((r) => r.address_id as string)),
     );
 
-    const [{ data: profiles }, { data: addresses }] = await Promise.all([
+    const [{ data: profiles }, { data: addresses }, { data: appeals }] = await Promise.all([
       admin.from("profiles").select("id, full_name, phone").in("id", customerIds),
       admin
         .from("addresses")
         .select("id, tole, city, landmark")
         .in("id", addressIds),
+      // Their own appeals against the commission floor. Shown on the card so
+      // an appeal is a thing with a state rather than a form that vanished.
+      admin
+        .from("commission_appeals")
+        .select("booking_id, status")
+        .in("booking_id", rows.map((r) => r.id as string)),
     ]);
+
+    appealByBooking = new Map(
+      (appeals ?? []).map((a) => [a.booking_id as string, a.status as string]),
+    );
 
     byProfile = new Map(
       (profiles ?? []).map((p) => [p.id as string, p as Record<string, unknown>]),
@@ -181,6 +203,9 @@ export async function listProviderJobs(
       paymentStatus: (row.payment_status as string) ?? "pending",
       paymentMethod: (row.payment_method as string) ?? "cash",
       providerEarning: (row.provider_earning as number | null) ?? null,
+      commissionBasis: (row.commission_basis as number | null) ?? null,
+      payoutDueAt: (row.payout_due_at as string | null) ?? null,
+      appealStatus: appealByBooking.get(row.id as string) ?? null,
       customerName: (profile?.full_name as string | null) ?? null,
       customerPhone: (profile?.phone as string | null) ?? null,
       addressLine: address
@@ -524,6 +549,9 @@ export async function listOpenJobs(
         paymentStatus: "pending",
         paymentMethod: (row.payment_method as string) ?? "cash",
         providerEarning: null,
+        commissionBasis: null,
+        payoutDueAt: null,
+        appealStatus: null,
         customerName: null,
         customerPhone: null,
         addressLine: (area?.city as string | null) ?? null,

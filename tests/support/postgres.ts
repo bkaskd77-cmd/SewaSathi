@@ -195,12 +195,35 @@ export async function startPostgres(): Promise<Harness> {
     }
   }
 
-  // RLS is bypassed for table owners, so the tests connect as this role.
+  /*
+   * RLS is bypassed for table owners, so the tests connect as this role.
+   *
+   * TABLES ONLY, and the exclusion is the point: `grant ... on all tables`
+   * includes views, and re-granting them here would silently undo any revoke a
+   * migration had just made — the harness would be MORE permissive than
+   * production and a deliberately-hidden view would test as visible. That is
+   * the same class of mistake as the function-privilege one above, which let a
+   * revoke pass locally while changing nothing in the real database.
+   */
   await admin.query(`
     grant usage on schema public to authenticated, anon;
-    grant select, insert, update on all tables in schema public
-      to authenticated, anon;
     grant usage on schema auth to authenticated, anon;
+    do $$
+    declare rel record;
+    begin
+      for rel in
+        select c.relname
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind in ('r', 'p')
+      loop
+        execute format(
+          'grant select, insert, update on public.%I to authenticated, anon',
+          rel.relname
+        );
+      end loop;
+    end
+    $$;
   `);
 
   const open: Client[] = [];

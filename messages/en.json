@@ -631,7 +631,11 @@
       "cashPending": {
         "title": "Paying in cash",
         "body": "Hand {final} to your professional. Tap below once you have, and we'll close the job.",
-        "confirm": "I've paid in cash"
+        "confirm": "I've paid in cash",
+        "blindBody": "Tell us what you actually handed over. Your professional records their own figure separately and we check the two match.",
+        "blindLabel": "How much did you pay?",
+        "blindPlaceholder": "Rs",
+        "guarantee": "Your 30-day guarantee covers up to the amount you enter."
       },
       "processing": {
         "title": "Checking your payment",
@@ -660,7 +664,14 @@
         "aboveCeiling": "This is too far above the estimate to agree here. Please call us.",
         "gatewayUnavailable": "The payment app isn't responding. Try again, or pay in cash.",
         "needsApproval": "Agree to the amount first.",
-        "noFinalAmount": "The final amount hasn't been entered yet."
+        "noFinalAmount": "The final amount hasn't been entered yet.",
+        "amountMismatch": "The amounts do not match. We have paused this and will call you.",
+        "amountRequired": "Enter the amount you paid."
+      },
+      "mismatch": {
+        "title": "The two amounts do not match",
+        "body": "What you entered is different from what your professional recorded, so we have paused this. You owe nothing until we have spoken to you both. We will call today.",
+        "call": "Call {phone}"
       }
     },
     "notifications": {
@@ -674,7 +685,9 @@
       "paid": "Paid",
       "widened": "Still looking",
       "noProviderFound": "Nobody available",
-      "assigned": "Professional chosen"
+      "assigned": "Professional chosen",
+      "receipt": "Receipt: {amount}",
+      "mismatch": "Amounts do not match"
     },
     "alternatives": {
       "heading": "Choose someone else",
@@ -788,7 +801,8 @@
       "prefix": "Mobile numbers here start 97 or 98.",
       "tooShort": "Too short — a mobile number is 10 digits.",
       "tooLong": "Too long — a mobile number is 10 digits."
-    }
+    },
+    "standards": "Before you join, read <link>how we handle under-reported jobs</link> — what we count, what we never count, and what each step costs."
   },
   "provider": {
     "jobs": {
@@ -848,7 +862,10 @@
         "notYours": "This job isn't assigned to you any more.",
         "reasonRequired": "Say why it came to more than the quote — the customer sees this.",
         "tooLate": "It's too late to turn this down. Call us if something has gone wrong.",
-        "alreadyTaken": "Someone else took this one. It happens — there will be others."
+        "alreadyTaken": "Someone else took this one. It happens — there will be others.",
+        "alreadyAppealed": "You have already appealed this job.",
+        "alreadyWaived": "The fee on this job has already been adjusted.",
+        "floorNotApplied": "The minimum was not applied to this job, so there is nothing to review."
       },
       "payment": {
         "paid": "Paid",
@@ -858,12 +875,26 @@
           "cash": "cash",
           "esewa": "eSewa",
           "khalti": "Khalti"
-        }
+        },
+        "floor": "Our fee is charged on {basis}, the published minimum for this service.",
+        "payout": "Reaches you by {date}."
       },
       "claim": "Take this job",
       "openNow": "Open — first to accept",
       "openHeading": "Open nearby",
-      "openBody": "Nobody has taken these yet. First to accept gets the work."
+      "openBody": "Nobody has taken these yet. First to accept gets the work.",
+      "appeal": {
+        "trigger": "This job was genuinely smaller",
+        "label": "Tell us what the job actually was",
+        "placeholder": "Only needed a washer, ten minutes",
+        "submit": "Send for review",
+        "back": "Back",
+        "status": {
+          "open": "Under review",
+          "upheld": "Accepted — the fee was recalculated",
+          "rejected": "Reviewed — the fee stands"
+        }
+      }
     }
   }
 }
