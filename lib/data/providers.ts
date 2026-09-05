@@ -28,6 +28,16 @@ import { createClient } from "@/lib/supabase/server";
  * bookings with a trigger. Nothing here writes them.
  */
 
+/**
+ * AUTHORED TODAY, NOT OBSERVED. `providers.availability` is a column somebody
+ * set when the listing was written; nothing moves it when a professional
+ * accepts three jobs in an hour or stops opening the app. It ranks and filters
+ * as though it were live, which is the one thing to remember about it.
+ *
+ * Phase 10 makes it real — derived from accepted-and-unfinished jobs, the
+ * working-hours config and last-seen — and the column stays as the
+ * professional's own declared ceiling rather than the whole answer.
+ */
 export type Availability = "now" | "today" | "scheduled";
 export type IdDocumentStatus = "verified" | "pending" | "not_submitted";
 /** What was actually checked, rather than one vague "verified" badge. */

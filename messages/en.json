@@ -535,7 +535,8 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "no_provider_found": "No professional found",
-      "released": "Professional pulled out"
+      "released": "Professional pulled out",
+      "repicked": "Request sent"
     },
     "whatNext": {
       "pending": "We are alerting professionals now. You will get a call as soon as one accepts.",
@@ -546,7 +547,8 @@
       "cancelled": "This booking was cancelled. Nothing is owed.",
       "no_provider_found": "Nobody was free for this one. Call us and we will arrange it by hand.",
       "completedPaid": "All done and paid. Thank you — we hope the work was good.",
-      "releasedPending": "The professional you chose has pulled out. Pick someone else below — everything about the job stays as it is."
+      "releasedPending": "The professional you chose has pulled out. Pick someone else below — everything about the job stays as it is.",
+      "repicked": "You chose {name}. We have asked them — you will get a call as soon as they accept."
     },
     "detail": {
       "back": "All bookings",
@@ -815,6 +817,7 @@
       },
       "decline": {
         "trigger": "Can't take it",
+        "warning": "This is final. Once you turn a job down it is not offered to you again.",
         "label": "Why, so we can tell the customer?",
         "placeholder": "Already on another job",
         "confirm": "Turn this down",

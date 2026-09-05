@@ -30,6 +30,7 @@ export function LiveProgress({
   initialStatus,
   settled,
   released,
+  repickedName,
 }: {
   bookingId: string;
   initialStatus: BookingStatus;
@@ -42,6 +43,13 @@ export function LiveProgress({
    * professional just pulled out is the product hiding from them.
    */
   released?: boolean;
+  /**
+   * The professional the customer picked themselves after a refusal. A tap
+   * that changes nothing visible is a tap somebody repeats — and the repeat is
+   * what produced "somebody has already taken this job" on a job they had just
+   * successfully assigned.
+   */
+  repickedName?: string | null;
 }) {
   const t = useTranslations("booking");
   const router = useRouter();
@@ -77,7 +85,9 @@ export function LiveProgress({
         <p className="text-body-sm font-semibold text-primary">
           {status === "pending" && released
             ? t("status.released")
-            : t(`status.${status}`)}
+            : status === "pending" && repickedName
+              ? t("status.repicked")
+              : t(`status.${status}`)}
         </p>
         <p className="mt-1 text-body-md">
           {/* "Completed" is about the work; being paid is a separate machine —
@@ -88,7 +98,9 @@ export function LiveProgress({
             ? t("whatNext.completedPaid")
             : status === "pending" && released
               ? t("whatNext.releasedPending")
-              : t(`whatNext.${status}`)}
+              : status === "pending" && repickedName
+                ? t("whatNext.repicked", { name: repickedName })
+                : t(`whatNext.${status}`)}
         </p>
 
         {/* Waiting is the one state where the customer has something useful to

@@ -33,6 +33,7 @@ import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider, listAlternatives } from "@/lib/data/providers";
+import { needsReplacement } from "@/lib/data/recommendations";
 import { availableMethods, judgeFinalAmount } from "@/lib/payments";
 import { formatNpr } from "@/lib/utils";
 
@@ -112,7 +113,25 @@ export default async function BookingDetailPage({
    * they can only make it if we hand them somebody to make it about.
    */
   const refusals = booking.status === "pending" ? await listRefusals(booking.id) : [];
-  const released = refusals.length > 0;
+  /*
+   * ...AND IS IT STILL WITHOUT ONE?
+   *
+   * `refusals.length > 0` alone was not enough, and the gap was visible within
+   * two minutes of shipping: the customer tapped a replacement, the pick
+   * succeeded, and the page went on showing the chooser because a refusal had
+   * still happened. The obvious second tap then hit a job that now had a
+   * professional and was told "somebody has already taken this job" — a
+   * correct sentence about a booking they had themselves just fixed, which
+   * reads as the product failing. A booking with a professional on it is not
+   * waiting for the customer to choose one.
+   */
+  const released = needsReplacement({
+    status: booking.status,
+    providerId: booking.providerId,
+    refusalCount: refusals.length,
+  });
+  /** They chose again and it worked. Say so, rather than "we are alerting". */
+  const repicked = refusals.length > 0 && booking.providerId !== null;
 
   /*
    * The replacements.
@@ -246,6 +265,7 @@ export default async function BookingDetailPage({
           initialStatus={booking.status}
           settled={Boolean(settled)}
           released={released}
+          repickedName={repicked ? (provider?.displayName ?? null) : null}
         />
       </NextIntlClientProvider>
 

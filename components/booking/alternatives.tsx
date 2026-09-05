@@ -79,8 +79,18 @@ export function Alternatives({
           "@/app/[locale]/(app)/bookings/[id]/actions"
         );
         const result = await chooseProviderAction(bookingId, providerId);
-        if (result.ok) router.refresh();
-        else setError(result.reason ?? "failed");
+        if (result.ok) {
+          router.refresh();
+          return;
+        }
+        setError(result.reason ?? "failed");
+        // The two refusals that mean the screen is out of date rather than
+        // that the customer did something wrong: somebody took the job, or it
+        // has moved on. Re-read the page so the sentence they see next is the
+        // truth instead of a stale list of people they can no longer book.
+        if (result.reason === "alreadyAssigned" || result.reason === "notWaiting") {
+          router.refresh();
+        }
       } catch {
         setError("failed");
       } finally {

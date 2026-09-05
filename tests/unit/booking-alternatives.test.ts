@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Provider } from "@/lib/data/providers";
-import { pickAlternatives } from "@/lib/data/recommendations";
+import { needsReplacement, pickAlternatives } from "@/lib/data/recommendations";
 import { withdrawalPenalty, scoreProvider } from "@/lib/data/ranking";
 
 /**
@@ -153,5 +153,30 @@ describe("a habit of pulling out costs list position", () => {
     expect(
       pickAlternatives([flaky, steady], { area: "lalitpur-4" })[0].provider.id,
     ).toBe(steady.id);
+  });
+});
+
+describe("the chooser is shown only while there is nobody to do the job", () => {
+  const waiting = { status: "pending", providerId: null, refusalCount: 1 };
+
+  it("offers replacements after a refusal", () => {
+    expect(needsReplacement(waiting)).toBe(true);
+  });
+
+  it("stops the moment the customer has picked somebody", () => {
+    // The bug this exists for: the pick succeeded, the chooser stayed on
+    // screen, and the obvious second tap was answered with "somebody has
+    // already taken this job" — about a booking the customer had just fixed.
+    expect(needsReplacement({ ...waiting, providerId: "p1" })).toBe(false);
+  });
+
+  it("stops once somebody accepts", () => {
+    expect(
+      needsReplacement({ ...waiting, status: "accepted", providerId: "p1" }),
+    ).toBe(false);
+  });
+
+  it("is not shown on an ordinary wait, where nobody has refused anything", () => {
+    expect(needsReplacement({ ...waiting, refusalCount: 0 })).toBe(false);
   });
 });

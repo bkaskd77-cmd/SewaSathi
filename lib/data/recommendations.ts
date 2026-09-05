@@ -85,3 +85,26 @@ export function pickAlternatives(
   }
   return out;
 }
+
+/**
+ * Is this booking waiting for the customer to choose somebody?
+ *
+ * Three facts, and the third is the one that shipped wrong. A refusal having
+ * happened is not the same as the job being unheld: the customer taps a
+ * replacement, the pick succeeds, and if this only asked about refusals the
+ * chooser stays on screen. The obvious second tap then lands on a job that now
+ * has a professional and is told "somebody has already taken this job" — a
+ * true sentence about a booking they had themselves just fixed, which reads as
+ * the product failing at the exact moment it worked.
+ */
+export function needsReplacement(booking: {
+  status: string;
+  providerId: string | null;
+  refusalCount: number;
+}): boolean {
+  return (
+    booking.status === "pending" &&
+    booking.providerId === null &&
+    booking.refusalCount > 0
+  );
+}

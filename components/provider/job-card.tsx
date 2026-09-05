@@ -346,6 +346,16 @@ export function JobCard(props: JobCardProps) {
 
       {declining ? (
         <div className="animate-pop-in mt-3 space-y-2">
+          {/* SAID BEFORE THE TAP, NOT AFTER IT.
+              Turning a job down is one-way: the refusal is recorded against
+              the listing, the open-job policy stops showing it, and no caller
+              can assign it back. That is deliberate — a customer who has been
+              let go of once should not be handed back to the same person who
+              changed their mind — but a rule that strict has to be legible at
+              the moment it is chosen. Only support can undo it. */}
+          <p className="rounded-lg border border-warning/40 bg-warning/[0.08] p-2.5 text-caption text-warning-ink">
+            {t("decline.warning")}
+          </p>
           <Label htmlFor={`decline-${props.id}`}>{t("decline.label")}</Label>
           <Input
             id={`decline-${props.id}`}
