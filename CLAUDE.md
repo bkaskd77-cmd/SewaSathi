@@ -27,6 +27,13 @@ shadcn-style primitives · Supabase · Claude · Vercel.
   command. Never write "verified" for something only proven locally.
 - **Automate everything reachable.** Only ask the user for things that need
   their account or a credential, and then ask for one thing at a time.
+- **Migrations are applied by the agent, never pasted by the user.** The
+  Supabase MCP connection is live in this session: `apply_migration` runs the
+  file and `execute_sql` verifies it afterwards. Handing somebody a wall of SQL
+  to copy into a dashboard is manual work that was already automatable, and it
+  happened four times before anybody said so. Write the file into
+  `supabase/migrations/` first — it is still the source of truth and the db
+  suite runs it — then apply that same text, then check the objects exist.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
 
 ### Architecture — standing law
@@ -600,6 +607,13 @@ follows from that.
 
 `supabase/migrations/`, applied in filename order. If it is not in a migration
 file it does not exist — nothing gets clicked into the dashboard.
+
+**Applying one is the agent's job, not the user's.** The Supabase MCP is
+connected: write the file, apply that exact text with `apply_migration`, then
+verify with `execute_sql` that the objects, columns, functions and policies
+actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
+`pg_proc`. The file is still what the db suite runs and what a fresh project
+gets; applying it by hand from a dashboard is how the two drift apart.
 
 `types/supabase.ts` is hand-written to match. Regenerate it with
 `supabase gen types` when you have network to the project, and keep it in the
