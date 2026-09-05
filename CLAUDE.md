@@ -715,6 +715,41 @@ accessibility. `/design-system` scores SEO 60 on purpose — it is `noindex`.
 Take the median of 3 runs: this machine swings ±6 points on identical code, so
 a single run will send you chasing noise.
 
+## Latency — the rule that mattered more than every optimisation before it
+
+The app was slow everywhere and the cause was not the code. **Vercel functions
+default to `iad1` (Washington DC); the Supabase project is `ap-southeast-1`
+(Singapore).** Every query crossed the Pacific — about 250ms — and a signed-in
+page makes eight to twelve of them, several of them sequential. That is two to
+three seconds of waiting before a byte is sent, on a product where nothing had
+gone wrong. `vercel.json` now pins `"regions": ["sin1"]`, which is also far
+closer to Nepal than Virginia is.
+
+**So the standing rule: the serverless region and the database region are one
+decision, not two.** Anything that changes either is a latency change and says
+so in the summary. Everything below follows from the same arithmetic — a round
+trip is the unit of cost, and the job is to make fewer of them.
+
+- **Reads that do not depend on each other go in one `Promise.all`.**
+  `/bookings/[id]` was a Promise.all followed by four more awaits in a row,
+  purely in the order they were written: five waves where one would do.
+- **A server action that calls `revalidatePath` already returns the re-rendered
+  page.** `router.refresh()` after one is a second full round trip for the same
+  screen, and it is why every button "spun for a long time". Removed
+  everywhere; the one that remains re-verifies with a gateway and says so.
+- **`getSessionProfile` is `cache()`d per request.** It is two network calls —
+  verify the token, then read `profiles` — and the header, the page and
+  sometimes a component inside it each asked separately.
+- **Public data is read without cookies.** `lib/supabase/public.ts` is the
+  cookie-free anon client for the catalogue; touching `cookies()` opts a route
+  out of static rendering for ever, and nothing about a category list varies by
+  visitor. Anything that depends on who is asking keeps `createClient()` —
+  with the public one there is no who.
+- **`npm run check:timing`** measures time to first byte per route, median and
+  worst of N. It refuses to report a blocked request as fast: Vercel stamps
+  `x-vercel-id`, and without that header the request never arrived. Same
+  sandbox limit as `check:deployed` — it exits 2 rather than lying.
+
 ## Performance guard
 
 Numbers in a summary are not a guard. Two things run automatically:

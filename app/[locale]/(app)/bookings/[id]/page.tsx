@@ -88,24 +88,41 @@ export default async function BookingDetailPage({
   // "not yours" are the same answer here — which is the right answer to give.
   if (!booking) notFound();
 
-  const [category, address, provider, photoUrl, payments] = await Promise.all([
-    getCategory(booking.categorySlug),
-    getAddress(booking.addressId),
-    booking.providerId ? getProvider(booking.providerId) : Promise.resolve(null),
-    signBookingPhoto(booking.photoUrl),
-    listPaymentsForBooking(booking.id),
-  ]);
-
-  // RLS releases this only while the job is accepted, on the way or under way,
-  // so an unassigned or finished booking simply gets null and the card falls
-  // back to the support line.
-  // Looking at the booking is reading the notifications about it. Guarded on
-  // `read_at is null`, so it is a no-op on every render after the first.
-  await markBookingRead(profile!.id, booking.id);
-
-  const providerPhone = booking.providerId
-    ? await getProviderPhone(booking.providerId)
-    : null;
+  /*
+   * ONE WAVE, NOT SEVEN.
+   *
+   * These reads were a Promise.all followed by four more `await`s in a row —
+   * the read receipt, the professional's phone, the refusals, the
+   * suggestions — each waiting for the one before it for no reason but the
+   * order they were written in. Nothing after the booking itself depends on
+   * anything else here, so the round trips are spent in parallel and the page
+   * costs one of them instead of five.
+   *
+   * The refusals are the only genuine dependency: the replacement list is
+   * built from them, so it waits. Everything else goes now.
+   */
+  const [category, address, provider, photoUrl, payments, providerPhone, refusalRows] =
+    await Promise.all([
+      getCategory(booking.categorySlug),
+      getAddress(booking.addressId),
+      booking.providerId
+        ? getProvider(booking.providerId)
+        : Promise.resolve(null),
+      signBookingPhoto(booking.photoUrl),
+      listPaymentsForBooking(booking.id),
+      // RLS releases this only while the job is live, so an unassigned or
+      // finished booking simply gets null and the card falls back to support.
+      booking.providerId
+        ? getProviderPhone(booking.providerId)
+        : Promise.resolve(null),
+      booking.status === "pending"
+        ? listRefusals(booking.id)
+        : Promise.resolve([]),
+      // Looking at the booking is reading the notifications about it. Guarded
+      // on `read_at is null`, so it is a no-op after the first render, and it
+      // is fire-and-forget: nothing on this page waits for a read receipt.
+      markBookingRead(profile!.id, booking.id),
+    ]);
 
   /*
    * DID SOMEBODY WALK AWAY FROM THIS JOB?
@@ -116,7 +133,7 @@ export default async function BookingDetailPage({
    * is not a wait at all: it is a decision the customer has to make again, and
    * they can only make it if we hand them somebody to make it about.
    */
-  const refusals = booking.status === "pending" ? await listRefusals(booking.id) : [];
+  const refusals = refusalRows;
   /*
    * ...AND IS IT STILL WITHOUT ONE?
    *

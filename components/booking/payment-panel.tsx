@@ -135,7 +135,8 @@ export function PaymentPanel(props: PaymentPanelProps) {
         return;
       }
       if (result.kind === "cash") {
-        router.refresh();
+        // No refresh(): the action revalidated this route, so its response
+        // already carries the re-rendered panel. See provider/job-card.tsx.
         setBusy(false);
         return;
       }
@@ -158,7 +159,8 @@ export function PaymentPanel(props: PaymentPanelProps) {
         "@/app/[locale]/(app)/bookings/[id]/actions"
       );
       const result = await approveAmountAction(props.bookingId, props.finalAmount);
-      if (result.ok) router.refresh();
+      // Revalidated by the action; its response carries the new page.
+      if (result.ok) return;
       else setError(result.reason ?? "failed");
     } catch {
       setError("network");
@@ -176,10 +178,8 @@ export function PaymentPanel(props: PaymentPanelProps) {
         "@/app/[locale]/(app)/bookings/[id]/actions"
       );
       const result = await disputeAmountAction(props.bookingId, note);
-      if (result.ok) {
-        setDisputing(false);
-        router.refresh();
-      } else setError("failed");
+      if (result.ok) setDisputing(false);
+      else setError("failed");
     } catch {
       setError("network");
     } finally {
@@ -197,7 +197,8 @@ export function PaymentPanel(props: PaymentPanelProps) {
         "@/app/[locale]/(app)/bookings/[id]/actions"
       );
       const result = await abandonPaymentAction(props.bookingId, props.reference);
-      if (result.ok) router.refresh();
+      // Revalidated by the action; its response carries the new page.
+      if (result.ok) return;
       else setError(result.reason ?? "failed");
     } catch {
       setError("network");
@@ -247,7 +248,8 @@ export function PaymentPanel(props: PaymentPanelProps) {
         props.reference,
         props.blind ? Number(amountPaid) : undefined,
       );
-      if (result.ok) router.refresh();
+      // Revalidated by the action; its response carries the new page.
+      if (result.ok) return;
       else setError(result.reason ?? "failed");
     } catch {
       setError("network");

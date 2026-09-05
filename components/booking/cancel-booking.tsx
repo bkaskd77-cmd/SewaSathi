@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "@/i18n/navigation";
 
 /**
  * Cancelling, behind a confirmation.
@@ -29,7 +28,6 @@ import { useRouter } from "@/i18n/navigation";
  */
 export function CancelBooking({ bookingId }: { bookingId: string }) {
   const t = useTranslations("booking.detail.cancel");
-  const router = useRouter();
   const [reason, setReason] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(false);
@@ -45,8 +43,9 @@ export function CancelBooking({ bookingId }: { bookingId: string }) {
       );
       const result = await cancelBookingAction(bookingId, reason || null);
       if (result.ok) {
+        // No refresh(): the action revalidates this route, so its own response
+        // carries the re-rendered page. See the note in provider/job-card.tsx.
         setOpen(false);
-        router.refresh();
       } else {
         setError(true);
       }

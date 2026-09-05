@@ -79,10 +79,10 @@ export function Alternatives({
           "@/app/[locale]/(app)/bookings/[id]/actions"
         );
         const result = await chooseProviderAction(bookingId, providerId);
-        if (result.ok) {
-          router.refresh();
-          return;
-        }
+        // The action revalidates this route, so its response already carries
+        // the re-rendered page. A refresh() here would be a second round trip
+        // for the same screen — see the note in provider/job-card.tsx.
+        if (result.ok) return;
         setError(result.reason ?? "failed");
         // The two refusals that mean the screen is out of date rather than
         // that the customer did something wrong: somebody took the job, or it

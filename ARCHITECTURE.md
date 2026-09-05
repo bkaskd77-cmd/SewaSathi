@@ -120,6 +120,18 @@ Where a change on one side cannot reach the other.
   and the card. Everything behind it can be rebuilt as long as that shape and
   the ten category slugs hold.
 - **`lib/data/` is the only thing that talks to Supabase.** Pages never do.
+- **Two Supabase clients, and the split is about caching as much as identity.**
+  `lib/supabase/server.ts` reads cookies and acts as the signed-in person;
+  `lib/supabase/public.ts` has no cookies and serves the catalogue. Touching
+  `cookies()` makes a route dynamic for ever, so the public directory — the
+  same answer for every visitor — was being rendered from scratch on every
+  request. Data that depends on who is asking must never move to the public
+  client: there is no who.
+- **The serverless region and the database region are one decision.**
+  Functions are pinned to `sin1` in `vercel.json` because Supabase is in
+  `ap-southeast-1`; they were 250ms apart and a page makes a dozen queries.
+  `npm run check:timing` is what proves it, from a machine that can reach the
+  site.
 - **A callback is a claim, never evidence.** `PaymentGateway.verify()` is the
   only thing that may conclude a payment succeeded, and it reaches the
   gateway's own servers to do it. `lib/payments/callback.ts` extracts an

@@ -9,7 +9,7 @@ import {
   rethrowFrameworkSignal,
 } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 /**
  * The ten service categories.
@@ -77,7 +77,7 @@ export const getCategories = cache(async (): Promise<Category[]> => {
   }
 
   try {
-    const { data, error } = await createClient()
+    const { data, error } = await createPublicClient()
       .from("categories")
       .select(
         "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order",

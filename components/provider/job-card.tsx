@@ -7,7 +7,6 @@ import { Loader2, MapPin, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "@/i18n/navigation";
 import { BOOKING_TRANSITIONS, type BookingStatus } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
@@ -109,7 +108,6 @@ export type JobCardProps = {
 
 export function JobCard(props: JobCardProps) {
   const t = useTranslations("provider.jobs");
-  const router = useRouter();
 
   const [busy, setBusy] = React.useState(false);
   // The server's own reason, not a boolean. It already distinguishes "the job
@@ -143,8 +141,18 @@ export function JobCard(props: JobCardProps) {
     setError(null);
     try {
       const result = await work();
-      if (result.ok) router.refresh();
-      else setError(result.reason ?? "failed");
+      /*
+       * NO router.refresh() ON SUCCESS, and that is a latency fix rather than
+       * a style one.
+       *
+       * Every one of these actions calls `revalidatePath` for this route, so
+       * Next.js re-renders the page on the server as part of the action's own
+       * response — the fresh screen arrives with the answer. Calling refresh()
+       * afterwards fired a SECOND full round trip to render exactly the same
+       * thing, which doubled how long every button on this card appeared to
+       * spin. On a connection from Kathmandu that was seconds, for nothing.
+       */
+      if (!result.ok) setError(result.reason ?? "failed");
     } catch {
       // A thrown server action is ours, not theirs — a missing key, a dead
       // database. Named separately so it does not read as "you did something

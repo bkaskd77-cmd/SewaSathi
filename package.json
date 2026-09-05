@@ -18,6 +18,7 @@
     "check:blockers": "node scripts/check-launch-blockers.mjs",
     "check:transitions": "node scripts/check-status-transitions.mjs",
     "check:deployed": "node scripts/check-deployed.mjs",
+    "check:timing": "node scripts/check-timing.mjs",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:db": "vitest run tests/db",
@@ -67,7 +68,7 @@
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

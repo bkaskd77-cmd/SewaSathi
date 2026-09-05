@@ -14,7 +14,7 @@ import {
   pickAlternatives,
   type Alternative,
 } from "@/lib/data/recommendations";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 /**
  * Providers, their stats and their reviews.
@@ -221,7 +221,7 @@ export const listProviders = cache(
     }
 
     try {
-      let query = createClient()
+      let query = createPublicClient()
         .from("providers")
         .select(SELECT)
         .eq("provider_categories.category_slug", filters.category)
@@ -269,7 +269,7 @@ export const getProvider = cache(
     }
 
     try {
-      const { data, error } = await createClient()
+      const { data, error } = await createPublicClient()
         .from("providers")
         .select(
           SELECT.replace("provider_categories!inner", "provider_categories"),
@@ -308,7 +308,7 @@ export const getProviderReviews = cache(
     }
 
     try {
-      const { data, error } = await createClient()
+      const { data, error } = await createPublicClient()
         .from("provider_reviews")
         .select("id, provider_id, author_name, rating, comment, created_at")
         .eq("provider_id", providerId)
@@ -363,7 +363,7 @@ export const getCategoryCounts = cache(
     }
 
     try {
-      const { data, error } = await createClient()
+      const { data, error } = await createPublicClient()
         .from("provider_categories")
         .select("category_slug");
 
