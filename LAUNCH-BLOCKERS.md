@@ -97,7 +97,7 @@ Until then the incentive is the four true things on the payment screen
 - Status: unresolved
 - Claims: `/legal/refunds` and `/providers/standards` now publish the guarantee in full — a re-do within 30 days for a repair, 90 for painting, 48 hours for a clean, with the visit deciding who pays. Every word of it is the policy we intend, and there is no button anywhere in the product that makes a claim. A customer whose tap fails again on day 12 can read exactly what they are entitled to and has no way to ask for it except the support number, which is itself a placeholder (see `support-phone-number`).
 - Lives in: `lib/config/guarantee.ts` (the rule, complete and tested), `lib/content/legal/refunds.ts`, `lib/content/pages/standards.ts`, `messages/*.json` (`booking.payment.cashPending.guarantee`)
-- Replaced by: Phase 11 — a `guarantee_claims` table (booking, claimant, fault description, photo, verdict, who paid, resolved by), the claim button on a settled booking, the free re-dispatch, the verdict capture on the professional's screen, and the charge-back against a held payout. `claimIsAllowed` and `claimOutcome` already decide both halves; what is missing is the table and the two screens.
+- Replaced by: Phase 11 — a `guarantee_claims` table (booking, claimant, fault description, photo, verdict, who paid, resolved by), a `provider_ledger` carrying what a professional owes for a redo somebody else attended, the claim button on a settled booking, the free re-dispatch, the verdict capture on the professional's screen, and the balance on their dashboard. `claimIsAllowed`, `claimOutcome` and `applyRedoRecovery` already decide all three; what is missing is the two tables and the two screens.
 
 ### BLOCKER: next-14-advisories
 - Status: unresolved

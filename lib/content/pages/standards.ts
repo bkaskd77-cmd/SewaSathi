@@ -59,7 +59,10 @@ export const standards: LocalisedDocument = {
         heading: "The guarantee, and what it costs you",
         blocks: [
           {
-            p: "We tell every customer that if the same fault comes back within the window for that service, we send somebody back and they pay nothing. That promise is ours to make and yours to honour: the return visit is unpaid. Where somebody else attends a job that was yours, the visit is charged against your payout instead.",
+            p: "We tell every customer that if the same fault comes back within the window for that service, we send somebody back and they pay nothing. That promise is ours to make and yours to honour: you go back and put it right, and that return visit is unpaid.",
+          },
+          {
+            p: "If you genuinely cannot go — you have left the trade, or the customer asks for somebody else — we send another professional and pay them in full for their work. What they were paid then comes off your next earnings, at most a quarter of any one payout, so no week of yours goes to nothing. It shows on your dashboard as a balance you can watch going down. We will not ring you asking for cash, and we will not take money you have already been paid.",
           },
           {
             p: "The window runs from the day the job is finished: 30 days for most repairs, 90 days for painting, 48 hours for cleaning and for reporting damage in transit.",
@@ -214,7 +217,10 @@ export const standards: LocalisedDocument = {
         heading: "ग्यारेन्टी, र यसले तपाईंलाई के खर्च गराउँछ",
         blocks: [
           {
-            p: "त्यो सेवाका लागि तोकिएको अवधिभित्र उही समस्या फेरि देखियो भने हामी फेरि मान्छे पठाउँछौँ र ग्राहकले केही तिर्नु पर्दैन — यो वाचा हामीले गरेका छौँ, र पूरा गर्ने तपाईंले हो: त्यो दोस्रो भ्रमणको ज्याला हुँदैन। तपाईंकै काममा अरू कोही जानुपर्‍यो भने त्यो खर्च तपाईंकै भुक्तानीबाट कटाइन्छ।",
+            p: "त्यो सेवाका लागि तोकिएको अवधिभित्र उही समस्या फेरि देखियो भने हामी फेरि मान्छे पठाउँछौँ र ग्राहकले केही तिर्नु पर्दैन — यो वाचा हामीले गरेका छौँ, र पूरा गर्ने तपाईंले हो: तपाईं आफैँ गएर मिलाइदिनुहुन्छ, र त्यो दोस्रो भ्रमणको ज्याला हुँदैन।",
+          },
+          {
+            p: "साँच्चै जान नसक्ने अवस्था भयो — तपाईंले यो पेसा छाड्नुभयो, वा ग्राहकले अर्कै मान्छे माग्नुभयो — भने हामी अर्को प्राविधिक पठाउँछौँ र उहाँको कामको पूरै ज्याला दिन्छौँ। उहाँलाई दिइएको रकम तपाईंको आउँदो कमाइबाट कटाइन्छ, तर एक पटकको भुक्तानीको बढीमा एक चौथाइ मात्र — जसले गर्दा तपाईंको कुनै हप्ता शून्य हुँदैन। यो तपाईंकै ड्यासबोर्डमा घट्दै गएको रकमका रूपमा देखिन्छ। हामी फोन गरेर नगद माग्दैनौँ, र तपाईंले पाइसक्नुभएको पैसा फिर्ता लिँदैनौँ।",
           },
           {
             p: "अवधि काम सकिएको दिनदेखि गनिन्छ: धेरैजसो मर्मतमा ३० दिन, रङरोगनमा ९० दिन, सफाइ र बाटोमा भएको क्षति जनाउन ४८ घण्टा।",

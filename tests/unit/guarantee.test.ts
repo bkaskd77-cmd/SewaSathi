@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CATEGORY_SEED } from "@/lib/config/services";
+import { PAYOUT_RULES, applyRedoRecovery } from "@/lib/payments/payout";
 import {
   CLAIM_VERDICTS,
   EXCLUSIONS,
@@ -155,6 +156,73 @@ describe("the visit is the verification", () => {
       "nothingWrong",
       "sameFault",
     ]);
+  });
+});
+
+describe("paying for a redo after the money has already gone out", () => {
+  /*
+   * The gap this covers: the guarantee runs 30 to 90 days and the payout hold
+   * runs 24 hours to 7 days, so for most of the window there is nothing left
+   * to withhold. The rule is to net forward, never to recover backward — we
+   * have no card on file and no wage to garnish, and chasing a paid-out
+   * professional for cash loses the honest ones and collects from nobody.
+   */
+
+  it("takes at most a quarter of one payout", () => {
+    // The cap is the whole point: a week that goes to zero is the size of
+    // shock that makes somebody stop working for us, which loses the rest of
+    // the debt along with the person.
+    const result = applyRedoRecovery({ earning: 4000, outstanding: 4000 });
+    expect(result.recovered).toBe(1000);
+    expect(result.paid).toBe(3000);
+    expect(result.remaining).toBe(3000);
+  });
+
+  it("never takes more than is actually owed", () => {
+    const result = applyRedoRecovery({ earning: 4000, outstanding: 200 });
+    expect(result.recovered).toBe(200);
+    expect(result.paid).toBe(3800);
+    expect(result.remaining).toBe(0);
+  });
+
+  it("clears a typical debt over several settlements, not one", () => {
+    let outstanding = 1200;
+    let settlements = 0;
+    while (outstanding > 0 && settlements < 20) {
+      outstanding = applyRedoRecovery({ earning: 1700, outstanding }).remaining;
+      settlements += 1;
+    }
+    expect(outstanding).toBe(0);
+    expect(settlements).toBeGreaterThan(1);
+  });
+
+  it("pays a professional who owes nothing in full", () => {
+    const result = applyRedoRecovery({ earning: 1700, outstanding: 0 });
+    expect(result.paid).toBe(1700);
+    expect(result.recovered).toBe(0);
+  });
+
+  it("recovers nothing from a settlement that earns nothing", () => {
+    // No negative payouts, ever. A professional cannot be made to owe more by
+    // being paid less.
+    const result = applyRedoRecovery({ earning: 0, outstanding: 900 });
+    expect(result.paid).toBe(0);
+    expect(result.recovered).toBe(0);
+    expect(result.remaining).toBe(900);
+  });
+
+  it("leaves the professional with more than it takes, always", () => {
+    for (const earning of [1, 137, 900, 5000, 41_250]) {
+      const result = applyRedoRecovery({ earning, outstanding: 1_000_000 });
+      expect(result.paid).toBeGreaterThanOrEqual(result.recovered);
+      expect(result.paid + result.recovered).toBe(earning);
+    }
+  });
+
+  it("keeps the cap where it was decided", () => {
+    // A quarter. Half was considered and rejected; changing this is a business
+    // decision, so it fails here rather than drifting.
+    expect(PAYOUT_RULES.redoRecoveryCapBps).toBe(2500);
   });
 });
 

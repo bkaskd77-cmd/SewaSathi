@@ -10,9 +10,31 @@
  * rule.
  *
  * THE ASYMMETRY EVERYTHING HERE IS BUILT ON. A re-do costs us close to
- * nothing, because the labour belongs to the professional whose defect it was
- * and we hold their payout. A refund costs us real money. So the re-do can be
- * generous and A REFUND IS NEVER AUTOMATIC — see `claimOutcome`.
+ * nothing, because the labour belongs to the professional whose defect it was.
+ * A refund costs us real money. So the re-do can be generous and A REFUND IS
+ * NEVER AUTOMATIC — see `claimOutcome`.
+ *
+ * WHEN THE MONEY HAS ALREADY GONE OUT. The window here runs 30 to 90 days; the
+ * payout hold runs 24 hours to 7 days. So for most of the window there is no
+ * payout left to withhold, and an earlier draft of this file claimed otherwise.
+ * Three cases, and only one of them moves money at all:
+ *
+ *   1. The original professional goes back themselves. Nothing is paid to
+ *      anybody — they spend their own morning — so there is nothing to
+ *      recover. This is the common case and the one the policy steers toward.
+ *   2. Somebody else has to attend. That second professional did real work and
+ *      is paid in full; the amount becomes a debt the first one owes, netted
+ *      off their FUTURE earnings by `applyRedoRecovery` in
+ *      `lib/payments/payout.ts`, capped so no single week goes to zero.
+ *   3. They never work for us again, and it is written off. That is the true
+ *      cost of offering a guarantee and it is bounded — roughly the commission
+ *      from three or four jobs, each time it happens.
+ *
+ * WE NEVER CHASE A PAID-OUT PROFESSIONAL FOR CASH. There is no card on file,
+ * no direct debit and no wage to garnish, so backward recovery would select
+ * against the wrong people: the honest ones feel robbed and leave, the rest
+ * stop taking our jobs and keep the money. Forward netting is the whole
+ * mechanism.
  *
  * THE HOLE THIS CLOSES. The obvious version of a guarantee — "second failure
  * goes to somebody else, third one is a refund" — hands the customer a

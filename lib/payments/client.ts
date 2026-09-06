@@ -47,6 +47,7 @@ export {
 } from "./commission";
 
 export {
+  applyRedoRecovery,
   commissionBpsFor,
   daysSoonerWithDigital,
   isDigital,

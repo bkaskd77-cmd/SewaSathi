@@ -550,10 +550,27 @@ follows from that.
   anyone willing to report a *different* problem each time in the same trade —
   the same class of mistake as under-reporting on the provider side, a rule
   whose payoff is worth gaming. A re-do costs us almost nothing because the
-  labour is the professional's and we hold their payout; a refund costs real
-  money, so **no verdict, and no combination of verdicts, produces a refund
-  without a person** — capped at the recorded amount, funded from the first
-  professional's earnings. **Consequential damage is excluded in plain words on
+  labour is the professional's; a refund costs real money, so **no verdict, and
+  no combination of verdicts, produces a refund without a person** — capped at
+  the recorded amount, funded from the first professional's earnings.
+- **The guarantee outlives the payout hold, so we net forward and never chase
+  backward.** The window is 30–90 days; the hold is 24 hours to 7 days
+  (`PAYOUT_RULES`). For most of the window there is no payout left to withhold,
+  and the first draft of the policy claimed there was. Three cases and only one
+  moves money: the original professional goes back themselves and nothing is
+  paid to anybody; **or** somebody else attends, is paid in full for real work,
+  and that amount becomes a debt netted off the first professional's *future*
+  earnings by `applyRedoRecovery` at **at most a quarter of any one payout**
+  (`redoRecoveryCapBps` 2500), so no week goes to zero; **or** they never work
+  for us again and it is **written off**. The write-off is the real cost of
+  offering a guarantee and it is bounded — roughly the commission from three or
+  four jobs each time. **We never ring a paid-out professional for cash.**
+  There is no card on file, no direct debit and no wage to garnish, so backward
+  recovery selects against the wrong people: the honest ones feel robbed and
+  leave, the rest stop taking our jobs and keep the money. Half a payout was
+  considered as the cap and rejected for the same reason. Extending the hold to
+  cover the window is also refused — nobody works for a platform that pays in a
+  month, and it would punish the many who never generate a claim. **Consequential damage is excluded in plain words on
   a page anybody can read** (the leak's water, the outage's spoiled food); that
   single line is what keeps liability bounded on a 15% commission. Claims are
   limited to two per booking, one open at a time, on a finished and settled

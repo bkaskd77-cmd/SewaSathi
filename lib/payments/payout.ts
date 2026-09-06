@@ -87,6 +87,30 @@ export const PAYOUT_RULES = {
    * points of their own earning. Never touches the customer. 0 = not offered.
    */
   instantPayoutFeeBps: 0,
+  /**
+   * The most of ONE payout that may go to clearing a redo the professional
+   * already owes. 2500 = a quarter.
+   *
+   * NOT A FEE AND NOT NEW MONEY. Nothing is taken from the professional here
+   * that they did not already owe, and nothing at all reaches the customer's
+   * price. This only decides how fast an existing debt comes off, and the cap
+   * exists to stop a week's earnings going to zero.
+   *
+   * THE HOLE THIS FILLS. The guarantee runs 30 to 90 days; the payout hold
+   * above runs 24 hours to 7 days. So by the time most claims arrive the money
+   * has gone, and "we hold their payout" is only true for the first week. The
+   * answer is to net forward, never to recover backward: we have no card on
+   * file, no direct debit and no wage to garnish, so chasing a paid-out
+   * professional for cash selects against exactly the wrong people — the
+   * honest ones feel robbed and leave, and the rest simply stop taking our
+   * jobs and keep the money.
+   *
+   * A quarter clears a typical redo over three or four settlements. Half was
+   * considered and rejected: losing half a week is the size of shock that
+   * makes somebody stop working for us, which loses the remaining debt as
+   * well as the person.
+   */
+  redoRecoveryCapBps: 2500,
 } as const;
 
 /** Cash is the only method we do not hear about from a gateway. */
@@ -126,6 +150,45 @@ export function payoutDueAt(settledAt: Date, method: string): Date {
     ? PAYOUT_RULES.digitalHoldHours
     : PAYOUT_RULES.cashHoldHours;
   return new Date(settledAt.getTime() + hours * 3_600_000);
+}
+
+/**
+ * One settlement's share of a redo the professional already owes.
+ *
+ * `outstanding` is their whole balance; `earning` is what this settlement
+ * would otherwise pay them. Returns what they actually receive, what came off
+ * the debt, and what is still owed after it.
+ *
+ * WHY THIS SHAPE. A redo where the original professional goes back themselves
+ * moves no money at all — they spend their own morning and there is nothing to
+ * recover. This function is for the narrower case where somebody else had to
+ * attend, so a second professional was paid in full for real work, and the
+ * first one's payout had already left. It nets that forward against their next
+ * earnings rather than asking for it back.
+ *
+ * IF THEY NEVER WORK FOR US AGAIN IT IS A WRITE-OFF, deliberately. That is the
+ * real cost of offering a guarantee, and it is bounded: one unrecovered redo
+ * is roughly the commission from three or four jobs. The unbounded version was
+ * consequential damage, which the policy excludes in writing.
+ */
+export function applyRedoRecovery({
+  earning,
+  outstanding,
+}: {
+  earning: number;
+  outstanding: number;
+}): { paid: number; recovered: number; remaining: number } {
+  if (earning <= 0 || outstanding <= 0) {
+    return { paid: Math.max(0, earning), recovered: 0, remaining: Math.max(0, outstanding) };
+  }
+
+  const ceiling = Math.floor((earning * PAYOUT_RULES.redoRecoveryCapBps) / 10_000);
+  const recovered = Math.min(outstanding, ceiling);
+  return {
+    paid: earning - recovered,
+    recovered,
+    remaining: outstanding - recovered,
+  };
 }
 
 /** How many days sooner digital arrives. What the screen actually says. */
