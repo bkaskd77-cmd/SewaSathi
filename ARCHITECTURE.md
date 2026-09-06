@@ -266,3 +266,41 @@ happened to the first version of `20260903000001`.
 backed by a session setting instead of a JWT, the same shape Supabase's local
 tooling uses. Every policy, constraint and trigger under test is the one that
 ships. A green run proves our policies are right — not that Supabase's auth is.
+
+## Deferred, with a date
+
+Two things were found in the Phase 9 audit, judged, and deliberately not done.
+They are here rather than in a comment because a deferral with no date is a
+decision that quietly becomes permanent.
+
+### Move the SECURITY DEFINER functions out of `public` — revisit 2026-12-01
+
+`is_admin`, `provider_can_serve`, `provider_refused` and `provider_serves` are
+`SECURITY DEFINER` and callable by any signed-in user through PostgREST's RPC
+endpoint. `EXECUTE` cannot be revoked: eleven RLS policies call them and a
+policy expression is evaluated with the caller's privileges, so revoking it
+breaks every read in the product for every signed-in user. Supabase's Security
+Advisor flags all four and will keep doing so.
+
+The real fix is to move them into a `private` schema, which PostgREST does not
+expose, keeping `EXECUTE` for `authenticated` so policy evaluation still works.
+That closes the RPC surface and silences the advisor legitimately rather than
+declining it forever.
+
+Not done in Phase 9 because it rewrites eleven live policies in one migration,
+and that phase's brief was to break nothing. The exposure meanwhile is small
+and bounded: three of the four answer a boolean about the caller themselves;
+`provider_serves` takes any provider id and could tell an attacker whether a
+given professional covers a given address — but only for an address whose uuid
+they already hold.
+
+**Revisit 2026-12-01**, or sooner if anything else needs a policy rewritten,
+because the two changes should travel together.
+
+### Upgrade to Next 16 — revisit 2026-11-01
+
+Tracked as the `next-14-advisories` launch blocker with the three advisories
+that plausibly reach this deployment. CI gates at `critical` until it lands and
+goes back to `high` afterwards. It has to happen before launch; the date here
+is when to start rather than when it is due.
+

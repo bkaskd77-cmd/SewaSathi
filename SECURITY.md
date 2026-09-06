@@ -142,13 +142,15 @@ No admin UI exists. When it does:
 
 Listed rather than implied.
 
-- **OTP requests are not rate-limited by us.** `lib/auth/otp.ts` is a client
-  module: the browser calls Supabase directly, so only Supabase's own limits
-  apply. Ours would need the send moved behind a server action, which is a
-  change to the only door into the product, and it should be made deliberately
-  and after the SMS gateway is verified (`sms-gateway-unverified`). The limits
-  are already written and named — `otp:number`, `otp:ip`, `otp:attempt` — so
-  wiring them is the small half.
+- ~~OTP requests are not rate-limited by us.~~ **Fixed.** The send and the
+  verify moved behind server actions; `otp:number`, `otp:ip` and `otp:attempt`
+  now run on our side, keys are hashed, and no response distinguishes a
+  registered number from an unregistered one.
+- **No retention job is armed.** `lib/retention/policy.ts` holds the proposed
+  durations and `GET /api/retention/sweep` reports what they would touch.
+  `RETENTION_ENABLED` is unset, so it deletes nothing — deliberately, until the
+  numbers are approved. `security_events` is excluded by design: it is
+  append-only and expiring it is a deliberate migration.
 - **The shared rate-limit store is unconfigured.** Without
   `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` the counters are
   per-instance. `/api/health` reports which is in force rather than leaving it
