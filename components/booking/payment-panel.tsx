@@ -16,7 +16,8 @@ import { DigitalBenefits } from "@/components/booking/digital-benefits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import type { GuaranteeLabelKey } from "@/lib/config/guarantee";
 import { paymentErrorKey, type PaymentMethod } from "@/lib/payments/client";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +82,16 @@ export type PaymentPanelProps = {
   blind?: boolean;
   /** Set once the two figures disagreed. Nothing settles until a person looks. */
   mismatch?: boolean;
+  /**
+   * Which guarantee window this job's trade carries — "30-day", "48-hour".
+   *
+   * The window is a policy constant per category (`lib/config/guarantee.ts`),
+   * not a property of the booking, and it has to be named on this screen
+   * rather than assumed: a house clean guaranteed for thirty days is a promise
+   * we would not keep, and the sentence beside the amount box is the one the
+   * customer is being asked to act on.
+   */
+  guaranteeWindowKey: GuaranteeLabelKey;
 };
 
 const METHOD_ICON: Record<PaymentMethod, typeof Wallet> = {
@@ -532,13 +543,34 @@ export function PaymentPanel(props: PaymentPanelProps) {
                   needs the customer to go along with it; this is what it costs
                   them if they do. It is also simply true — the guarantee is
                   written against a recorded amount, and there is nothing to
-                  claim against a figure that was never recorded. */}
+                  claim against a figure that was never recorded.
+
+                  The window is named rather than fixed at thirty days, and the
+                  link is here rather than in the terms because a promise whose
+                  scope a customer cannot read is not one they can rely on. */}
               <p className="flex items-start gap-1.5 text-caption text-muted-foreground">
                 <ShieldCheck
                   aria-hidden="true"
                   className="mt-0.5 size-3.5 shrink-0 text-primary"
                 />
-                {t("cashPending.guarantee")}
+                <span>
+                  {t.rich("cashPending.guarantee", {
+                    window: t(
+                      `guaranteeWindows.${props.guaranteeWindowKey}` as
+                        | "guaranteeWindows.d30"
+                        | "guaranteeWindows.d90"
+                        | "guaranteeWindows.h48",
+                    ),
+                    link: (chunks) => (
+                      <Link
+                        href="/legal/refunds#guarantee"
+                        className="underline underline-offset-2 transition-colors hover:text-foreground"
+                      >
+                        {chunks}
+                      </Link>
+                    ),
+                  })}
+                </span>
               </p>
             </div>
           </>

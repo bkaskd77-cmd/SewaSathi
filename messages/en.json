@@ -107,7 +107,7 @@
     "faq": {
       "notHome": {
         "q": "What if I'm not home when the professional arrives?",
-        "a": "You'll get a call and an SMS when they set off, so you know roughly when to expect them. If your plans change, reschedule from the booking screen up to an hour before — there's no charge. If nobody is home and we weren't told, a small visit fee applies to cover the trip."
+        "a": "You'll get a call and an SMS when they set off, so you know roughly when to expect them. If your plans change, cancel from the booking screen any time before they leave — there's no charge, and there's no cancellation fee at all, because you pay us after the work is done."
       },
       "price": {
         "q": "How is the price decided?",
@@ -643,7 +643,12 @@
         "blindBody": "Tell us what you actually handed over. Your professional records their own figure separately and we check the two match.",
         "blindLabel": "How much did you pay?",
         "blindPlaceholder": "Rs",
-        "guarantee": "Your 30-day guarantee covers up to the amount you enter."
+        "guarantee": "Your {window} guarantee covers up to the amount you enter. <link>What the guarantee covers</link>"
+      },
+      "guaranteeWindows": {
+        "d30": "30-day",
+        "d90": "90-day",
+        "h48": "48-hour"
       },
       "processing": {
         "title": "Checking your payment",

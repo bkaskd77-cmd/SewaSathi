@@ -532,9 +532,34 @@ follows from that.
   band; over-band figures were already explicitly approved, so hiding them
   would be theatre. A mismatch settles nothing — both numbers are kept,
   `amount_mismatch_at` is stamped, both sides are told, and a person decides.
-  The screen carries the sentence that makes blind entry honest: *your 30-day
+  The screen carries the sentence that makes blind entry honest: *your
   guarantee covers up to the amount you enter*. That belongs on the screen, not
   in the terms.
+- **The guarantee is a re-do, never an automatic refund, and the visit is what
+  verifies it.** `lib/config/guarantee.ts` is the rule. The window is per trade
+  — 30 days for a repair, 90 for painting, 48 hours for a clean or to report
+  transit damage — because one number across ten trades is meaningless for
+  cleaning and arbitrary for painting. Every claim sends somebody, and the
+  attending professional's verdict decides who pays: *same fault* is unpaid and
+  falls on the professional whose job it was; *different problem*, *nothing
+  wrong* and *customer-caused* are ordinary bookings at the ordinary price. The
+  customer agrees to that sentence before we dispatch anyone, so nobody is
+  surprised by a bill. **This is the anti-farming design and it is the whole
+  reason the policy is shaped this way**: the version that pays out
+  automatically after two failed visits is a repeatable route to free work for
+  anyone willing to report a *different* problem each time in the same trade —
+  the same class of mistake as under-reporting on the provider side, a rule
+  whose payoff is worth gaming. A re-do costs us almost nothing because the
+  labour is the professional's and we hold their payout; a refund costs real
+  money, so **no verdict, and no combination of verdicts, produces a refund
+  without a person** — capped at the recorded amount, funded from the first
+  professional's earnings. **Consequential damage is excluded in plain words on
+  a page anybody can read** (the leak's water, the outage's spoiled food); that
+  single line is what keeps liability bounded on a 15% commission. Claims are
+  limited to two per booking, one open at a time, on a finished and settled
+  job. A customer claim-rate signal is Phase 11 and triggers **review, not
+  punishment** — never a ban and never a ranking, for the same reason
+  `category_pricing_signals` is never grouped by person.
 - **A receipt goes to both sides on every settlement**, carrying the recorded
   amount. Somebody who paid 2,000 and receives a receipt for 1,000 notices —
   afterwards, when the professional has left and saying so costs nothing. It is

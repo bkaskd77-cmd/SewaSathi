@@ -23,6 +23,7 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { formatInstant, formatSlotInstant } from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
+import { guaranteeFor } from "@/lib/config/guarantee";
 import { site } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
@@ -426,6 +427,11 @@ export default async function BookingDetailPage({
                 : null
             }
             reason={booking.finalAmountReason}
+            // The window belongs to the trade, not the booking. A cleaning job
+            // carries 48 hours and a repair carries 30 days, and the sentence
+            // beside the cash box has to name the right one — it is the thing
+            // the customer gives up by agreeing to a smaller figure.
+            guaranteeWindowKey={guaranteeFor(booking.categorySlug).labelKey}
             methods={availableMethods()}
             defaultMethod={booking.paymentMethod}
             // Same precedence as the stage above, so the reference always

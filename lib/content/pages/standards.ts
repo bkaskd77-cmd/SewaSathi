@@ -25,7 +25,7 @@ export const standards: LocalisedDocument = {
     title: "Our standards, and what happens if they are broken",
     lead:
       "How SajiloKaam handles under-reported jobs and money taken off the platform — what we count, what we never count, and exactly what each step costs.",
-    updated: "2026-09-05",
+    updated: "2026-09-06",
     sections: [
       {
         id: "why",
@@ -51,6 +51,30 @@ export const standards: LocalisedDocument = {
           },
           {
             p: "Jobs genuinely do come in under the band: the tap only needed a washer. Say so on the job and a person reviews it, usually the same day. If the whole category keeps landing under its minimum, that is our price being wrong, not yours — we move the band and nobody is penalised for it.",
+          },
+        ],
+      },
+      {
+        id: "the-guarantee",
+        heading: "The guarantee, and what it costs you",
+        blocks: [
+          {
+            p: "We tell every customer that if the same fault comes back within the window for that service, we send somebody back and they pay nothing. That promise is ours to make and yours to honour: the return visit is unpaid. Where somebody else attends a job that was yours, the visit is charged against your payout instead.",
+          },
+          {
+            p: "The window runs from the day the job is finished: 30 days for most repairs, 90 days for painting, 48 hours for cleaning and for reporting damage in transit.",
+          },
+          {
+            p: "What decides who pays is what you find when you get there, and you are the one who records it. Only the same fault coming back is unpaid. A different problem, nothing wrong, or damage caused since the last visit — all three become an ordinary job at the ordinary price and you are paid normally. The customer is told all of this before we send you out, so you are not the one breaking the news at their door.",
+          },
+          {
+            p: "That is why the verdict has to be honest in both directions. Calling a genuine recurrence something else takes money from a customer who was promised otherwise. Calling a new job a recurrence takes a morning's work from you for nothing.",
+          },
+          {
+            p: "It never covers damage the fault caused — the water from a leak, food spoiled by an outage — parts the customer supplied, or work you advised and they declined. Write that advice on the job at the time you give it. Three weeks later it is the only thing that protects you.",
+          },
+          {
+            p: "If a customer keeps claiming and the visits keep finding nothing, that is ours to look at, not yours to absorb. Tell us and we will.",
           },
         ],
       },
@@ -156,7 +180,7 @@ export const standards: LocalisedDocument = {
     title: "हाम्रा मापदण्ड, र उल्लङ्घन भए के हुन्छ",
     lead:
       "कम रकम लेखिएका काम र प्लेटफर्म बाहिर गएको पैसालाई सजिलोकामले कसरी हेर्छ — के गनिन्छ, के कहिल्यै गनिँदैन, र हरेक चरणले के खर्च गराउँछ।",
-    updated: "2026-09-05",
+    updated: "2026-09-06",
     sections: [
       {
         id: "why",
@@ -182,6 +206,30 @@ export const standards: LocalisedDocument = {
           },
           {
             p: "कहिलेकाहीँ काम साँच्चै दायराभन्दा सानो हुन्छ — धारालाई वासर मात्र चाहिएको थियो। त्यही कुरा कामकै पानामा लेख्नुहोस्, मान्छेले हेर्छ, प्रायः त्यही दिन। पूरै सेवाका काम बारम्बार न्यूनतमभन्दा तल आइरहेछन् भने त्यो हाम्रो मूल्य गलत भएको हो, तपाईंको होइन — हामी दायरा नै मिलाउँछौँ, र त्यसका लागि कसैलाई कारबाही हुँदैन।",
+          },
+        ],
+      },
+      {
+        id: "the-guarantee",
+        heading: "ग्यारेन्टी, र यसले तपाईंलाई के खर्च गराउँछ",
+        blocks: [
+          {
+            p: "त्यो सेवाका लागि तोकिएको अवधिभित्र उही समस्या फेरि देखियो भने हामी फेरि मान्छे पठाउँछौँ र ग्राहकले केही तिर्नु पर्दैन — यो वाचा हामीले गरेका छौँ, र पूरा गर्ने तपाईंले हो: त्यो दोस्रो भ्रमणको ज्याला हुँदैन। तपाईंकै काममा अरू कोही जानुपर्‍यो भने त्यो खर्च तपाईंकै भुक्तानीबाट कटाइन्छ।",
+          },
+          {
+            p: "अवधि काम सकिएको दिनदेखि गनिन्छ: धेरैजसो मर्मतमा ३० दिन, रङरोगनमा ९० दिन, सफाइ र बाटोमा भएको क्षति जनाउन ४८ घण्टा।",
+          },
+          {
+            p: "खर्च कसले बेहोर्ने भन्ने तपाईंले त्यहाँ पुगेर जे भेट्नुहुन्छ त्यसैले तय हुन्छ, र त्यो लेख्ने पनि तपाईं नै हो। उही समस्या फर्केको अवस्थामा मात्र ज्याला हुँदैन। अर्कै समस्या, केही नबिग्रेको अवस्था, वा गएपछि पुगेको क्षति — यी तीनै सामान्य काम बन्छन्, सामान्य मूल्य लाग्छ, र तपाईंले सधैँझैँ पाउनुहुन्छ। यी सबै कुरा हामीले तपाईंलाई पठाउनुअघि नै ग्राहकलाई भनिसकेका हुन्छौँ, त्यसैले ढोकैमा उभिएर यो कुरा सुनाउने काम तपाईंको होइन।",
+          },
+          {
+            p: "त्यसैले जे भेटिन्छ त्यही लेख्नुपर्छ, दुवैतिर। साँच्चै फर्केको समस्यालाई अर्कै भन्दा वाचा गरिएको ग्राहकबाट पैसा लिइन्छ। नयाँ काम भएकोलाई फर्केको भन्दा तपाईंकै आधा दिन सित्तैमा जान्छ।",
+          },
+          {
+            p: "समस्याले पुर्‍याएको क्षति — चुहावटको पानी, बिजुली नआउँदा बिग्रेको खाना — ग्राहकले आफैँ ल्याएका पार्ट्स, र तपाईंले सल्लाह दिँदादिँदै उहाँले नगराउनुभएको काम: यी कहिल्यै समेटिँदैनन्। त्यो सल्लाह दिएकै बेला कामको पानामा लेख्नुहोस्। तीन हप्तापछि तपाईंलाई जोगाउने त्यही मात्र हो।",
+          },
+          {
+            p: "कुनै ग्राहकले बारम्बार उजुरी गरिरहनुहुन्छ र गएर हेर्दा हरेक पटक केही भेटिँदैन भने, त्यो हेर्नुपर्ने हाम्रो काम हो, तपाईंले बेहोर्ने होइन। हामीलाई भन्नुहोस्, हामी हेर्छौँ।",
           },
         ],
       },

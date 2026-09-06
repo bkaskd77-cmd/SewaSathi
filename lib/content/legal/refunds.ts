@@ -10,7 +10,7 @@ export const refunds: LocalisedDocument = {
   en: {
     title: "Refund policy",
     lead: "You pay after the work is done, so most of this is about the few times something still goes wrong.",
-    updated: "2026-08-29",
+    updated: "2026-09-06",
     draft: true,
     sections: [
       {
@@ -30,28 +30,85 @@ export const refunds: LocalisedDocument = {
         heading: "Cancelling",
         blocks: [
           {
-            p: "Free of charge up to one hour before the agreed time, from the booking screen. Nothing has been paid, so nothing is refunded.",
+            p: "Free, from the booking screen, until your professional sets off. Nothing has been paid, so nothing is refunded.",
           },
           {
-            p: "Within the last hour, or if nobody is at the address when the professional arrives and we were not told, a visit fee applies. It covers their travel and the slot they held.",
+            p: "Once somebody is on their way we cannot cancel it from the screen — call us and we will sort it out. Either way there is no cancellation charge: we take our money after the work is done, so there is nothing for us to collect.",
           },
           {
-            p: "If the professional cancels or does not turn up, you pay nothing — including no visit fee — and we find you someone else.",
+            p: "If nobody is at the address when the professional arrives and we were not told, you are still not charged. We do record it, because it costs them a trip, and repeated no-shows are a conversation rather than a fee.",
+          },
+          {
+            p: "If the professional cancels or does not turn up, you pay nothing and we find you someone else.",
           },
         ],
       },
       {
-        id: "work-not-right",
-        heading: "If the work is not right",
+        id: "guarantee",
+        heading: "The guarantee, and who pays for it",
         blocks: [
           {
-            p: "Report it from the booking within 48 hours of the job finishing.",
+            p: "If the same fault comes back within the window for that service, we send somebody back and you pay nothing. That is the whole promise: the work put right, against the amount recorded for the job.",
+          },
+          {
+            dl: [
+              {
+                term: "Repairs — plumbing, electrical, appliances, AC, carpentry, water tanks",
+                detail: "30 days. A repair that holds for a month held.",
+              },
+              {
+                term: "Painting",
+                detail:
+                  "90 days. Peeling and blistering take weeks to show, so a shorter window would not be worth having.",
+              },
+              {
+                term: "Pest control",
+                detail:
+                  "30 days. This trade sells a course of treatment rather than one visit, so a follow-up is usually the treatment working normally, not a failure.",
+              },
+              {
+                term: "Home cleaning",
+                detail:
+                  "48 hours, and we re-clean. Anything longer would be pretending a house does not get dirty again.",
+              },
+              {
+                term: "Movers and packers",
+                detail:
+                  "48 hours to report transit damage. It is found on unpacking, and after that nobody can say it happened in the van.",
+              },
+            ],
+          },
+          {
+            p: "Every claim sends a professional out, and what they find decides who pays for the visit. You agree to this before we send anyone, so there is never a bill you did not see coming:",
           },
           {
             ul: [
-              "First we send someone back to put it right, at no cost to you. Usually the same professional, unless you would rather not.",
-              "If the second visit does not resolve it, we refund what you paid for the job in full.",
-              "If the problem is urgent and you cannot wait for a revisit, tell us on the phone and we will agree the refund straight away.",
+              "They find the same fault: you pay nothing. The visit is borne by the professional who did the original job, not by you.",
+              "They find a different problem: it becomes an ordinary booking at the usual price, and you see the quote before they start work.",
+              "They find nothing wrong: the same — an ordinary visit at the usual price.",
+              "The damage was caused after we left: the same.",
+            ],
+          },
+          {
+            p: "We do it this way because going and looking is the only honest way to tell those apart. A blocked drain a fortnight after a tap was fixed is a new job rather than the old one coming back, and the person standing in your kitchen is the one who can say which it is.",
+          },
+          {
+            p: "Two claims per booking, one open at a time, on a job that is finished and paid for. After that it is a phone call with a person rather than a form.",
+          },
+        ],
+      },
+      {
+        id: "guarantee-limits",
+        heading: "What the guarantee does not cover",
+        blocks: [
+          {
+            ul: [
+              "A different fault from the one that was fixed. That is a new job, and we will quote it before anyone starts.",
+              "Damage the fault caused, as opposed to the fault itself — the water from the leak, the food spoiled by the outage. We put the work right; we do not cover what it damaged. This is the most important line on this page and we would rather you read it now than discover it later.",
+              "Damage caused by you, by somebody else, or by ordinary use after the job.",
+              "Parts you supplied yourself, and things that wear out — filters, washers, bulbs.",
+              "Work you were advised to have done and chose not to. If the pipe needed replacing and you asked for a patch, the patch failing is not a defect.",
+              "Anything somebody else has worked on since.",
             ],
           },
         ],
@@ -60,6 +117,9 @@ export const refunds: LocalisedDocument = {
         id: "how-refunds-arrive",
         heading: "How a refund reaches you",
         blocks: [
+          {
+            p: "First, how one is decided: by a person, and only after somebody has been out and confirmed the fault was ours and cannot be put right. Nothing in the app produces a refund on its own. It is capped at the amount recorded for the job — which is why the figure you enter after paying cash matters.",
+          },
           {
             dl: [
               {
@@ -111,7 +171,7 @@ export const refunds: LocalisedDocument = {
   ne: {
     title: "रकम फिर्ता नीति",
     lead: "तपाईं काम सकिएपछि तिर्नुहुन्छ, त्यसैले यो नीति प्रायः थोरै पटक बिग्रिने अवस्थाबारे हो।",
-    updated: "2026-08-29",
+    updated: "2026-09-06",
     draft: true,
     sections: [
       {
@@ -131,26 +191,85 @@ export const refunds: LocalisedDocument = {
         heading: "रद्द गर्दा",
         blocks: [
           {
-            p: "तय भएको समयभन्दा एक घण्टा अगाडिसम्म बुकिङ पृष्ठबाट नि:शुल्क। केही तिरिएकै छैन, त्यसैले फिर्ता गर्नुपर्ने पनि केही छैन।",
+            p: "प्राविधिक नआउन्जेल बुकिङ पृष्ठबाटै नि:शुल्क रद्द गर्न सकिन्छ। केही तिरिएकै छैन, त्यसैले फिर्ता गर्नुपर्ने पनि केही छैन।",
           },
           {
-            p: "अन्तिम एक घण्टाभित्र, वा प्राविधिक आइपुग्दा ठेगानामा कोही नभेटिए र हामीलाई नभनिएको भए, भ्रमण शुल्क लाग्छ। यसले उहाँको यातायात र छुट्याइएको समय धान्छ।",
+            p: "उहाँ हिँडिसकेपछि भने पृष्ठबाट रद्द हुँदैन — हामीलाई फोन गर्नुहोस्, मिलाइदिन्छौँ। जे भए पनि रद्द गरेबापत शुल्क लाग्दैन: हामी काम सकिएपछि मात्र पैसा लिन्छौँ, त्यसैले असुल्नुपर्ने केही हुँदैन।",
           },
           {
-            p: "प्राविधिकले रद्द गर्नुभयो वा आउनुभएन भने तपाईंले केही तिर्नु पर्दैन — भ्रमण शुल्क पनि होइन — र हामी अर्को व्यक्ति खोजिदिन्छौं।",
+            p: "हामीलाई नभनी ठेगानामा कोही नभेटिए पनि तपाईंलाई शुल्क लाग्दैन। तर हामी त्यो टिपेर राख्छौँ, किनभने प्राविधिकको एक फेरा खेर जान्छ — बारम्बार यस्तो भए शुल्क होइन, कुराकानी हुन्छ।",
+          },
+          {
+            p: "प्राविधिकले रद्द गर्नुभयो वा आउनुभएन भने तपाईंले केही तिर्नु पर्दैन, र हामी अर्को व्यक्ति खोजिदिन्छौं।",
           },
         ],
       },
       {
-        id: "work-not-right",
-        heading: "काम राम्रो भएन भने",
+        id: "guarantee",
+        heading: "ग्यारेन्टी, र यसको खर्च कसले बेहोर्छ",
         blocks: [
-          { p: "काम सकिएको ४८ घण्टाभित्र बुकिङबाटै जानकारी दिनुहोस्।" },
+          {
+            p: "त्यो सेवाका लागि तोकिएको अवधिभित्र उही समस्या फेरि देखियो भने हामी फेरि मान्छे पठाउँछौँ, र तपाईंले केही तिर्नु पर्दैन। वाचा यत्ति हो — काम फेरि मिलाइदिने, कामका लागि लेखिएको रकमसम्म।",
+          },
+          {
+            dl: [
+              {
+                term: "मर्मत — धारा, बिजुली, उपकरण, एसी, सिकर्मी काम, ट्याङ्की सफाइ",
+                detail: "३० दिन। एक महिना टिकेको मर्मत टिक्यो भन्ने बुझिन्छ।",
+              },
+              {
+                term: "रङरोगन",
+                detail:
+                  "९० दिन। रङ उप्किने वा फुल्ने कुरा हप्तौँपछि मात्र देखिन्छ, त्यसैले छोटो अवधिको अर्थै हुँदैनथ्यो।",
+              },
+              {
+                term: "किरा नियन्त्रण",
+                detail:
+                  "३० दिन। यो काम एक पटकको भ्रमण होइन, चरणबद्ध उपचार हो — त्यसैले दोस्रो पटक आउनु प्रायः उपचार आफैँ हो, काम बिग्रेको होइन।",
+              },
+              {
+                term: "घर सफाइ",
+                detail:
+                  "४८ घण्टा, र हामी फेरि सफा गरिदिन्छौँ। यसभन्दा लामो अवधि दिनु घर फेरि फोहोर हुँदैन भनेजस्तै हुन्थ्यो।",
+              },
+              {
+                term: "सामान सार्ने र प्याकिङ",
+                detail:
+                  "बाटोमा भएको क्षति ४८ घण्टाभित्र जनाउनुपर्छ। त्यस्तो क्षति सामान खोल्दा थाहा हुन्छ, र त्यसपछि गाडीमै भएको हो भनी कसैले भन्न सक्दैन।",
+              },
+            ],
+          },
+          {
+            p: "हरेक उजुरीमा हामी प्राविधिक पठाउँछौँ, र उहाँले जे भेट्नुहुन्छ त्यसैले भ्रमणको खर्च कसले बेहोर्ने भन्ने तय हुन्छ। मान्छे पठाउनुअघि नै तपाईंले यो कुरा मञ्जुर गर्नुहुन्छ, त्यसैले नसोचेको बिल कहिल्यै आउँदैन:",
+          },
           {
             ul: [
-              "पहिले हामी मिलाउन कसैलाई फेरि पठाउँछौं, तपाईंलाई कुनै खर्च नलगाई। प्रायः उही प्राविधिक, तपाईंलाई मन नपरे अर्को।",
-              "दोस्रो पटकमा पनि मिलेन भने काम बापत तिर्नुभएको पूरै रकम फिर्ता गर्छौं।",
-              "समस्या जरुरी छ र फेरि आउने पर्खन सक्नुहुन्न भने फोनमा भन्नुहोस्, हामी तत्कालै फिर्ताको सहमति गर्छौं।",
+              "उही समस्या भेटियो भने: तपाईंले केही तिर्नु पर्दैन। खर्च पहिलेको काम गर्ने प्राविधिकले बेहोर्नुहुन्छ, तपाईंले होइन।",
+              "अर्कै समस्या भेटियो भने: यो सामान्य बुकिङ बन्छ र सामान्य मूल्य लाग्छ — काम सुरु गर्नुअघि तपाईंले मूल्य देख्नुहुन्छ।",
+              "केही बिग्रेको भेटिएन भने: उही — सामान्य भ्रमण, सामान्य मूल्य।",
+              "हामी गएपछि पुगेको क्षति भए: उही।",
+            ],
+          },
+          {
+            p: "यसो गर्नुको कारण सोझो छ — यी तीन कुरा छुट्याउने इमानदार तरिका भनेकै गएर हेर्नु हो। धारा मिलाएको दुई हप्तापछि नाली बन्द हुनु पुरानै समस्या फर्केको होइन, नयाँ काम हो, र कुन हो भन्न सक्ने भनेको भान्सामा उभिएको मान्छे नै हो।",
+          },
+          {
+            p: "एउटै बुकिङमा बढीमा दुई पटक उजुरी गर्न सकिन्छ, एक पटकमा एउटा, र काम सकिएर भुक्तानी भइसकेको हुनुपर्छ। त्यसपछि फारम होइन, मान्छेसँगै फोनमा कुरा हुन्छ।",
+          },
+        ],
+      },
+      {
+        id: "guarantee-limits",
+        heading: "ग्यारेन्टीले के-के समेट्दैन",
+        blocks: [
+          {
+            ul: [
+              "मिलाइएकोभन्दा फरक समस्या। त्यो नयाँ काम हो, र सुरु गर्नुअघि हामी मूल्य भन्छौँ।",
+              "समस्या आफैँ होइन, समस्याले पुर्‍याएको क्षति — चुहावटको पानी, बिजुली नआउँदा बिग्रेको खाना। हामी काम मिलाइदिन्छौँ; त्यसले बिगारेको कुरा समेट्दैनौँ। यस पृष्ठको सबैभन्दा महत्त्वपूर्ण हरफ यही हो, र पछि थाहा पाउनुभन्दा अहिले नै पढ्नुभएको राम्रो।",
+              "तपाईं, अरू कसैले, वा काम सकिएपछिको दैनिक प्रयोगले पुर्‍याएको क्षति।",
+              "तपाईं आफैँले ल्याउनुभएका पार्ट्स, र घोटिँदै जाने सामान — फिल्टर, वासर, बल्ब।",
+              "सल्लाह दिइएको तर तपाईंले नगराउनुभएको काम। पाइप नै फेर्नुपर्छ भनिएको ठाउँमा टाल्ने मात्र गर्न भन्नुभयो भने, त्यो टालो फुट्नु काम बिग्रेको होइन।",
+              "त्यसपछि अरू कसैले काम गरिसकेको कुरा।",
             ],
           },
         ],
@@ -159,6 +278,9 @@ export const refunds: LocalisedDocument = {
         id: "how-refunds-arrive",
         heading: "फिर्ता रकम कसरी आइपुग्छ",
         blocks: [
+          {
+            p: "पहिले, फिर्ता कसरी तय हुन्छ: मान्छेले निर्णय गर्छ, र त्यो पनि कोही गएर समस्या हाम्रै हो र मिलाउन सकिँदैन भनी पुष्टि भएपछि मात्र। एपले आफैँ कुनै फिर्ता निकाल्दैन। रकम कामका लागि लेखिएको अङ्कभन्दा बढी हुँदैन — नगदमा तिरेपछि तपाईंले लेख्ने अङ्क त्यसैले महत्त्वपूर्ण हुन्छ।",
+          },
           {
             dl: [
               {

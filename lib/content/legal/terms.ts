@@ -59,7 +59,7 @@ export const terms: LocalisedDocument = {
             p: "You see an estimate before you confirm. The professional then sees the job in person, and this is the step that matters: if it is bigger than you described — a burst pipe rather than a dripping tap — they will explain why and give you a revised price. Work stops there until you agree to it.",
           },
           {
-            p: "Nothing is added to your bill without your agreement. If you do not accept a revised price you may cancel at that point; a visit fee may apply under clause 5 to cover the trip.",
+            p: "Nothing is added to your bill without your agreement. If you do not accept a revised price you may cancel at that point, and you owe nothing for the visit.",
           },
           {
             p: "Prices cover labour and the call-out. A part the professional has to buy is quoted to you separately before it is fitted.",
@@ -89,10 +89,10 @@ export const terms: LocalisedDocument = {
         heading: "Changing your mind, and no-shows",
         blocks: [
           {
-            p: "You can reschedule or cancel free of charge up to one hour before the agreed time, from the booking screen.",
+            p: "You can cancel free of charge from the booking screen at any point before your professional sets off. Once they are on the way, call us instead and we will sort it out.",
           },
           {
-            p: "Inside that hour, or if nobody is at the address when the professional arrives and we were not told, a small visit fee applies. It covers their travel and the time they held for you; it is not a penalty and it is not profit for us.",
+            p: "There is no cancellation charge and no visit fee. We take our money after the work is done, so there is nothing for us to collect — and a fee we could not collect would be a threat rather than a term. If nobody is at the address when the professional arrives and we were not told, you are still not charged; we record it, because it costs them a trip, and repeated no-shows are a conversation rather than a fee.",
           },
           {
             p: "If the professional cancels, or does not arrive, you pay nothing and we will find you someone else.",
@@ -255,7 +255,7 @@ export const terms: LocalisedDocument = {
             p: "पुष्टि गर्नुअघि तपाईं अनुमानित रकम देख्नुहुन्छ। त्यसपछि प्राविधिकले काम आफ्नै आँखाले हेर्नुहुन्छ, र महत्त्वपूर्ण पाइला यही हो: तपाईंले भन्नुभएभन्दा ठूलो काम रहेछ भने — चुहिने धाराको सट्टा फुटेको पाइप — उहाँले कारणसहित नयाँ मूल्य भन्नुहुन्छ। तपाईंले मञ्जुर नगरेसम्म काम त्यहीँ रोकिन्छ।",
           },
           {
-            p: "तपाईंको सहमतिबिना बिलमा केही थपिँदैन। नयाँ मूल्य मञ्जुर छैन भने त्यहीँ रद्द गर्न सक्नुहुन्छ; आउने खर्चबापत दफा ५ अनुसार भ्रमण शुल्क लाग्न सक्छ।",
+            p: "तपाईंको सहमतिबिना बिलमा केही थपिँदैन। नयाँ मूल्य मञ्जुर छैन भने त्यहीँ रद्द गर्न सक्नुहुन्छ, र त्यो भ्रमणबापत तपाईंले केही तिर्नु पर्दैन।",
           },
           {
             p: "मूल्यमा ज्याला र आउने शुल्क पर्छ। प्राविधिकले किन्नुपर्ने पार्ट्स जडान गर्नुअघि छुट्टै मूल्य भनिन्छ।",
@@ -280,10 +280,10 @@ export const terms: LocalisedDocument = {
         heading: "मन फेरिए, र कोही नभेटिए",
         blocks: [
           {
-            p: "तय भएको समयभन्दा एक घण्टा अगाडिसम्म बुकिङ पृष्ठबाट नि:शुल्क समय सार्न वा रद्द गर्न सकिन्छ।",
+            p: "प्राविधिक नहिँड्दासम्म बुकिङ पृष्ठबाटै नि:शुल्क रद्द गर्न सकिन्छ। उहाँ हिँडिसक्नुभएको छ भने हामीलाई फोन गर्नुहोस्, मिलाइदिन्छौँ।",
           },
           {
-            p: "त्यो एक घण्टाभित्र, वा प्राविधिक आइपुग्दा ठेगानामा कोही नभेटिए र हामीलाई पहिले नभनिएको भए, सानो भ्रमण शुल्क लाग्छ। यसले उहाँको यातायात र तपाईंका लागि छुट्याइएको समय धान्छ; यो जरिवाना होइन, र हाम्रो नाफा पनि होइन।",
+            p: "रद्द गरेबापत कुनै शुल्क लाग्दैन, भ्रमण शुल्क पनि छैन। हामी काम सकिएपछि मात्र पैसा लिन्छौँ, त्यसैले असुल्नुपर्ने केही हुँदैन — र असुल्नै नसकिने शुल्क सर्त होइन, धम्की मात्र हुन्थ्यो। हामीलाई नभनी ठेगानामा कोही नभेटिए पनि तपाईंलाई शुल्क लाग्दैन; तर हामी त्यो टिपेर राख्छौँ, किनभने प्राविधिकको एक फेरा खेर जान्छ, र बारम्बार यस्तो भए शुल्क होइन, कुराकानी हुन्छ।",
           },
           {
             p: "प्राविधिकले रद्द गर्नुभयो वा आउनुभएन भने तपाईंले केही तिर्नु पर्दैन, र हामी अर्को व्यक्ति खोजिदिन्छौं।",

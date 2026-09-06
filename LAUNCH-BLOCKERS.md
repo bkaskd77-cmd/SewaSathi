@@ -93,6 +93,12 @@ whether the platform can be listed in their own app.
 Until then the incentive is the four true things on the payment screen
 (`components/booking/digital-benefits.tsx`) and no money at all.
 
+### BLOCKER: guarantee-unclaimable
+- Status: unresolved
+- Claims: `/legal/refunds` and `/providers/standards` now publish the guarantee in full — a re-do within 30 days for a repair, 90 for painting, 48 hours for a clean, with the visit deciding who pays. Every word of it is the policy we intend, and there is no button anywhere in the product that makes a claim. A customer whose tap fails again on day 12 can read exactly what they are entitled to and has no way to ask for it except the support number, which is itself a placeholder (see `support-phone-number`).
+- Lives in: `lib/config/guarantee.ts` (the rule, complete and tested), `lib/content/legal/refunds.ts`, `lib/content/pages/standards.ts`, `messages/*.json` (`booking.payment.cashPending.guarantee`)
+- Replaced by: Phase 11 — a `guarantee_claims` table (booking, claimant, fault description, photo, verdict, who paid, resolved by), the claim button on a settled booking, the free re-dispatch, the verdict capture on the professional's screen, and the charge-back against a held payout. `claimIsAllowed` and `claimOutcome` already decide both halves; what is missing is the table and the two screens.
+
 ### BLOCKER: next-14-advisories
 - Status: unresolved
 - Claims: nothing to a visitor — this one is not a promise on a screen, it is a way in that nobody in this repository wrote. `npm audit` reports two high-severity entries, Next itself and postcss beneath it, and `fixAvailable` for both is `next@16`. Most of the individual advisories do not describe this deployment (the Image Optimizer ones need `next/image` with `remotePatterns`, which this app does not use; several denial-of-service ones are specific to self-hosting). Three plausibly do reach us on Vercel: cache poisoning of React Server Component responses, cache confusion of response bodies for requests with bodies, and unauthenticated disclosure of internal Server Function endpoints. The last matters most, because every write in this product is a server action.

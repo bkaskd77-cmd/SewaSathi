@@ -27,7 +27,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
 | **content** | `@/lib/content/*` | Legal and information prose, both languages |
-| **config** | `@/lib/config/*` | Categories, areas, brand strings |
+| **config** | `@/lib/config/*` | Categories, areas, brand strings, the guarantee windows |
 
 `auth` has three entries rather than one and the split is forced, not
 stylistic: `session.ts` imports `server-only` and `otp.ts` is `"use client"`.
@@ -214,6 +214,15 @@ Where a change on one side cannot reach the other.
   reliability record on both sides — and that does not exist until Phase 10.
   Revisit it then, as a policy decision, not a schema one; the columns are
   already there.
+- **The guarantee is a re-do and the visit is what verifies it.**
+  `lib/config/guarantee.ts` is pure and testable for the same reason as
+  `cancellation.ts` and `pricing.ts`: it decides money. The window is per trade,
+  and the attending professional's verdict — `sameFault`, `differentProblem`,
+  `nothingWrong`, `customerCaused` — decides who pays for the visit. **No
+  verdict produces a refund on its own**, which is what stops the policy being
+  farmed by reporting a different problem each time in the same trade. The
+  claim table and the two screens are Phase 11 (`guarantee-unclaimable` in
+  LAUNCH-BLOCKERS.md); the rule they will read already exists and is tested.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.
