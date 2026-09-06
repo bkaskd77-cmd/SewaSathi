@@ -10,7 +10,7 @@ import { SignInFallback } from "@/components/auth/sign-in-fallback";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
-import { sendOtp, strandsCustomer } from "@/lib/auth/otp";
+import { strandsCustomer } from "@/lib/auth";
 import {
   checkNepaliMobile,
   formatNepaliMobile,
@@ -45,7 +45,10 @@ export function PhoneForm({ next }: { next: string }) {
     setDetail(null);
     setStranded(false);
     setSending(true);
-    const outcome = await sendOtp(check.e164);
+    // Through a server action: the send happens on our server so our rate
+    // limits actually run. It also keeps supabase-js out of this bundle.
+    const { requestOtpAction } = await import("@/app/[locale]/(auth)/actions");
+    const outcome = await requestOtpAction(check.e164);
 
     if (!outcome.ok) {
       setSending(false);

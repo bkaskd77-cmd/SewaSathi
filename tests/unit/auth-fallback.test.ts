@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { strandsCustomer } from "@/lib/auth/otp";
+import { strandsCustomer } from "@/lib/auth";
 
 /**
  * When the login screen offers a phone number instead of a retry.

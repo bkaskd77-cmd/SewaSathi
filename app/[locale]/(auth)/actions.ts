@@ -1,10 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { recordSecurityEvent } from "@/lib/audit";
+import { checkNepaliMobile } from "@/lib/auth";
+import type { OtpOutcome, VerifyOutcome } from "@/lib/auth";
+import { sendOtp, verifyOtp } from "@/lib/auth/otp";
 import { getSessionProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -41,4 +45,61 @@ export async function signOutAction() {
   }
 
   redirect({ href: "/", locale });
+}
+
+
+/**
+ * Requesting a code, from the server.
+ *
+ * The browser used to call Supabase directly, which meant none of our rate
+ * limits ran — the top finding of the Phase 9 audit. This is the door they run
+ * behind now. It deliberately does almost nothing itself: the number is
+ * validated with the same function the form uses, the network is read from the
+ * request rather than accepted from the caller, and every ceiling lives in
+ * `sendOtp` so a future caller cannot skip them by calling it another way.
+ *
+ * A BAD NUMBER GETS THE SAME SHAPE AS A GOOD ONE. Nothing in the response
+ * distinguishes "no such account" from "code sent", because `signInWithOtp`
+ * creates the account when there is none — so this cannot be used to test
+ * whether somebody is a customer of ours.
+ */
+export async function requestOtpAction(phone: string): Promise<OtpOutcome> {
+  const check = checkNepaliMobile(phone);
+  if (!check.ok) return { ok: false, error: "generic" };
+
+  return sendOtp(check.e164, { ip: callerIp() });
+}
+
+/**
+ * Submitting the code.
+ *
+ * This is where the session is created, and it has to happen in a server
+ * action rather than a Server Component: `verifyOtp` writes the auth cookies,
+ * and only an action or a route handler may. The attempt ceiling and its
+ * lockout are inside `verifyOtp` for the same reason as above.
+ */
+export async function verifyOtpAction(
+  phone: string,
+  token: string,
+): Promise<VerifyOutcome> {
+  const check = checkNepaliMobile(phone);
+  if (!check.ok) return { ok: false, error: "generic" };
+
+  const code = token.trim();
+  // Shape only. Whether it is the RIGHT code is Supabase's to answer, and
+  // answering it differently here would be a second oracle.
+  if (!/^\d{4,8}$/.test(code)) return { ok: false, error: "codeInvalid" };
+
+  return verifyOtp(check.e164, code, { ip: callerIp() });
+}
+
+/**
+ * The network this request came from, for the per-IP ceiling.
+ *
+ * Read from the request on the server. A caller-supplied value would make the
+ * limit opt-in, which is the same as not having one.
+ */
+function callerIp(): string {
+  const forwarded = headers().get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || "unknown";
 }

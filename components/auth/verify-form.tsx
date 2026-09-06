@@ -8,7 +8,7 @@ import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { OtpInput } from "@/components/ui/otp-input";
 import { Link, useRouter } from "@/i18n/navigation";
-import { sendOtp, verifyOtp } from "@/lib/auth/otp";
+
 import { formatE164ForDisplay } from "@/lib/auth";
 import { site } from "@/lib/config/site";
 
@@ -60,7 +60,8 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
       setError(null);
       setNotice(null);
 
-      const outcome = await verifyOtp(phone, value);
+      const { verifyOtpAction } = await import("@/app/[locale]/(auth)/actions");
+      const outcome = await verifyOtpAction(phone, value);
 
       if (!outcome.ok) {
         setStatus("idle");
@@ -89,7 +90,8 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
   async function resend() {
     setStatus("checking");
     setError(null);
-    const outcome = await sendOtp(phone);
+    const { requestOtpAction } = await import("@/app/[locale]/(auth)/actions");
+    const outcome = await requestOtpAction(phone);
     setStatus("idle");
 
     if (!outcome.ok) {

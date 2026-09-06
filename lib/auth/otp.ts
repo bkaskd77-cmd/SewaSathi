@@ -1,9 +1,45 @@
-"use client";
+import "server-only";
 
-import { createClient } from "@/lib/supabase/client";
+import { createHash } from "node:crypto";
+
+import { recordSecurityEvent } from "@/lib/audit";
+import { checkRateLimit } from "@/lib/server/rate-limit";
+import { createClient } from "@/lib/supabase/server";
+
+import type { OtpError, OtpOutcome, VerifyOutcome } from "./otp-contract";
 
 /**
- * The only place the app talks to an SMS provider.
+ * The only place the app talks to an SMS provider, and now the only place it
+ * is allowed to be called from.
+ *
+ * IT USED TO RUN IN THE BROWSER. `"use client"` meant every OTP request went
+ * from the visitor's phone straight to Supabase, so none of our rate limits
+ * ran — the only thing between an attacker and a flood of paid SMS was the
+ * provider's own defaults. That was the top finding of the Phase 9 audit and
+ * this file is the fix: the send and the verify happen on our server, behind
+ * limits we set and can see, and the browser reaches them through a server
+ * action.
+ *
+ * THREE CEILINGS, and each answers a different attack:
+ *
+ *   otp:number   one phone number. Every send is an SMS we pay for, and a
+ *                person who genuinely did not get the code needs two or three
+ *                tries, not thirty. This is the bill.
+ *   otp:ip       one network. Looser, because a family or an office is one
+ *                IP and locking a building out of signing in is worse than
+ *                the flood it prevents. This is the number-space walker.
+ *   otp:attempt  wrong codes against one number. Ten an hour against a
+ *                million possibilities is not a guessing attack any more.
+ *                This is the brute force, and it is the one with a lockout.
+ *
+ * THE NUMBER IS NEVER THE KEY. Rate-limit keys are hashed, because they end up
+ * in a third party's Redis and a list of keys would otherwise be a list of
+ * every phone number that has tried to sign in.
+ *
+ * NO ANSWER REVEALS WHETHER A NUMBER IS REGISTERED. `signInWithOtp` creates
+ * the user when there is none, so "send" behaves identically either way, and
+ * every failure below returns the same shape whatever the reason. An attacker
+ * cannot use this to build a list of our customers.
  *
  * Today this is Supabase Auth's built-in phone OTP, which gives us real JWT
  * sessions, expiry and rate limiting without hand-rolling any of it.
@@ -17,48 +53,57 @@ import { createClient } from "@/lib/supabase/client";
  */
 
 /**
- * `error` is a key into `auth.errors`, never a sentence.
+ * A phone number, reduced to something safe to use as a counter key.
  *
- * Provider wording is for us, not for someone standing in a wet kitchen — and
- * it is only ever written in English. Mapping to a key here is what lets the
- * form show the same message in Nepali without this file knowing a locale
- * exists.
+ * The keys reach a third party's Redis. A list of them must not be a list of
+ * every number that has tried to sign in to this product.
  */
-export type OtpError =
-  | "tooManyRequests"
-  | "codeExpiredOrInvalid"
-  | "codeExpired"
-  | "codeInvalid"
-  | "smsFailed"
-  | "requestNewCode"
-  | "generic";
+function keyFor(e164: string): string {
+  return createHash("sha256").update(e164).digest("hex").slice(0, 32);
+}
 
-export type OtpOutcome =
-  | { ok: true }
-  | {
-      ok: false;
-      error: OtpError;
-      retryAfterSeconds?: number;
-      /**
-       * The provider's own wording, verbatim.
-       *
-       * Never shown to a customer — `error` is what the form renders. This is
-       * carried so the dev badge can print it, because the alternative is
-       * asking somebody to open DevTools and read a network response, and that
-       * turned out to be several rounds of back-and-forth for a message the
-       * app already had in its hand. Same reasoning as the triage badge.
-       */
-      detail?: string;
-    };
+export async function sendOtp(
+  e164: string,
+  context: { ip?: string | null } = {},
+): Promise<OtpOutcome> {
+  const numberKey = keyFor(e164);
 
-/** Verification additionally reports whether this is a brand-new account. */
-export type VerifyOutcome =
-  | { ok: true; isNewUser: boolean }
-  | { ok: false; error: OtpError; detail?: string };
+  // Both ceilings are consumed, so somebody cannot spend the per-network
+  // budget without also spending the number's.
+  const [byNumber, byNetwork] = await Promise.all([
+    checkRateLimit("otp:number", numberKey),
+    checkRateLimit("otp:ip", context.ip ?? "unknown"),
+  ]);
 
-export async function sendOtp(e164: string): Promise<OtpOutcome> {
+  if (!byNumber.ok || !byNetwork.ok) {
+    const retryAfterSeconds = !byNumber.ok
+      ? byNumber.retryAfterSeconds
+      : (byNetwork as { retryAfterSeconds: number }).retryAfterSeconds;
+
+    await recordSecurityEvent({
+      kind: "auth.otpRequested",
+      actorRole: "anonymous",
+      subjectType: "profile",
+      // The hash, not the number: this table is read by people too.
+      subjectId: numberKey,
+      detail: { refused: "rateLimited", scope: !byNumber.ok ? "number" : "ip" },
+      requestIp: context.ip ?? null,
+    });
+
+    return { ok: false, error: "tooManyRequests", retryAfterSeconds };
+  }
+
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
+
+  await recordSecurityEvent({
+    kind: "auth.otpRequested",
+    actorRole: "anonymous",
+    subjectType: "profile",
+    subjectId: numberKey,
+    detail: { sent: !error },
+    requestIp: context.ip ?? null,
+  });
 
   if (!error) return { ok: true };
 
@@ -81,7 +126,35 @@ export async function sendOtp(e164: string): Promise<OtpOutcome> {
 export async function verifyOtp(
   e164: string,
   token: string,
+  context: { ip?: string | null } = {},
 ): Promise<VerifyOutcome> {
+  const numberKey = keyFor(e164);
+
+  /*
+   * THE LOCKOUT, and it is the one ceiling that has to bite hard.
+   *
+   * A six-digit code has a million possibilities and Supabase's are valid for
+   * minutes. Unlimited guesses against one number is the only actually
+   * dangerous attack in this flow, and it is cheap: no SMS is sent, so nothing
+   * else in the system notices. Ten an hour makes it arithmetic rather than a
+   * strategy.
+   *
+   * Consumed BEFORE the attempt rather than only on failure, so an attacker
+   * cannot spend the budget on guesses that happen to be right.
+   */
+  const attempt = await checkRateLimit("otp:attempt", numberKey);
+  if (!attempt.ok) {
+    await recordSecurityEvent({
+      kind: "auth.otpFailed",
+      actorRole: "anonymous",
+      subjectType: "profile",
+      subjectId: numberKey,
+      detail: { refused: "lockedOut" },
+      requestIp: context.ip ?? null,
+    });
+    return { ok: false, error: "tooManyRequests" };
+  }
+
   const supabase = createClient();
   const { data, error } = await supabase.auth.verifyOtp({
     phone: e164,
@@ -90,6 +163,14 @@ export async function verifyOtp(
   });
 
   if (error) {
+    await recordSecurityEvent({
+      kind: "auth.otpFailed",
+      actorRole: "anonymous",
+      subjectType: "profile",
+      subjectId: numberKey,
+      detail: { reason: classifyError(error.message) },
+      requestIp: context.ip ?? null,
+    });
     return {
       ok: false,
       error: classifyError(error.message),
@@ -102,6 +183,15 @@ export async function verifyOtp(
     return { ok: false, error: "requestNewCode" };
   }
 
+  await recordSecurityEvent({
+    kind: "auth.signedIn",
+    actorId: user.id,
+    actorRole: "customer",
+    subjectType: "profile",
+    subjectId: user.id,
+    requestIp: context.ip ?? null,
+  });
+
   // A profile row exists from the signup trigger; `full_name` is what
   // onboarding fills in, so an empty one means we have not met this person yet.
   const supabase2 = createClient();
@@ -112,23 +202,6 @@ export async function verifyOtp(
     .maybeSingle();
 
   return { ok: true, isNewUser: !profile?.full_name };
-}
-
-/**
- * Is this failure ours, and unfixable by the person in front of us?
- *
- * The difference decides whether the login screen offers a phone number.
- * Telling somebody to ring support when they have simply mistyped a digit is
- * worse than useless — it teaches them the product is broken when it is not.
- * Telling them nothing when the gateway is genuinely down is worse still: for
- * a plumbing emergency at nine at night, a dead login is the whole business
- * failing, and that is exactly what happened in production.
- *
- * `tooManyRequests` is deliberately absent. It resolves on its own, and the
- * form already says how long to wait.
- */
-export function strandsCustomer(error: OtpError): boolean {
-  return error === "smsFailed" || error === "generic";
 }
 
 /** Provider wording is for us, not for someone standing in a wet kitchen. */

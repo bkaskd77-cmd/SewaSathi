@@ -29,8 +29,14 @@ export const BUDGET = {
   routes: {
     // Measured 148 after the migration (128 before it).
     "/[locale]": 155,
-    // Measured 195. /verify and /onboarding sit alongside it at 196.
-    "/[locale]/login": 205,
+    /*
+     * 205 kB until Phase 9, when moving the OTP send behind a server action
+     * took supabase-js out of this bundle entirely: 197 kB -> 128 kB, on the
+     * one screen every customer must load before they can do anything, over a
+     * connection that is often a phone on mobile data. The ceiling comes down
+     * with it — a win nobody can regress into is worth more than the win.
+     */
+    "/[locale]/login": 140,
     // The discovery routes. `/services/[slug]` carries the only client-side
     // JavaScript in this group — the filter bar — and that is what the ceiling
     // is really watching: if it grows, something turned a Server Component
