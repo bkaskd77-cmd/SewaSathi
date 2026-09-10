@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { guaranteeFor } from "@/lib/config/guarantee";
 import {
   cutoffFor,
+  deletesEarlyOn,
   isExpired,
   RETENTION,
   retentionIsArmed,
@@ -21,13 +23,24 @@ const DAY = 86_400_000;
 const at = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY);
 
 describe("nothing is deleted before it has stopped being useful", () => {
-  it("keeps a booking photo through the dispute window", () => {
+  it("keeps a booking photo through the guarantee window it serves", () => {
+    // Sixty days: the 30-day repair guarantee, plus a month of slack for a
+    // claim made on the last day and settled slowly.
     expect(isExpired("bookingPhotos", at(30))).toBe(false);
-    expect(isExpired("bookingPhotos", at(89))).toBe(false);
+    expect(isExpired("bookingPhotos", at(59))).toBe(false);
   });
 
   it("deletes it once that window has closed", () => {
-    expect(isExpired("bookingPhotos", at(91))).toBe(true);
+    expect(isExpired("bookingPhotos", at(61))).toBe(true);
+  });
+
+  it("outlives the repair guarantee it exists for", () => {
+    // The photo has to survive a claim made on the last day of the window,
+    // not merely until the window opens. Tied to the guarantee rather than
+    // chosen on its own, so moving one moves the other deliberately.
+    expect(RETENTION.bookingPhotos.days).toBeGreaterThan(
+      guaranteeFor("plumbing").days,
+    );
   });
 
   it("holds a saved address for two years after its last booking", () => {
@@ -88,6 +101,30 @@ describe("the identifying half goes and the record stays", () => {
     expect(RETENTION.rejectedDocuments.days).toBeLessThan(
       RETENTION.verifiedDocuments.days,
     );
+  });
+
+  it("gives somebody long enough to fetch a missing police clearance", () => {
+    /*
+     * The first number here was thirty days, reasoned only from "how long to
+     * appeal". Most rejections are not appeals — they are a missing paper, and
+     * getting one in Nepal means weeks of queuing at an office that is shut
+     * half the days you can go. At thirty days somebody who did everything we
+     * asked comes back with the certificate and has to re-upload their whole
+     * identity from nothing.
+     */
+    expect(RETENTION.rejectedDocuments.days).toBeGreaterThanOrEqual(90);
+  });
+
+  it("deletes a rejected document the moment a re-application is approved", () => {
+    /*
+     * The privacy answer is not a shorter clock, it is this. On the common
+     * path the documents are held for LESS time than thirty days would have;
+     * only somebody who never comes back has theirs kept to the full window.
+     * Phase 10 must call this at the point of approval, which is why it is a
+     * named obligation rather than a comment.
+     */
+    expect(deletesEarlyOn("rejectedDocuments")).toBeTruthy();
+    expect(deletesEarlyOn("addresses")).toBeNull();
   });
 });
 

@@ -223,6 +223,30 @@ Where a change on one side cannot reach the other.
   farmed by reporting a different problem each time in the same trade. The
   claim table and the two screens are Phase 11 (`guarantee-unclaimable` in
   LAUNCH-BLOCKERS.md); the rule they will read already exists and is tested.
+- **The returning professional judges their own work, and Phase 11 measures
+  it.** On the common path the person who goes back is the one who did the
+  original job, and `differentProblem` is the verdict that gets them paid —
+  they are deciding, with money on the answer, whether their own repair failed.
+  Exactly the shape of under-reporting on the settlement side, and handled the
+  same way: do not police the verdict, measure the pattern. Phase 11 records
+  the verdict against the attending professional and feeds a run of
+  disproportionately `differentProblem` return visits — compared against the
+  rate for their trade, never a fixed number — into the leakage score, which
+  starts at "you are told, privately". One verdict is never a signal: a real
+  second fault is common. Deliberately **not** on `/providers/standards` until
+  it is computed; naming a signal we do not measure is a claim we cannot stand
+  behind, which is what LAUNCH-BLOCKERS.md exists to stop.
+- **Retention numbers are approved and the clock still is not armed.** Booking
+  photos 60 days, tied to the repair guarantee they exist to serve; rejected
+  identity documents 90 days, because most rejections are a missing police
+  clearance rather than a dispute and thirty days makes somebody re-upload
+  their whole identity after queuing for weeks. The privacy answer there is not
+  a shorter clock but `EARLY_DELETION` — the rejected set goes the moment a
+  re-application is approved, which Phase 10 must call at the point of
+  approval. Address redaction at 730 days was checked against
+  `booking_status_history` and leaves it intact: that table holds no address,
+  the address row is redacted rather than deleted so nothing orphans, and no
+  claim path reaches back that far.
 - **Money and job progress are separate machines.** A booking can be completed
   and unpaid — for cash that is the normal case — so "mark it complete" and
   "mark it paid" are never the same privilege.

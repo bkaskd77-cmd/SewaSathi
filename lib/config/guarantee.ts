@@ -206,6 +206,28 @@ export type ClaimOutcome = {
  * before we dispatch anyone, because the booking screen says so in the
  * sentence they agree to.
  */
+/**
+ * THE CONFLICT OF INTEREST IN THIS TABLE, NAMED SO IT IS NOT FORGOTTEN.
+ *
+ * On the common path the professional who returns is the one who did the
+ * original job — and `differentProblem` is the verdict that gets them paid.
+ * They are judging their own work with money on the answer. That is exactly
+ * the shape of under-reporting on the settlement side: not a reason to
+ * distrust anybody, and every reason not to leave it unmeasured.
+ *
+ * The answer is the same as it was there: do not police the verdict, measure
+ * the pattern. Phase 11 records the verdict against the attending
+ * professional, and a run of return visits that come back
+ * disproportionately `differentProblem` — against the rate for their trade,
+ * never against a fixed number — becomes an input to the leakage score, which
+ * starts at "you are told, privately". One verdict is never a signal; the
+ * genuinely honest case, a real second fault, is common.
+ *
+ * Deliberately NOT published on `/providers/standards` yet. Naming a signal we
+ * do not compute would be a claim we cannot stand behind, which is what
+ * LAUNCH-BLOCKERS.md exists to prevent. It goes on the page in the phase that
+ * builds it.
+ */
 export function claimOutcome(verdict: ClaimVerdict): ClaimOutcome {
   const payer: ClaimPayer = verdict === "sameFault" ? "provider" : "customer";
   return { payer, free: payer === "provider", refund: "person" };

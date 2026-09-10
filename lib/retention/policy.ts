@@ -48,6 +48,19 @@ export const RETENTION: Record<string, RetentionRule> = {
    * comes back within two years expects their saved address to still be there
    * and re-typing it is a real cost to them. Beyond that the convenience is
    * worth less than the risk of holding it.
+   *
+   * CHECKED AGAINST `booking_status_history`, which is the evidence in a
+   * dispute, and it survives this intact. That table holds no address at all —
+   * booking id, from and to status, who changed it, their role, a note and a
+   * timestamp — so no row of it is touched. The address row is redacted rather
+   * than deleted, so `bookings.address_id` still resolves and every history
+   * row still joins to a real booking in a real ward; nothing orphans. What
+   * goes is the doorstep, and no dispute path can still reach back for it at
+   * two years: `claimIsAllowed` refuses anything outside a 30-to-90-day
+   * window, payments reconcile in days, and the financial record itself is
+   * kept for five years and is untouched here. The clock is also the LAST
+   * booking at the address rather than the row's own age, so an address in
+   * live use is never swept out from under an open dispute.
    */
   addresses: {
     from: "the most recent booking at this address",
@@ -58,14 +71,22 @@ export const RETENTION: Record<string, RetentionRule> = {
 
   /*
    * A photograph taken inside somebody's home. The professional needs it while
-   * the job is live; after that it is evidence for a dispute, and disputes
-   * arrive within weeks, not years.
+   * the job is live; after that it is evidence for a claim, and claims arrive
+   * within weeks, not years.
+   *
+   * Sixty days rather than ninety, so it lines up with the guarantee window it
+   * actually serves: 30 days on a repair, with a month of slack for a claim
+   * made on the last day and settled slowly. The two categories with a longer
+   * window do not need it — painting's 90 days is judged by looking at the
+   * wall, not at a photograph of the tap. Holding a picture of the inside of
+   * somebody's house for an extra month to cover a case that does not exist is
+   * storage we pay for and risk we carry for nothing.
    */
   bookingPhotos: {
     from: "the booking completing or being cancelled",
-    days: 90,
+    days: 60,
     action: "delete",
-    why: "Needed during the job and the dispute window, and then not at all.",
+    why: "Needed during the job and the guarantee window, and then not at all.",
   },
 
   /*
@@ -117,11 +138,29 @@ export const RETENTION: Record<string, RetentionRule> = {
     action: "delete",
     why: "Proof we ran the check we advertise, for a year after they leave.",
   },
+  /*
+   * NINETY DAYS, AND THE NUMBER IS ABOUT NEPAL RATHER THAN ABOUT PRIVACY.
+   *
+   * The first draft said thirty, reasoning only from "how long to appeal".
+   * That is the wrong question. Most rejections are not disputes, they are a
+   * missing paper — a police clearance, a renewed citizenship copy — and
+   * getting one takes weeks of queuing at an office that is shut half the days
+   * you can go. At thirty days somebody who did everything right comes back
+   * with the certificate we asked for and has to photograph and upload their
+   * whole identity again from nothing. That is a barrier we invented, and it
+   * falls hardest on the people with the least time to spare.
+   *
+   * The privacy answer is not a shorter clock, it is `deleteOnReapproval`
+   * below: the moment a re-application succeeds, the rejected set goes
+   * immediately rather than waiting out its ninety days. So the common path
+   * holds the documents for *less* time than thirty days would have, and only
+   * the person who never comes back has theirs held to the full window.
+   */
   rejectedDocuments: {
     from: "the rejection",
-    days: 30,
+    days: 90,
     action: "delete",
-    why: "Long enough to appeal, and then it is an identity document we have no reason to hold.",
+    why: "Long enough to fetch a missing police clearance and come back. Deleted the moment a re-application is approved.",
   },
 
   /** Read or not, a notification is stale within a season. */
@@ -146,6 +185,34 @@ export const RETENTION: Record<string, RetentionRule> = {
 };
 
 export type RetentionKey = keyof typeof RETENTION;
+
+/**
+ * Rules where an EVENT ends the retention early, before the clock runs out.
+ *
+ * A retention number is a ceiling, not a target. Where something stops being
+ * useful at a knowable moment, waiting out the rest of the window is holding
+ * data for no reason — and for identity documents that is the most dangerous
+ * thing in the building.
+ *
+ * `rejectedDocuments` is the case that forced this to be written down. Ninety
+ * days exists so somebody rejected for a missing police clearance has time to
+ * queue for one; it is not a reason to keep the old photographs of their
+ * citizenship certificate once the new application has been approved. The
+ * moment it is, the rejected set goes.
+ *
+ * PHASE 10 MUST HONOUR THIS at the point of approval. It is a named obligation
+ * rather than a comment precisely because it is the kind of thing that gets
+ * left to the sweep, and the sweep is ninety days late.
+ */
+export const EARLY_DELETION: Partial<Record<RetentionKey, string>> = {
+  rejectedDocuments:
+    "a later application from the same person is approved — delete the rejected set then, do not wait for the window",
+};
+
+/** What ends this rule early, if anything does. */
+export function deletesEarlyOn(key: RetentionKey): string | null {
+  return EARLY_DELETION[key] ?? null;
+}
 
 /** Is a record of this kind past its date? Pure, so the rules are testable. */
 export function isExpired(
