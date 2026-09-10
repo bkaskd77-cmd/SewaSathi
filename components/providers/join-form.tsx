@@ -8,6 +8,7 @@ import { FieldError } from "@/components/auth/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Link } from "@/i18n/navigation";
 import { NEPAL_DIAL_CODE } from "@/lib/auth";
 import type { LeadResult } from "@/lib/data/provider-leads";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,21 @@ export function JoinForm({
   );
 
   if (state?.ok) {
+    /*
+     * IT USED TO END HERE, SAYING "we will call you".
+     *
+     * That sentence stopped being true the moment /providers/apply existed:
+     * nothing calls, and the person can finish onboarding themselves right
+     * now. So the card confirms what was saved and hands them straight on,
+     * carrying the number they just typed so the login screen does not ask
+     * for it again.
+     *
+     * A CARD RATHER THAN A SILENT REDIRECT, deliberately. Somebody who has
+     * just handed over their details deserves a moment of confirmation, and
+     * bouncing them to a login screen with no acknowledgement reads as the
+     * form having failed. The button also keeps the choice theirs — the lead
+     * row is already safe either way, so coming back tomorrow costs nothing.
+     */
     return (
       <div
         role="status"
@@ -66,6 +82,19 @@ export function JoinForm({
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-body-md text-muted-foreground">
           {t("successBody")}
+        </p>
+
+        <Button size="lg" className="btn-tactile mt-5" asChild>
+          <Link
+            href={`/login?next=${encodeURIComponent("/providers/apply")}&phone=${encodeURIComponent(state.phone ?? "")}`}
+          >
+            {t("successContinue")}
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+
+        <p className="mt-3 text-caption text-muted-foreground">
+          {t("successLater")}
         </p>
       </div>
     );

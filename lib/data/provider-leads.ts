@@ -26,7 +26,20 @@ export type LeadErrors = Partial<
   Record<"fullName" | "phone" | "category" | "area" | "years" | "form", string>
 >;
 
-export type LeadResult = { ok: true } | { ok: false; errors: LeadErrors };
+export type LeadResult =
+  | {
+      ok: true;
+      /**
+       * The national ten digits, handed straight back to the success card.
+       *
+       * It carries into `/login?phone=` so somebody who typed their number
+       * thirty seconds ago is not asked for it again on the very next screen.
+       * National rather than E.164 because that is what the login field
+       * shows — the dial code is rendered beside it, not inside it.
+       */
+      phone: string;
+    }
+  | { ok: false; errors: LeadErrors };
 
 const schema = z.object({
   fullName: z.string().trim().min(2).max(80),
@@ -72,7 +85,7 @@ export async function submitProviderLead(
     // A fresh clone with no keys should still be able to walk the form. The
     // submission goes nowhere, and says so in the log rather than pretending.
     console.warn("[leads] no Supabase config — application not stored");
-    return { ok: true };
+    return { ok: true, phone: phone.national };
   }
 
   try {
@@ -97,7 +110,7 @@ export async function submitProviderLead(
       return { ok: false, errors: { form: "saveFailed" } };
     }
 
-    return { ok: true };
+    return { ok: true, phone: phone.national };
   } catch (thrown) {
     console.error(`[leads] insert threw — ${describeError(thrown)}`);
     return { ok: false, errors: { form: "saveFailed" } };

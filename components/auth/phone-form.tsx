@@ -18,11 +18,26 @@ import {
 } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-export function PhoneForm({ next }: { next: string }) {
+export function PhoneForm({
+  next,
+  /**
+   * Seeded from `?phone` when they have just given the number to
+   * /providers/join. Asking somebody to retype what they entered thirty
+   * seconds ago is exactly the friction that loses a professional halfway
+   * through signing up.
+   *
+   * Already validated by the page — this only decides what the field starts
+   * with, and the code still goes to whatever is in it at submit time.
+   */
+  defaultPhone = "",
+}: {
+  next: string;
+  defaultPhone?: string;
+}) {
   const t = useTranslations("auth.login");
   const tErr = useTranslations("auth.errors");
   const router = useRouter();
-  const [raw, setRaw] = React.useState("");
+  const [raw, setRaw] = React.useState(defaultPhone);
   const [error, setError] = React.useState<string | null>(null);
   // The provider's own wording, for the dev badge only. Never rendered as the
   // customer-facing message.

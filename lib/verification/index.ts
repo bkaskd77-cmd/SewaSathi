@@ -49,6 +49,12 @@ export {
 } from "./consent";
 
 export {
+  seedFromLead,
+  type LeadSeed,
+  type ProviderLead,
+} from "./lead-seed";
+
+export {
   identityAdapter,
   identityMatchingIsLive,
   manualIdentity,

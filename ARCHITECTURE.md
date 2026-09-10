@@ -214,6 +214,26 @@ Where a change on one side cannot reach the other.
   reliability record on both sides — and that does not exist until Phase 10.
   Revisit it then, as a policy decision, not a schema one; the columns are
   already there.
+- **Two provider doors, and the first hands over to the second.**
+  `/providers/join` is open — no account, five fields, one `provider_leads`
+  row — because a login wall on step one is where a supply funnel dies. It used
+  to end in "we will call you back", which needed a person and was the only
+  thing standing between a professional and the real flow: nothing anywhere
+  linked to `/providers/apply`, so the whole verification pipeline was
+  reachable only by typing the URL. The join card now carries them to
+  `/login?next=/providers/apply&phone=…`, the number they just typed prefills
+  the field (validated through `checkNepaliMobile` first — a query parameter
+  must not inject text into an input), and `startApplication` seeds the draft
+  from the lead so nobody types their name, trade, ward or years twice.
+  `seedFromLead` in `lib/verification/lead-seed.ts` is the one place that knows
+  which lead field becomes which application field, and it is **there rather
+  than in the data layer because `lib/data/applications.ts` is `server-only`**
+  and reaches React's `cache` through the audit log — the same move
+  `dispatchIsHeld` needed, for the same reason. Signing in on a different
+  number finds no lead and starts an empty application; that is the ordinary
+  case, not an error. A signed-in visitor at `/join` is redirected to `/apply`,
+  and the lead is marked `contacted` (never `onboarded`, which means they
+  became a provider and is set at approval).
 - **Provider verification answers two questions and keeps them apart.**
   Identity (`provider_documents`, and who the person is) and competence
   (`application_assessments`, and whether they can do the work) are separate

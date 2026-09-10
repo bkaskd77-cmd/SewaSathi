@@ -816,8 +816,8 @@
     "notePlaceholder": "Tools you own, other trades, when you are free",
     "submit": "Send my details",
     "submitting": "Sending…",
-    "successTitle": "Got it — we will call you",
-    "successBody": "Someone from our team will ring the number you gave us, usually within two working days. Keep your citizenship or licence handy for that call.",
+    "successTitle": "Saved — now let's finish it",
+    "successBody": "We have your details. The rest takes about fifteen minutes and you can stop and come back at any point. Sign in with the same number and we will carry this over so you do not type it twice.",
     "privacyNote": "We use these details only to contact you about joining. Nothing is published until you are verified and you have agreed to it.",
     "errors": {
       "nameTooShort": "Please enter your name.",
@@ -848,7 +848,8 @@
         "needReferences": "Two people who can vouch for your work",
         "timing": "We answer within three working days. If we need anything else, we call you — we do not leave people waiting without a word.",
         "start": "Start",
-        "resume": "Carry on where you stopped"
+        "resume": "Carry on where you stopped",
+        "seeded": "We already have your name, trade and ward from the form. Check them as you go."
       },
       "progress": "Step {step} of {total}",
       "next": "Save and continue",
@@ -973,7 +974,9 @@
         "consentFirst": "Please agree to the notice before uploading anything.",
         "tooManyRequests": "Too many attempts. Wait a minute and try again."
       }
-    }
+    },
+    "successContinue": "Continue",
+    "successLater": "You can also come back to this later — nothing is lost."
   },
   "provider": {
     "jobs": {

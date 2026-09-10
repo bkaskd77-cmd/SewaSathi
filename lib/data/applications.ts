@@ -5,12 +5,15 @@ import { headers } from "next/headers";
 import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { NEPAL_DIAL_CODE, toNationalDigits } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 import {
   CONSENT_SCOPE,
   CONSENT_VERSION,
   knownTrade,
+  seedFromLead,
+  type ProviderLead,
 } from "@/lib/verification";
 
 /**
@@ -127,9 +130,35 @@ export async function startApplication(
   if (!hasSupabaseConfig()) return null;
   const db = createAdminClient();
 
+  /*
+   * THEY MAY HAVE ALREADY TOLD US THIS.
+   *
+   * `/providers/join` is the open door — five fields, no account — and it is
+   * where most professionals arrive. Making somebody who filled that in ten
+   * minutes ago retype their own name, trade and ward is the exact friction
+   * that loses supply on a long form, and it is entirely avoidable: the lead
+   * is keyed by phone and so are they.
+   *
+   * Finding nothing is the ordinary case for anybody who came straight to
+   * /apply, and it is not an error.
+   */
+  const lead = await leadForProfile(profileId);
+  const seed = seedFromLead(lead);
+
   const { data, error } = await db
     .from("provider_applications")
-    .insert({ profile_id: profileId, locale })
+    .insert({
+      profile_id: profileId,
+      locale,
+      full_name: seed.fullName ?? null,
+      trades: seed.trades ?? [],
+      service_areas: seed.serviceAreas ?? [],
+      years_experience: seed.yearsExperience ?? null,
+      // Straight past the consent step's neighbours if we already have their
+      // details — but never past consent itself, which is step one and is
+      // theirs to give.
+      step: 1,
+    })
     .select("*")
     .single();
 
@@ -137,7 +166,63 @@ export async function startApplication(
     console.error(`[applications] starting — ${describeError(error)}`);
     return null;
   }
+
+  /*
+   * `contacted`, not `onboarded`. They are in the pipeline rather than sitting
+   * in a list waiting for a call that nobody is going to make; `onboarded`
+   * means they became a provider, and that is set at approval.
+   */
+  if (lead) {
+    await db
+      .from("provider_leads")
+      .update({ status: "contacted" })
+      .eq("id", lead.id)
+      .eq("status", "new");
+  }
+
   return toDraft(data, false);
+}
+
+/**
+ * The lead this person left before they had an account, if there is one.
+ *
+ * TWO PHONE FORMATS, ONE NUMBER. Leads store E.164 with the plus
+ * (`+9779841234567`, straight from `checkNepaliMobile`); profiles store what
+ * Supabase Auth normalised it to, which has no plus (`9779841234567`). So the
+ * profile's number is reduced to national digits and the E.164 form rebuilt,
+ * which keeps this an indexed equality rather than a scan across the table.
+ */
+export async function leadForProfile(
+  profileId: string,
+): Promise<ProviderLead | null> {
+  if (!hasSupabaseConfig()) return null;
+  const db = createAdminClient();
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("phone")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  const national = toNationalDigits(profile?.phone ?? "");
+  if (national.length !== 10) return null;
+
+  const { data } = await db
+    .from("provider_leads")
+    .select("id, full_name, category_slug, area_key, years_experience")
+    .eq("phone", `${NEPAL_DIAL_CODE}${national}`)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    fullName: data.full_name as string,
+    categorySlug: data.category_slug as string,
+    areaKey: data.area_key as string,
+    yearsExperience: (data.years_experience as number) ?? 0,
+  };
 }
 
 export type StepPatch = {

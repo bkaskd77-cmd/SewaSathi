@@ -13,6 +13,7 @@ import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import {
   APPLY_STEPS,
   currentApplication,
+  leadForProfile,
   listApplicationDocuments,
   listReferences,
 } from "@/lib/data/applications";
@@ -71,8 +72,16 @@ export default async function ApplyPage() {
 
   /* ---- Nothing started yet. ---- */
   if (!application) {
+    /*
+     * Do they already have a lead waiting? If so the application will open
+     * with their name, trade and ward already filled, and somebody who sees
+     * filled fields without being told why wonders who filled them.
+     */
+    const lead = await leadForProfile(profile!.id);
+
     return (
       <Intro
+        seeded={lead ? t("intro.seeded") : null}
         title={t("intro.title")}
         lead={t("intro.lead")}
         needTitle={t("intro.needTitle")}
@@ -220,6 +229,8 @@ export default async function ApplyPage() {
 function Intro(props: {
   title: string;
   lead: string;
+  /** Set when the form already knows them. Null on a cold start. */
+  seeded: string | null;
   needTitle: string;
   needs: string[];
   timing: string;
@@ -247,6 +258,12 @@ function Intro(props: {
           ))}
         </ul>
       </div>
+
+      {props.seeded ? (
+        <p className="animate-rise mt-4 rounded-md border border-primary/40 bg-primary/5 p-3 text-body-sm">
+          {props.seeded}
+        </p>
+      ) : null}
 
       {/* Said before they start, not after they finish: an application that
           disappears into silence is how supply is lost. */}

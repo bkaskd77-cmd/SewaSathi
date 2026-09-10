@@ -4,7 +4,8 @@ import { BadgeCheck, HandCoins, Timer } from "lucide-react";
 
 import { JoinForm } from "@/components/providers/join-form";
 import { Card } from "@/components/ui/card";
-import { Link } from "@/i18n/navigation";
+import { Link, redirect } from "@/i18n/navigation";
+import { getSessionProfile } from "@/lib/auth/session";
 import type { Locale } from "@/i18n/routing";
 import { areaCity, areaName, areasByCity } from "@/lib/config/areas";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
@@ -49,6 +50,17 @@ const BENEFITS = [
 export default async function JoinPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("join");
+
+  /*
+   * ALREADY SIGNED IN? THIS FORM IS NOT FOR THEM.
+   *
+   * It exists to capture somebody who has no account — that is the whole
+   * reason it is public and only five fields. Once they have one it is a
+   * detour that writes a duplicate lead row and delays the real application,
+   * so they go straight to it.
+   */
+  const profile = await getSessionProfile();
+  if (profile) redirect({ href: "/providers/apply", locale });
 
   const trades = SERVICE_CATEGORIES.map((category) => ({
     value: category.slug,
