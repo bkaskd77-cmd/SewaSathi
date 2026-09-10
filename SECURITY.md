@@ -157,10 +157,18 @@ and it is built so that **no step depends on a message being delivered**.
    Sign-in with a test number never reaches a gateway, so an admin can get in
    while the SMS provider is entirely dead — which is the state this product
    has actually been in, for a day, undetected.
-3. **Two admin numbers, never one.** A single admin account is a single point
+3. **The break-glass number is not a real SIM, and that is the point.** A test
+   entry on a number means that number can never receive a real code again,
+   because Supabase answers it itself and never calls the gateway. So the
+   break-glass admin is a number nobody carries, and the owner's real number is
+   deliberately kept **off** the test list — otherwise the owner loses their
+   ordinary way in, and any delivery test run against that number proves
+   nothing because no message was ever sent.
+4. **Three admin numbers, never one.** A single admin account is a single point
    of failure whether the cause is a dead gateway, a lost SIM or a mistyped
-   role. Both are listed in `provisioned_accounts` with a label.
-4. **Recovering from zero admins needs only the service role** — the Supabase
+   role. Two work with no gateway at all; one works the day a gateway does.
+   All are listed in `provisioned_accounts` with a label.
+5. **Recovering from zero admins needs only the service role** — the Supabase
    dashboard, or this repository's MCP connection. Insert a row, add the test
    number, sign in. No support ticket, no vendor.
 

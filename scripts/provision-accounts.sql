@@ -20,10 +20,23 @@
 
 insert into public.provisioned_accounts (phone, role, label, provider_id, note)
 values
-  -- Break-glass. Bikas's real number, so admin is reachable even if the SMS
-  -- gateway never delivers a single message. See SECURITY.md.
-  ('9779843119897', 'admin', 'Bikas Khadka — break-glass admin', null,
-   'Real number. Break-glass: also configured as a Supabase test number so sign-in never depends on delivery.'),
+  -- Break-glass, and NOT a real SIM on purpose.
+  --
+  -- A Supabase test number short-circuits the gateway: the code is checked by
+  -- Supabase itself and no message is ever sent. That is exactly what makes it
+  -- a break-glass — it works while the gateway is dead — and it is also why
+  -- the break-glass must not be somebody's real number. A test entry on a real
+  -- number means that number can never receive a real code again, which costs
+  -- the owner their ordinary way in and, worse, makes any delivery test run
+  -- against it meaningless.
+  ('9779800000001', 'admin', 'Break-glass admin — test number only', null,
+   'Never receives real SMS by design. See SECURITY.md § break-glass.'),
+
+  -- The owner's real number. Deliberately NOT in the Supabase test list, so it
+  -- is the one number a real delivery test can be run against, and the admin
+  -- account that works the day a gateway does.
+  ('9779843119897', 'admin', 'Bikas Khadka — real number, real-SMS admin', null,
+   'NOT a Supabase test number, deliberately: a test entry would short-circuit the gateway and make the delivery test meaningless.'),
 
   -- The account that already existed and was promoted by hand in August. The
   -- row is written so the table is the whole answer to "who is an admin",
