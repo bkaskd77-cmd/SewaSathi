@@ -303,6 +303,9 @@ export type Database = {
           rejection_reason: string | null;
           uploaded_at: string;
           delete_after: string | null;
+          application_id: string | null;
+          expires_on: string | null;
+          capture_quality: number | null;
         };
         Insert: {
           id?: string;
@@ -318,9 +321,206 @@ export type Database = {
           rejection_reason?: string | null;
           uploaded_at?: string;
           delete_after?: string | null;
+          application_id?: string | null;
+          expires_on?: string | null;
+          capture_quality?: number | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["provider_documents"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      /* ---- Phase 10: provider onboarding ---- */
+
+      provider_applications: {
+        Row: {
+          id: string;
+          profile_id: string;
+          full_name: string | null;
+          full_name_ne: string | null;
+          date_of_birth: string | null;
+          trades: string[];
+          years_experience: number | null;
+          service_areas: string[];
+          citizenship_number: string | null;
+          pan_number: string | null;
+          payout_method: string | null;
+          payout_account: string | null;
+          payout_bank_name: string | null;
+          step: number;
+          status: string;
+          risk_score: number | null;
+          submitted_at: string | null;
+          device_fingerprint: string | null;
+          locale: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          full_name?: string | null;
+          full_name_ne?: string | null;
+          date_of_birth?: string | null;
+          trades?: string[];
+          years_experience?: number | null;
+          service_areas?: string[];
+          citizenship_number?: string | null;
+          pan_number?: string | null;
+          payout_method?: string | null;
+          payout_account?: string | null;
+          payout_bank_name?: string | null;
+          step?: number;
+          status?: string;
+          risk_score?: number | null;
+          submitted_at?: string | null;
+          device_fingerprint?: string | null;
+          locale?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provider_applications"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      application_match_keys: {
+        Row: {
+          id: string;
+          application_id: string;
+          kind: string;
+          key_hash: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          kind: string;
+          key_hash: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["application_match_keys"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      application_consents: {
+        Row: {
+          id: string;
+          application_id: string;
+          profile_id: string;
+          consent_version: string;
+          scope: string[];
+          granted_at: string;
+          request_ip: string | null;
+          user_agent: string | null;
+          withdrawn_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          profile_id: string;
+          consent_version: string;
+          scope: string[];
+          granted_at?: string;
+          request_ip?: string | null;
+          user_agent?: string | null;
+          withdrawn_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["application_consents"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      application_references: {
+        Row: {
+          id: string;
+          application_id: string;
+          name: string;
+          phone: string;
+          relationship: string | null;
+          outcome: string;
+          contacted_by: string | null;
+          contacted_at: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          name: string;
+          phone: string;
+          relationship?: string | null;
+          outcome?: string;
+          contacted_by?: string | null;
+          contacted_at?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["application_references"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      application_assessments: {
+        Row: {
+          id: string;
+          application_id: string;
+          category_slug: string;
+          assessor_id: string;
+          assessed_at: string;
+          method: string;
+          result: string;
+          notes: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          category_slug: string;
+          assessor_id: string;
+          assessed_at?: string;
+          method?: string;
+          result: string;
+          notes: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["application_assessments"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      application_decisions: {
+        Row: {
+          id: string;
+          application_id: string;
+          decision: string;
+          decided_by: string;
+          decided_at: string;
+          reason: string;
+          reason_ne: string | null;
+          internal_note: string | null;
+          risk_score_at_decision: number | null;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          decision: string;
+          decided_by: string;
+          decided_at?: string;
+          reason: string;
+          reason_ne?: string | null;
+          internal_note?: string | null;
+          risk_score_at_decision?: number | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["application_decisions"]["Insert"]
         >;
         Relationships: [];
       };
@@ -525,6 +725,17 @@ export type Database = {
           is_active: boolean;
           base_rate: number;
           created_at: string;
+          /** Probation. See lib/verification/probation.ts. */
+          standing: "provisional" | "established";
+          approved_at: string | null;
+          application_id: string | null;
+          /**
+           * Removal, and it is not the same state as `is_active = false`.
+           * "Taking a break" and "removed for cause" must not be one column,
+           * or one gets undone as if it were the other.
+           */
+          removed_at: string | null;
+          removal_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -536,6 +747,11 @@ export type Database = {
           years_experience?: number;
           is_verified?: boolean;
           verified_at?: string | null;
+          standing?: "provisional" | "established";
+          approved_at?: string | null;
+          application_id?: string | null;
+          removed_at?: string | null;
+          removal_reason?: string | null;
           id_document_status?: IdDocumentStatus;
           checks?: VerificationCheck[];
           availability?: Availability;
