@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
 import { hasSupabaseConfig } from "@/lib/env";
-import { rateLimitStore } from "@/lib/server/rate-limit";
+import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
+import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 
 /**
  * Can this product actually serve a customer right now?
@@ -299,6 +300,48 @@ function checkRateLimiter(): Check {
       };
 }
 
+/**
+ * What the platform has spent on SMS, before the invoice says so.
+ *
+ * A ceiling that is hit silently is an outage nobody has been told about:
+ * every customer trying to sign in meets a wall while the team finds out from
+ * a dashboard they are not looking at. This is the line that arrives first,
+ * and it is on a URL so it needs no checkout to read.
+ *
+ * Reads the counters rather than spending one, so polling this endpoint can
+ * never itself exhaust the budget it is reporting on.
+ */
+async function checkSmsBudget(): Promise<Check> {
+  const spend = await readGlobalSms();
+  const alert = smsBudgetAlert({
+    globalLastHour: spend.lastHour,
+    globalToday: spend.today,
+  });
+
+  const usage = `${spend.lastHour} this hour of ${SMS_BUDGET.perHourGlobal}, ${spend.today} today of ${SMS_BUDGET.perDayGlobal}`;
+
+  if (alert) {
+    return {
+      name: "sms.budget",
+      // A ceiling is a real outage for anybody trying to sign in; a warning is
+      // not yet, but it is not "ok" either — unknown is never ok, and neither
+      // is "on the way to a wall".
+      state: alert.level === "ceiling" ? "down" : "unknown",
+      detail: `${alert.level === "ceiling" ? "At the ceiling" : "Past the warning mark"} — ${usage}, about Rs ${alert.estimatedRupees}.`,
+    };
+  }
+
+  if (!spend.shared) {
+    return {
+      name: "sms.budget",
+      state: "unknown",
+      detail: `Counting in-process only, so this is one instance's share rather than the platform's. ${usage}. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.`,
+    };
+  }
+
+  return { name: "sms.budget", state: "ok", detail: `${usage}.` };
+}
+
 /** Triage falls back to the keyword matcher without a key, so this is a warning. */
 function checkTriage(): Check {
   return process.env.ANTHROPIC_API_KEY
@@ -424,6 +467,7 @@ export async function GET(request: Request) {
     ])),
     checkTriage(),
     checkRateLimiter(),
+    await checkSmsBudget(),
   ];
 
   if (deepAllowed) checks.push(await checkSmsDelivery());

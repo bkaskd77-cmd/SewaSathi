@@ -149,6 +149,140 @@ export function rateLimitStore(): "shared" | "in-process" {
   return sharedConfig() ? "shared" : "in-process";
 }
 
+/* ------------------------------------------------------------------ *
+ * The platform's own SMS spending
+ * ------------------------------------------------------------------ */
+
+const globalSmsLocal = new Map<string, number>();
+
+export type GlobalSmsCount = {
+  lastHour: number;
+  today: number;
+  /**
+   * False when this is counting in-process only.
+   *
+   * A per-instance count of a PLATFORM ceiling is barely a count at all — the
+   * whole reason the ceiling exists is that an attacker spreads across
+   * instances. `/api/health` reports this so the weakness is visible rather
+   * than assumed away.
+   */
+  shared: boolean;
+};
+
+/**
+ * Count one SMS against the whole platform's hour and day, and report both.
+ *
+ * WHY THIS IS NOT A `LIMITS` ENTRY. Everything in `LIMITS` is keyed by a
+ * caller — a number, a network, a user. This one is deliberately keyed by
+ * nobody: it is the only counter a distributed attacker cannot spread their
+ * way around, which is exactly what makes it the control that matters against
+ * toll fraud. See `lib/abuse/sms-budget.ts` for the thresholds and why.
+ *
+ * FIXED CALENDAR BUCKETS rather than sliding windows, so an attack that paces
+ * itself cannot keep pushing the expiry forward. The cost is a boundary effect
+ * at the top of the hour, which is acceptable for a ceiling whose job is to
+ * bound a bill rather than to be exact.
+ */
+export async function countGlobalSms(
+  now: Date = new Date(),
+): Promise<GlobalSmsCount> {
+  const hourBucket = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+  const dayBucket = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const hourKey = `sms:global:h:${hourBucket}`;
+  const dayKey = `sms:global:d:${dayBucket}`;
+
+  const shared = sharedConfig();
+  if (shared) {
+    try {
+      const response = await fetch(`${shared.url}/pipeline`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${shared.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify([
+          ["INCR", hourKey],
+          ["EXPIRE", hourKey, "7200", "NX"],
+          ["INCR", dayKey],
+          ["EXPIRE", dayKey, "172800", "NX"],
+        ]),
+        signal: AbortSignal.timeout(1500),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`store answered ${response.status}`);
+      const results = (await response.json()) as Array<{ result: number }>;
+      return {
+        lastHour: Number(results[0]?.result ?? 0),
+        today: Number(results[2]?.result ?? 0),
+        shared: true,
+      };
+    } catch (error) {
+      console.error(
+        `[sms-budget] shared store unreachable, counting in-process — ${(error as Error).message}`,
+      );
+    }
+  }
+
+  // In-process fallback. Weak, and `shared: false` is how the caller knows.
+  const bump = (key: string) => {
+    const next = (globalSmsLocal.get(key) ?? 0) + 1;
+    globalSmsLocal.set(key, next);
+    return next;
+  };
+  // Two buckets per hour and per day; a long-lived instance would otherwise
+  // hold every bucket it has ever seen.
+  if (globalSmsLocal.size > 64) {
+    for (const key of Array.from(globalSmsLocal.keys())) {
+      if (!key.endsWith(hourBucket) && !key.endsWith(dayBucket)) {
+        globalSmsLocal.delete(key);
+      }
+    }
+  }
+  return { lastHour: bump(hourKey), today: bump(dayKey), shared: false };
+}
+
+/** Read the counters without spending one, for `/api/health`. */
+export async function readGlobalSms(
+  now: Date = new Date(),
+): Promise<GlobalSmsCount> {
+  const shared = sharedConfig();
+  const hourKey = `sms:global:h:${now.toISOString().slice(0, 13)}`;
+  const dayKey = `sms:global:d:${now.toISOString().slice(0, 10)}`;
+
+  if (shared) {
+    try {
+      const response = await fetch(`${shared.url}/pipeline`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${shared.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify([
+          ["GET", hourKey],
+          ["GET", dayKey],
+        ]),
+        signal: AbortSignal.timeout(1500),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`store answered ${response.status}`);
+      const results = (await response.json()) as Array<{ result: string | null }>;
+      return {
+        lastHour: Number(results[0]?.result ?? 0),
+        today: Number(results[1]?.result ?? 0),
+        shared: true,
+      };
+    } catch {
+      // Health reporting must never be the thing that breaks.
+    }
+  }
+
+  return {
+    lastHour: globalSmsLocal.get(hourKey) ?? 0,
+    today: globalSmsLocal.get(dayKey) ?? 0,
+    shared: false,
+  };
+}
+
 function sharedConfig(): { url: string; token: string } | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;

@@ -2,8 +2,9 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { judgeSmsSend, smsBudgetAlert } from "@/lib/abuse";
 import { recordSecurityEvent } from "@/lib/audit";
-import { checkRateLimit } from "@/lib/server/rate-limit";
+import { checkRateLimit, countGlobalSms } from "@/lib/server/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 import type { OtpError, OtpOutcome, VerifyOutcome } from "./otp-contract";
@@ -91,6 +92,68 @@ export async function sendOtp(
     });
 
     return { ok: false, error: "tooManyRequests", retryAfterSeconds };
+  }
+
+  /*
+   * THE FOURTH CEILING, and the only one an attacker cannot spread around.
+   *
+   * The three above are all keyed by a caller, so a distributed attacker with
+   * a thousand IPs asking for one code each to numbers they earn revenue on
+   * sits comfortably inside every one of them. That is toll fraud, and the
+   * first thing that notices it is the invoice. This one is keyed by nobody:
+   * it counts what the whole platform has spent this hour and today, and it
+   * refuses before the send rather than reporting after it.
+   *
+   * Counted here, immediately before the message, so nothing between the
+   * check and the send can slip past it. See `lib/abuse/sms-budget.ts` for the
+   * numbers and the arithmetic behind them.
+   */
+  const spend = await countGlobalSms();
+  const budget = judgeSmsSend({
+    e164,
+    globalLastHour: spend.lastHour,
+    globalToday: spend.today,
+  });
+
+  if (!budget.ok) {
+    await recordSecurityEvent({
+      kind: "auth.otpRequested",
+      actorRole: "anonymous",
+      subjectType: "profile",
+      subjectId: numberKey,
+      detail: {
+        refused: budget.reason,
+        detail: budget.detail,
+        // Whether the count is platform-wide or only this instance's. A
+        // per-instance count of a platform ceiling is barely a count at all,
+        // and that has to be visible rather than assumed.
+        shared: spend.shared,
+      },
+      requestIp: context.ip ?? null,
+    });
+
+    /*
+     * FAILS CLOSED, unlike the per-caller limits, and deliberately.
+     *
+     * Those fail open because locking every customer out over a third party's
+     * bad minute trades a certain outage for a possible abuse. This is not a
+     * bad minute: hitting a platform ceiling means either we have outgrown our
+     * own numbers, which is one edit in SMS_BUDGET, or something is wrong.
+     * Both want a person now, and neither wants the messages to keep going.
+     */
+    return { ok: false, error: "tooManyRequests", retryAfterSeconds: 600 };
+  }
+
+  const alert = smsBudgetAlert({
+    globalLastHour: spend.lastHour,
+    globalToday: spend.today,
+  });
+  if (alert) {
+    // A ceiling hit silently is an outage nobody has been told about. This is
+    // the line that arrives before the bill does.
+    console.warn(
+      `[sms-budget] ${alert.level}: ${alert.sent} of ${alert.limit} this ${alert.window}, about Rs ${alert.estimatedRupees}.`,
+    );
   }
 
   const supabase = createClient();
