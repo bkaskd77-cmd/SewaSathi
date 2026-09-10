@@ -23,6 +23,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type DispatchOutcome =
   /** Still the chosen professional's alone. Nothing happened, correctly. */
   | { changed: false; stage: "first-refusal" }
+  /**
+   * Waiting on the customer to say they will be there.
+   *
+   * Its own outcome rather than folded into `first-refusal`, because the two
+   * mean opposite things to whoever reads the sweep's report: one is the
+   * system working as designed, the other is a customer who has not answered
+   * and may need ringing.
+   */
+  | { changed: false; stage: "awaiting-confirmation" }
   /** Already open, or already ended. Nothing left to do. */
   | { changed: false; stage: "open" | "give-up" }
   | { changed: true; stage: "open" | "give-up" };
@@ -35,6 +44,16 @@ type Row = {
   created_at: string;
   opened_at: string | null;
   reassigned_at: string | null;
+  /*
+   * PROTECT THE TRIP, NOT THE BOOKING.
+   *
+   * A booking to an address nobody has ever been to waits here until the
+   * customer actively answers. It is not a status — see the note in
+   * 20260910000002_customer_risk.sql — because the booking really is pending;
+   * what is held is the DISPATCH, and only this file needed to learn that.
+   */
+  confirmation_required: boolean;
+  confirmed_at: string | null;
 };
 
 /**
@@ -49,6 +68,23 @@ export async function applyDispatch(
   row: Row,
   now: Date = new Date(),
 ): Promise<DispatchOutcome> {
+  /*
+   * HELD, NOT ABANDONED, and the difference is the whole point.
+   *
+   * A booking to an address nobody has ever been to does not widen and does
+   * not give up while the customer still owes us an answer. Widening it would
+   * send a professional across town on the strength of nothing; giving up
+   * would abandon somebody who is simply carrying buckets rather than watching
+   * their phone. So the clock stops until they tap, and the booking screen
+   * says what is being waited for.
+   *
+   * Checked before the stage is even computed, because an emergency's five
+   * minutes would otherwise have already elapsed by the time anybody looked.
+   */
+  if (row.confirmation_required && row.confirmed_at === null) {
+    return { changed: false, stage: "awaiting-confirmation" };
+  }
+
   const stage = dispatchStage(
     row.created_at,
     (row.urgency as Urgency) ?? "routine",
@@ -113,7 +149,7 @@ export async function applyDispatch(
 }
 
 const COLUMNS =
-  "id, reference, customer_id, provider_id, urgency, created_at, opened_at, reassigned_at";
+  "id, reference, customer_id, provider_id, urgency, created_at, opened_at, reassigned_at, confirmation_required, confirmed_at";
 
 /** Every pending booking, oldest first. The cron's input. */
 export async function sweepDispatch(

@@ -92,7 +92,13 @@ export const terms: LocalisedDocument = {
             p: "You can cancel free of charge from the booking screen at any point before your professional sets off. Once they are on the way, call us instead and we will sort it out.",
           },
           {
-            p: "There is no cancellation charge and no visit fee. We take our money after the work is done, so there is nothing for us to collect — and a fee we could not collect would be a threat rather than a term. If nobody is at the address when the professional arrives and we were not told, you are still not charged; we record it, because it costs them a trip, and repeated no-shows are a conversation rather than a fee.",
+            p: "There is no cancellation charge. We take our money after the work is done, so if you cancel before anyone sets off there is nothing to collect and nothing to argue about.",
+          },
+          {
+            p: "A no-show is different, and we would rather say so plainly than bury it. If nobody is at the address when the professional arrives and we were not told, somebody has spent an hour and a tank of petrol for nothing. We pay them for that trip ourselves. Your first time costs you nothing at all — a phone dies, a plan changes, and that is not something to charge anybody for.",
+          },
+          {
+            p: "If it keeps happening, the cost of the trip is added to your next booking: at most a quarter of that bill at a time, until it is settled. We will never ring you asking for money and we will never take it from you any other way. If you do not book again, we write it off.",
           },
           {
             p: "If the professional cancels, or does not arrive, you pay nothing and we will find you someone else.",
@@ -283,7 +289,13 @@ export const terms: LocalisedDocument = {
             p: "प्राविधिक नहिँड्दासम्म बुकिङ पृष्ठबाटै नि:शुल्क रद्द गर्न सकिन्छ। उहाँ हिँडिसक्नुभएको छ भने हामीलाई फोन गर्नुहोस्, मिलाइदिन्छौँ।",
           },
           {
-            p: "रद्द गरेबापत कुनै शुल्क लाग्दैन, भ्रमण शुल्क पनि छैन। हामी काम सकिएपछि मात्र पैसा लिन्छौँ, त्यसैले असुल्नुपर्ने केही हुँदैन — र असुल्नै नसकिने शुल्क सर्त होइन, धम्की मात्र हुन्थ्यो। हामीलाई नभनी ठेगानामा कोही नभेटिए पनि तपाईंलाई शुल्क लाग्दैन; तर हामी त्यो टिपेर राख्छौँ, किनभने प्राविधिकको एक फेरा खेर जान्छ, र बारम्बार यस्तो भए शुल्क होइन, कुराकानी हुन्छ।",
+            p: "रद्द गरेबापत कुनै शुल्क लाग्दैन। हामी काम सकिएपछि मात्र पैसा लिन्छौँ, त्यसैले कोही हिँड्नुअघि रद्द गर्नुभयो भने असुल्नुपर्ने केही हुँदैन र झगडा गर्नुपर्ने कुरै रहँदैन।",
+          },
+          {
+            p: "तर कोही नभेटिनु फरक कुरा हो, र यो लुकाउनुभन्दा प्रस्ट भन्न हामीलाई मन पर्छ। हामीलाई नभनी ठेगानामा कोही नभेटिए, कसैको एक घण्टा र पेट्रोल खेर जान्छ। त्यो फेराको पैसा हामी आफैँ तिरिदिन्छौँ। तपाईंको पहिलो पटक भने पूरै नि:शुल्क हुन्छ — फोन बन्द हुन्छ, योजना फेरिन्छ, र त्यसका लागि कसैलाई शुल्क लगाउनु हुँदैन।",
+          },
+          {
+            p: "बारम्बार यस्तै भइरह्यो भने त्यो फेराको खर्च तपाईंको अर्को बुकिङमा थपिन्छ: एक पटकमा त्यो बिलको बढीमा एक चौथाइ, नटुङ्गिन्जेल। हामी फोन गरेर पैसा माग्दैनौँ, र अरू कुनै तरिकाले पनि लिँदैनौँ। तपाईंले फेरि बुक नगर्नुभए हामी त्यो मिनाहा गर्छौं।",
           },
           {
             p: "प्राविधिकले रद्द गर्नुभयो वा आउनुभएन भने तपाईंले केही तिर्नु पर्दैन, र हामी अर्को व्यक्ति खोजिदिन्छौं।",

@@ -118,6 +118,12 @@ export type Database = {
           is_default: boolean;
           created_at: string;
           updated_at: string;
+          /**
+           * Trust lives on the address, not the account. See
+           * lib/abuse/address-trust.ts.
+           */
+          upheld_no_shows: number;
+          first_confirmed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -134,6 +140,8 @@ export type Database = {
           is_default?: boolean;
           created_at?: string;
           updated_at?: string;
+          upheld_no_shows?: number;
+          first_confirmed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["addresses"]["Insert"]>;
         Relationships: [];
@@ -173,6 +181,10 @@ export type Database = {
           commission_bps: number | null;
           final_amount_reason: string | null;
           final_amount_approved_at: string | null;
+          /** Phase 10: protect the trip, not the booking. */
+          confirmation_required: boolean;
+          confirmed_at: string | null;
+          confirmation_hold_until: string | null;
           cancelled_by_role: string | null;
           cancellation_fee: number;
           first_choice_provider_id: string | null;
@@ -218,6 +230,9 @@ export type Database = {
           commission_bps?: number | null;
           final_amount_reason?: string | null;
           final_amount_approved_at?: string | null;
+          confirmation_required?: boolean;
+          confirmed_at?: string | null;
+          confirmation_hold_until?: string | null;
           cancelled_by_role?: string | null;
           cancellation_fee?: number;
           first_choice_provider_id?: string | null;
@@ -332,6 +347,124 @@ export type Database = {
       };
 
       /* ---- Phase 10: provider onboarding ---- */
+
+      /* ---- Phase 10: customer-side fraud ---- */
+
+      booking_arrivals: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          arrived_at: string;
+          coarse_lat: number | null;
+          coarse_lng: number | null;
+          gave_up_at: string | null;
+          waited_minutes: number;
+          contact_attempts: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          arrived_at?: string;
+          coarse_lat?: number | null;
+          coarse_lng?: number | null;
+          gave_up_at?: string | null;
+          waited_minutes?: number;
+          contact_attempts?: number;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["booking_arrivals"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      no_show_claims: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          customer_id: string;
+          status: string;
+          trip_rupees_paid: number;
+          debt_rupees: number;
+          customer_disputed_at: string | null;
+          customer_note: string | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          customer_id: string;
+          status?: string;
+          trip_rupees_paid?: number;
+          debt_rupees?: number;
+          customer_disputed_at?: string | null;
+          customer_note?: string | null;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["no_show_claims"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      customer_risk: {
+        Row: {
+          profile_id: string;
+          no_shows: number;
+          false_addresses: number;
+          completed_jobs: number;
+          trip_debt_rupees: number;
+          banned_at: string | null;
+          banned_reason: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          profile_id: string;
+          no_shows?: number;
+          false_addresses?: number;
+          completed_jobs?: number;
+          trip_debt_rupees?: number;
+          banned_at?: string | null;
+          banned_reason?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["customer_risk"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      customer_match_keys: {
+        Row: {
+          id: string;
+          profile_id: string;
+          kind: string;
+          key_hash: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          kind: string;
+          key_hash: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["customer_match_keys"]["Insert"]
+        >;
+        Relationships: [];
+      };
 
       provider_applications: {
         Row: {

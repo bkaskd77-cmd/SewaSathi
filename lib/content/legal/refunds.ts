@@ -36,7 +36,7 @@ export const refunds: LocalisedDocument = {
             p: "Once somebody is on their way we cannot cancel it from the screen — call us and we will sort it out. Either way there is no cancellation charge: we take our money after the work is done, so there is nothing for us to collect.",
           },
           {
-            p: "If nobody is at the address when the professional arrives and we were not told, you are still not charged. We do record it, because it costs them a trip, and repeated no-shows are a conversation rather than a fee.",
+            p: "If nobody is at the address when the professional arrives and we were not told, your first time costs you nothing. We pay them for the wasted trip ourselves, because they did the work of turning up and somebody should. If it keeps happening, that trip cost is added to your next booking, a quarter of the bill at a time — never chased any other way, and written off if you do not book again.",
           },
           {
             p: "If the professional cancels or does not turn up, you pay nothing and we find you someone else.",
@@ -197,7 +197,7 @@ export const refunds: LocalisedDocument = {
             p: "उहाँ हिँडिसकेपछि भने पृष्ठबाट रद्द हुँदैन — हामीलाई फोन गर्नुहोस्, मिलाइदिन्छौँ। जे भए पनि रद्द गरेबापत शुल्क लाग्दैन: हामी काम सकिएपछि मात्र पैसा लिन्छौँ, त्यसैले असुल्नुपर्ने केही हुँदैन।",
           },
           {
-            p: "हामीलाई नभनी ठेगानामा कोही नभेटिए पनि तपाईंलाई शुल्क लाग्दैन। तर हामी त्यो टिपेर राख्छौँ, किनभने प्राविधिकको एक फेरा खेर जान्छ — बारम्बार यस्तो भए शुल्क होइन, कुराकानी हुन्छ।",
+            p: "हामीलाई नभनी ठेगानामा कोही नभेटिए, तपाईंको पहिलो पटक नि:शुल्क हुन्छ। खेर गएको फेराको पैसा हामी आफैँ तिरिदिन्छौँ, किनभने आउने काम त उहाँले गर्नुभयो र कसैले त्यो बेहोर्नुपर्छ। बारम्बार यस्तै भयो भने त्यो खर्च तपाईंको अर्को बुकिङमा थपिन्छ, एक पटकमा बिलको एक चौथाइ — अरू कुनै तरिकाले माग्दैनौँ, र फेरि बुक नगर्नुभए मिनाहा हुन्छ।",
           },
           {
             p: "प्राविधिकले रद्द गर्नुभयो वा आउनुभएन भने तपाईंले केही तिर्नु पर्दैन, र हामी अर्को व्यक्ति खोजिदिन्छौं।",
