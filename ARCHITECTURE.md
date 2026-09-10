@@ -214,6 +214,44 @@ Where a change on one side cannot reach the other.
   reliability record on both sides — and that does not exist until Phase 10.
   Revisit it then, as a policy decision, not a schema one; the columns are
   already there.
+- **Provider verification answers two questions and keeps them apart.**
+  Identity (`provider_documents`, and who the person is) and competence
+  (`application_assessments`, and whether they can do the work) are separate
+  tables because a citizenship certificate proves nothing about plumbing, and a
+  platform that collapses them ends up with a "verified" tick that means
+  nothing. `lib/verification/requirements.ts` labels every document with which
+  question it answers, and `competenceSatisfied` takes a CTEVT certificate OR a
+  recorded practical assessment — twenty years on the tools and no certificate
+  is a common case in Nepal, and CTEVT does not certify cleaning, pest control,
+  moving or tank cleaning at all.
+- **Removal is enforced by match keys, never by a phone number.** A removed
+  provider returning on a new SIM is the actual attack, and a number costs a
+  hundred rupees. `application_match_keys` holds hashed, normalised
+  identifiers computed AT SUBMISSION — a comparison that runs at review time
+  quietly stops running the day somebody adds a second review path. The
+  intelligence is in the normaliser rather than the comparison, which is what
+  lets the keys be hashed: matching is equality. A hit NEVER rejects anybody.
+- **FACE MATCHING IS A SEAM, NOT A VENDOR, AND STAYS THAT WAY UNTIL THERE IS
+  VOLUME.** `lib/verification/identity.ts` defines one adapter interface with a
+  contract test and ships `manual` behind it; every call returns `needs_human`,
+  never `match`, because unknown is never ok. **Choosing a vendor needs real
+  quotes at real volume and neither exists yet** — at tens of providers the
+  strongest verification available is a person meeting them, and buying a
+  service now would commit the data model to one vendor's API shape for a job
+  that currently takes about an hour a week. Revisit when monthly check volume
+  is high enough that the human comparison is the bottleneck; get written
+  per-check pricing from at least two providers before committing, and do not
+  take a figure from anywhere but the vendor.
+- **The reviewer's screen is where verification actually succeeds or fails.**
+  Not a clever forgery — a tired person at the end of an afternoon clicking
+  approve because the page looked like every other page. So
+  `components/admin/review-decision.tsx` counts which documents have actually
+  been opened and will not let the confirmation be ticked until all of them
+  have. It is friction placed at the one point where friction is worth paying
+  for, and it is honest about its limit: nothing can make somebody LOOK, only
+  make skipping it deliberate rather than the path of least resistance. The
+  risk score is deliberately NOT on that page — a reviewer who is handed a
+  conclusion stops looking for what the rule could not see.
 - **The guarantee is a re-do and the visit is what verifies it.**
   `lib/config/guarantee.ts` is pure and testable for the same reason as
   `cancellation.ts` and `pricing.ts`: it decides money. The window is per trade,

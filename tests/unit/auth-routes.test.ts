@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isProtectedRoute,
   isProviderRoute,
+  isPublicRoute,
   safeRedirect,
 } from "@/lib/auth";
 
@@ -135,5 +136,63 @@ describe("the provider's own work is signed-in, the directory is not", () => {
   it("leaves the public directory public", () => {
     expect(isProtectedRoute("/providers/join")).toBe(false);
     expect(isProtectedRoute("/services")).toBe(false);
+  });
+});
+
+/**
+ * Phase 10's two new surfaces, and the one-character trap they sit next to.
+ *
+ * `/providers/apply` is signed-in and `/providers/join` is not, and they share
+ * a prefix. `isPublicRoute` lists the public one exactly rather than
+ * `/providers`, so a bare prefix match cannot let the shorter public entry
+ * swallow the guarded one — the same mistake that made `/provider` and
+ * `/providers` confusable, one character apart.
+ */
+describe("the application is signed-in, the join form is not", () => {
+  it("guards /providers/apply behind sign-in", () => {
+    // The phone step IS the OTP that got them here. Asking a tradesperson to
+    // prove the same thing twice on a form this long loses supply.
+    expect(isProtectedRoute("/providers/apply")).toBe(true);
+  });
+
+  it("guards it in Nepali too", () => {
+    expect(isProtectedRoute("/ne/providers/apply")).toBe(true);
+  });
+
+  it("leaves the join form open to a stranger", () => {
+    // Somebody who has not signed up yet has to be able to reach it at all.
+    expect(isProtectedRoute("/providers/join")).toBe(false);
+    expect(isPublicRoute("/providers/join")).toBe(true);
+  });
+
+  it("does not make the application public by sharing a prefix with it", () => {
+    expect(isPublicRoute("/providers/apply")).toBe(false);
+    expect(isPublicRoute("/ne/providers/apply")).toBe(false);
+  });
+});
+
+describe("the reviewer's queue is not reachable signed out", () => {
+  it("guards every admin path", () => {
+    expect(isProtectedRoute("/admin")).toBe(true);
+    expect(isProtectedRoute("/admin/applications")).toBe(true);
+    expect(isProtectedRoute("/admin/applications/abc-123")).toBe(true);
+  });
+
+  it("guards it in Nepali too", () => {
+    expect(isProtectedRoute("/ne/admin/applications")).toBe(true);
+  });
+
+  it("is never public", () => {
+    expect(isPublicRoute("/admin/applications")).toBe(false);
+  });
+
+  /*
+   * Route-level gating is NOT the boundary and this test says so out loud:
+   * the page re-reads `profiles.role`, the server action re-reads it again,
+   * and every table under it is admin-only in RLS. This rule only stops a
+   * signed-out visitor reaching a shell.
+   */
+  it("does not pretend to be the authorization boundary", () => {
+    expect(isProviderRoute("/admin/applications")).toBe(false);
   });
 });

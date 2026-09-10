@@ -53,6 +53,24 @@ export const PROTECTED_ROUTES = [
    * directory, and a bare prefix match would have swallowed it.
    */
   "/provider",
+  /*
+   * Phase 10's application. Signed in, because the phone step IS the OTP we
+   * already have — asking for a number twice would be asking a tradesperson to
+   * prove the same thing twice on a form that is already long.
+   *
+   * Plural `/providers/apply`, and it sits under the public `/providers/join`
+   * prefix without being swallowed by it: `matches` compares whole segments,
+   * and `isPublicRoute` lists `/providers/join` exactly rather than
+   * `/providers`.
+   */
+  "/providers/apply",
+  /*
+   * The reviewer's queue. Route-level gating is not the boundary — every
+   * table it reads is admin-only under RLS, and the page re-reads
+   * `profiles.role` server-side. This keeps a signed-out visitor from
+   * reaching a shell at all.
+   */
+  "/admin",
 ] as const;
 
 /**

@@ -823,7 +823,148 @@
       "tooLong": "Too long — a mobile number is 10 digits.",
       "tooManyRequests": "That is a lot of applications at once. Wait a minute and try again."
     },
-    "standards": "Before you join, read <link>how we handle under-reported jobs</link> — what we count, what we never count, and what each step costs."
+    "standards": "Before you join, read <link>how we handle under-reported jobs</link> — what we count, what we never count, and what each step costs.",
+    "apply": {
+      "meta": {
+        "title": "Apply to work with us",
+        "description": "Verification for professionals joining SajiloKaam."
+      },
+      "intro": {
+        "title": "Apply to work with us",
+        "lead": "We check who you are and what you can do, separately. It takes about fifteen minutes and you can stop and come back — everything you enter is saved as you go.",
+        "needTitle": "Have these to hand",
+        "needCitizenship": "Your citizenship certificate or National ID",
+        "needClearance": "Your police clearance (चरित्र प्रमाणपत्र)",
+        "needAccount": "The bank account or eSewa number you want to be paid into",
+        "needReferences": "Two people who can vouch for your work",
+        "timing": "We answer within three working days. If we need anything else, we call you — we do not leave people waiting without a word.",
+        "start": "Start",
+        "resume": "Carry on where you stopped"
+      },
+      "progress": "Step {step} of {total}",
+      "next": "Save and continue",
+      "back": "Back",
+      "saving": "Saving…",
+      "optional": "Optional",
+      "required": "Needed",
+      "status": {
+        "submittedTitle": "With us now",
+        "submittedBody": "We have everything. Somebody is reading it and we answer within three working days.",
+        "submittedWaiting": "Sent {days} days ago.",
+        "submittedToday": "Sent today.",
+        "approvedTitle": "You are in",
+        "approvedBody": "Your listing is live. You start on a settling-in period — a couple of jobs at a time — and that lifts on its own as work comes in.",
+        "rejectedTitle": "Not this time",
+        "rejectedBody": "Here is why, and what would change it:",
+        "rejectedRetry": "You can apply again once you have sorted this out. We keep your documents for 90 days so you will not have to photograph everything twice.",
+        "goToJobs": "See my jobs"
+      },
+      "consent": {
+        "title": "Before we ask for your papers",
+        "lead": "We are about to collect documents that identify you, including a photograph of your face. You should know exactly what happens to them before you hand them over.",
+        "whatWeCollect": "We collect your citizenship certificate or National ID, your PAN if you have one, your police clearance, a photograph of your face, and your skill certificate if your trade has one.",
+        "yourFace": "A photograph of your face is biometric information. Nepali law treats it as its own category and so do we: it is used only to check that the person in the document is the person applying.",
+        "why": "To check that you are who you say you are, and that you can do the work. Two separate questions, and a certificate that answers one says nothing about the other.",
+        "whoSees": "Our own reviewers, and nobody else. No customer ever sees any of it.",
+        "howLong": "Until a year after you stop working with us. If we cannot accept your application, 90 days — and the moment a later application of yours is approved, the old set is deleted straight away.",
+        "agree": "I have read this and I agree",
+        "mustAgree": "Please tick the box so we know you have read it.",
+        "continue": "I agree — continue"
+      },
+      "details": {
+        "title": "About you",
+        "lead": "Exactly as it is written on your citizenship certificate. A name that does not match the document slows everything down.",
+        "fullName": "Full name, as on your document",
+        "fullNameNe": "Your name in Nepali",
+        "dob": "Date of birth",
+        "citizenship": "Citizenship or National ID number",
+        "citizenshipHint": "Dashes and slashes do not matter — write it however it appears.",
+        "pan": "PAN number",
+        "panHint": "Only if you have one. It is not needed to work with us."
+      },
+      "trades": {
+        "title": "What you do",
+        "lead": "Pick everything you genuinely work in. It is better to list two you are good at than five you have tried.",
+        "experience": "Years working in your main trade",
+        "pickOne": "Choose at least one trade."
+      },
+      "areas": {
+        "title": "Where you work",
+        "lead": "The wards you can reach easily. You can change these later, so start with where you actually go.",
+        "pickOne": "Choose at least one ward."
+      },
+      "documents": {
+        "title": "Your papers",
+        "lead": "Photograph each one flat, in good light, filling the frame. We check the photograph is readable before it is sent, so you find out now rather than in three days.",
+        "citizenship": "Citizenship certificate or National ID",
+        "pan": "PAN card",
+        "selfie": "A photograph of your face",
+        "selfieHint": "Plain background, no hat, looking at the camera.",
+        "police_clearance": "Police clearance",
+        "policeHint": "चरित्र प्रमाणपत्र, from your local police office.",
+        "ctevt": "CTEVT skill certificate",
+        "ctevtHint": "Only if you have one. If you do not, we will arrange a practical assessment instead — twenty years on the tools counts for more than a piece of paper.",
+        "expiry": "Valid until",
+        "take": "Take a photograph",
+        "retake": "Take it again",
+        "done": "Looks good",
+        "checking": "Checking the photograph…",
+        "uploading": "Sending…",
+        "uploaded": "Received",
+        "missing": "Still needed: {list}"
+      },
+      "capture": {
+        "dark": "Too dark to read. Move somewhere brighter, or turn a light on.",
+        "glare": "There is a bright patch across it. Tilt the paper away from the light.",
+        "blurry": "Hold still for a moment and let the camera focus.",
+        "tooFar": "Come closer, so the document fills the screen.",
+        "good": "That is readable. Send it.",
+        "tooBig": "That photograph is too large. Take a new one with the camera rather than sending a file.",
+        "wrongType": "That is not a photograph we can read. Use the camera."
+      },
+      "payout": {
+        "title": "Where your money goes",
+        "lead": "This is the account we pay your earnings into. Digital settles faster than cash, so this is worth getting right.",
+        "method": "How you want to be paid",
+        "bank": "Bank account",
+        "esewa": "eSewa",
+        "khalti": "Khalti",
+        "account": "Account number",
+        "accountEsewa": "The mobile number your wallet is registered to",
+        "bankName": "Bank name"
+      },
+      "references": {
+        "title": "People who know your work",
+        "lead": "Two people we can ring: someone you have worked for, or a customer. We call them, so give numbers that answer.",
+        "name": "Their name",
+        "phone": "Their mobile number",
+        "relationship": "How they know you",
+        "employer": "I worked for them",
+        "customer": "They were my customer",
+        "colleague": "We worked together",
+        "other": "Another way",
+        "add": "Add this person",
+        "added": "{count} added",
+        "needTwo": "Please add two people."
+      },
+      "review": {
+        "title": "Check it over",
+        "lead": "This is what we will read. Go back and change anything that is not right.",
+        "documentsHeading": "Papers",
+        "missingHeading": "Not finished yet",
+        "submit": "Send my application",
+        "submitting": "Sending…",
+        "cannotSubmit": "Finish the items above first.",
+        "afterSubmit": "Once you send this you cannot edit it, but you can always ring us."
+      },
+      "errors": {
+        "generic": "That did not save. Try again.",
+        "locked": "This application has already been sent.",
+        "notYours": "Please sign in again.",
+        "consentFirst": "Please agree to the notice before uploading anything.",
+        "tooManyRequests": "Too many attempts. Wait a minute and try again."
+      }
+    }
   },
   "provider": {
     "jobs": {
@@ -916,6 +1057,53 @@
           "rejected": "Reviewed — the fee stands"
         }
       }
+    }
+  },
+  "admin": {
+    "meta": {
+      "title": "Applications"
+    },
+    "queue": {
+      "title": "Applications waiting",
+      "lead": "Sorted by how long somebody has been waiting. A good tradesperson who waits three weeks has already signed up with somebody else.",
+      "empty": "Nothing waiting. ",
+      "waitingDays": "Waiting {days} days",
+      "waitingToday": "Arrived today",
+      "trades": "Trades",
+      "areas": "Wards",
+      "open": "Open",
+      "flagged": "Matches a removed applicant",
+      "unnamed": "No name given"
+    },
+    "detail": {
+      "back": "Back to the queue",
+      "title": "Application",
+      "evidenceTitle": "What we know",
+      "noEvidence": "Nothing to flag. Everything asked for is here.",
+      "duplicatesTitle": "Matches an earlier application",
+      "duplicateOn": "Matched on {kind}",
+      "duplicateRemoved": "That application was rejected or the provider was removed.",
+      "duplicateOther": "An earlier application by the look of it. Read both before deciding.",
+      "documentsTitle": "Papers",
+      "documentMissing": "Not supplied",
+      "openDocument": "Open full size",
+      "quality": "Readability {percent}",
+      "referencesTitle": "References",
+      "referenceNotCalled": "Not called yet",
+      "assessmentTitle": "Practical assessment",
+      "noAssessment": "None recorded. There is no CTEVT certificate either, so competence has not been established.",
+      "identityTitle": "Face check",
+      "identityManual": "No automatic face matching is running. Compare the photograph against the document yourself.",
+      "decideTitle": "Your decision",
+      "reasonLabel": "Reason — they will read this",
+      "reasonHint": "Say what would change it. \"Rejected\" with nothing they can act on turns a fixable problem into somebody else's plumber.",
+      "internalLabel": "Note for us (they never see this)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "moreInfo": "Ask for more",
+      "confirmSeen": "I have opened every document and read the matches above",
+      "mustConfirm": "Open the evidence first. This is the step that actually does the verifying.",
+      "decided": "Decided by {name} on {date}"
     }
   }
 }

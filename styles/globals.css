@@ -292,6 +292,55 @@
   }
 
   /*
+   * Moving between steps of a long form.
+   *
+   * THE DIRECTION CARRIES THE MEANING. A step that re-renders in place reads
+   * as a glitch — the eye cannot tell "saved, here is the next thing" from
+   * "nothing happened, it redrew". So forward enters from the right and back
+   * enters from the left, and somebody who taps Back sees the form move the
+   * way they expect rather than simply becoming different.
+   *
+   * Short and small: 12px and 260ms. A long slide on an eight-step form is
+   * eight waits, and this is a form somebody is trying to get through.
+   */
+  .animate-step-in {
+    animation: step-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-step-back {
+    animation: step-back 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes step-in {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes step-back {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-step-in,
+    .animate-step-back {
+      animation: none;
+    }
+  }
+
+  /*
    * Scroll reveal, progressive-enhancement style.
    *
    * Default is VISIBLE. Only once the inline script in the document head has
