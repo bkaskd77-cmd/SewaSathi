@@ -43,6 +43,12 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Lives in: Supabase → Authentication → Providers → Phone (an external dashboard, not this repository), reached through `lib/auth/otp.ts`
 - Replaced by: real SMS credentials, proved end to end by `GET /api/health?deep=1` reporting `auth.sms: ok` against a production deployment — not by the dashboard looking correct. It looked correct while every send was failing with Twilio 20003, and the only thing that noticed was a person trying to log in.
 
+### BLOCKER: test-account-otps
+- Status: unresolved
+- Claims: nothing to a visitor — this one is a way in rather than a promise on a screen. Six numbers in `provisioned_accounts` carry standing roles, two of them admin, and each is configured in Supabase as a test number with a fixed six-digit code. A fixed code is a password that never rotates, and it opens an account that can read every profile, every address and every identity document. Today that is a product with no real customers in it and the exposure is one unshipped database; the day there are real users it is an unrotatable admin credential on a public login form.
+- Lives in: Supabase → Authentication → Providers → Phone → test numbers (an external dashboard, not this repository), and `public.provisioned_accounts`, whose roster is recorded in `scripts/provision-accounts.sql`
+- Replaced by: deleting the four walkthrough numbers (`9800000011`, `9800000012`, `9800000021`, `9800000022`) from both the Supabase test list and `provisioned_accounts`, and deciding one of two things about the two admin numbers — either they keep their test codes as the documented break-glass (SECURITY.md § 3), which is a deliberate accepted risk that must be written down as such and the codes rotated, or they lose them and admin recovery moves to a real second factor. Not both by default: leaving them because nobody chose is how this becomes a credential nobody remembers.
+
 ### BLOCKER: trust-strip-counts
 - Status: unresolved
 - Claims: "1,200+ ID-verified professionals", "Average rating 4.8 from 10,000+ households". There are 28 providers in the database, none of them real people, and no completed bookings at all. This is the most serious entry in the file: it is the first thing on the landing page, it is the specific claim the product asks to be trusted on, and it is false.

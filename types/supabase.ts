@@ -813,6 +813,32 @@ export type Database = {
         >;
         Relationships: [];
       };
+      provisioned_accounts: {
+        Row: {
+          phone: string;
+          role: string;
+          label: string;
+          provider_id: string | null;
+          claimed_at: string | null;
+          claimed_by: string | null;
+          created_at: string;
+          note: string | null;
+        };
+        Insert: {
+          phone: string;
+          role: string;
+          label: string;
+          provider_id?: string | null;
+          claimed_at?: string | null;
+          claimed_by?: string | null;
+          created_at?: string;
+          note?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["provisioned_accounts"]["Insert"]
+        >;
+        Relationships: [];
+      };
       provider_leads: {
         Row: {
           id: string;

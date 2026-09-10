@@ -136,6 +136,49 @@ No admin UI exists. When it does:
    Everything above is written to make an admin's actions visible to another
    admin, not to make them impossible.
 
+### Break-glass — getting back in when the SMS never arrives
+
+Phone OTP is the only way into this product. That is a deliberate simplicity
+and it has one consequence nobody should have to discover during an incident:
+**the platform owner is one undelivered message away from being locked out of
+their own admin account**, and the fix for a locked-out admin normally requires
+being signed in as an admin.
+
+The break-glass is `public.provisioned_accounts` plus a Supabase test number,
+and it is built so that **no step depends on a message being delivered**.
+
+1. **The grant is a row, not an UPDATE.** `provisioned_accounts` maps a phone
+   number to a role, and `handle_new_user` applies it at signup. Adding a row
+   makes that number an admin the moment it signs in, today or in a month.
+   The role no longer has to be set by hand against production after the fact,
+   which was both manual work and the wrong shape of mistake to invite.
+2. **The code does not travel.** Supabase → Authentication → Providers → Phone
+   holds a fixed six-digit code per test number, checked by Supabase itself.
+   Sign-in with a test number never reaches a gateway, so an admin can get in
+   while the SMS provider is entirely dead — which is the state this product
+   has actually been in, for a day, undetected.
+3. **Two admin numbers, never one.** A single admin account is a single point
+   of failure whether the cause is a dead gateway, a lost SIM or a mistyped
+   role. Both are listed in `provisioned_accounts` with a label.
+4. **Recovering from zero admins needs only the service role** — the Supabase
+   dashboard, or this repository's MCP connection. Insert a row, add the test
+   number, sign in. No support ticket, no vendor.
+
+The trade is explicit: **a fixed code on a live admin number is a password that
+never rotates.** So the arrangement is bounded rather than permanent —
+`scripts/provision-accounts.sql` carries the roster (never the codes), every
+application of a grant is written to the append-only `security_events`, and the
+whole thing is a launch blocker (`test-account-otps`) that must be resolved
+before real customers exist. Until then the risk is one unshipped product;
+after real users it would be an unrotatable admin credential, which is a
+different thing entirely.
+
+`provisioned_accounts` grants **no insert or update to anybody** through RLS —
+the same rule as `payments` — so it can never become a self-service admin
+button. `tests/db/provisioned-accounts.test.ts` proves both directions against
+real Postgres: the grant lands at signup, and an ordinary signed-in user can
+neither write a grant nor repoint an existing one.
+
 ---
 
 ## 4. What this phase did not fix

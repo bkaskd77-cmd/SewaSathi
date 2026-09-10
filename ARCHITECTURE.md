@@ -214,6 +214,22 @@ Where a change on one side cannot reach the other.
   reliability record on both sides — and that does not exist until Phase 10.
   Revisit it then, as a policy decision, not a schema one; the columns are
   already there.
+- **A role can wait for its person.** `provisioned_accounts` maps a phone
+  number to a role and an optional provider listing, and `handle_new_user`
+  applies it at signup. Before it, walking the provider or admin surfaces meant
+  signing in and then having somebody run an UPDATE by hand against production
+  — manual work that was already automatable, and the exact shape of mistake
+  that ends with the wrong profile made admin. It is also the **break-glass**:
+  phone OTP is the only way in, so without this the owner is one undelivered
+  message from being locked out of their own platform, and the fix for a
+  locked-out admin otherwise requires being signed in as one. Paired with a
+  Supabase test number, no step depends on delivery. It is a real privilege
+  path and is treated as one — **no insert or update policy for anybody**, the
+  same rule as `payments`; every application written to the append-only
+  `security_events`; the roster in `scripts/provision-accounts.sql`
+  deliberately **not** in `supabase/migrations/`, because everything there runs
+  against every future deployment and a standing admin grant must not.
+  `tests/db/provisioned-accounts.test.ts` proves both directions.
 - **Two provider doors, and the first hands over to the second.**
   `/providers/join` is open — no account, five fields, one `provider_leads`
   row — because a login wall on step one is where a supply funnel dies. It used
