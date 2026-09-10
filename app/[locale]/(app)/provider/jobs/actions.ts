@@ -133,3 +133,70 @@ export async function appealCommissionAction(
   }
   return { ok: false, reason: result.reason };
 }
+
+/**
+ * "I've arrived", from somebody standing in the street.
+ *
+ * Deliberately forgiving about location: it is passed through when the phone
+ * offered it and omitted when it did not, and a claim with no location goes to
+ * a person rather than being auto-upheld. Telling somebody in the rain that
+ * they cannot report what just happened because their GPS is off would be the
+ * wrong trade by a very long way.
+ */
+export async function recordArrivalAction(input: {
+  bookingId: string;
+  lat?: number;
+  lng?: number;
+}): Promise<{ ok: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false };
+
+  const { recordArrival } = await import("@/lib/data/customer-risk");
+  const ok = await recordArrival({
+    bookingId: input.bookingId,
+    providerProfileId: profile.id,
+    lat: input.lat,
+    lng: input.lng,
+  });
+
+  return { ok };
+}
+
+/**
+ * "Nobody is here."
+ *
+ * The waited minutes and contact attempts come from the browser, which is the
+ * only place that knows them — but they are not taken on trust for the money:
+ * `claimNoShow` re-reads the recorded arrival and computes the verdict from
+ * what is stored. A phone that claims an hour's wait against an arrival
+ * stamped two minutes ago produces evidence a person looks at, not a payment.
+ */
+export async function claimNoShowAction(input: {
+  bookingId: string;
+  waitedMinutes: number;
+  contactAttempts: number;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const { claimNoShow } = await import("@/lib/data/customer-risk");
+  const result = await claimNoShow({
+    bookingId: input.bookingId,
+    providerProfileId: profile.id,
+    waitedMinutes: Math.max(0, Math.floor(input.waitedMinutes)),
+    contactAttempts: Math.max(0, Math.floor(input.contactAttempts)),
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason:
+        result.verdict?.outcome === "incomplete"
+          ? result.verdict.missing.join(",")
+          : "generic",
+    };
+  }
+
+  revalidatePath("/[locale]/(app)/provider/jobs", "page");
+  return { ok: true };
+}

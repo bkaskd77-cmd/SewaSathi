@@ -1,8 +1,15 @@
 import "server-only";
 
+import {
+  CUSTOMER_LADDER,
+  TRIP_COMPENSATION,
+  judgeCustomerLadder,
+  tripDebtFor,
+} from "@/lib/abuse";
 import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
 import { signDocumentForReview } from "@/lib/data/provider-documents";
+import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -222,6 +229,15 @@ export async function decideApplication(input: {
   decision: "approved" | "rejected" | "more_info";
   reason: string;
   internalNote?: string;
+  /**
+   * Seconds between the review page opening and this being sent.
+   *
+   * Recorded, never enforced. Nothing here refuses a fast decision — the point
+   * is that a run of two-second approvals is visible to whoever reads the
+   * audit trail later, which is a smaller and more honest claim than
+   * pretending the interface can make somebody look.
+   */
+  secondsOnEvidence?: number | null;
 }): Promise<DecisionResult> {
   if (!hasSupabaseConfig()) return { ok: false, error: "unavailable" };
   if (input.reason.trim().length < 5) return { ok: false, error: "reason" };
@@ -249,6 +265,7 @@ export async function decideApplication(input: {
       reason: input.reason.trim(),
       internal_note: input.internalNote?.trim() || null,
       risk_score_at_decision: (application.risk_score as number | null) ?? null,
+      seconds_on_evidence: input.secondsOnEvidence ?? null,
     });
 
   if (decisionError) {
@@ -362,8 +379,129 @@ export async function decideApplication(input: {
       action: "application.decided",
       decision: input.decision,
       riskScore: (application.risk_score as number | null) ?? null,
+      secondsOnEvidence: input.secondsOnEvidence ?? null,
     },
   });
 
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * Wasted trips
+ * ------------------------------------------------------------------ */
+
+export type OpenClaim = {
+  id: string;
+  bookingId: string;
+  reference: string;
+  providerName: string | null;
+  waitedMinutes: number;
+  contactAttempts: number;
+  hasLocation: boolean;
+  customerConfirmed: boolean;
+  addressProven: boolean;
+  customerDisputed: boolean;
+  customerNote: string | null;
+  tripRupees: number;
+  /**
+   * Whether upholding this would be absorbed by us rather than billed on.
+   *
+   * Shown because it changes what the reviewer is actually deciding: a
+   * first-time no-show is a write-off, and somebody weighing a write-off reads
+   * thin evidence differently from somebody about to charge a customer.
+   */
+  wouldBeAbsorbed: boolean;
+};
+
+/** Claims a person still has to decide, oldest first. */
+export async function openNoShowClaims(): Promise<OpenClaim[]> {
+  if (!hasSupabaseConfig()) return [];
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("no_show_claims")
+    .select("*")
+    .in("status", ["open", "needs_person"])
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    console.error(`[claims] queue — ${describeError(error)}`);
+    return [];
+  }
+
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const bookingIds = rows.map((row) => row.booking_id as string);
+  const [{ data: arrivals }, { data: bookings }, { data: providers }] =
+    await Promise.all([
+      db
+        .from("booking_arrivals")
+        .select("booking_id, waited_minutes, contact_attempts, coarse_lat")
+        .in("booking_id", bookingIds),
+      db
+        .from("bookings")
+        .select("id, reference, address_id, confirmed_at")
+        .in("id", bookingIds),
+      db
+        .from("providers")
+        .select("id, display_name")
+        .in(
+          "id",
+          rows.map((row) => row.provider_id as string),
+        ),
+    ]);
+
+  const arrivalBy = new Map(
+    (arrivals ?? []).map((row) => [row.booking_id as string, row]),
+  );
+  const bookingBy = new Map(
+    (bookings ?? []).map((row) => [row.id as string, row]),
+  );
+  const providerBy = new Map(
+    (providers ?? []).map((row) => [row.id as string, row]),
+  );
+
+  const claims: OpenClaim[] = [];
+  for (const row of rows) {
+    const bookingId = row.booking_id as string;
+    const booking = bookingBy.get(bookingId);
+    const arrival = arrivalBy.get(bookingId);
+
+    // Derived rather than stored: a completed job at this door is the only
+    // honest proof, and a stale copy of it would quietly stop mattering.
+    const { count } = await db
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("address_id", (booking?.address_id as string) ?? "")
+      .eq("status", "completed");
+
+    const history = await customerHistory(row.customer_id as string);
+    const ladder = judgeCustomerLadder(history);
+
+    claims.push({
+      id: row.id as string,
+      bookingId,
+      reference: (booking?.reference as string) ?? "—",
+      providerName:
+        (providerBy.get(row.provider_id as string)?.display_name as string) ??
+        null,
+      waitedMinutes: (arrival?.waited_minutes as number) ?? 0,
+      contactAttempts: (arrival?.contact_attempts as number) ?? 0,
+      hasLocation: arrival?.coarse_lat != null,
+      customerConfirmed: booking?.confirmed_at != null,
+      addressProven: (count ?? 0) > 0,
+      customerDisputed: row.customer_disputed_at != null,
+      customerNote: (row.customer_note as string | null) ?? null,
+      tripRupees: TRIP_COMPENSATION.rupees,
+      wouldBeAbsorbed:
+        tripDebtFor({
+          effectiveStrikesBefore: ladder.effectiveStrikes,
+          depositStep: CUSTOMER_LADDER.depositAt,
+        }) === 0,
+    });
+  }
+
+  return claims;
 }

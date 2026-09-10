@@ -70,6 +70,16 @@ export type Booking = {
   acceptedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
+  /**
+   * Protect the trip, not the booking.
+   *
+   * True while this is going to an address nobody has ever been to. Dispatch
+   * holds until `confirmedAt` is set, so the booking screen has to be able to
+   * ask — a gate the customer cannot see is a booking that silently never
+   * happens.
+   */
+  confirmationRequired: boolean;
+  confirmedAt: string | null;
 };
 
 /** Field errors keyed to the flow's steps. Values are message-catalogue keys. */
@@ -132,7 +142,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at";
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -144,6 +154,8 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     addressId: row.address_id as string,
     status: isBookingStatus(status) ? status : "pending",
     urgency: row.urgency as Urgency,
+    confirmationRequired: Boolean(row.confirmation_required),
+    confirmedAt: (row.confirmed_at as string | null) ?? null,
     description: row.description as string,
     photoUrl: (row.photo_url as string | null) ?? null,
     scheduledFor: (row.scheduled_for as string | null) ?? null,

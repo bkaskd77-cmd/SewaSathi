@@ -73,6 +73,16 @@ export type ProviderJob = {
   commissionBasis: number | null;
   /** When this settlement becomes payable. Digital is days sooner than cash. */
   payoutDueAt: string | null;
+  /**
+   * When they marked themselves as arrived.
+   *
+   * Carried on the list rather than fetched by the card, because the wait
+   * timer has to survive a reload: a professional standing at a locked gate
+   * who refreshes the page must not lose the ten minutes they already waited.
+   */
+  arrivedAt: string | null;
+  /** True once a wasted-trip claim exists for this job. */
+  noShowClaimed: boolean;
   /** open | upheld | rejected, when they have appealed the floor on this job. */
   appealStatus: string | null;
   customerName: string | null;
@@ -145,6 +155,8 @@ export async function listProviderJobs(
   let byProfile = new Map<string, Record<string, unknown>>();
   let byAddress = new Map<string, Record<string, unknown>>();
   let appealByBooking = new Map<string, string>();
+  let arrivalByBooking = new Map<string, string>();
+  let claimedBookings = new Set<string>();
   try {
     const admin = createAdminClient();
     // Array.from rather than spreading a Set: the tsconfig target predates
@@ -156,7 +168,13 @@ export async function listProviderJobs(
       new Set(rows.map((r) => r.address_id as string)),
     );
 
-    const [{ data: profiles }, { data: addresses }, { data: appeals }] = await Promise.all([
+    const [
+      { data: profiles },
+      { data: addresses },
+      { data: appeals },
+      { data: arrivals },
+      { data: claims },
+    ] = await Promise.all([
       admin.from("profiles").select("id, full_name, phone").in("id", customerIds),
       admin
         .from("addresses")
@@ -168,7 +186,26 @@ export async function listProviderJobs(
         .from("commission_appeals")
         .select("booking_id, status")
         .in("booking_id", rows.map((r) => r.id as string)),
+      // The arrival and any claim, so the card reopens where it was left.
+      admin
+        .from("booking_arrivals")
+        .select("booking_id, arrived_at")
+        .in("booking_id", rows.map((r) => r.id as string)),
+      admin
+        .from("no_show_claims")
+        .select("booking_id")
+        .in("booking_id", rows.map((r) => r.id as string)),
     ]);
+
+    arrivalByBooking = new Map(
+      (arrivals ?? []).map((a) => [
+        a.booking_id as string,
+        a.arrived_at as string,
+      ]),
+    );
+    claimedBookings = new Set(
+      (claims ?? []).map((c) => c.booking_id as string),
+    );
 
     appealByBooking = new Map(
       (appeals ?? []).map((a) => [a.booking_id as string, a.status as string]),
@@ -206,6 +243,8 @@ export async function listProviderJobs(
       commissionBasis: (row.commission_basis as number | null) ?? null,
       payoutDueAt: (row.payout_due_at as string | null) ?? null,
       appealStatus: appealByBooking.get(row.id as string) ?? null,
+      arrivedAt: arrivalByBooking.get(row.id as string) ?? null,
+      noShowClaimed: claimedBookings.has(row.id as string),
       customerName: (profile?.full_name as string | null) ?? null,
       customerPhone: (profile?.phone as string | null) ?? null,
       addressLine: address
@@ -552,6 +591,9 @@ export async function listOpenJobs(
         commissionBasis: null,
         payoutDueAt: null,
         appealStatus: null,
+        // An open job has nobody assigned, so nobody can have arrived at it.
+        arrivedAt: null,
+        noShowClaimed: false,
         customerName: null,
         customerPhone: null,
         addressLine: (area?.city as string | null) ?? null,

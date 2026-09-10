@@ -251,3 +251,24 @@ export async function chooseProviderAction(
   }
   return { ok: false, reason: result.reason };
 }
+
+/**
+ * "Yes, I will be there."
+ *
+ * The one tap that separates a real customer from a script, and the only
+ * mechanism standing between a professional and a ride across town to a door
+ * that does not exist. Re-reads the session and the booking's owner: a
+ * confirmation somebody else could give would confirm nothing.
+ */
+export async function confirmTripAction(
+  bookingId: string,
+): Promise<{ ok: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false };
+
+  const { confirmTrip } = await import("@/lib/data/customer-risk");
+  const ok = await confirmTrip({ bookingId, actorId: profile.id });
+
+  if (ok) revalidatePath("/[locale]/(app)/bookings/[id]", "page");
+  return { ok };
+}

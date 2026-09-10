@@ -228,6 +228,8 @@ export default async function ProviderJobsPage() {
                       : null
                   }
                   appealStatus={job.appealStatus}
+                  arrivedAt={job.arrivedAt}
+                  noShowClaimed={job.noShowClaimed}
                   payoutLabel={
                     job.payoutDueAt ? formatInstant(job.payoutDueAt, locale) : null
                   }

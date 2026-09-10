@@ -395,6 +395,7 @@ export type Database = {
           decided_by: string | null;
           decided_at: string | null;
           decision_reason: string | null;
+          seconds_on_evidence: number | null;
           created_at: string;
         };
         Insert: {
@@ -410,6 +411,7 @@ export type Database = {
           decided_by?: string | null;
           decided_at?: string | null;
           decision_reason?: string | null;
+          seconds_on_evidence?: number | null;
           created_at?: string;
         };
         Update: Partial<
@@ -640,6 +642,7 @@ export type Database = {
           reason_ne: string | null;
           internal_note: string | null;
           risk_score_at_decision: number | null;
+          seconds_on_evidence: number | null;
         };
         Insert: {
           id?: string;
@@ -651,6 +654,7 @@ export type Database = {
           reason_ne?: string | null;
           internal_note?: string | null;
           risk_score_at_decision?: number | null;
+          seconds_on_evidence?: number | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["application_decisions"]["Insert"]

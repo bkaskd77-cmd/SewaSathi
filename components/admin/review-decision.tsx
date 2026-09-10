@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { useSecondsOnEvidence } from "./use-seconds-on-evidence";
+
 /**
  * The step where verification actually happens.
  *
@@ -75,6 +77,12 @@ function Send({ label, tone }: { label: string; tone: "approve" | "reject" | "mo
 export function ReviewDecision(props: ReviewDecisionProps) {
   const t = useTranslations("admin.detail");
   const [state, action] = useFormState(props.decideAction, null);
+  /*
+   * Recorded, never enforced. Nothing on this screen refuses a fast decision;
+   * the point is that a run of two-second approvals is visible to whoever
+   * reads the audit trail later. See use-seconds-on-evidence.ts.
+   */
+  const secondsOnEvidence = useSecondsOnEvidence();
 
   const openable = props.documents.filter((document) => document.url);
   const [opened, setOpened] = React.useState<Set<string>>(new Set());
@@ -120,6 +128,11 @@ export function ReviewDecision(props: ReviewDecisionProps) {
 
       <form action={action} className="mt-5 space-y-4">
         <input type="hidden" name="applicationId" value={props.applicationId} />
+        <input
+          type="hidden"
+          name="secondsOnEvidence"
+          value={secondsOnEvidence()}
+        />
 
         <div className="space-y-1.5">
           <Label htmlFor="reason">{t("reasonLabel")}</Label>

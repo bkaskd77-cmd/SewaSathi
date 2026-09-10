@@ -17,6 +17,7 @@ export {
 export {
   addressTrust,
   confirmationPlan,
+  dispatchIsHeld,
   requiresConfirmation,
   type AddressHistory,
   type AddressTrust,

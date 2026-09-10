@@ -9,6 +9,7 @@ import {
   type AlternativeOption,
 } from "@/components/booking/alternatives";
 import { CancelBooking } from "@/components/booking/cancel-booking";
+import { ConfirmTrip } from "@/components/booking/confirm-trip";
 import { LiveProgress } from "@/components/booking/live-progress";
 import { ProviderCard } from "@/components/booking/provider-card";
 import {
@@ -41,6 +42,8 @@ import {
   judgeFinalAmount,
 } from "@/lib/payments";
 import { formatNpr } from "@/lib/utils";
+
+import { confirmTripAction } from "./actions";
 
 export async function generateMetadata({
   params,
@@ -289,6 +292,22 @@ export default async function BookingDetailPage({
           released={released}
           repickedName={repicked ? (provider?.displayName ?? null) : null}
         />
+
+        {/*
+          The one tap that separates a real customer from a script, and it sits
+          directly under the status banner because it is the only thing on this
+          page the customer needs to do right now — nothing is dispatched until
+          they answer, so burying it lower would be holding somebody's booking
+          behind a prompt they never scrolled to.
+        */}
+        {booking.confirmationRequired && !booking.confirmedAt ? (
+          <ConfirmTrip
+            bookingId={booking.id}
+            isEmergency={booking.urgency === "emergency"}
+            supportPhone={site.supportPhone}
+            confirm={confirmTripAction}
+          />
+        ) : null}
       </NextIntlClientProvider>
 
       {/* Somebody said no. This is the answer to it, and it sits directly

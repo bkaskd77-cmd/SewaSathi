@@ -268,14 +268,6 @@ export async function confirmTrip(input: {
   return true;
 }
 
-/** May the dispatcher send somebody to this booking yet? */
-export function dispatchIsHeld(booking: {
-  confirmation_required: boolean;
-  confirmed_at: string | null;
-}): boolean {
-  return booking.confirmation_required && booking.confirmed_at === null;
-}
-
 /* ------------------------------------------------------------------ *
  * Arrival, and the claim
  * ------------------------------------------------------------------ */
@@ -436,6 +428,12 @@ export async function settleNoShowClaim(input: {
   decidedBy: string | null;
   uphold: boolean;
   reason: string;
+  /**
+   * How long the reviewer had the evidence open. Never a gate — see
+   * `components/admin/use-seconds-on-evidence.ts`. Null for the automatic
+   * path, where no person was looking at anything.
+   */
+  secondsOnEvidence?: number | null;
 }): Promise<boolean> {
   if (!hasSupabaseConfig()) return false;
   const db = createAdminClient();
@@ -459,6 +457,7 @@ export async function settleNoShowClaim(input: {
         decided_by: input.decidedBy,
         decided_at: now,
         decision_reason: input.reason,
+        seconds_on_evidence: input.secondsOnEvidence ?? null,
       })
       .eq("booking_id", input.bookingId);
     return true;
@@ -484,6 +483,7 @@ export async function settleNoShowClaim(input: {
       decided_by: input.decidedBy,
       decided_at: now,
       decision_reason: input.reason,
+      seconds_on_evidence: input.secondsOnEvidence ?? null,
     })
     .eq("booking_id", input.bookingId);
 
@@ -534,6 +534,7 @@ export async function settleNoShowClaim(input: {
       // The write-off, named, so the cost of protecting professionals is
       // visible in the log rather than only in a spreadsheet later.
       absorbedByUs: debt === 0,
+      secondsOnEvidence: input.secondsOnEvidence ?? null,
     },
   });
 

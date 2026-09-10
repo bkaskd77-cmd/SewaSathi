@@ -7,6 +7,7 @@ import {
   addressTrust,
   applyTripRecovery,
   confirmationPlan,
+  dispatchIsHeld,
   gateBooking,
   judgeCustomerLadder,
   judgeNoShowClaim,
@@ -342,5 +343,37 @@ describe("the professional is paid; recovery is our problem", () => {
      * starts at Rs 900.
      */
     expect(TRIP_COMPENSATION.rupees).toBeLessThan(900);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The dispatcher holds
+ * ------------------------------------------------------------------ */
+
+describe("dispatch waits for an answer rather than guessing", () => {
+  it("holds a booking that owes us a confirmation", () => {
+    expect(
+      dispatchIsHeld({ confirmation_required: true, confirmed_at: null }),
+    ).toBe(true);
+  });
+
+  it("releases it the moment they answer", () => {
+    expect(
+      dispatchIsHeld({
+        confirmation_required: true,
+        confirmed_at: "2026-09-10T02:04:00Z",
+      }),
+    ).toBe(false);
+  });
+
+  it("never holds a booking to a proven address", () => {
+    /*
+     * The regression that would hurt most: a gate that accidentally applies to
+     * everybody turns every booking into a prompt, and a prompt on every
+     * booking is a prompt nobody reads.
+     */
+    expect(
+      dispatchIsHeld({ confirmation_required: false, confirmed_at: null }),
+    ).toBe(false);
   });
 });

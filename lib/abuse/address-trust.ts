@@ -127,3 +127,22 @@ export function confirmationPlan(input: {
     holdMinutes: input.isEmergency ? 45 : 20,
   };
 }
+
+/**
+ * May the dispatcher send somebody to this booking yet?
+ *
+ * Pure, and here rather than in the data layer for a reason a test found: it
+ * is a predicate over two columns, and putting it beside the database reads
+ * made it impossible to check without a `server-only` import dragging the
+ * whole data layer into a unit test. A rule this small should be testable on
+ * its own.
+ *
+ * Takes the row shape rather than a domain object so the dispatch sweep can
+ * pass what it already selected.
+ */
+export function dispatchIsHeld(booking: {
+  confirmation_required: boolean;
+  confirmed_at: string | null;
+}): boolean {
+  return booking.confirmation_required && booking.confirmed_at === null;
+}

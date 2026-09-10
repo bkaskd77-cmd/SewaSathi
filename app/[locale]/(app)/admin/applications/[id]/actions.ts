@@ -29,12 +29,15 @@ export async function decideAction(
     return { ok: false, error: "generic" };
   }
 
+  const seconds = Number(formData.get("secondsOnEvidence"));
+
   const result = await decideApplication({
     applicationId: String(formData.get("applicationId") ?? ""),
     adminId: profile.id,
     decision: decision as "approved" | "rejected" | "more_info",
     reason: String(formData.get("reason") ?? ""),
     internalNote: String(formData.get("internalNote") ?? ""),
+    secondsOnEvidence: Number.isFinite(seconds) ? Math.max(0, seconds) : null,
   });
 
   if (result.ok) {

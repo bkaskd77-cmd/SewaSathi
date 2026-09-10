@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { Loader2, MapPin, Phone } from "lucide-react";
 
+import { ArrivalPanel } from "@/components/provider/arrival-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,10 @@ export type JobCardProps = {
    * until somebody has.
    */
   open?: boolean;
+  /** ISO instant, once an arrival has been recorded for this job. */
+  arrivedAt?: string | null;
+  /** True once a wasted-trip claim exists, so the panel stops offering one. */
+  noShowClaimed?: boolean;
 };
 
 export function JobCard(props: JobCardProps) {
@@ -253,6 +258,34 @@ export function JobCard(props: JobCardProps) {
           <Phone aria-hidden="true" className="size-3.5" />
           {props.customerName ?? t("callCustomer")}
         </a>
+      ) : null}
+
+      {/*
+        ARRIVED, AND NOBODY IS HERE.
+        Only while en route: before that there is nowhere to have arrived at,
+        and once the work has started somebody clearly answered the door. It
+        sits above the payment block because at this moment the professional is
+        standing in a street, not thinking about commission.
+      */}
+      {props.status === "en_route" ? (
+        <ArrivalPanel
+          bookingId={props.id}
+          customerPhone={props.customerPhone}
+          arrivedAt={props.arrivedAt ?? null}
+          claimed={Boolean(props.noShowClaimed)}
+          recordArrival={async (input) => {
+            const { recordArrivalAction } = await import(
+              "@/app/[locale]/(app)/provider/jobs/actions"
+            );
+            return recordArrivalAction(input);
+          }}
+          claimNoShow={async (input) => {
+            const { claimNoShowAction } = await import(
+              "@/app/[locale]/(app)/provider/jobs/actions"
+            );
+            return claimNoShowAction(input);
+          }}
+        />
       ) : null}
 
       {/* Did I get paid, and what do I keep?

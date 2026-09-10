@@ -740,6 +740,15 @@
       "automatic": "Nothing to confirm afterwards — the amount records itself.",
       "receipt": "A proper receipt, to show a landlord, an office or your family.",
       "noCash": "No cash in the house, and nobody hunting for change."
+    },
+    "confirmTrip": {
+      "title": "One tap before we send somebody",
+      "body": "This is a new address for us, and a professional is about to ride across town to it. Tap below so we know you will be there.",
+      "confirm": "Yes, I'll be there",
+      "callInstead": "Call us instead",
+      "confirmedTitle": "Thank you — somebody is on the way",
+      "confirmedBody": "We will not ask you this again for this address.",
+      "failed": "That didn't go through. Try once more, or call us."
     }
   },
   "safety": {
@@ -1057,6 +1066,19 @@
           "rejected": "Reviewed — the fee stands"
         }
       }
+    },
+    "arrival": {
+      "iHaveArrived": "I've arrived",
+      "arrivedHint": "Tap this when you reach the door. It starts the clock, in case nobody comes.",
+      "waiting": "Waiting — {minutes} minutes so far",
+      "callCustomer": "Call the customer",
+      "waitLonger": "Give it {minutes} more minutes before reporting nobody is here.",
+      "nobodyHere": "Nobody is here",
+      "confirmBody": "You waited {minutes} minutes and called {calls} times. We will pay you for this trip and look into it.",
+      "confirmNoShow": "Yes — nobody came",
+      "stillWaiting": "I'll keep waiting",
+      "claimed": "Reported. We will pay you for the trip and let you know.",
+      "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything."
     }
   },
   "admin": {
@@ -1104,6 +1126,24 @@
       "confirmSeen": "I have opened every document and read the matches above",
       "mustConfirm": "Open the evidence first. This is the step that actually does the verifying.",
       "decided": "Decided by {name} on {date}"
+    },
+    "claims": {
+      "title": "Wasted trips",
+      "lead": "A professional turned up and nobody was there. They are paid either way; this decides who carries it.",
+      "empty": "Nothing waiting.",
+      "waited": "Waited {minutes} minutes, called {calls} times",
+      "noLocation": "The phone gave no location",
+      "located": "Location recorded",
+      "customerConfirmed": "The customer had confirmed they would be there",
+      "addressProven": "A job has been completed at this address before",
+      "disputed": "The customer says otherwise",
+      "uphold": "Uphold — pay the trip",
+      "refuse": "Refuse",
+      "reason": "Reason",
+      "open": "Open",
+      "paid": "Paid {amount}",
+      "absorbed": "First one — we absorb it",
+      "recovered": "Added to their next bill"
     }
   }
 }
