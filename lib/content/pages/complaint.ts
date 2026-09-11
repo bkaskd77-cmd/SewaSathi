@@ -11,7 +11,7 @@ export const complaint: LocalisedDocument = {
         heading: "How to report it",
         blocks: [
           {
-            p: "Open the booking and use the report link, or call +977 9800 000 000. Tell us what was agreed, what actually happened, and what you would like done about it. Photographs help.",
+            p: "Open the booking and use the report link. Tell us what was agreed, what actually happened, and what you would like done about it. Photographs help.",
           },
           {
             p: "Do it within 48 hours of the job finishing. That window is what lets us send someone back before the evidence disappears.",
@@ -71,7 +71,7 @@ export const complaint: LocalisedDocument = {
         heading: "कसरी जनाउने",
         blocks: [
           {
-            p: "बुकिङ खोलेर उजुरीको लिङ्क प्रयोग गर्नुहोस्, वा +977 9800 000 000 मा फोन गर्नुहोस्। के तय भएको थियो, वास्तवमा के भयो, र तपाईं के चाहनुहुन्छ — भन्नुहोस्। फोटो भए सजिलो हुन्छ।",
+            p: "बुकिङ खोलेर उजुरीको लिङ्क प्रयोग गर्नुहोस्। के तय भएको थियो, वास्तवमा के भयो, र तपाईं के चाहनुहुन्छ — भन्नुहोस्। फोटो भए सजिलो हुन्छ।",
           },
           {
             p: "काम सकिएको ४८ घण्टाभित्र गर्नुहोस्। त्यही समयसीमाले प्रमाण हराउनुअघि कसैलाई फेरि पठाउन दिन्छ।",

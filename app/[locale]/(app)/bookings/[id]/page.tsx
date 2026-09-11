@@ -501,12 +501,14 @@ export default async function BookingDetailPage({
             <CancelBooking bookingId={booking.id} />
           </NextIntlClientProvider>
         ) : null}
-        <Button variant="ghost" size="sm" asChild>
-          <a href={`tel:${site.supportPhone}`}>
-            <Phone aria-hidden="true" />
-            {t("callSupport")}
-          </a>
-        </Button>
+        {site.supportPhone ? (
+          <Button variant="ghost" size="sm" asChild>
+            <a href={`tel:${site.supportPhone}`}>
+              <Phone aria-hidden="true" />
+              {t("callSupport")}
+            </a>
+          </Button>
+        ) : null}
       </div>
     </div>
   );

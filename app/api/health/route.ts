@@ -4,6 +4,7 @@ import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
 import { hasSupabaseConfig } from "@/lib/env";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
+import { smsGateway } from "@/lib/sms";
 
 /**
  * Can this product actually serve a customer right now?
@@ -342,6 +343,41 @@ async function checkSmsBudget(): Promise<Check> {
   return { name: "sms.budget", state: "ok", detail: `${usage}.` };
 }
 
+/**
+ * Which gateway would carry a code, and is it armed?
+ *
+ * SEPARATE FROM `auth.sms`, which sends one and is the only proof of delivery.
+ * This is the cheap half: it says what is configured without spending
+ * anything, so the answer to "did the switch to Sparrow actually take?" is a
+ * URL rather than a support ticket. `log` is never `ok` — it is the state
+ * where every sign-in silently goes nowhere, which is precisely the failure
+ * this endpoint exists to make visible.
+ */
+function checkSmsGateway(): Check {
+  const gateway = smsGateway();
+
+  if (gateway.id === "log") {
+    return {
+      name: "sms.gateway",
+      state: "unknown",
+      detail:
+        "No SMS_GATEWAY set, so nothing is sent and Supabase's own provider carries the code. Set SMS_GATEWAY to sparrow or aakash once a contract exists.",
+    };
+  }
+  if (!gateway.isConfigured()) {
+    return {
+      name: "sms.gateway",
+      state: "down",
+      detail: `SMS_GATEWAY is "${gateway.id}" but its credentials are missing. Every code fails.`,
+    };
+  }
+  return {
+    name: "sms.gateway",
+    state: "ok",
+    detail: `${gateway.id}, credentials present. Delivery is only proved by deep=1.`,
+  };
+}
+
 /** Triage falls back to the keyword matcher without a key, so this is a warning. */
 function checkTriage(): Check {
   return process.env.ANTHROPIC_API_KEY
@@ -466,6 +502,7 @@ export async function GET(request: Request) {
       checkRegion(),
     ])),
     checkTriage(),
+    checkSmsGateway(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];

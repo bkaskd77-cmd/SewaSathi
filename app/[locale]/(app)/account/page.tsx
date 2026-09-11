@@ -9,7 +9,7 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { formatE164ForDisplay } from "@/lib/auth";
-import { site } from "@/lib/config/site";
+import { site, supportPhoneDisplay } from "@/lib/config/site";
 
 export async function generateMetadata({
   params,
@@ -116,16 +116,22 @@ export default async function AccountPage() {
         className="animate-rise mt-4 text-caption text-muted-foreground"
         style={{ animationDelay: "120ms" }}
       >
-        {t.rich("changeNote", {
-          phone: (chunks) => (
-            <a
-              href={`tel:${site.supportPhone}`}
-              className="text-foreground underline underline-offset-2"
-            >
-              {chunks}
-            </a>
-          ),
-        })}
+        {/* Without a line to ring, the useful half of the sentence survives
+            on its own — when editing arrives — and the half that would send
+            somebody to a dead number does not. */}
+        {site.supportPhone
+          ? t.rich("changeNote", {
+              number: supportPhoneDisplay ?? "",
+              phone: (chunks) => (
+                <a
+                  href={`tel:${site.supportPhone}`}
+                  className="text-foreground underline underline-offset-2"
+                >
+                  {chunks}
+                </a>
+              ),
+            })
+          : t("changeNoteNoPhone")}
       </p>
 
       {/*

@@ -38,7 +38,8 @@ export function ProviderCard({
     callSupport: string;
     verified: string;
     noPhone: string;
-    supportPhone: string;
+    /** Null when there is no published line. */
+    supportPhone: string | null;
   };
 }) {
   return (
@@ -88,17 +89,19 @@ export function ProviderCard({
           <p className="mt-4 text-caption text-muted-foreground">
             {labels.noPhone}
           </p>
-          <a
-            href={`tel:${labels.supportPhone}`}
-            className={buttonVariants({
-              variant: "outline",
-              size: "lg",
-              className: "btn-tactile mt-2 w-full",
-            })}
-          >
-            <Phone aria-hidden="true" className="size-4" />
-            {labels.callSupport}
-          </a>
+          {labels.supportPhone ? (
+            <a
+              href={`tel:${labels.supportPhone}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "lg",
+                className: "btn-tactile mt-2 w-full",
+              })}
+            >
+              <Phone aria-hidden="true" className="size-4" />
+              {labels.callSupport}
+            </a>
+          ) : null}
         </>
       )}
     </section>

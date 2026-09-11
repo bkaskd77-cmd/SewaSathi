@@ -27,8 +27,7 @@
     "themeSystem": "System",
     "themeDark": "Dark",
     "wordmarkHome": "{name} — home",
-    "supportPhone": "+977 9800 000 000",
-    "callSupport": "Call +977 9800 000 000",
+    "callSupport": "Call {phone}",
     "from": "from",
     "typicalRange": "typical range",
     "priceSeparator": "–",
@@ -326,7 +325,7 @@
       "sentTo": "Code sent to {phone}",
       "otpLabel": "Verification code",
       "otpDigit": "Digit {index} of 6",
-      "helpCall": "Still nothing? Call us on <phone>+977 9800 000 000</phone> and we’ll book it for you over the phone."
+      "helpCall": "Still nothing? Call us on <phone>{number}</phone> and we’ll book it for you over the phone."
     },
     "onboarding": {
       "title": "Almost there",
@@ -361,7 +360,8 @@
       "title": "Sign-in isn't working right now",
       "body": "This is our problem, not yours — retrying won't help. Call us and we'll take your booking over the phone.",
       "call": "Call us to book",
-      "hours": "7am to 9pm, every day."
+      "hours": "7am to 9pm, every day.",
+      "bodyNoPhone": "This is our problem, not yours — retrying won’t help. We’re fixing it now. Please try again a little later."
     }
   },
   "booking": {
@@ -372,7 +372,7 @@
       "emptyTitle": "No bookings yet",
       "emptyBody": "Once you book a professional, the job shows up here with its time, status and agreed price — and you can call them from it.",
       "browse": "Browse services",
-      "phoneNote": "Booked over the phone? Call <phone>+977 9800 000 000</phone> and we’ll add it to your account.",
+      "phoneNote": "Booked over the phone? Call <phone>{number}</phone> and we’ll add it to your account.",
       "bookAnother": "Book another service"
     },
     "account": {
@@ -383,7 +383,8 @@
       "mobile": "Mobile",
       "mobileUnset": "Not on file",
       "language": "Language",
-      "changeNote": "Need to change something? Call <phone>+977 9800 000 000</phone> and we’ll update it — editing here arrives with addresses and payment."
+      "changeNote": "Need to change something? Call <phone>{number}</phone> and we’ll update it — editing here arrives with addresses and payment.",
+      "changeNoteNoPhone": "Editing here arrives with addresses and payment."
     },
     "flow": {
       "title": "Book a professional",
@@ -724,7 +725,8 @@
       "none": {
         "title": "Nobody else is free right now",
         "body": "We would rather tell you than leave you watching this page. Call us and we will find somebody by hand.",
-        "call": "Call {phone}"
+        "call": "Call {phone}",
+        "bodyNoPhone": "We would rather tell you than leave you watching this page. We’re still looking, and your booking is safe."
       },
       "errors": {
         "alreadyAssigned": "Somebody has already taken this job. Look again to see who.",

@@ -69,7 +69,8 @@ export type PaymentPanelProps = {
   } | null;
   /** Why the last attempt failed, for the retry copy. */
   failureReason: string | null;
-  supportPhone: string;
+  /** Null when there is no published line. Every use site handles it. */
+  supportPhone: string | null;
   /**
    * Hide the professional's figure and ask the customer for their own.
    *
@@ -401,7 +402,7 @@ export function PaymentPanel(props: PaymentPanelProps) {
             >
               {t("processing.payAnotherWay")}
             </Button>
-            {stale ? (
+            {stale && props.supportPhone ? (
               <a
                 href={`tel:${props.supportPhone}`}
                 className="mt-3 inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary underline-offset-4 hover:underline"
@@ -510,12 +511,17 @@ export function PaymentPanel(props: PaymentPanelProps) {
       return (
         <Section tone="quiet" title={t("mismatch.title")}>
           <p className="text-body-md">{t("mismatch.body")}</p>
-          <Button variant="outline" className="btn-tactile mt-4" asChild>
-            <a href={`tel:${props.supportPhone}`}>
-              <Phone aria-hidden="true" />
-              {t("mismatch.call", { phone: props.supportPhone })}
-            </a>
-          </Button>
+          {/* The body already promises we will call them today, which is a
+              promise we can keep with their number rather than ours. So the
+              missing support line costs the customer nothing here. */}
+          {props.supportPhone ? (
+            <Button variant="outline" className="btn-tactile mt-4" asChild>
+              <a href={`tel:${props.supportPhone}`}>
+                <Phone aria-hidden="true" />
+                {t("mismatch.call", { phone: props.supportPhone })}
+              </a>
+            </Button>
+          ) : null}
         </Section>
       );
     }

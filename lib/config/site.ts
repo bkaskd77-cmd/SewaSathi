@@ -3,6 +3,8 @@
  * appears in more than one place. Keeping it here means the rename that
  * turned Sewa[X] into SajiloKaam is a one-file change next time.
  */
+import { checkNepaliMobile, formatE164ForDisplay } from "@/lib/auth";
+
 export const site = {
   name: "SajiloKaam",
   /** The wordmark is two-tone: `name` in ink, `accent` in gold. */
@@ -29,16 +31,49 @@ export const site = {
   url: siteUrl(),
 
   /**
-   * The number a customer rings when the product cannot help them.
+   * The number a customer rings when the product cannot help them, or `null`
+   * when there is not one yet.
    *
-   * One constant because it appears on five screens and one of them is the
-   * login fallback — the screen somebody reaches when nothing else in the
-   * product is working for them. Five copies of a phone number means four
-   * chances of a stale one, and the stale one is the one on the screen that
-   * matters most.
+   * NULL IS A REAL STATE AND EVERY CALLER HANDLES IT. It used to be the
+   * placeholder `+977 9800 000 000`, which does not ring. That is worse than
+   * having no number at all, and the day sign-in broke it was proved: the
+   * gateway refused every code, the login screen fell back to "call us and
+   * we'll take your booking over the phone", and the number beside that
+   * sentence was invented. A customer met a dead door and a dead escape hatch
+   * as one wall, and the second one is the one that reads as contempt —
+   * the product did not merely fail, it offered help that was not there.
+   *
+   * So there is no placeholder any more. Where there is no number, the call is
+   * not offered and the screen says plainly what is true.
+   * `npm run check:contacts` fails the build if a placeholder ever comes back.
+   *
+   * One constant because it appears on nine screens and one of them is that
+   * login fallback. Nine copies means eight chances of a stale one, and the
+   * stale one is always the one on the screen that matters most.
    */
-  supportPhone: "+9779800000000",
+  supportPhone: readSupportPhone(),
 } as const;
+
+/** Formatted for reading aloud — `+977 98XX XXX XXX`. Null when unset. */
+export const supportPhoneDisplay: string | null = site.supportPhone
+  ? formatE164ForDisplay(site.supportPhone)
+  : null;
+
+/**
+ * From the environment, so the day a real line exists it is one Vercel
+ * variable and a redeploy rather than a code change.
+ *
+ * VALIDATED, AND A BAD VALUE BECOMES NULL RATHER THAN REACHING A SCREEN.
+ * The whole point of this constant is that nothing unreachable is ever offered
+ * to somebody who is already stuck, and a typo in a dashboard is exactly as
+ * unreachable as a placeholder. Silence is the safe failure here.
+ */
+function readSupportPhone(): string | null {
+  const configured = process.env.NEXT_PUBLIC_SUPPORT_PHONE?.trim();
+  if (!configured) return null;
+  const checked = checkNepaliMobile(configured);
+  return checked.ok ? checked.e164 : null;
+}
 
 function siteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;

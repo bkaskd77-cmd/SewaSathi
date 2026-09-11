@@ -281,7 +281,7 @@ where profile_id = '${profileId}'
 on conflict (provider_id) do update set phone = excluded.phone;`
     : `-- 2. No usable number on this account. Put one in E.164 (+977…) here:
 -- insert into public.provider_contacts (provider_id, phone)
--- select id, '+9779800000000'
+-- select id, '+9779XXXXXXXX'
 -- from public.providers
 -- where profile_id = '${profileId}'
 -- on conflict (provider_id) do update set phone = excluded.phone;`;

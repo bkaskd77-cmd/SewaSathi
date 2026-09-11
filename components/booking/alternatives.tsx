@@ -61,7 +61,8 @@ export function Alternatives({
   options: AlternativeOption[];
   /** Back to the full directory, for somebody who wants to choose properly. */
   categoryHref: string;
-  supportPhone: string;
+  /** Null when there is no published line. */
+  supportPhone: string | null;
 }) {
   const t = useTranslations("booking.alternatives");
   const router = useRouter();
@@ -104,14 +105,16 @@ export function Alternatives({
       <section className="animate-pop-in mt-6 rounded-xl border border-border bg-muted/30 p-4">
         <h2 className="text-body-md font-semibold">{t("none.title")}</h2>
         <p className="mt-1 text-body-sm text-muted-foreground">
-          {t("none.body")}
+          {supportPhone ? t("none.body") : t("none.bodyNoPhone")}
         </p>
-        <Button className="btn-tactile btn-beacon mt-3" asChild>
-          <a href={`tel:${supportPhone}`}>
-            <Phone aria-hidden="true" />
-            {t("none.call", { phone: supportPhone })}
-          </a>
-        </Button>
+        {supportPhone ? (
+          <Button className="btn-tactile btn-beacon mt-3" asChild>
+            <a href={`tel:${supportPhone}`}>
+              <Phone aria-hidden="true" />
+              {t("none.call", { phone: supportPhone })}
+            </a>
+          </Button>
+        ) : null}
       </section>
     );
   }
@@ -212,12 +215,14 @@ export function Alternatives({
         <Button variant="ghost" size="sm" asChild>
           <Link href={categoryHref}>{t("browseAll")}</Link>
         </Button>
-        <Button variant="ghost" size="sm" asChild>
-          <a href={`tel:${supportPhone}`}>
-            <Phone aria-hidden="true" />
-            {t("callInstead")}
-          </a>
-        </Button>
+        {supportPhone ? (
+          <Button variant="ghost" size="sm" asChild>
+            <a href={`tel:${supportPhone}`}>
+              <Phone aria-hidden="true" />
+              {t("callInstead")}
+            </a>
+          </Button>
+        ) : null}
       </div>
     </section>
   );

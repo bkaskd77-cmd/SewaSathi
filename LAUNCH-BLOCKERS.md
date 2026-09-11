@@ -76,9 +76,10 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: support-phone-number
 - Status: unresolved
-- Claims: `+977 9800 000 000` is our support line. It appears on `/book`, `/bookings`, `/account`, the OTP help panel and the booking placeholder, always as "call us and we'll sort it". It is a placeholder and does not ring.
-- Lives in: `common.supportPhone` / `common.callSupport` in both catalogues, and the `tel:` hrefs in `app/[locale]/(app)/book`, `bookings`, `account`, `components/auth/verify-form.tsx`
-- Replaced by: a real number, set once in the catalogue and in the `tel:` links. Until then every "call us" path in the product is a dead end, which is worse than not offering one.
+- Claims: nothing, now. The placeholder is gone and no screen offers a call. What is still missing is the line itself, which is why this stays open — a home-services platform with no way to reach a person is a gap, it is simply no longer a lie.
+- Lives in: `NEXT_PUBLIC_SUPPORT_PHONE` (unset), read once by `lib/config/site.ts`
+- Replaced by: a real number in that one variable. Every screen that would offer a call reads it and renders the call again the moment it is set; `lib/content/pages/contact.ts` is the one place still written as prose and needs its phone section restored by hand in the same commit.
+- Fixed 2026-09-11. `+977 9800 000 000` used to appear on nine screens as "call us and we'll sort it", and on the day the SMS gateway refused every code the login fallback offered it to somebody who could not get in — a dead door and a dead escape hatch as one wall. The escape hatch is the half that reads as contempt: the product did not merely fail, it offered help that was not there. `site.supportPhone` is now `string | null`, unset is a supported state every caller handles, a malformed value becomes null rather than reaching a screen, and `npm run check:contacts` fails the build on a placeholder phone or email in user-facing copy — judged by shape (repeated digits, counting sequences, 555, reserved example domains) rather than a blocklist of the ones already found, and self-tested on every run against the exact strings that shipped.
 
 ### BLOCKER: legal-documents-unreviewed
 - Status: unresolved

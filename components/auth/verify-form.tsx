@@ -10,7 +10,7 @@ import { OtpInput } from "@/components/ui/otp-input";
 import { Link, useRouter } from "@/i18n/navigation";
 
 import { formatE164ForDisplay } from "@/lib/auth";
-import { site } from "@/lib/config/site";
+import { site, supportPhoneDisplay } from "@/lib/config/site";
 
 const RESEND_SECONDS = 60;
 
@@ -192,18 +192,24 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
           <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-caption text-muted-foreground">
             <li>{t("helpCoverage")}</li>
             <li>{t("helpDigit")}</li>
-            <li>
-              {t.rich("helpCall", {
-                phone: (chunks) => (
-                  <a
-                    href={`tel:${site.supportPhone}`}
-                    className="text-foreground underline underline-offset-2"
-                  >
-                    {chunks}
-                  </a>
-                ),
-              })}
-            </li>
+            {/* Dropped whole when there is no line to ring. The other two
+                bullets are things they can act on; this one would be an
+                instruction to call nobody. */}
+            {site.supportPhone ? (
+              <li>
+                {t.rich("helpCall", {
+                  number: supportPhoneDisplay ?? "",
+                  phone: (chunks) => (
+                    <a
+                      href={`tel:${site.supportPhone}`}
+                      className="text-foreground underline underline-offset-2"
+                    >
+                      {chunks}
+                    </a>
+                  ),
+                })}
+              </li>
+            ) : null}
           </ul>
         ) : null}
       </div>

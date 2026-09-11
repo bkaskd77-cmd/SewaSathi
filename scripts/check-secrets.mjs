@@ -45,6 +45,13 @@ const SECRET_NAMES = [
   "KHALTI_SECRET_KEY",
   "SMS_HEALTH_NUMBER",
   "SUPABASE_DB_PASSWORD",
+  // The SMS gateway credentials. A token in the client bundle is somebody
+  // else's bulk campaign under our registered sender ID, which is worse than
+  // the bill: a sender ID is an identity, and in Nepal it is one the operator
+  // approved on the strength of our company registration.
+  "SPARROW_SMS_TOKEN",
+  "AAKASH_SMS_TOKEN",
+  "SEND_SMS_HOOK_SECRET",
 ];
 
 /** Values too short or too common to search for without crying wolf. */

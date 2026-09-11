@@ -23,10 +23,21 @@ import { site } from "@/lib/config/site";
  * The number is a `tel:` link on a Server-Component-shaped button: no
  * JavaScript, nothing to load, works on the phone of somebody whose connection
  * is already failing them.
+ *
+ * AND WHEN THERE IS NO NUMBER, THERE IS NO BUTTON. This card shipped with a
+ * placeholder behind it, and on the day the gateway actually refused every
+ * code it offered a customer a line that does not ring. A dead door and a dead
+ * escape hatch read as one wall, and the escape hatch is the half that reads
+ * as contempt: the product did not merely fail, it offered help that was not
+ * there. So the card still appears — somebody stuck deserves to be told the
+ * fault is ours and that retrying is pointless — and it says only what is
+ * true.
  */
 export function SignInFallback({ show }: { show: boolean }) {
   const t = useTranslations("auth.fallback");
   if (!show) return null;
+
+  const phone = site.supportPhone;
 
   return (
     <div
@@ -34,18 +45,26 @@ export function SignInFallback({ show }: { show: boolean }) {
       className="animate-pop-in mt-4 rounded-xl border border-primary/30 bg-primary/[0.05] p-4"
     >
       <p className="text-body-sm font-semibold text-primary">{t("title")}</p>
-      <p className="mt-1 text-body-sm">{t("body")}</p>
-      <a
-        href={`tel:${site.supportPhone}`}
-        className={buttonVariants({
-          size: "lg",
-          className: "btn-tactile mt-3 w-full",
-        })}
-      >
-        <Phone aria-hidden="true" className="size-4" />
-        {t("call")}
-      </a>
-      <p className="mt-2 text-caption text-muted-foreground">{t("hours")}</p>
+      <p className="mt-1 text-body-sm">
+        {phone ? t("body") : t("bodyNoPhone")}
+      </p>
+      {phone ? (
+        <>
+          <a
+            href={`tel:${phone}`}
+            className={buttonVariants({
+              size: "lg",
+              className: "btn-tactile mt-3 w-full",
+            })}
+          >
+            <Phone aria-hidden="true" className="size-4" />
+            {t("call")}
+          </a>
+          <p className="mt-2 text-caption text-muted-foreground">
+            {t("hours")}
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }

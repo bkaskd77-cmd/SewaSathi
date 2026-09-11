@@ -30,7 +30,8 @@ import { Button } from "@/components/ui/button";
 export type ConfirmTripProps = {
   bookingId: string;
   isEmergency: boolean;
-  supportPhone: string;
+  /** Null when there is no published line. */
+  supportPhone: string | null;
   confirm: (bookingId: string) => Promise<{ ok: boolean }>;
 };
 
@@ -85,7 +86,7 @@ export function ConfirmTrip(props: ConfirmTripProps) {
       </Button>
 
       {/* An emergency gets more ways to answer, never fewer. */}
-      {props.isEmergency ? (
+      {props.isEmergency && props.supportPhone ? (
         <Button
           variant="outline"
           className="btn-tactile mt-2 h-12 w-full sm:ml-2 sm:mt-4 sm:w-auto"

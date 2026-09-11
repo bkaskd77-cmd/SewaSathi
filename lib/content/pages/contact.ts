@@ -3,7 +3,7 @@ import type { LocalisedDocument } from "@/lib/content/types";
 export const contact: LocalisedDocument = {
   en: {
     title: "Contact us",
-    lead: "A real person answers. If something has gone wrong with a booking, the phone is faster than anything else here.",
+    lead: "If something has gone wrong with a booking, start inside the booking itself — it reaches the right person with the job already attached.",
     updated: "2026-08-29",
     sections: [
       {
@@ -11,10 +11,10 @@ export const contact: LocalisedDocument = {
         heading: "By phone",
         blocks: [
           {
-            p: "+977 9800 000 000, Sunday to Friday, 7am to 8pm. Outside those hours leave a message and we call back the same morning.",
+            p: "We do not have a published phone line yet. Rather than print a number that nobody answers, we would rather say so: every way of reaching us today runs through the app.",
           },
           {
-            p: "This is also the number to use if you want to book over the phone rather than through the app — tell us what is wrong and where you are, and we will arrange it.",
+            p: "When the line opens it will be here, and it will be answered by a person during stated hours. Until then, open the booking and use the links inside it.",
           },
         ],
       },
@@ -32,7 +32,7 @@ export const contact: LocalisedDocument = {
         heading: "To complain about a job",
         blocks: [
           {
-            p: "There is a specific route for that, with the timescales written down. See the complaint page rather than the general number — it reaches the right person faster.",
+            p: "There is a specific route for that, with the timescales written down. See the complaint page — it reaches the right person faster than anything general.",
           },
         ],
       },
@@ -41,7 +41,7 @@ export const contact: LocalisedDocument = {
         heading: "Office",
         blocks: [
           {
-            p: "Kathmandu, Nepal. We do not run a walk-in counter yet; if you need to hand something over in person, call first and we will arrange a time.",
+            p: "Kathmandu, Nepal. We do not run a walk-in counter yet; if you need to hand something over in person, ask through a booking and we will arrange a time.",
           },
         ],
       },
@@ -49,7 +49,7 @@ export const contact: LocalisedDocument = {
   },
   ne: {
     title: "सम्पर्क",
-    lead: "फोन साँच्चैको मान्छेले उठाउँछ। बुकिङमा केही बिग्रियो भने यहाँका अरू सबै तरिकाभन्दा फोन छिटो हुन्छ।",
+    lead: "बुकिङमा केही बिग्रियो भने बुकिङभित्रैबाट सुरु गर्नुहोस् — काम पनि सँगै जान्छ, त्यसैले सही मान्छेसम्म छिटो पुग्छ।",
     updated: "2026-08-29",
     sections: [
       {
@@ -57,10 +57,10 @@ export const contact: LocalisedDocument = {
         heading: "फोनबाट",
         blocks: [
           {
-            p: "+977 9800 000 000, आइतबारदेखि शुक्रबार, बिहान 7 बजेदेखि बेलुका 8 बजेसम्म। त्यसबाहेकको समयमा सन्देश छोड्नुहोस्, हामी भोलिपल्ट बिहानै फोन गर्छौं।",
+            p: "हाम्रो फोन लाइन अझै सार्वजनिक भएको छैन। कसैले नउठाउने नम्बर लेख्नुभन्दा हामी सिधै भनिदिन्छौँ — अहिलेलाई सम्पर्कका सबै बाटो एपभित्रै छन्।",
           },
           {
-            p: "एपबाट होइन, फोनबाटै बुक गर्न चाहनुहुन्छ भने पनि यही नम्बर हो — के बिग्रियो र कहाँ हुनुहुन्छ भन्नुहोस्, हामी मिलाइदिन्छौं।",
+            p: "लाइन खुलेपछि नम्बर यहीँ हुनेछ, र तोकिएको समयमा मान्छेले नै उठाउनेछ। तबसम्म बुकिङ खोलेर भित्रका लिङ्क प्रयोग गर्नुहोस्।",
           },
         ],
       },

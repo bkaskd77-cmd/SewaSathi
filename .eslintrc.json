@@ -57,13 +57,19 @@
             "group": [
               "@/lib/verification/*"
             ],
-            "message": "Import from '@/lib/verification'. Match keys only work if every one of them was built the same way — a caller that reaches match-keys.ts directly is a second place that knows how, and the day the fold changes the two stop agreeing. See ARCHITECTURE.md."
+            "message": "Import from '@/lib/verification'. Match keys only work if every one of them was built the same way \u2014 a caller that reaches match-keys.ts directly is a second place that knows how, and the day the fold changes the two stop agreeing. See ARCHITECTURE.md."
           },
           {
             "group": [
               "next/link"
             ],
             "message": "Import Link from '@/i18n/navigation'. One stray next/link drops a Nepali reader back into English and nothing fails."
+          },
+          {
+            "group": [
+              "@/lib/sms/*"
+            ],
+            "message": "Import from '@/lib/sms'. Which gateway is in play is one decision made in one place \u2014 a caller that reaches sparrow.ts directly is a second, and switching provider stops being one variable. See ARCHITECTURE.md."
           }
         ],
         "paths": [

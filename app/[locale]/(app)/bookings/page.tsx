@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { site } from "@/lib/config/site";
+import { site, supportPhoneDisplay } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
@@ -158,21 +158,27 @@ export default async function BookingsPage() {
         </ul>
       )}
 
-      <p
-        className="animate-rise mt-6 text-center text-caption text-muted-foreground"
-        style={{ animationDelay: "120ms" }}
-      >
-        {t.rich("phoneNote", {
-          phone: (chunks) => (
-            <a
-              href={`tel:${site.supportPhone}`}
-              className="text-foreground underline underline-offset-2"
-            >
-              {chunks}
-            </a>
-          ),
-        })}
-      </p>
+      {/* Dropped whole rather than rewritten: "booked over the phone?" is
+          only a question worth asking when there is a phone to have booked
+          over. */}
+      {site.supportPhone ? (
+        <p
+          className="animate-rise mt-6 text-center text-caption text-muted-foreground"
+          style={{ animationDelay: "120ms" }}
+        >
+          {t.rich("phoneNote", {
+            number: supportPhoneDisplay ?? "",
+            phone: (chunks) => (
+              <a
+                href={`tel:${site.supportPhone}`}
+                className="text-foreground underline underline-offset-2"
+              >
+                {chunks}
+              </a>
+            ),
+          })}
+        </p>
+      ) : null}
     </div>
   );
 }

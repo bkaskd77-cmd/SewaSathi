@@ -214,6 +214,61 @@ Where a change on one side cannot reach the other.
   reliability record on both sides — and that does not exist until Phase 10.
   Revisit it then, as a policy decision, not a schema one; the columns are
   already there.
+- **OTP DELIVERY IS UNPROVEN END TO END, AND NOTHING IN THIS REPOSITORY CAN
+  PROVE IT.** Measured against production on 2026-09-10: Twilio answered
+  `Error sending confirmation OTP to provider: Authenticate` (error 20003).
+  The credentials are rejected, so the request never leaves Twilio's front
+  door — not a Nepal routing question, not a deliverability question, just no
+  messages at all. Phone OTP is the only way into this product, so **today the
+  Supabase test numbers are the only way anybody signs in**, and every
+  walkthrough runs on them. What would actually prove delivery, in order: a
+  contracted Nepali gateway with a registered sender ID; `SMS_GATEWAY` set to
+  `sparrow` or `aakash` with credentials, confirmed by `/api/health` reporting
+  `sms.gateway: ok`; Supabase's Send SMS Hook pointed at `/api/sms/send`; and
+  then `GET /api/health?deep=1` reporting `auth.sms: ok` **and a handset in
+  Nepal actually receiving the code on both NTC and Ncell**. The last clause is
+  the whole check — every earlier step can be green while nothing arrives,
+  which is exactly the shape of the August outage. Tracked as the
+  `sms-gateway-unverified` launch blocker.
+- **The SMS adapter is shaped for a Nepali gateway, not for Twilio.**
+  `lib/sms/` is one interface with `sparrow.ts`, `aakash.ts` and a `log`
+  default, chosen by `SMS_GATEWAY`, with the module boundary linted like
+  `lib/payments`. Every shape decision is a place a Twilio-shaped adapter
+  would have been quietly wrong: **the recipient is ten national digits, never
+  E.164** (a surviving `+977` is accepted and never delivered, silent in every
+  log we have, which is why `toGatewayNumber` is exported and tested on its
+  own); the body is form-encoded, not JSON; auth is a bare token in the body;
+  and the sender is a registered alphanumeric ID owned by the account, which
+  is why Sparrow takes a `from` and Aakash takes none — a field one
+  implementation needs does not belong in the interface.
+  **"Accepted" is never "delivered"**: both gateways answer with a queue
+  acknowledgement, so nothing in this product may report delivery from a send.
+- **Supabase keeps issuing the code; we only carry it.** No Nepali gateway is
+  among Supabase's supported providers, and the obvious answer — hand-roll our
+  own OTP — is wrong. Issuance is the part that is easy to get subtly and
+  expensively wrong (expiry, single use, attempt counting, constant-time
+  comparison, minting a session) and Supabase already does all of it.
+  **Delivery is the only Nepal-specific part**, so the seam is Supabase's Send
+  SMS Hook at `app/api/sms/send/route.ts`: Supabase calls us with a phone and a
+  code, and the registry decides which gateway carries it. The price is that
+  **the code now passes through our server**, so it is never logged, never
+  returned and never put in an error — not even by the `log` adapter, which is
+  where it is most tempting and would put one-time codes into Vercel's log for
+  everyone with log access. The hook verifies a Standard Webhooks signature in
+  constant time before doing anything, because unsigned it is a public endpoint
+  that sends SMS on demand, on our bill and under our sender ID. A failed send
+  returns non-200 **on purpose**: Supabase turns that into an error the login
+  screen already understands, and answering 200 would have the product ask for
+  a code that was never sent.
+- **THE LIKELIEST PRODUCTION FAILURE IS AN IP ALLOWLIST, AND IT IS NOT IN THE
+  CODE.** Sparrow pins an account to registered source addresses and answers
+  `1001` otherwise; Vercel's serverless egress addresses are neither fixed nor
+  published as a stable list. So the adapter can be perfectly correct and still
+  fail for a reason nothing here can see — the same class of fault as the
+  `iad1`/`ap-southeast-1` region bug and the placeholder Twilio credentials.
+  It is why `unreachable` is a distinct failure from `refused`. Ask the gateway
+  to disable IP restriction for the account, or put the send behind one fixed
+  address, **before** signing anything.
 - **A role can wait for its person.** `provisioned_accounts` maps a phone
   number to a role and an optional provider listing, and `handle_new_user`
   applies it at signup. Before it, walking the provider or admin surfaces meant
