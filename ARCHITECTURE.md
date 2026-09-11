@@ -294,9 +294,14 @@ Where a change on one side cannot reach the other.
   in the order they should be taken:
   1. **Stop asking a returning customer for a code at all.** Long refresh-token
      lifetimes mean the 2am problem only ever bites a first-time account or a
-     new device. This is worth doing whatever the gateway answers, it costs one
-     Supabase setting, and it shrinks the blast radius further than anything
-     else on this list.
+     new device. It is worth doing whatever the gateway answers, and it shrinks
+     the blast radius further than anything else on this list. **It is a
+     Supabase project setting, not code** — Auth → Sessions, where a time-box
+     or an inactivity timeout must stay off, and `@supabase/ssr`'s cookie
+     options are passed through `lib/supabase/server.ts` unchanged so nothing
+     here shortens what the project grants. The middleware matcher already
+     covers every page, so the refresh runs on every navigation; that is the
+     half that *is* ours and it is done.
   2. **Let an emergency booking be placed before verification finishes, and
      verify out of band.** Most of this exists: `/book` is deliberately public
      and the flow already survives a signed-out entry, `bookings` already
@@ -314,6 +319,21 @@ Where a change on one side cannot reach the other.
      takeover. The existing abuse ladder already caps unverified concurrent
      bookings at two, address trust already treats a brand-new address as the
      risk, and the first wasted trip is already on us.
+     **The read half of that constraint is built and enforced already, ahead of
+     the path it guards**, because the day somebody builds that path will be a
+     day sign-in is broken at 2am — the worst possible moment to be re-deriving
+     a security rule from a paragraph. `session_is_verified()` is a
+     `security definer` predicate on the SELECT policies for `bookings` and
+     `addresses`, and `tests/db/unverified-session.test.ts` proves both
+     directions against real Postgres, including by breaking it on purpose. It
+     **fails open in the one safe direction only**: false solely when there is
+     an auth user it can see and can prove is unconfirmed, so no session, an
+     invisible row and the service role all pass — a guard sitting on every
+     customer read must not be able to empty somebody's account because a
+     lookup returned nothing. It is inert today, since verifying an OTP is what
+     sets `phone_confirmed_at` and OTP is the only way an account can come to
+     exist; confirmed against production before applying, zero accounts
+     affected.
   3. **A second delivery channel that is not A2P SMS.** Viber first — it is
      widely used in Nepal, it is not SMS so it is not subject to SMS routing
      rules, and Sparrow already sells it, which makes it one vendor rather than

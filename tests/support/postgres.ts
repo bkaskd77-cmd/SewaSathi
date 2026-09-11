@@ -99,7 +99,22 @@ create schema if not exists auth;
 
 create table if not exists auth.users (
   id uuid primary key,
-  phone text
+  phone text,
+  -- Set by Supabase when an OTP is verified, which is the only thing that
+  -- distinguishes an account somebody proved they own from one that merely
+  -- names their number. Modelled rather than skipped because
+  -- \`session_is_verified()\` reads them, and a guard on every customer read is
+  -- not something to test against an approximation.
+  --
+  -- DEFAULTED, because in this product an account cannot come into existence
+  -- any other way: OTP is the only path in and verifying the code is what
+  -- confirms the phone. So a fixture that says nothing about confirmation is
+  -- describing a real account, and every existing test keeps meaning what it
+  -- meant. A test that wants the unverified case passes null explicitly, which
+  -- is also the honest signal that it is constructing something the product
+  -- cannot yet produce.
+  phone_confirmed_at timestamptz default now(),
+  email_confirmed_at timestamptz
 );
 
 -- Supabase reads the caller from the JWT. Here the test sets it directly, so
