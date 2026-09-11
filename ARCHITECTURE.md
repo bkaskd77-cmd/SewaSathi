@@ -334,13 +334,20 @@ Where a change on one side cannot reach the other.
      sets `phone_confirmed_at` and OTP is the only way an account can come to
      exist; confirmed against production before applying, zero accounts
      affected.
-  3. **A second delivery channel that is not A2P SMS.** Viber first — it is
-     widely used in Nepal, it is not SMS so it is not subject to SMS routing
-     rules, and Sparrow already sells it, which makes it one vendor rather than
-     two. Voice OTP second: a different regulatory category from SMS and the
-     classic fallback, but it costs more per attempt and reading six digits
-     aloud to somebody in a panic is a worse experience than a message they can
-     re-read.
+  3. **A second delivery channel that is not A2P SMS — and Viber is a second
+     channel, never the one we rely on at 2am.** It is widely used in Nepal,
+     it is outside SMS routing rules, and Sparrow already sells it, so it is
+     one vendor rather than two. But **it only reaches somebody who has it
+     installed, signed in and on data**, and the person this is for is
+     frightened, possibly on a dying battery, and may never have opened it. A
+     channel with a precondition cannot be the floor. It also needs **the same
+     written answers SMS does before it counts as an answer at all** —
+     template pre-approval, which message categories we are allowed to send
+     under, delivery-time targets, and cost — and none of those can be assumed
+     from the SMS contract. Voice OTP is the other candidate: a different
+     regulatory category, no install required, but it costs more per attempt
+     and reading six digits aloud to somebody in a panic is worse than a
+     message they can re-read.
   4. **Gateway failover answers "delayed", never "barred".** A second gateway
      routes around congestion at one provider. A regulatory restriction applies
      at the operator, so both gateways would hit it together. Worth stating

@@ -140,6 +140,16 @@ is for**, and its answer is wanted in writing.
 8. **What is the escalation path when delivery degrades?** Not sales — who
    answers at 2am, and how do we reach them.
 
+**If Viber comes up, it gets the same six questions, not a nod.** Sparrow sells
+it and it is outside SMS routing rules, which makes it attractive enough to be
+waved through on a call. Ask for template pre-approval rules, which message
+categories we may send under, delivery-time targets and cost, all in writing —
+none of it carries over from the SMS contract. And it is a **second channel,
+never the floor**: it only reaches somebody who has it installed, signed in and
+on data, and the person it would be reaching is frightened, possibly on a dying
+battery, and may never have opened it. A channel with a precondition cannot be
+the one we rely on at 2am.
+
 Both are asked as questions rather than assumed, because the honest state of
 our knowledge is that public documentation answers none of them.
 
