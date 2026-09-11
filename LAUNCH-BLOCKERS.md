@@ -89,10 +89,16 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ## Ask before signing an SMS contract
 
-Six questions, to both Sparrow and Aakash, before money or a signature. Each
+Eight questions, to both Sparrow and Aakash, before money or a signature. Each
 one is here because getting it wrong is expensive *after* the contract and free
-*before* it. Ask all six of both, and compare the answers rather than the
+*before* it. Ask all eight of both, and compare the answers rather than the
 brochures.
+
+**Question 2 decides the gateway.** A gateway that never asks for an IP
+allowlist is worth more than any fallback for one, so it is a selection
+criterion rather than a problem to solve afterwards — and it is only available
+before choosing. **Question 6 decides whether the product works at the hour it
+is for**, and its answer is wanted in writing.
 
 1. **Sender ID: what does approval need, and how long does it take?** Account
    signup is advertised in minutes; sender ID approval goes through NTC and
@@ -114,15 +120,24 @@ brochures.
    it POST, and how long are reports retained if we miss one? A gateway with
    no DLR means the only measurement of delivery we will ever have is
    customers failing to sign in.
-5. **Is OTP traffic routed differently from promotional?** Promotional routes
-   are throttled, queued behind campaigns, and in several markets barred
-   during night hours. **An OTP that arrives four minutes late is a failed
-   sign-in, and one barred at 2am is a customer with a flooding bathroom who
-   cannot reach us at all** — which is the exact case this product exists for.
-   Ask which route OTP rides, what the delivery-time target is on each network,
-   whether any time-of-day restriction applies, and what happens to our traffic
-   when somebody else's campaign is running.
-6. **What is the escalation path when delivery degrades?** Not sales — who
+5. **Is OTP traffic routed differently from promotional?** Ask which route OTP
+   rides, and what happens to our traffic while somebody else's campaign is
+   running. **An OTP that arrives four minutes late is a failed sign-in.**
+6. **WILL OUR CODES DELIVER AT 2AM, ON NTC AND ON NCELL? GET IT IN WRITING.**
+   This one is blocker-level rather than a detail, and it is the question where
+   the product's positioning and its only way in point in opposite directions:
+   we sell emergencies, so 2am is the moment we most need to work, and it is
+   also when promotional routes are most likely to be barred. Ask specifically
+   whether the NTA restriction reaches **transactional** OTP or only
+   promotional traffic. A verbal "should be fine" is worth nothing at 2am to
+   somebody standing in a flooding bathroom. The architecture response if the
+   answer is bad is designed in ARCHITECTURE.md rather than left to the night
+   it happens.
+7. **What is the delivery-time target under load, not under normal
+   conditions?** An average measured on a quiet afternoon will never show the
+   failure that matters. Ask for the figure during peak campaign hours, and
+   what our traffic is queued behind when it happens.
+8. **What is the escalation path when delivery degrades?** Not sales — who
    answers at 2am, and how do we reach them.
 
 Both are asked as questions rather than assumed, because the honest state of

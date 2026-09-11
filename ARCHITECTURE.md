@@ -277,6 +277,55 @@ Where a change on one side cannot reach the other.
   path, and Supabase does not retry a failed hook. The cheapest fix is still to
   pick a gateway that does not require an allowlist, which is only available
   before choosing one.
+- **OPEN DEPENDENCY: WILL A CODE DELIVER AT 2AM, ON BOTH NETWORKS?** This is
+  blocker-level, not a curiosity, and it is the one question where this
+  product's positioning and its only authentication path point in opposite
+  directions. We sell emergencies. 2am is the moment we most need to work, and
+  it is also when promotional SMS routes are most likely to be throttled or
+  barred. **The answer is needed in writing** — does the NTA restriction reach
+  transactional OTP, and will our codes deliver overnight on NTC and on Ncell —
+  because a verbal "should be fine" is worth nothing at 2am with a flooding
+  bathroom. Ask also for a **delivery-time target under load, not just under
+  normal conditions**: the minute our codes queue behind somebody's campaign is
+  the minute sign-in fails, and an average measured on a quiet afternoon will
+  never show it.
+- **AND IF THE ANSWER IS THAT OTP CAN BE DELAYED OR BARRED AT NIGHT**, the
+  response is designed now rather than discovered during a flood. Four parts,
+  in the order they should be taken:
+  1. **Stop asking a returning customer for a code at all.** Long refresh-token
+     lifetimes mean the 2am problem only ever bites a first-time account or a
+     new device. This is worth doing whatever the gateway answers, it costs one
+     Supabase setting, and it shrinks the blast radius further than anything
+     else on this list.
+  2. **Let an emergency booking be placed before verification finishes, and
+     verify out of band.** Most of this exists: `/book` is deliberately public
+     and the flow already survives a signed-out entry, `bookings` already
+     carries `confirmation_required`, `confirmation_hold_until` and
+     `confirmed_at`, and `confirmationPlan` already answers an emergency with
+     `["tap","call"]` and `callImmediately: true`. **The phone call that
+     confirms the trip is the out-of-band identity check**, so the machinery
+     built for wasted trips doubles as the answer to an undelivered code. What
+     is missing is minting an unverified account under the service role and
+     letting one booking hang off it. **The hard constraint, and it is not
+     negotiable: an unverified session may WRITE one emergency booking and READ
+     nothing.** No history, no addresses, no other booking. Otherwise "book at
+     2am without a code" becomes "read anybody's bookings by typing their
+     number", and we would have traded an availability problem for account
+     takeover. The existing abuse ladder already caps unverified concurrent
+     bookings at two, address trust already treats a brand-new address as the
+     risk, and the first wasted trip is already on us.
+  3. **A second delivery channel that is not A2P SMS.** Viber first — it is
+     widely used in Nepal, it is not SMS so it is not subject to SMS routing
+     rules, and Sparrow already sells it, which makes it one vendor rather than
+     two. Voice OTP second: a different regulatory category from SMS and the
+     classic fallback, but it costs more per attempt and reading six digits
+     aloud to somebody in a panic is a worse experience than a message they can
+     re-read.
+  4. **Gateway failover answers "delayed", never "barred".** A second gateway
+     routes around congestion at one provider. A regulatory restriction applies
+     at the operator, so both gateways would hit it together. Worth stating
+     plainly because buying a second gateway *feels* like insurance against the
+     night case and is not.
 - **A send is acceptance; only a delivery receipt is delivery.** Neither
   gateway's send response says a handset saw anything, so whether we get
   per-message DLR callbacks is a question asked before signing rather than
