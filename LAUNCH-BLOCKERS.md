@@ -87,6 +87,81 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Lives in: `lib/content/legal/*.ts`, rendered by `app/[locale]/(app)/legal/[slug]/page.tsx`
 - Replaced by: review and revision by a Nepali lawyer. The pages carry a visible draft notice until then; removing that notice is part of resolving this entry.
 
+## Ask before signing an SMS contract
+
+Six questions, to both Sparrow and Aakash, before money or a signature. Each
+one is here because getting it wrong is expensive *after* the contract and free
+*before* it. Ask all six of both, and compare the answers rather than the
+brochures.
+
+1. **Sender ID: what does approval need, and how long does it take?** Account
+   signup is advertised in minutes; sender ID approval goes through NTC and
+   Ncell and is the slow part. Ncell refuses unregistered sender IDs rather
+   than rewriting them, so until it is approved a Ncell customer receives
+   nothing. Nobody publishes this timeline, which is exactly why it is the
+   first question.
+2. **Will you disable IP restriction for a serverless caller?** See the
+   fallback below. Ask before signing, not after the first failed send.
+3. **What is the per-message rate to NTC and to Ncell at a few thousand a
+   month?** Two networks, two numbers. A single blended figure hides which one
+   is expensive.
+4. **Do we get per-message delivery receipts, or only acceptance?** Both
+   gateways answer a send with a queue acknowledgement, which says nothing
+   about whether a handset saw it. **This is the difference between knowing
+   sign-in works and assuming it does**, and assuming it did is precisely how
+   the Twilio failure ran for a day. Ask specifically: is there a DLR callback
+   on the *SMS* API — not only on the enterprise or Viber product — what does
+   it POST, and how long are reports retained if we miss one? A gateway with
+   no DLR means the only measurement of delivery we will ever have is
+   customers failing to sign in.
+5. **Is OTP traffic routed differently from promotional?** Promotional routes
+   are throttled, queued behind campaigns, and in several markets barred
+   during night hours. **An OTP that arrives four minutes late is a failed
+   sign-in, and one barred at 2am is a customer with a flooding bathroom who
+   cannot reach us at all** — which is the exact case this product exists for.
+   Ask which route OTP rides, what the delivery-time target is on each network,
+   whether any time-of-day restriction applies, and what happens to our traffic
+   when somebody else's campaign is running.
+6. **What is the escalation path when delivery degrades?** Not sales — who
+   answers at 2am, and how do we reach them.
+
+Both are asked as questions rather than assumed, because the honest state of
+our knowledge is that public documentation answers none of them.
+
+## If IP restriction cannot be disabled
+
+Decided in advance, because the alternative is deciding it during an outage on
+the only way into the product.
+
+Sparrow pins an account to registered source addresses (`response_code` 1001)
+and Vercel's egress addresses are neither fixed nor published as a stable list.
+So this is a live risk, and there are four answers in order of preference:
+
+1. **Make it a selection criterion, not a problem to solve afterwards.** A
+   gateway that does not require IP allowlisting costs nothing extra and adds
+   no moving part. Aakash's documented request carries no IP story at all. This
+   is the cheapest fix by a wide margin and it is only available *before*
+   choosing.
+2. **Vercel Static IPs — $100 a month per project**, plus private data
+   transfer. It adds no new failure mode and nothing to operate, and at a few
+   thousand messages a month it costs several times the SMS itself. Real money
+   for this stage, but it is worth remembering what it buys: the only way into
+   the product, with Vercel's reliability rather than ours.
+3. **A small fixed-IP relay, and the seam for it already exists.** The Send SMS
+   Hook is called *by Supabase*, not by our Next.js app — it is a URL in their
+   dashboard. So the hook can be hosted anywhere with a fixed address without
+   touching the app at all, and `lib/sms/` imports nothing from Next, so the
+   adapters port as they are. A €4-6 VPS does it. **The cost is not the money,
+   it is that a single unreplicated box is then on the sign-in path**, and
+   Supabase does not retry a failed hook — if the box is down, sign-in is down.
+   Acceptable while walking the product; a thing to fix before real customers.
+4. **A static-IP proxy service** (QuotaGuard and similar) sits between the two
+   on price and adds a vendor to the sign-in path. Mentioned for completeness;
+   nothing recommends it over (2) or (3) here.
+
+Not chosen now because the answer depends on question 2 above. Recorded so that
+when the answer arrives it is a decision already made rather than a scramble.
+
 ## Ask at merchant onboarding: gateway-funded cashback
 
 Not a blocker — a question that must be asked while somebody from eSewa and

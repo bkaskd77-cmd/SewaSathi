@@ -266,9 +266,27 @@ Where a change on one side cannot reach the other.
   published as a stable list. So the adapter can be perfectly correct and still
   fail for a reason nothing here can see — the same class of fault as the
   `iad1`/`ap-southeast-1` region bug and the placeholder Twilio credentials.
-  It is why `unreachable` is a distinct failure from `refused`. Ask the gateway
-  to disable IP restriction for the account, or put the send behind one fixed
-  address, **before** signing anything.
+  It is why `unreachable` is a distinct failure from `refused`. The fallback is
+  decided in advance in LAUNCH-BLOCKERS.md rather than during an outage, and it
+  rests on one property of the design worth stating here: **the Send SMS Hook
+  is called by Supabase, not by our Next.js app** — it is a URL in their
+  dashboard. So the hook can be moved to any host with a fixed address without
+  touching the application, and `lib/sms/` imports nothing from Next so the
+  adapters port unchanged. That makes a small relay a real option; its cost is
+  not the money but that an unreplicated box would then sit on the sign-in
+  path, and Supabase does not retry a failed hook. The cheapest fix is still to
+  pick a gateway that does not require an allowlist, which is only available
+  before choosing one.
+- **A send is acceptance; only a delivery receipt is delivery.** Neither
+  gateway's send response says a handset saw anything, so whether we get
+  per-message DLR callbacks is a question asked before signing rather than
+  discovered afterwards. Without them the only measurement of delivery this
+  product will ever have is customers failing to sign in — which is how the
+  Twilio failure ran for a day. Equally, **OTP must not ride a promotional
+  route**: those are throttled, queued behind campaigns and in some markets
+  barred at night, and a code four minutes late is a failed sign-in while one
+  barred at 2am is a flooding bathroom nobody can report. Both are in the
+  pre-contract question list.
 - **A role can wait for its person.** `provisioned_accounts` maps a phone
   number to a role and an optional provider listing, and `handle_new_user`
   applies it at signup. Before it, walking the provider or admin surfaces meant
