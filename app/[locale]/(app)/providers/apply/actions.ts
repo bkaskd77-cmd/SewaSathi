@@ -35,6 +35,26 @@ export type ApplyResult =
   | { ok: true; step?: number }
   | { ok: false; error: string };
 
+/**
+ * Each upload rejection, said in a way somebody can act on.
+ *
+ * The split that matters is "the photograph" versus "us": a person whose
+ * picture is too big can retake it and succeed, and telling them to "try
+ * again" wastes their data doing the same thing. A person who hit a storage
+ * failure cannot fix it however many times they try.
+ */
+const UPLOAD_ERRORS: Record<string, string> = {
+  consentFirst: "consentFirst",
+  notYours: "notYours",
+  locked: "locked",
+  tooLarge: "photoTooLarge",
+  notAnImage: "photoNotAnImage",
+  unsupportedFormat: "photoWrongFormat",
+  tooManyPixels: "photoTooLarge",
+  corrupt: "photoCorrupt",
+  uploadFailed: "generic",
+};
+
 async function actor(): Promise<string | null> {
   const profile = await getSessionProfile();
   return profile?.id ?? null;
@@ -209,12 +229,24 @@ export async function uploadDocumentAction(input: {
 
   const result = await uploadProviderDocument({ ...input, actorId });
   if (!result.ok) {
-    return {
-      ok: false,
-      // `consentFirst` is its own message: it is the one refusal that is our
-      // fault rather than the photograph's, and it needs a different answer.
-      error: result.reason === "consentFirst" ? "consentFirst" : "generic",
-    };
+    /*
+     * THE REASON IS PASSED THROUGH, NOT FLATTENED TO "generic".
+     *
+     * Eight distinct rejections all rendered as "That did not save. Try
+     * again." — a sentence that is true of every one of them and useful for
+     * none. An applicant whose photograph was simply too big was told the same
+     * thing as one hitting a bug, and both were told to do the one thing that
+     * could not help: try again.
+     *
+     * It also cost real debugging time on the outage that prompted this: the
+     * screen could not say whether the file was rejected, the storage write
+     * failed, or the row insert did, so the answer had to come from reading
+     * the database instead.
+     *
+     * Anything not in the catalogue still falls back to `generic`, because an
+     * untranslated key renders as its own dotted path.
+     */
+    return { ok: false, error: UPLOAD_ERRORS[result.reason] ?? "generic" };
   }
 
   refresh();

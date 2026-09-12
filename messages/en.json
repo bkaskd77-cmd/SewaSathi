@@ -977,7 +977,11 @@
         "consentFirst": "Please agree to the notice before uploading anything.",
         "tooManyRequests": "Too many attempts. Wait a minute and try again.",
         "pickATrade": "Choose at least one kind of work before you continue.",
-        "pickAnArea": "Choose at least one area you can work in."
+        "pickAnArea": "Choose at least one area you can work in.",
+        "photoTooLarge": "That photograph is too big to send. Take it again a little further back.",
+        "photoNotAnImage": "We could not read that file. Photograph the paper with your camera rather than sending a screenshot.",
+        "photoWrongFormat": "That kind of picture will not work here. Use your camera and send the photograph it takes.",
+        "photoCorrupt": "That photograph did not come through whole. Take it again."
       }
     },
     "successContinue": "Continue",

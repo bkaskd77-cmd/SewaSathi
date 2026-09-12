@@ -163,7 +163,30 @@ function readJpeg(
  * Pure and synchronous, so every rejection above has a test rather than a
  * comment.
  */
-export function checkUploadedImage(base64: string): ImageCheck {
+export function checkUploadedImage(input: string): ImageCheck {
+  /*
+   * THE `data:image/jpeg;base64,` PREFIX HAS TO COME OFF FIRST, AND FOR A
+   * LONG TIME IT DID NOT.
+   *
+   * Every document upload in the application form was rejected as "not an
+   * image". `Buffer.from(x, "base64")` does not fail on a data URL — it
+   * silently ignores the characters outside the base64 alphabet and decodes
+   * the rest, and most of that prefix (`data`, `image`, `jpeg`, `base`, `64`,
+   * the slash) *is* in the alphabet. So it decoded to fifteen bytes of junk
+   * ahead of the real file, the magic-byte check looked at those, and the
+   * answer was a confident no.
+   *
+   * The two callers disagreed and nothing made them agree: the hero strips the
+   * prefix before sending, the capture component sends the whole data URL, and
+   * this function's own doc comment promised to accept either. A validator
+   * that is the single place two producers meet has to honour the looser
+   * contract, so it does that here rather than asking both callers to
+   * remember.
+   *
+   * Whitespace goes too — base64 in a textarea or an email arrives wrapped.
+   */
+  const base64 = input.replace(/^data:[^;,]*(;[^,]*)?,/, "").replace(/\s+/g, "");
+
   if (base64.length > MAX_BASE64_LENGTH) return { ok: false, reason: "tooLarge" };
 
   let bytes: Uint8Array;

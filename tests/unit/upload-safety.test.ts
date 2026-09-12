@@ -151,3 +151,67 @@ describe("the location of somebody's kitchen does not get stored", () => {
     );
   });
 });
+
+describe("the data URL prefix", () => {
+  /**
+   * THE BUG THIS SUITE MISSED, AND THE REASON IT MISSED IT.
+   *
+   * Every document upload in the application form was rejected as "not an
+   * image". `Buffer.from(x, "base64")` does not throw on a data URL — it drops
+   * the characters outside the base64 alphabet and decodes the rest, and most
+   * of `data:image/jpeg;base64,` is inside that alphabet. The result was
+   * fifteen bytes of junk ahead of the real file, so the magic-byte check read
+   * those and said no.
+   *
+   * Every test here fed it bare base64, because that is what the hero sends.
+   * The capture component sends the whole data URL, and the function's own
+   * documentation promised to take either. Two producers, one validator, and a
+   * contract only one of them kept.
+   */
+  it("accepts the same photograph with or without the prefix", () => {
+    const bare = jpeg();
+    const asDataUrl = `data:image/jpeg;base64,${bare}`;
+
+    const plain = checkUploadedImage(bare);
+    const prefixed = checkUploadedImage(asDataUrl);
+
+    expect(plain.ok).toBe(true);
+    expect(prefixed.ok).toBe(true);
+    // Not merely both accepted — byte-identical, or the prefix is still
+    // leaking into what gets stored.
+    if (plain.ok && prefixed.ok) {
+      expect(Buffer.from(prefixed.bytes)).toEqual(Buffer.from(plain.bytes));
+      expect(prefixed.width).toBe(plain.width);
+    }
+  });
+
+  it("decodes the prefix to junk if it is left on, which is why it comes off", () => {
+    // The mechanism, pinned. If this ever stops being true the strip is
+    // unnecessary; while it is true, the strip is load-bearing.
+    const junk = Buffer.from("data:image/jpeg;base64,", "base64");
+    expect(junk.length).toBeGreaterThan(0);
+  });
+
+  it("tolerates the prefix variants a browser can produce", () => {
+    for (const prefix of [
+      "data:image/jpeg;base64,",
+      "data:image/jpg;base64,",
+      "data:;base64,",
+    ]) {
+      expect(checkUploadedImage(`${prefix}${jpeg()}`).ok).toBe(true);
+    }
+  });
+
+  it("strips whitespace, because wrapped base64 is still base64", () => {
+    const wrapped = jpeg().replace(/(.{40})/g, "$1\n");
+    expect(checkUploadedImage(wrapped).ok).toBe(true);
+  });
+
+  it("still refuses a PNG sent as a data URL", () => {
+    // The strip must not become a way past the format check.
+    const png = asBase64([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const result = checkUploadedImage(`data:image/png;base64,${png}`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("unsupportedFormat");
+  });
+});
