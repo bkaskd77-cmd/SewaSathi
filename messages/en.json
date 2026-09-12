@@ -378,7 +378,19 @@
       "emptyBody": "Once you book a professional, the job shows up here with its time, status and agreed price — and you can call them from it.",
       "browse": "Browse services",
       "phoneNote": "Booked over the phone? Call <phone>{number}</phone> and we’ll add it to your account.",
-      "bookAnother": "Book another service"
+      "bookAnother": "Book another service",
+      "needsYou": "Needs you",
+      "happeningNow": "Happening now",
+      "earlier": "Earlier",
+      "asSoonAsPossible": "As soon as possible",
+      "summary": "{n} jobs done · {amount} paid",
+      "needs": {
+        "confirmTrip": "Confirm this before anyone sets off",
+        "approveAmount": "A price is waiting for your approval",
+        "resolveMismatch": "The two amounts do not match — we are looking at it",
+        "pay": "This job is finished and not paid for",
+        "rebook": "Nobody was free. Book this again"
+      }
     },
     "account": {
       "title": "Account",

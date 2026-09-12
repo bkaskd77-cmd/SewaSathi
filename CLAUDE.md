@@ -945,13 +945,23 @@ fills the first, Phase 10 makes the second editable — but they exist now
 because the account menu links to them and a 404 from your own menu reads as
 a broken product.
 
-**`/bookings` is a list, and it needs to become a dashboard.** A full redesign
-is owed — the customer's home inside the product, not a stack of identical
-cards. Until then it carries the one thing it was missing: a visible way to
-book again. Somebody looking at their bookings is the most likely person on
-the platform to book a second time, and the only route was the logo, the
-homepage and a scroll. The button goes to `/services`, the same destination as
-the empty state, so the two can never disagree.
+**`/bookings` answers two questions before it lists anything**: is anything
+happening, and does anything need me. It was a stack of identical cards
+newest-first, which answered neither — a professional on the way sat between
+two jobs finished in June, and a booking silently held at its trip
+confirmation looked exactly like one that was proceeding. Three tiers now:
+**Needs you**, then **Happening now** at full weight with the name of the
+person coming, then **Earlier**, quiet and small. `attentionFor` in
+`lib/booking/attention.ts` is the rule and it is pure, so what counts as
+needing the customer is tested and can drive a notification later without
+being written twice. It returns **one** thing per booking — a card with two
+calls to action has none — and `resolveMismatch` outranks `pay` because
+nothing settles while the figures disagree. The page still ships **no client
+JavaScript**: it is all links, so it is correct on a connection that never
+finishes loading a bundle, which is the state somebody is in when they are
+checking whether anybody is coming. The "book again" button stays in the
+header and goes to `/services`, the same destination as the empty state, so
+the two can never disagree.
 
 `components/shared/empty-state.tsx` is the shape: quiet, no warning colour, and
 always an action. A screen that says "nothing here" and offers no way forward

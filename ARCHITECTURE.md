@@ -121,6 +121,10 @@ Where a change on one side cannot reach the other.
   and the card. Everything behind it can be rebuilt as long as that shape and
   the ten category slugs hold.
 - **`lib/data/` is the only thing that talks to Supabase.** Pages never do.
+- **What a booking needs from its customer is one pure function.**
+  `attentionFor` decides it, returns at most one thing per booking, and is the
+  only place that ranking lives — so `/bookings`, and any later badge or
+  notification, cannot disagree about whether somebody is being waited on.
 - **The customer's product and the professional's product are two route groups,
   not two sets of cards.** `app/[locale]/(app)/` carries the marketing header
   and the full footer, because a customer who signs in is still shopping.

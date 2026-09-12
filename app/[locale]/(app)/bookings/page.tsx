@@ -1,18 +1,26 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { CalendarDays, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 
-import { StatusBadge } from "@/components/booking/status-badge";
+import { BookingRow } from "@/components/booking/booking-row";
+import { NeedsYou, type NeedsYouItem } from "@/components/booking/needs-you";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import {
+  attentionFor,
+  formatSlotInstant,
+  isLiveBooking,
+  summarise,
+} from "@/lib/booking";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
 import { unreadByBooking } from "@/lib/data/notifications";
+import { getProvider } from "@/lib/data/providers";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -31,10 +39,29 @@ export async function generateMetadata({
 export const dynamic = "force-dynamic";
 
 /**
- * Everything this customer has booked.
+ * The customer's home inside the product.
  *
- * The empty state stays, because a new customer always lands on it first — it
- * is the common case on day one, not an error path.
+ * IT WAS A LIST AND IT NEEDED TO BE A DASHBOARD. Every booking was the same
+ * card in the same colour, newest first — so a professional on the way sat
+ * between two jobs finished in June, and a booking silently waiting on a trip
+ * confirmation looked exactly like one that was proceeding. The page answered
+ * "what have I booked". Nobody opens it to ask that. They open it to ask **is
+ * anything happening, and does anything need me**, and those are the two
+ * things it now answers before it lists anything.
+ *
+ * THREE TIERS, in the order somebody reads them:
+ *
+ *   1. **Needs you** — the actions the customer is blocking. `attentionFor` is
+ *      the rule and it is pure, so what counts as needing them is testable and
+ *      can later drive a notification without being reimplemented.
+ *   2. **Happening now** — live jobs, at full weight, carrying the name of the
+ *      person who is coming and when.
+ *   3. **Earlier** — finished and cancelled, quiet and small.
+ *
+ * STILL NO CLIENT JAVASCRIPT. The whole page is links, which is why it renders
+ * correctly on a connection that never finishes loading a bundle — the state
+ * somebody is most likely to be in when they are checking whether anybody is
+ * coming.
  */
 export default async function BookingsPage() {
   const locale = (await getLocale()) as Locale;
@@ -59,19 +86,65 @@ export default async function BookingsPage() {
     return category ? categoryCopy(category, locale).name : slug;
   };
 
-  const firstName = profile.fullName?.trim().split(/\s+/)[0];
+  const live = bookings.filter((b) => isLiveBooking(b.status));
+  const past = bookings.filter((b) => !isLiveBooking(b.status));
+
+  /*
+   * WHO IS COMING. Only for live bookings, and only for the ones somebody has
+   * accepted — which is a handful of rows at most, so the names are fetched in
+   * one wave rather than one at a time. "Krishna is on the way" is a different
+   * sentence from "On the way": the first says a person exists.
+   */
+  const providerNames = new Map<string, string>();
+  await Promise.all(
+    live
+      .filter((booking) => booking.providerId)
+      .map(async (booking) => {
+        const provider = await getProvider(booking.providerId!);
+        if (provider) providerNames.set(booking.id, provider.displayName);
+      }),
+  );
+
+  const needsYou: NeedsYouItem[] = [];
+  for (const booking of bookings) {
+    const kind = attentionFor(booking);
+    if (!kind) continue;
+    needsYou.push({
+      bookingId: booking.id,
+      label: t(`needs.${kind}`),
+      context: `${categoryName(booking.categorySlug)} · ${booking.reference}`,
+      // Nothing is moving until they answer, and they cannot tell.
+      blocking: kind === "confirmTrip" || kind === "approveAmount",
+    });
+  }
+
+  const totals = summarise(bookings);
+  const firstName = profile!.fullName?.trim().split(/\s+/)[0];
+
+  /** The unread marker, already turned into a sentence. */
+  const noteFor = (bookingId: string) => {
+    const event = unread.get(bookingId);
+    if (!event) return null;
+    // The kind is "booking.declined"; next-intl reads a dot as nesting, so the
+    // catalogue key drops the prefix. Passing the raw kind printed
+    // `booking.notifications.booking.declined` onto the page.
+    return tNote(`notifications.${event.kind.replace("booking.", "")}`);
+  };
+
+  const amountLabel = (booking: (typeof bookings)[number]) =>
+    booking.finalAmount !== null
+      ? formatNpr(booking.finalAmount, { locale })
+      : `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
       {/* THE WAY OUT OF THIS PAGE IS FORWARDS.
           Somebody looking at their bookings is a customer who already trusts
           us enough to have used the product — the single most likely person to
-          book again — and until now the only route to a second booking was the
-          logo, back to the homepage, then down to the services grid. Three
-          taps and a scroll to reach the thing we most want them to do. It sits
-          in the header rather than at the bottom of the list, because a
-          customer with fifteen bookings should not have to scroll past all of
-          them to find it. */}
+          book again — and the only route to a second booking used to be the
+          logo, the homepage, then a scroll. It sits in the header rather than
+          at the bottom, because a customer with fifteen bookings should not
+          have to scroll past all of them to find it. */}
       <header className="animate-rise flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-display text-display-md">{t("title")}</h1>
@@ -107,55 +180,84 @@ export default async function BookingsPage() {
           />
         </div>
       ) : (
-        <ul className="assemble mt-8 flex flex-col gap-3">
-          {bookings.map((booking, i) => (
-            <li key={booking.id} style={{ ["--i" as string]: i }}>
-              <Link
-                href={`/bookings/${booking.id}`}
-                className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        <>
+          <NeedsYou heading={t("needsYou")} items={needsYou} />
+
+          {live.length > 0 ? (
+            <section className="mt-8" aria-labelledby="live-bookings">
+              <h2
+                id="live-bookings"
+                className="animate-rise text-body-sm font-semibold uppercase tracking-wide text-muted-foreground"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-body-md font-semibold">
-                      {categoryName(booking.categorySlug)}
-                    </span>
-                    <StatusBadge status={booking.status} />
-                    {/* Something happened here since this person last looked.
-                        The live page only helps someone who is looking at it;
-                        this is for everyone who closed the tab. */}
-                    {unread.has(booking.id) ? (
-                      <span className="animate-pop-in inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary">
-                        <span
-                          aria-hidden="true"
-                          className="size-1.5 rounded-full bg-primary"
-                        />
-                        {/* The kind is "booking.declined"; next-intl reads a dot as nesting,
-                            so the catalogue key drops the prefix. Passing the raw kind
-                            printed `booking.notifications.booking.declined` on the page. */}
-                        {tNote(
-                          `notifications.${unread.get(booking.id)!.kind.replace("booking.", "")}`,
-                        )}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 truncate text-body-sm text-muted-foreground">
-                    {booking.description}
+                {t("happeningNow")}
+              </h2>
+              <ul className="assemble mt-3 flex flex-col gap-3">
+                {live.map((booking, i) => (
+                  <BookingRow
+                    key={booking.id}
+                    index={i}
+                    tone="live"
+                    href={`/bookings/${booking.id}`}
+                    categoryName={categoryName(booking.categorySlug)}
+                    status={booking.status}
+                    description={booking.description}
+                    reference={booking.reference}
+                    amountLabel={amountLabel(booking)}
+                    providerName={providerNames.get(booking.id) ?? null}
+                    whenLabel={
+                      booking.scheduledFor
+                        ? formatSlotInstant(booking.scheduledFor)
+                        : t("asSoonAsPossible")
+                    }
+                    note={noteFor(booking.id)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {past.length > 0 ? (
+            <section className="mt-8" aria-labelledby="past-bookings">
+              <div className="animate-rise flex flex-wrap items-baseline justify-between gap-2">
+                <h2
+                  id="past-bookings"
+                  className="text-body-sm font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  {t("earlier")}
+                </h2>
+                {/* THEIR OWN NUMBERS, AND ONLY THE ONES WE CAN STAND BEHIND.
+                    `summarise` sums what was actually paid, so a quoted range
+                    and an unpaid job both contribute nothing — a total a
+                    customer can disprove with their own wallet is worse than
+                    no total. */}
+                {totals.done > 0 ? (
+                  <p className="text-caption tabular-nums text-muted-foreground">
+                    {t("summary", {
+                      n: String(totals.done),
+                      amount: formatNpr(totals.spent, { locale }),
+                    })}
                   </p>
-                  <p className="mt-1 text-caption tabular-nums text-muted-foreground">
-                    {booking.reference} ·{" "}
-                    {booking.finalAmount !== null
-                      ? formatNpr(booking.finalAmount, { locale })
-                      : `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`}
-                  </p>
-                </div>
-                <ChevronRight
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground"
-                />
-              </Link>
-            </li>
-          ))}
-        </ul>
+                ) : null}
+              </div>
+              <ul className="assemble mt-3 flex flex-col gap-2">
+                {past.map((booking, i) => (
+                  <BookingRow
+                    key={booking.id}
+                    index={i}
+                    tone="past"
+                    href={`/bookings/${booking.id}`}
+                    categoryName={categoryName(booking.categorySlug)}
+                    status={booking.status}
+                    description={booking.description}
+                    reference={booking.reference}
+                    amountLabel={amountLabel(booking)}
+                    note={noteFor(booking.id)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
       )}
 
       {/* Dropped whole rather than rewritten: "booked over the phone?" is
@@ -163,7 +265,7 @@ export default async function BookingsPage() {
           over. */}
       {site.supportPhone ? (
         <p
-          className="animate-rise mt-6 text-center text-caption text-muted-foreground"
+          className="animate-rise mt-8 text-center text-caption text-muted-foreground"
           style={{ animationDelay: "120ms" }}
         >
           {t.rich("phoneNote", {
