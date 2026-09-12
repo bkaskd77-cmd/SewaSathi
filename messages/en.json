@@ -1156,6 +1156,7 @@
       "paid": "Paid {amount}",
       "absorbed": "First one — we absorb it",
       "recovered": "Added to their next bill"
-    }
+    },
+    "openFailed": "Could not open that. Try once more."
   }
 }

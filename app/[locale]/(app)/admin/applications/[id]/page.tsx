@@ -11,7 +11,7 @@ import { getSessionProfile } from "@/lib/auth/session";
 import { areaShortLabel } from "@/lib/config/areas";
 import { applicationForReview } from "@/lib/data/review";
 
-import { decideAction } from "./actions";
+import { decideAction, openDocumentAction } from "./actions";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -209,10 +209,11 @@ export default async function ApplicationReviewPage({
               label: tApply(
                 `documents.${document.kind}` as "documents.citizenship",
               ),
-              url: document.url,
+              hasFile: document.hasFile,
             }))}
             duplicateCount={application.duplicates.length}
             decideAction={decideAction}
+            openDocumentAction={openDocumentAction}
           />
         </NextIntlClientProvider>
       ) : (

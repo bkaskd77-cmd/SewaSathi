@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getSessionProfile } from "@/lib/auth/session";
+import { signDocumentForReview } from "@/lib/data/provider-documents";
 import { decideApplication } from "@/lib/data/review";
 
 /**
@@ -46,4 +47,31 @@ export async function decideAction(
   }
 
   return result;
+}
+
+/**
+ * A signed URL for one document, minted at the moment it is asked for.
+ *
+ * SEPARATE FROM THE PAGE ON PURPOSE. These URLs live two minutes, which is
+ * right for a link that is used immediately and useless for one handed out
+ * when a page rendered — a reviewer reading the evidence carefully clicked
+ * one several minutes later and got an expired-token error.
+ *
+ * It also puts the audit log back in step with reality. Signing writes an
+ * access record, so signing everything at render meant the log claimed the
+ * admin had viewed every identity document in the queue, including the ones
+ * they never opened. A log that records looks nobody took is worse than no log
+ * at all on the one screen where it matters most.
+ *
+ * The admin check is here rather than only on the page, for the reason at the
+ * top of this file: a server action is a public POST endpoint.
+ */
+export async function openDocumentAction(
+  documentId: string,
+): Promise<{ ok: true; url: string } | { ok: false }> {
+  const profile = await getSessionProfile();
+  if (!profile || profile.role !== "admin") return { ok: false };
+
+  const url = await signDocumentForReview({ documentId, adminId: profile.id });
+  return url ? { ok: true, url } : { ok: false };
 }

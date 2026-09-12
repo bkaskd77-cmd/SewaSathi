@@ -519,7 +519,25 @@ function ReferencesStep(props: ApplyFlowProps & { onDone: () => void }) {
         </ul>
       ) : null}
 
-      <form action={action} className="space-y-3 rounded-lg border border-border p-4">
+      {/*
+        KEYED ON THE NUMBER OF REFERENCES, WHICH IS HOW IT CLEARS.
+
+        Adding somebody left their name and number sitting in the boxes: the
+        form is in the layout of a step that re-renders, not one that
+        remounts, so React kept the DOM — and the typed values with it. The
+        list above grew, the fields did not empty, and the obvious next move
+        was to press add again, which filed the same person a second time.
+
+        Changing the key remounts the form, which is the one thing that
+        reliably empties an uncontrolled field. It only changes when a
+        reference was actually added, so a failed submission keeps what was
+        typed rather than throwing it away.
+      */}
+      <form
+        key={props.references.length}
+        action={action}
+        className="space-y-3 rounded-lg border border-border p-4"
+      >
         <input type="hidden" name="applicationId" value={props.draft.id} />
         <Field label={t("references.name")} name="name" required />
         <Field label={t("references.phone")} name="phone" type="tel" required />

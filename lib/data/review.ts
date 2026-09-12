@@ -8,7 +8,6 @@ import {
 } from "@/lib/abuse";
 import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
-import { signDocumentForReview } from "@/lib/data/provider-documents";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -35,8 +34,14 @@ export type ReviewDocument = {
   id: string;
   kind: string;
   required: boolean;
-  /** Null when nothing of this kind has arrived. */
-  url: string | null;
+  /**
+   * Whether a file exists. NOT a URL — that is minted on demand.
+   *
+   * A signed URL handed out at render is a link that has already started
+   * expiring and an audit entry for a look nobody took. See the note beside
+   * the query below.
+   */
+  hasFile: boolean;
   captureQuality: number | null;
   expiresOn: string | null;
 };
@@ -149,7 +154,7 @@ export async function applicationForReview(input: {
         id: `missing-${requirement.kind}`,
         kind: requirement.kind,
         required: requirement.required,
-        url: null,
+        hasFile: false,
         captureQuality: null,
         expiresOn: null,
       });
@@ -159,10 +164,28 @@ export async function applicationForReview(input: {
       id: row.id as string,
       kind: requirement.kind,
       required: requirement.required,
-      url: await signDocumentForReview({
-        documentId: row.id as string,
-        adminId: input.adminId,
-      }),
+      /*
+       * NOT SIGNED HERE, AND THAT IS A CORRECTNESS FIX AS WELL AS A BUG FIX.
+       *
+       * Minting a URL for every document when the page renders did two wrong
+       * things. The links died: a signed URL lives two minutes, and a reviewer
+       * reading the evidence properly — which is the entire point of this
+       * screen — clicked one several minutes later and got an expired-token
+       * error instead of a photograph.
+       *
+       * Worse, `signDocumentForReview` writes the access to the audit log. So
+       * simply opening the queue recorded the admin as having viewed every
+       * identity document on it, including the ones they never opened. That
+       * makes the log useless exactly where it matters most, and it quietly
+       * undercut the opened-documents gate and the time-on-evidence measure,
+       * both of which exist to make real looking distinguishable from
+       * clicking approve.
+       *
+       * The URL is now minted when the reviewer actually asks for it, so the
+       * link is seconds old when it is used and the log records an opening
+       * that happened.
+       */
+      hasFile: true,
       captureQuality: (row.capture_quality as number | null) ?? null,
       expiresOn: (row.expires_on as string | null) ?? null,
     });

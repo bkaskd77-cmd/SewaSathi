@@ -10,6 +10,7 @@ import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Link, usePathname } from "@/i18n/navigation";
+import { useBeforePaint } from "@/lib/hooks/use-before-paint";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,6 +77,34 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
   const signedIn = accountName !== null && accountName !== undefined;
   const [condensed, setCondensed] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const pathname = usePathname();
+
+  /*
+   * WHY THE HEADER USED TO BLINK ON A NAVIGATION.
+   *
+   * The header lives in the layout, so it survives a route change while its
+   * `condensed` state does not get a chance to be right: you navigate away
+   * while scrolled down (condensed, with a background), the new page paints
+   * with that background still applied, and only afterwards does the scroll
+   * reset to the top and flip it back to transparent — animated over 200ms,
+   * because the transition that makes scrolling feel smooth also animates this
+   * correction. The result is a visible flash of the bar appearing and
+   * vanishing on a page you have only just opened.
+   *
+   * So the state is snapped to the real scroll position BEFORE the browser
+   * paints — a layout effect, not an ordinary one — and the transition is
+   * suppressed for that one frame. Scrolling still animates; being corrected
+   * after a navigation does not, because that is not a change the reader did
+   * and animating it only draws the eye to a mistake.
+   */
+  const [transitions, setTransitions] = React.useState(false);
+
+  useBeforePaint(() => {
+    setTransitions(false);
+    setCondensed(window.scrollY > 16);
+    const frame = requestAnimationFrame(() => setTransitions(true));
+    return () => cancelAnimationFrame(frame);
+  }, [pathname]);
 
   React.useEffect(() => {
     // rAF-throttled so scrolling stays cheap on the low-end Androids that
@@ -89,7 +118,6 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
         ticking = false;
       });
     };
-    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -97,7 +125,9 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 w-full transition-[background-color,box-shadow,border-color] duration-200",
+        "sticky top-0 z-40 w-full",
+        transitions &&
+          "transition-[background-color,box-shadow,border-color] duration-200",
         condensed
           ? "border-b border-border bg-background/85 shadow-sm backdrop-blur-md"
           : "border-b border-transparent bg-transparent",

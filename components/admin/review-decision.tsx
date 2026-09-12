@@ -45,8 +45,13 @@ export type ReviewDecisionProps = {
     id: string;
     kind: string;
     label: string;
-    url: string | null;
+    /** Whether a file exists. The URL is fetched when it is opened. */
+    hasFile: boolean;
   }>;
+  /** Mints a short-lived signed URL, and records the look in the audit log. */
+  openDocumentAction: (
+    documentId: string,
+  ) => Promise<{ ok: true; url: string } | { ok: false }>;
   /** Duplicate hits the reviewer must have scrolled past. */
   duplicateCount: number;
   decideAction: (
@@ -84,9 +89,37 @@ export function ReviewDecision(props: ReviewDecisionProps) {
    */
   const secondsOnEvidence = useSecondsOnEvidence();
 
-  const openable = props.documents.filter((document) => document.url);
+  const openable = props.documents.filter((document) => document.hasFile);
   const [opened, setOpened] = React.useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = React.useState(false);
+  const [failed, setFailed] = React.useState<Set<string>>(new Set());
+
+  /*
+   * THE TAB IS OPENED SYNCHRONOUSLY, THEN POINTED AT THE URL.
+   *
+   * The URL is now fetched when the reviewer asks for it, which takes a round
+   * trip — and a browser blocks `window.open` that happens after an await,
+   * because by then it is no longer attributable to the click. So the blank
+   * tab is claimed inside the handler and its location is set once the signed
+   * URL arrives.
+   */
+  const open = React.useCallback(
+    (documentId: string) => {
+      const tab = window.open("", "_blank", "noopener,noreferrer");
+      void (async () => {
+        const result = await props.openDocumentAction(documentId);
+        if (result.ok) {
+          setOpened((previous) => new Set(previous).add(documentId));
+          if (tab) tab.location.href = result.url;
+          else window.location.href = result.url;
+          return;
+        }
+        tab?.close();
+        setFailed((previous) => new Set(previous).add(documentId));
+      })();
+    },
+    [props],
+  );
 
   const allOpened = openable.every((document) => opened.has(document.id));
 
@@ -99,24 +132,22 @@ export function ReviewDecision(props: ReviewDecisionProps) {
         {props.documents.map((document) => (
           <li key={document.id} className="flex items-center justify-between gap-3">
             <span className="text-body-sm">{document.label}</span>
-            {document.url ? (
-              <a
-                href={document.url}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  setOpened((previous) => new Set(previous).add(document.id))
-                }
+            {document.hasFile ? (
+              <button
+                type="button"
+                onClick={() => open(document.id)}
                 className={cn(
                   "inline-flex items-center gap-1.5 text-body-sm underline underline-offset-2 transition-colors",
-                  opened.has(document.id)
-                    ? "text-muted-foreground"
-                    : "text-primary",
+                  failed.has(document.id)
+                    ? "text-destructive"
+                    : opened.has(document.id)
+                      ? "text-muted-foreground"
+                      : "text-primary",
                 )}
               >
-                {t("openDocument")}
+                {failed.has(document.id) ? t("openFailed") : t("openDocument")}
                 <ExternalLink aria-hidden="true" className="size-3.5" />
-              </a>
+              </button>
             ) : (
               <span className="text-body-sm text-warning-ink">
                 {t("documentMissing")}
