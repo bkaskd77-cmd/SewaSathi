@@ -36,18 +36,18 @@ export const PROTECTED_ROUTES = [
   /*
    * Phase 8's job screen. Signed-in, but deliberately NOT a PROVIDER_ROUTE.
    *
-   * That guard reads `user_metadata.role`, which nothing in this product ever
-   * writes — the role lives on `profiles`. So every provider route is shut to
-   * everybody, which is correct for the unbuilt dashboard and was a dead end
-   * here: the page exists precisely to tell a professional how to link their
-   * account, and it was redirecting them home before it could say so.
+   * That guard now reads `profiles.role` (it used to read the token's
+   * `user_metadata`, which its owner can write). This page is still kept out
+   * of it on purpose: it exists precisely to tell a professional how to link
+   * their account, and somebody who has applied but not yet been approved is
+   * still a `customer` — gating it on role would redirect them home before it
+   * could say so, which is the dead end it was built to remove.
    *
    * Route-level gating is not the boundary anyway. `getMyProvider` returns
    * null for anyone without a linked listing, `listProviderJobs` returns
    * nothing, and the RLS policy on `bookings` limits a professional to their
    * own work. Someone signed in who reaches this page sees an empty shell and
-   * their own profile id. Phase 10 tightens it against `profiles.role` once
-   * provider onboarding exists to set one.
+   * their own profile id.
    *
    * Singular `/provider`, not `/providers`: the plural is the public
    * directory, and a bare prefix match would have swallowed it.
@@ -111,6 +111,27 @@ export function isProtectedRoute(pathname: string): boolean {
 
 export function isProviderRoute(pathname: string): boolean {
   return matches(pathname, PROVIDER_ROUTES);
+}
+
+/**
+ * Does this role open the provider routes?
+ *
+ * Its own function, beside the route lists, because it is the decision the
+ * middleware actually makes and a middleware is awkward to test. The role must
+ * come from `profiles` — **never from the token's `user_metadata`**, which its
+ * own owner can write with `supabase.auth.updateUser({ data: ... })` from any
+ * signed-in browser. That is what this used to read, which made the guard ask
+ * the person being guarded what they were allowed to do.
+ *
+ * Null is "not a provider": no profile, no session, or a read that failed all
+ * mean the same thing to a guard, and the safe answer to an unanswerable
+ * question is no.
+ *
+ * Admins pass because an admin who cannot open a provider screen cannot
+ * support a professional who is standing in somebody's kitchen.
+ */
+export function roleOpensProviderRoutes(role: string | null): boolean {
+  return role === "provider" || role === "admin";
 }
 
 /**

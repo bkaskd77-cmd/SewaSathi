@@ -5,6 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import {
   isProtectedRoute,
   isProviderRoute,
+  roleOpensProviderRoutes,
   safeRedirect,
 } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -45,7 +46,7 @@ export async function middleware(request: NextRequest) {
   // whole site behind a login that cannot possibly work.
   if (!hasSupabaseConfig()) return intlResponse;
 
-  const { response: authResponse, user } = await updateSession(request);
+  const { response: authResponse, user, role: roleOf } = await updateSession(request);
 
   if (isRedirect) return carryCookies(authResponse, intlResponse);
 
@@ -67,10 +68,25 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isProviderRoute(pathname)) {
-    const role = (user.user_metadata?.role as string | undefined) ?? "customer";
-    // Phase 10 replaces this with a profiles lookup once provider onboarding
-    // exists; until then no one has the claim and the routes stay shut.
-    if (role !== "provider" && role !== "admin") {
+    /*
+     * FROM `profiles`, NEVER FROM THE TOKEN'S `user_metadata`.
+     *
+     * It used to read `user.user_metadata.role`, and `user_metadata` is
+     * writable by its own owner — `supabase.auth.updateUser({ data: ... })` is
+     * a call any signed-in browser can make. So the guard was asking the
+     * person being guarded what they were allowed to do.
+     *
+     * Nothing was exposed by it: the only entry in `PROVIDER_ROUTES` is a
+     * dashboard that does not exist yet, and every admin page re-reads
+     * `profiles.role` through `getSessionProfile()` before rendering anything.
+     * It was privilege escalation waiting for a route to be added — cheap to
+     * close precisely while it guards nothing, and the kind of thing that gets
+     * added by somebody who reasonably assumes the existing guard works.
+     *
+     * The lookup is lazy, so the extra round trip happens only here.
+     */
+    const role = await roleOf();
+    if (!roleOpensProviderRoutes(role)) {
       const home = request.nextUrl.clone();
       home.pathname = prefix || "/";
       home.search = "";

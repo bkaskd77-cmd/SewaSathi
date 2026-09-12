@@ -50,5 +50,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  /**
+   * The caller's role, from `profiles` — the only place it is ever written.
+   *
+   * LAZY, AND THAT IS THE POINT. It is a second round trip, and the middleware
+   * runs on every page request, so it must not happen for the vast majority of
+   * them that do not gate on role. Only the provider-route branch calls it.
+   *
+   * It reads through RLS as the user, so it can only ever return that user's
+   * own row. A null means no profile, no session, or a read that failed — all
+   * of which are "not a provider", which is the safe answer for a guard.
+   */
+  async function role(): Promise<string | null> {
+    if (!user) return null;
+    const { data } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    return (data?.role as string | undefined) ?? null;
+  }
+
+  return { response, user, role };
 }

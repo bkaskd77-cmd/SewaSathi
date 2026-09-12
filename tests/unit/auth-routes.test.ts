@@ -5,6 +5,7 @@ import {
   isProviderRoute,
   isPublicRoute,
   safeRedirect,
+  roleOpensProviderRoutes,
 } from "@/lib/auth";
 
 /**
@@ -194,5 +195,39 @@ describe("the reviewer's queue is not reachable signed out", () => {
    */
   it("does not pretend to be the authorization boundary", () => {
     expect(isProviderRoute("/admin/applications")).toBe(false);
+  });
+});
+
+describe("roleOpensProviderRoutes", () => {
+  /**
+   * The middleware used to read `user.user_metadata.role`, which its own owner
+   * can write from any signed-in browser with
+   * `supabase.auth.updateUser({ data: { role: "admin" } })`. The guard was
+   * asking the person being guarded what they were allowed to do. The role now
+   * comes from `profiles`, and this is the decision it feeds.
+   */
+  it("opens for a provider and for an admin", () => {
+    // An admin who cannot open a provider screen cannot support a professional
+    // standing in somebody's kitchen.
+    expect(roleOpensProviderRoutes("provider")).toBe(true);
+    expect(roleOpensProviderRoutes("admin")).toBe(true);
+  });
+
+  it("stays shut for a customer", () => {
+    expect(roleOpensProviderRoutes("customer")).toBe(false);
+  });
+
+  it("treats an unanswerable question as no", () => {
+    // No profile, no session, or a read that failed all mean the same thing to
+    // a guard, and the safe answer is no.
+    expect(roleOpensProviderRoutes(null)).toBe(false);
+  });
+
+  it("is not satisfied by anything a user could invent", () => {
+    // The old failure in one line: a role the product never issues must not
+    // open a door, whatever it is spelled like.
+    for (const invented of ["Admin", "ADMIN", "superuser", "provider ", "", "true"]) {
+      expect(roleOpensProviderRoutes(invented)).toBe(false);
+    }
   });
 });
