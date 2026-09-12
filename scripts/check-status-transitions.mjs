@@ -16,9 +16,17 @@ import path from "node:path";
 import process from "node:process";
 
 /**
- * Two machines now, checked the same way. Bookings and payments are separate
- * state machines on purpose — a booking can be completed and unpaid — so each
- * gets its own pair and each pair must agree.
+ * Three machines now, checked the same way. Bookings, payments and guarantee
+ * claims are separate state machines on purpose — a booking can be completed
+ * and unpaid, and a claim outlives both — so each gets its own pair and each
+ * pair must agree.
+ *
+ * The claim machine is the one where a disagreement would be worst. Its
+ * defining property is that `resolved` is reachable only from `attended`: the
+ * visit is the verification, and a route to resolution that skips it is a
+ * route to the expensive half of the guarantee without anybody standing in the
+ * room. An interface that drifted from the SQL there would be a hole that
+ * looks like a feature.
  */
 const MACHINES = [
   {
@@ -32,6 +40,12 @@ const MACHINES = [
     ts: "lib/payments/status.ts",
     tsConst: "PAYMENT_TRANSITIONS",
     sqlFn: "payment_transition_allowed",
+  },
+  {
+    name: "Claim",
+    ts: "lib/booking/claim-status.ts",
+    tsConst: "CLAIM_TRANSITIONS",
+    sqlFn: "claim_transition_allowed",
   },
 ];
 
@@ -181,7 +195,9 @@ function main() {
     process.exit(1);
   }
 
-  console.log("\n  Interface and database agree on both machines.\n");
+  console.log(
+    `\n  Interface and database agree on all ${MACHINES.length} machines.\n`,
+  );
 }
 
 main();

@@ -272,3 +272,49 @@ export async function confirmTripAction(
   if (ok) revalidatePath("/[locale]/(app)/bookings/[id]", "page");
   return { ok };
 }
+
+/* ------------------------------------------------------------------ *
+ * The guarantee
+ * ------------------------------------------------------------------ */
+
+/**
+ * Raise a claim.
+ *
+ * The session is re-read here and the booking id is all the browser supplies;
+ * `openClaim` re-reads the booking, judges it against `claimIsAllowed`, and the
+ * database refuses a claim on somebody else's job regardless. Three checks, and
+ * the only one a caller can influence is the first.
+ */
+export async function openClaimAction(
+  bookingId: string,
+  description: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, error: "notSignedIn" };
+
+  const { openClaim } = await import("@/lib/data/claims");
+  const result = await openClaim({
+    bookingId,
+    actorId: profile.id,
+    description,
+  });
+
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}
+
+/** Ending it themselves. Free, one tap, and it costs them nothing later. */
+export async function withdrawClaimAction(
+  claimId: string,
+): Promise<{ ok: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false };
+
+  const { withdrawClaim } = await import("@/lib/data/claims");
+  const result = await withdrawClaim({ claimId, actorId: profile.id });
+
+  if (result.ok) revalidatePath("/bookings", "layout");
+  return { ok: result.ok };
+}

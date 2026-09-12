@@ -38,7 +38,20 @@ export type NotificationKind =
   /** First refusal lapsed; the job is now open to other professionals. */
   | "booking.widened"
   /** Nobody took it. The booking has ended rather than waiting for ever. */
-  | "booking.noProviderFound";
+  | "booking.noProviderFound"
+  /**
+   * A job has come back. Sent to the professional whose work it was, because
+   * the common path — and the cheap one — is that they go round themselves.
+   */
+  | "claim.opened"
+  /** Somebody has been and looked. Carries the verdict, which decides who pays. */
+  | "claim.resolved"
+  /**
+   * A redo was attended by somebody else, so the amount is now a debt netted
+   * off future earnings. Told, never billed: a deduction nobody can account
+   * for is worse than the deduction.
+   */
+  | "claim.ledger";
 
 export type Notification = {
   /** Who it is for. Their language is read at delivery, not passed in. */

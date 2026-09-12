@@ -70,6 +70,12 @@
               "@/lib/sms/*"
             ],
             "message": "Import from '@/lib/sms'. Which gateway is in play is one decision made in one place \u2014 a caller that reaches sparrow.ts directly is a second, and switching provider stops being one variable. See ARCHITECTURE.md."
+          },
+          {
+            "group": [
+              "@/lib/provider/*"
+            ],
+            "message": "Import from '@/lib/provider'. The rate clamp and the availability decay are single decisions \u2014 a second caller reaching past the entry is a second place that can disagree about what a professional may charge or how long 'available now' lasts. See ARCHITECTURE.md."
           }
         ],
         "paths": [

@@ -14,6 +14,7 @@ import {
   pickAlternatives,
   type Alternative,
 } from "@/lib/data/recommendations";
+import { availabilityNow } from "@/lib/provider";
 import { createPublicClient } from "@/lib/supabase/public";
 
 /**
@@ -150,6 +151,8 @@ type ProviderRow = {
   id_document_status: IdDocumentStatus;
   checks: VerificationCheck[] | null;
   availability: Availability;
+  /** The "available now" stamp. Null on seeded rows, which never decay. */
+  available_until: string | null;
   base_rate: number;
   service_areas: string[] | null;
   provider_categories: Array<{ category_slug: string }> | null;
@@ -187,7 +190,18 @@ function fromRow(row: ProviderRow): Provider {
     isVerified: row.is_verified,
     idDocumentStatus: row.id_document_status,
     checks: row.checks ?? [],
-    availability: row.availability,
+    /*
+     * THE SWITCH TURNS IT ON AND TIME TURNS IT OFF.
+     *
+     * The stored column is the base; the stamp grants "now" while it is in the
+     * future. Computed on read rather than swept by a cron, so there is no job
+     * that can stop running one night and leave a sleeping professional at the
+     * top of an emergency search. See lib/provider/availability.ts.
+     */
+    availability: availabilityNow({
+      availableUntil: row.available_until,
+      base: row.availability,
+    }),
     baseRate: row.base_rate,
     stats: {
       ratingAvg: Number(stats?.rating_avg ?? 0),
@@ -203,7 +217,7 @@ function fromRow(row: ProviderRow): Provider {
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, last_active_at, jobs_accepted, withdrawals)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, last_active_at, jobs_accepted, withdrawals)";
 
 /**
  * Providers in one category, filtered but not yet ranked.
@@ -229,10 +243,25 @@ export const listProviders = cache(
 
       if (filters.area) query = query.contains("service_areas", [filters.area]);
       if (filters.verifiedOnly) query = query.eq("is_verified", true);
-      if (filters.availability === "now")
-        query = query.eq("availability", "now");
+      /*
+       * THE AVAILABILITY FILTER WIDENS IN SQL AND NARROWS IN JS.
+       *
+       * "Available now" is two facts that live in different columns — the
+       * stored base and a stamp that expires — and no index can express
+       * "whichever is true at this instant". So the query asks for anything
+       * that could qualify and `matches` below decides, against exactly the
+       * value the card will show. Narrowing here as well would be a second
+       * rule about availability, and the point of the decay is that there is
+       * only one.
+       */
+      const now = new Date().toISOString();
+      if (filters.availability === "now") {
+        query = query.or(`availability.eq.now,available_until.gt.${now}`);
+      }
       if (filters.availability === "today") {
-        query = query.in("availability", ["now", "today"]);
+        query = query.or(
+          `availability.in.(now,today),available_until.gt.${now}`,
+        );
       }
       if (filters.maxRate) query = query.lte("base_rate", filters.maxRate);
 
@@ -247,12 +276,20 @@ export const listProviders = cache(
       }
 
       markDataSource("providers", "database");
-      const providers = (data as unknown as ProviderRow[]).map(fromRow);
-      // Rating lives in the stats table, so it is filtered here rather than in
-      // the query — one fewer join condition to get wrong.
-      return filters.minRating
-        ? providers.filter((p) => p.stats.ratingAvg >= (filters.minRating ?? 0))
-        : providers;
+      const providers = (data as unknown as ProviderRow[])
+        .map(fromRow)
+        // Availability is judged against the computed value, so a lapsed stamp
+        // drops out here rather than being shown as "now". Rating lives in the
+        // stats table and is filtered the same way — one fewer join condition
+        // to get wrong.
+        .filter((provider) =>
+          matches(provider, {
+            category: filters.category,
+            availability: filters.availability,
+            minRating: filters.minRating,
+          }),
+        );
+      return providers;
     } catch (thrown) {
       rethrowFrameworkSignal(thrown);
       markDataSource("providers", "seed", describeError(thrown));

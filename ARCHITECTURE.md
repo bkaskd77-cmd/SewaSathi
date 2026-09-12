@@ -23,6 +23,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **booking** | `@/lib/booking` | Status machine, working hours and slots, flow draft persistence |
 | **payments** | `@/lib/payments` (server)<br>`@/lib/payments/client` (isomorphic) | Payment status machine, the price-integrity rules, the commission split, the gateway registry, callback reading |
 | **notify** | `@/lib/notify` (server) | The channel contract and registry. In-app today; SMS and push are Phase 13 and are one file each. |
+| **provider** | `@/lib/provider` (isomorphic) | What a professional controls about their own listing: the rate clamp and the availability decay |
 | **auth** | `@/lib/auth` (isomorphic)<br>`@/lib/auth/session` (server)<br>`@/lib/auth/otp` (client) | Route rules, redirect safety, phone parsing, session reads, the SMS adapter |
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
@@ -120,6 +121,19 @@ Where a change on one side cannot reach the other.
   and the card. Everything behind it can be rebuilt as long as that shape and
   the ten category slugs hold.
 - **`lib/data/` is the only thing that talks to Supabase.** Pages never do.
+- **A guarantee claim reaches `resolved` only through `attended`.** The visit is
+  the verification, and the edge is enforced in Postgres
+  (`claim_transition_allowed`) as well as in `lib/booking/claim-status.ts`.
+  `npm run check:transitions` now parses three pairs rather than two. A refund
+  needs a person on top of that: `refund_rupees > 0` without
+  `refund_decided_by` is refused for every caller, service role included.
+- **A professional's "available now" is granted by a switch and taken away by
+  the clock.** `providers.available_until` is the stamp;
+  `lib/provider/availability.ts` reads it. There is NO sweep — a background job
+  that turns flags off is a background job that stops running one night — so
+  every read computes it, `lib/data/providers.ts` included, and the directory
+  query widens in SQL and narrows in JS because no index can express
+  "whichever of these two columns is true right now".
 - **Two Supabase clients, and the split is about caching as much as identity.**
   `lib/supabase/server.ts` reads cookies and acts as the signed-in person;
   `lib/supabase/public.ts` has no cookies and serves the catalogue. Touching

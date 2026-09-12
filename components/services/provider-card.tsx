@@ -11,6 +11,7 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
+import { isNewProvider } from "@/lib/data/ranking";
 import { bookingHref } from "@/lib/routes/booking";
 import { cn, formatNpr } from "@/lib/utils";
 
@@ -60,6 +61,25 @@ export function ProviderCard({
     profileParams.toString() ? `?${profileParams.toString()}` : ""
   }`;
   const { stats } = provider;
+
+  /*
+   * WHAT "NEW" LOOKS LIKE, AND WHY IT IS NOT A ZERO.
+   *
+   * A professional with no history had a card reading 0.0 (0) beside "jobs
+   * done: 0" and "responds in: 120 minutes". The first is the damaging one —
+   * it reads as *rated zero out of five*, which is strictly worse than saying
+   * nothing, and it was never a rating at all but the absence of one. The
+   * third is worse still: 120 is the column default, so the card printed a
+   * guess in the same typeface as a measurement.
+   *
+   * So each cell is gated on its own data rather than on one flag. Nothing is
+   * invented to fill a gap, and the badge says plainly what the gaps mean —
+   * a stranger is easier to trust when the product is honest about not knowing
+   * them yet than when it pads the card with zeros.
+   */
+  const newHere = isNewProvider(stats.jobsCompleted);
+  const rated = stats.ratingCount > 0;
+  const measuredResponse = stats.jobsCompleted > 0;
 
   return (
     <Card
@@ -135,6 +155,9 @@ export function ProviderCard({
           <Clock aria-hidden="true" />
           {t(`availability.${provider.availability}`)}
         </Badge>
+        {newHere ? (
+          <Badge variant="info">{t("card.new")}</Badge>
+        ) : null}
         {provider.yearsExperience >= 10 ? (
           <Badge variant="gold-subtle">
             {t("card.yearsExperience", {
@@ -149,30 +172,45 @@ export function ProviderCard({
           <dt className="text-overline uppercase text-muted-foreground">
             {t("card.rating")}
           </dt>
-          <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
-            <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
-            {stats.ratingAvg.toFixed(1)}
-            <span className="text-caption font-normal text-muted-foreground">
-              ({stats.ratingCount})
-            </span>
-          </dd>
+          {rated ? (
+            <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
+              <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
+              {stats.ratingAvg.toFixed(1)}
+              <span className="text-caption font-normal text-muted-foreground">
+                ({stats.ratingCount})
+              </span>
+            </dd>
+          ) : (
+            <dd className="mt-0.5 text-body-sm text-muted-foreground">
+              {t("card.notRated")}
+            </dd>
+          )}
         </div>
         <div>
           <dt className="text-overline uppercase text-muted-foreground">
-            {t("card.jobsDone")}
+            {stats.jobsCompleted > 0
+              ? t("card.jobsDone")
+              : t("card.experience")}
           </dt>
           <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
-            {stats.jobsCompleted}
+            {stats.jobsCompleted > 0
+              ? stats.jobsCompleted
+              : t("card.years", { n: String(provider.yearsExperience) })}
           </dd>
         </div>
-        <div>
-          <dt className="text-overline uppercase text-muted-foreground">
-            {t("card.respondsIn")}
-          </dt>
-          <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
-            {t("card.minutes", { n: String(stats.avgResponseMinutes) })}
-          </dd>
-        </div>
+        {/* No jobs, no replies to measure. The 120-minute column default is a
+            guess and printing it beside two measurements would launder it
+            into one. */}
+        {measuredResponse ? (
+          <div>
+            <dt className="text-overline uppercase text-muted-foreground">
+              {t("card.respondsIn")}
+            </dt>
+            <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+              {t("card.minutes", { n: String(stats.avgResponseMinutes) })}
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className="flex flex-wrap gap-2">

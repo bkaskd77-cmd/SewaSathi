@@ -64,3 +64,13 @@ export {
   type NewAddressDraft,
   type Timing,
 } from "./flow-state";
+
+export {
+  canTransitionClaim,
+  CLAIM_STATUSES,
+  CLAIM_TRANSITIONS,
+  countsAgainstLimit,
+  isClaimClosed,
+  isClaimStatus,
+  type ClaimStatus,
+} from "./claim-status";

@@ -246,7 +246,11 @@
       "respondsIn": "Responds in",
       "minutes": "~{n} min",
       "book": "Book {name}",
-      "viewProfile": "View profile"
+      "viewProfile": "View profile",
+      "new": "New here",
+      "notRated": "Not rated yet",
+      "experience": "Experience",
+      "years": "{n} yrs"
     },
     "availability": {
       "now": "Available now",
@@ -751,6 +755,56 @@
       "confirmedTitle": "Thank you — somebody is on the way",
       "confirmedBody": "We will not ask you this again for this address.",
       "failed": "That didn't go through. Try once more, or call us."
+    },
+    "guarantee": {
+      "title": "Our guarantee",
+      "window": "This job carries a {window} guarantee.",
+      "trigger": "Something has gone wrong again",
+      "dialogTitle": "Tell us what happened",
+      "dialogBody": "We send somebody to look. What they find decides who pays for the visit.",
+      "whatHappened": "What is wrong now?",
+      "whatHappenedPlaceholder": "The tap is dripping again",
+      "whoPays": "If it is the same fault, the visit costs you nothing. If it is a different problem, it is an ordinary job at the ordinary price.",
+      "back": "Not now",
+      "send": "Send",
+      "withdraw": "Withdraw this",
+      "status": {
+        "open": "We are arranging a visit.",
+        "dispatched": "Somebody is coming to look.",
+        "attended": "They have been and looked.",
+        "resolved": "Settled.",
+        "withdrawn": "You withdrew this.",
+        "rejected": "Closed without a visit."
+      },
+      "verdict": {
+        "sameFault": "The same fault had come back.",
+        "differentProblem": "A different problem, not the one that was fixed.",
+        "nothingWrong": "Nothing was found wrong.",
+        "customerCaused": "The damage happened after the work."
+      },
+      "payer": {
+        "provider": "the visit was free",
+        "customer": "the visit is priced as an ordinary job"
+      },
+      "cannot": {
+        "notCompleted": "The guarantee starts when the job is finished.",
+        "notSettled": "The guarantee covers the amount recorded for this job, and nothing is recorded yet.",
+        "outsideWindow": "The window for this job has closed.",
+        "claimOpen": "One is already open on this job.",
+        "limitReached": "Two have already been made on this job. Ring us and a person will look at it."
+      },
+      "errors": {
+        "tooShort": "Say a little more about what is wrong.",
+        "claimOpen": "One is already open on this job.",
+        "limitReached": "Two have already been made on this job. Ring us instead.",
+        "outsideWindow": "The window for this job has closed.",
+        "notSettled": "Nothing has been recorded as paid for this job yet.",
+        "notCompleted": "The guarantee starts when the job is finished.",
+        "notYours": "That booking is not yours.",
+        "notSignedIn": "Sign in again to send this.",
+        "unavailable": "We couldn't send that just now. Try again.",
+        "generic": "We couldn't send that just now. Try again."
+      }
     }
   },
   "safety": {
@@ -1096,6 +1150,64 @@
       "stillWaiting": "I'll keep waiting",
       "claimed": "Reported. We will pay you for the trip and let you know.",
       "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything."
+    },
+    "dashboard": {
+      "title": "Your listing",
+      "unlinked": "This account is not linked to a listing yet.",
+      "toJobs": "Your jobs",
+      "availability": {
+        "heading": "Available now",
+        "onLabel": "You are available now",
+        "offLabel": "Say you are available now",
+        "until": "Until the end of today — {hours}h {minutes}m left.",
+        "explain": "It switches off at the end of the working day, so nobody is sent to you at midnight.",
+        "failed": "That did not save. Try again."
+      },
+      "rate": {
+        "heading": "Your starting price",
+        "label": "From",
+        "save": "Save",
+        "band": "For your trades, we publish {low} to {high}.",
+        "saved": "Saved.",
+        "clamped": {
+          "low": "We raised it to the lowest price we publish for your trades.",
+          "high": "We lowered it to the highest price we publish for your trades."
+        },
+        "noTrade": "Add a trade to your listing before setting a price.",
+        "failed": "That did not save. Try again."
+      },
+      "money": {
+        "heading": "Your money",
+        "owed": "Earned on finished jobs",
+        "outstanding": "Owed back to us",
+        "outstandingExplained": "Somebody else went back on a job of yours. We take a quarter of a payout at most until it is clear, and we never ask you for cash."
+      },
+      "claims": {
+        "heading": "Jobs that came back",
+        "none": "Nothing has come back.",
+        "askToGo": "The customer says this has gone wrong again. Will you go and look?",
+        "accept": "I will go",
+        "cannotGo": "I cannot go",
+        "whatDidYouFind": "What did you find?",
+        "noteLabel": "Anything to add",
+        "notePlaceholder": "The washer had worn through",
+        "record": "Record this",
+        "failed": "That did not save. Try again.",
+        "status": {
+          "open": "Waiting for somebody to go",
+          "dispatched": "You are going",
+          "attended": "Visited",
+          "resolved": "Settled",
+          "withdrawn": "The customer withdrew it",
+          "rejected": "Closed"
+        },
+        "verdict": {
+          "sameFault": "The same fault has come back",
+          "differentProblem": "A different problem, not the one that was fixed",
+          "nothingWrong": "Nothing wrong",
+          "customerCaused": "Damaged after the work was done"
+        }
+      }
     }
   },
   "admin": {

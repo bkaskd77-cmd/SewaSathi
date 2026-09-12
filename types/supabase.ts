@@ -25,6 +25,24 @@ export type TriageSource = "claude" | "cache" | "fallback";
 export type Availability = "now" | "today" | "scheduled";
 export type IdDocumentStatus = "verified" | "pending" | "not_submitted";
 export type VerificationCheck = "id" | "background" | "skill";
+/**
+ * Named here rather than imported from `lib/booking` and `lib/config`, because
+ * this file describes the database and must not depend on the application. The
+ * pair is checked: `npm run check:transitions` compares the claim machine in
+ * TypeScript against `claim_transition_allowed` in SQL.
+ */
+export type ClaimStatusName =
+  | "open"
+  | "dispatched"
+  | "attended"
+  | "resolved"
+  | "withdrawn"
+  | "rejected";
+export type ClaimVerdictName =
+  | "sameFault"
+  | "differentProblem"
+  | "nothingWrong"
+  | "customerCaused";
 
 export type Database = {
   public: {
@@ -899,10 +917,20 @@ export type Database = {
            */
           removed_at: string | null;
           removal_reason: string | null;
+          /**
+           * While this is in the future the listing reads "available now".
+           * Set by the professional, expired by the clock — there is no sweep,
+           * so there is no job that can stop running. See lib/provider.
+           */
+          available_until: string | null;
+          /** What they typed, before the band clamped it. Never read per person. */
+          base_rate_requested: number | null;
         };
         Insert: {
           id?: string;
           profile_id?: string | null;
+          available_until?: string | null;
+          base_rate_requested?: number | null;
           display_name: string;
           bio?: string;
           photo_url?: string | null;
@@ -929,6 +957,96 @@ export type Database = {
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      guarantee_claims: {
+        Row: {
+          id: string;
+          booking_id: string;
+          customer_id: string;
+          provider_id: string | null;
+          category_slug: string;
+          status: ClaimStatusName;
+          description: string;
+          visit_booking_id: string | null;
+          attending_provider_id: string | null;
+          verdict: ClaimVerdictName | null;
+          verdict_note: string | null;
+          payer: "provider" | "customer" | null;
+          refund_rupees: number;
+          /** A refund requires a person. No verdict fills this in. */
+          refund_decided_by: string | null;
+          closed_reason: string | null;
+          opened_at: string;
+          dispatched_at: string | null;
+          attended_at: string | null;
+          closed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          customer_id: string;
+          provider_id?: string | null;
+          category_slug: string;
+          status?: ClaimStatusName;
+          description: string;
+          visit_booking_id?: string | null;
+          attending_provider_id?: string | null;
+          verdict?: ClaimVerdictName | null;
+          verdict_note?: string | null;
+          payer?: "provider" | "customer" | null;
+          refund_rupees?: number;
+          refund_decided_by?: string | null;
+          closed_reason?: string | null;
+          opened_at?: string;
+          dispatched_at?: string | null;
+          attended_at?: string | null;
+          closed_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["guarantee_claims"]["Insert"]
+        >;
+        Relationships: [
+          {
+            foreignKeyName: "guarantee_claims_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "bookings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      provider_ledger: {
+        Row: {
+          id: string;
+          provider_id: string;
+          claim_id: string | null;
+          booking_id: string | null;
+          kind: "redo_debt" | "recovery" | "write_off";
+          amount_rupees: number;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider_id: string;
+          claim_id?: string | null;
+          booking_id?: string | null;
+          kind: "redo_debt" | "recovery" | "write_off";
+          amount_rupees: number;
+          note?: string | null;
+          created_at?: string;
+        };
+        /** Append-only. The trigger refuses UPDATE for every caller. */
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "provider_ledger_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers";
             referencedColumns: ["id"];
           },
         ];
@@ -1088,6 +1206,11 @@ export type Database = {
       is_admin: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      /** Redo debt still owed, netted and floored at zero. */
+      provider_outstanding: {
+        Args: { target: string };
+        Returns: number;
       };
     };
     Enums: Record<string, never>;

@@ -47,6 +47,21 @@ subject and decides.
 | `claimJobAction` | any professional who covers it | one open, unassigned booking | the claim policy's `using` clause settles the race; refusals excluded |
 | `recordAmountAction` | the assigned professional | the final amount on their job | `recordFinalAmount` re-reads; band clamp; ceiling; `security_events` |
 | `appealCommissionAction` | the professional who did the job | one appeal on that booking | `openCommissionAppeal` re-reads and refuses an appeal against a floor never applied |
+| `setAvailabilityAction` | any professional with a listing | the `available_until` stamp on their own listing | listing resolved from the session; the expiry is computed server-side by `availableUntil`, never passed in |
+| `setRateAction` | any professional with a listing | `base_rate` and `base_rate_requested` on their own listing | listing resolved from the session; `clampRate` against the published band for their trades |
+| `acceptClaimAction` / `releaseClaimAction` | the professional a claim names | taking or giving back one return visit | provider id from the session; `acceptClaim` re-reads the claim; the claim transition trigger |
+| `recordVerdictAction` | the professional who attended | the verdict on one claim | verdict validated against `CLAIM_VERDICTS` here and by the column check; `resolved` is reachable only from `attended` |
+
+**Customer side, added this phase.** `openClaimAction` and
+`withdrawClaimAction` take a booking or claim id and nothing else; the actor is
+the session. `openClaim` re-reads the booking and judges it with
+`claimIsAllowed`, and `enforce_claim_eligibility` refuses a claim on somebody
+else's booking, on an unfinished job, or a third one — with no service-role
+bypass, because no path in this product does any of those legitimately.
+`guarantee_claims` and `provider_ledger` grant nobody an insert or update
+through RLS; reads are the customer's own, the professionals a claim names, and
+admins. The ledger is append-only and its trigger refuses UPDATE and DELETE for
+every caller, service role included.
 
 ### Public and machine surfaces
 

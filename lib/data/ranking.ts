@@ -233,7 +233,7 @@ export function rankProviders(
   providers: Provider[],
   options: { urgency?: string | null; area?: string | null } = {},
 ): Array<Provider & { relevance: number }> {
-  return providers
+  const ranked = providers
     .map((provider) => ({
       ...provider,
       relevance: scoreProvider(provider, options).score,
@@ -243,6 +243,21 @@ export function rankProviders(
         ? a.id.localeCompare(b.id)
         : b.relevance - a.relevance,
     );
+
+  /*
+   * The newcomer slot is applied HERE, after scoring and before anybody reads
+   * the list, so every surface that asks "who should this customer see?" gets
+   * the same answer — the catalogue, the booking shortlist and the replacement
+   * list. Two different ideas of who is on the first page is the bug nobody
+   * can see. `sortProviders` re-sorts for an explicit choice, which correctly
+   * undoes this: a customer who asked for cheapest first asked for exactly
+   * that.
+   */
+  return withNewcomerSlot({
+    ranked,
+    isNew: (provider) => isNewProvider(provider.stats.jobsCompleted),
+    emergency: options.urgency === "emergency",
+  });
 }
 
 export type SortOption = "relevance" | "rating" | "price" | "jobs";
@@ -271,4 +286,94 @@ export function sortProviders(
     default:
       return ranked;
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * The newcomer
+ * ------------------------------------------------------------------ */
+
+/**
+ * A professional with no history has to be findable, or nobody ever becomes
+ * the second kind.
+ *
+ * THE PROBLEM IS A LOOP, NOT A SCORE. A new professional ranks low because
+ * they have no jobs, gets no jobs because they rank low, and leaves. Supply
+ * never compounds. Meanwhile the card shows them as `0.0 (0)` directly beneath
+ * somebody's 4.7 from 304, which reads as *worse than average* when the honest
+ * reading is *not yet known*.
+ *
+ * SO THE FIX IS A RESERVED POSITION, NOT A BOOST, and the difference matters:
+ *
+ *   A boost inflates a number that is supposed to mean quality. It composes
+ *   with six other weights, so nobody can later say why somebody ranked where
+ *   they did, and it is a knob that invites turning — every turn silently
+ *   moving the emergency blend too. Worst of all it scales: fifty newcomers
+ *   with a boost is fifty inflated scores, and the list stops being a ranking.
+ *
+ *   A slot is bounded by construction. ONE newcomer appears per page, at a
+ *   fixed position, however many exist. Nothing is inflated, every score still
+ *   means what it meant, and the reason a professional is third is a sentence
+ *   rather than an arithmetic reconstruction.
+ *
+ * THIRD, DELIBERATELY. Not first: the top result is what a customer trusts the
+ * list for, and spending it on somebody untested spends the trust that makes
+ * the list worth reading. Not tenth: nobody scrolls, so it would be exposure
+ * in name only. Third is seen without displacing the two strongest matches.
+ */
+export const NEWCOMER_SLOT_INDEX = 2;
+
+/**
+ * Three completed jobs.
+ *
+ * NOT A DURATION. A professional with no jobs after sixty days is not
+ * established, they are unbooked, and a clock would quietly retire them from
+ * the slot at the moment they still need it most. Jobs are the thing that
+ * actually ends the cold start.
+ *
+ * Three rather than ten because this is a different question from probation
+ * (`PROBATION` in `lib/verification` — ten jobs, and about standing rather
+ * than exposure). Three is where a rating begins to carry information and the
+ * card has something true to show.
+ */
+export const NEWCOMER_MAX_JOBS = 3;
+
+export function isNewProvider(jobsCompleted: number): boolean {
+  return jobsCompleted < NEWCOMER_MAX_JOBS;
+}
+
+/**
+ * Move the best newcomer into the reserved slot.
+ *
+ * NEVER ON AN EMERGENCY, and this is the constraint the whole design bends
+ * around. Someone with a burst pipe at 2am is the worst possible person to
+ * hand a first-timer to, and `EMERGENCY_WEIGHTS` already puts availability and
+ * response at 0.65 precisely because that search is about who turns up rather
+ * than who is best. Exposure is a thing to grant on an ordinary Tuesday.
+ *
+ * A newcomer who already ranks inside the slot is left alone — they earned the
+ * position, and moving them DOWN to it would make the slot a ceiling. That is
+ * the bug this shape most easily hides.
+ *
+ * Pure and generic over the row type, so it is testable without a database and
+ * cannot accidentally read a field it should not.
+ */
+export function withNewcomerSlot<T>(input: {
+  /** Already sorted, best first. */
+  ranked: readonly T[];
+  isNew: (item: T) => boolean;
+  emergency: boolean;
+}): T[] {
+  const list = [...input.ranked];
+  if (input.emergency) return list;
+  if (list.length <= NEWCOMER_SLOT_INDEX) return list;
+
+  const index = list.findIndex((item) => input.isNew(item));
+  if (index === -1) return list;
+
+  // Already at or above the slot: they got there on merit, leave them.
+  if (index <= NEWCOMER_SLOT_INDEX) return list;
+
+  const [newcomer] = list.splice(index, 1);
+  list.splice(NEWCOMER_SLOT_INDEX, 0, newcomer);
+  return list;
 }

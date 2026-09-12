@@ -9,6 +9,7 @@ import {
   type AlternativeOption,
 } from "@/components/booking/alternatives";
 import { CancelBooking } from "@/components/booking/cancel-booking";
+import { GuaranteePanel } from "@/components/booking/guarantee-panel";
 import { ConfirmTrip } from "@/components/booking/confirm-trip";
 import { LiveProgress } from "@/components/booking/live-progress";
 import { ProviderCard } from "@/components/booking/provider-card";
@@ -31,6 +32,7 @@ import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking, listRefusals } from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
+import { claimEligibility, claimsForBooking } from "@/lib/data/claims";
 import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
@@ -192,6 +194,21 @@ export default async function BookingDetailPage({
     }),
     availability: option.provider.availability,
   }));
+
+  /*
+   * The guarantee, read only for a finished job.
+   *
+   * Two round trips that are pure waste on a booking nobody has done yet, and
+   * this page has already been through one round of collapsing five waves into
+   * one — see the note above. They go together rather than one after the other.
+   */
+  const [eligibility, claims] =
+    booking.status === "completed"
+      ? await Promise.all([
+          claimEligibility({ bookingId: booking.id, actorId: profile!.id }),
+          claimsForBooking(booking.id),
+        ])
+      : ([{ allowed: false, reason: "notCompleted" }, []] as const);
 
   const area = address ? findArea(address.areaKey) : null;
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
@@ -486,6 +503,31 @@ export default async function BookingDetailPage({
             failureReason={lastFailed?.failureReason ?? null}
             inFlightSince={inFlight?.initiatedAt ?? null}
             supportPhone={site.supportPhone}
+          />
+        </NextIntlClientProvider>
+      ) : null}
+
+      {/* THE GUARANTEE, ON THE SCREEN IT WAS PROMISED ON.
+          Shown on every finished job, claimable or not: a promise that appears
+          only when it can be used is indistinguishable from one never made. */}
+      {booking.status === "completed" ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <GuaranteePanel
+            bookingId={booking.id}
+            windowKey={guaranteeFor(booking.categorySlug).labelKey}
+            allowed={eligibility.allowed}
+            reason={eligibility.allowed ? null : eligibility.reason}
+            claims={claims.map((claim) => ({
+              id: claim.id,
+              status: claim.status,
+              description: claim.description,
+              verdict: claim.verdict,
+              verdictNote: claim.verdictNote,
+              payer: claim.payer,
+            }))}
           />
         </NextIntlClientProvider>
       ) : null}
