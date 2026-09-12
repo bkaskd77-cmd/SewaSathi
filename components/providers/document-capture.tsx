@@ -12,6 +12,7 @@ import {
   measureCapture,
   type CaptureProblem,
 } from "@/lib/verification";
+import { encodeToBudget } from "@/lib/utils/image";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,14 +38,19 @@ import { cn } from "@/lib/utils";
  */
 
 const MEASURE_EDGE = 480;
-const UPLOAD_EDGE = 1600;
-const UPLOAD_QUALITY = 0.82;
 
 type Stage =
   | { name: "empty" }
   | { name: "checking" }
   | { name: "problem"; problem: CaptureProblem; preview: string }
-  | { name: "ready"; preview: string; base64: string; quality: number }
+  | {
+      name: "ready";
+      preview: string;
+      base64: string;
+      /** What the compression settled on, shown so the size is not a mystery. */
+      bytes: number;
+      quality: number;
+    }
   | { name: "sending" }
   | { name: "sent" }
   | { name: "failed"; message: string };
@@ -133,15 +139,27 @@ export function DocumentCapture(props: DocumentCaptureProps) {
         return;
       }
 
-      const forUpload = drawScaled(image, UPLOAD_EDGE);
-      if (!forUpload) {
+      /*
+       * COMPRESSED TO A BYTE BUDGET, not to a fixed quality.
+       *
+       * This used to encode at 1600px and quality 0.82 and send whatever came
+       * out. A document photograph from a modern phone comes out at one to two
+       * megabytes, and a server action argument is a request body that Next
+       * caps — so the framework refused every upload before any of our code
+       * ran, and the form could only say "that did not save". The hero already
+       * had a budget for exactly this reason; this path did not, and one place
+       * knowing about the ceiling is the same as nowhere knowing.
+       */
+      const encoded = encodeToBudget(image, "document");
+      if (!encoded) {
         setStage({ name: "failed", message: t("capture.wrongType") });
         return;
       }
       setStage({
         name: "ready",
         preview,
-        base64: forUpload.toDataURL("image/jpeg", UPLOAD_QUALITY),
+        base64: encoded.dataUrl,
+        bytes: encoded.bytes,
         quality: captureQuality(measurement),
       });
     } catch {

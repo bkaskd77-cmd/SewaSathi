@@ -73,6 +73,21 @@ export const LIMITS = {
   booking: { perMinute: 3, perHour: 20 },
   /** The join form is public and unauthenticated, so it is a spam target. */
   join: { perMinute: 2, perHour: 10 },
+  /*
+   * Photographed documents, and deliberately generous.
+   *
+   * This used to borrow the `join` ceiling — two a minute — on a step that
+   * needs three documents before it can be submitted at all. A professional
+   * doing exactly what the form asked was locked out on the third photograph
+   * and told to wait, which reads as the product being broken because for
+   * them it was.
+   *
+   * It is authenticated, so the caller is a known person rather than a
+   * stranger, and retaking a blurry citizenship certificate five times is
+   * ordinary rather than suspicious. The ceiling is here to stop a script
+   * pushing megabytes, not to ration a careful applicant.
+   */
+  "document:upload": { perMinute: 12, perHour: 60 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

@@ -381,6 +381,12 @@ function DocumentsStep(props: ApplyFlowProps & { onDone: () => void }) {
     <div className="space-y-4">
       <h2 className="font-display text-heading-md">{t("documents.title")}</h2>
       <p className="text-body-md text-muted-foreground">{t("documents.lead")}</p>
+      {/* Said before they photograph anything. Somebody on a metered
+          connection deciding whether they can afford this step needs the
+          answer now, not after three uploads. */}
+      <p className="text-caption text-muted-foreground">
+        {t("capture.sizeNote")}
+      </p>
 
       <div className="space-y-3">
         {props.documents.map((document, index) => (

@@ -107,6 +107,33 @@ export async function saveStepAction(
   const applicationId = value("applicationId");
   const step = Number(value("step")) || 1;
 
+  /*
+   * A STEP THAT ASKS A REQUIRED QUESTION MUST NOT LET YOU PAST IT.
+   *
+   * The trades step ticked nothing by default and advanced regardless, so an
+   * applicant could walk the whole form and only discover on the review screen
+   * that a step they thought they had finished was empty. Worse, the trade is
+   * what decides which documents are asked for — `documentsFor` reads it — so
+   * an empty answer produced a shorter document list and an application that
+   * looked complete while missing the competence evidence for the work.
+   *
+   * Enforced here rather than with `required` on the checkboxes, because a
+   * `required` checkbox in a group only forces *that* box, and because the
+   * server is where a value has to be true regardless of what the browser did.
+   *
+   * `serviceAreas` is the same shape of question and gets the same rule: a
+   * professional who serves nowhere cannot be dispatched to anything.
+   */
+  const REQUIRED_ON_STEP: Record<number, { field: string; error: string }> = {
+    3: { field: "trades", error: "pickATrade" },
+    4: { field: "serviceAreas", error: "pickAnArea" },
+  };
+
+  const required = REQUIRED_ON_STEP[step];
+  if (required && many(required.field).length === 0) {
+    return { ok: false, error: required.error };
+  }
+
   const patch: StepPatch = {};
   if (value("fullName")) patch.fullName = value("fullName");
   if (value("fullNameNe")) patch.fullNameNe = value("fullNameNe");
@@ -177,7 +204,7 @@ export async function uploadDocumentAction(input: {
   const actorId = await actor();
   if (!actorId) return { ok: false, error: "notYours" };
 
-  const limit = await checkRateLimit("join", actorId);
+  const limit = await checkRateLimit("document:upload", actorId);
   if (!limit.ok) return { ok: false, error: "tooManyRequests" };
 
   const result = await uploadProviderDocument({ ...input, actorId });

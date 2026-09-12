@@ -105,6 +105,23 @@ const SECURITY_HEADERS = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  /**
+   * A SERVER ACTION ARGUMENT IS A REQUEST BODY, AND NEXT CAPS IT AT 1 MB.
+   *
+   * Photographed documents reach the server as a base64 argument, and base64
+   * inflates bytes by a third. Every document upload in the application form
+   * failed because of this: the framework refused the request before any of
+   * our code ran, so nothing was logged, no validation message applied, and
+   * the form could only say "that did not save".
+   *
+   * The real fix is the byte budget in `lib/utils/image.ts`, which now targets
+   * 700 KB before encoding. This is headroom on top of it, not a substitute:
+   * a budget that only just fits is a budget that fails on the one phone whose
+   * camera encodes differently.
+   */
+  experimental: {
+    serverActions: { bodySizeLimit: "2mb" },
+  },
   env: {
     BUILD_COMMIT: buildCommit(),
     BUILD_TIME: new Date().toISOString(),

@@ -24,8 +24,19 @@ const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 /** Longest edge. Claude downsamples above ~1568px anyway. */
 const MAX_EDGE = 1500;
 
-/** Comfortably under the route's 1 MB ceiling, with room for base64 growth. */
-const TARGET_BYTES = 700 * 1024;
+/**
+ * Comfortably under the server action ceiling, with room for base64 growth.
+ *
+ * A SERVER ACTION ARGUMENT IS A REQUEST BODY, and Next caps it — 1 MB by
+ * default, raised to 2 MB in `next.config.mjs` for headroom. Base64 inflates
+ * bytes by a third, so a 700 KB photo arrives as roughly 950 KB of argument.
+ * Anything materially larger is refused by the framework before a line of our
+ * code runs, which surfaces as a bare "that did not save" with nothing in our
+ * logs to explain it. That is exactly what happened to every document upload
+ * in the application form, because the capture component encoded at a fixed
+ * quality with no byte budget at all.
+ */
+export const TARGET_BYTES = 700 * 1024;
 
 /** Tried in order until one comes in under target. */
 const ATTEMPTS: Array<{ edge: number; quality: number }> = [
@@ -34,6 +45,43 @@ const ATTEMPTS: Array<{ edge: number; quality: number }> = [
   { edge: 1100, quality: 0.55 },
   { edge: 900, quality: 0.5 },
 ];
+
+/**
+ * A document photograph has to stay readable, so it starts larger and gives
+ * ground more slowly than a picture of a leaking tap does. A citizenship
+ * number that survives the compression is the whole point of the upload.
+ */
+const DOCUMENT_ATTEMPTS: Array<{ edge: number; quality: number }> = [
+  { edge: 1600, quality: 0.8 },
+  { edge: 1600, quality: 0.68 },
+  { edge: 1400, quality: 0.6 },
+  { edge: 1200, quality: 0.52 },
+  { edge: 1000, quality: 0.45 },
+];
+
+/**
+ * Re-encode until it fits, and say how big it ended up.
+ *
+ * SHARED BY BOTH UPLOAD PATHS ON PURPOSE. The hero used this budget and the
+ * application form did not, which is the whole reason document uploads failed
+ * — one place knew about the ceiling and the other did not. Anything in this
+ * product that sends an image to a server action goes through here.
+ */
+export function encodeToBudget(
+  source: CanvasImageSource & { width: number; height: number },
+  kind: "photo" | "document" = "photo",
+): { dataUrl: string; bytes: number } | null {
+  const attempts = kind === "document" ? DOCUMENT_ATTEMPTS : ATTEMPTS;
+
+  let best: { dataUrl: string; bytes: number } | null = null;
+  for (const { edge, quality } of attempts) {
+    const attempt = encode(source, edge, quality);
+    if (!attempt) break;
+    best = attempt;
+    if (attempt.bytes <= TARGET_BYTES) break;
+  }
+  return best;
+}
 
 export class ImageRejected extends Error {}
 
@@ -106,14 +154,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   }
 
   const source = await decode(file);
-
-  let best: { dataUrl: string; bytes: number } | null = null;
-  for (const { edge, quality } of ATTEMPTS) {
-    const attempt = encode(source, edge, quality);
-    if (!attempt) break;
-    best = attempt;
-    if (attempt.bytes <= TARGET_BYTES) break;
-  }
+  const best = encodeToBudget(source, "photo");
 
   if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) {
     source.close();

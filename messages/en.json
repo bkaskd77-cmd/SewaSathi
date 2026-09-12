@@ -932,7 +932,8 @@
         "tooFar": "Come closer, so the document fills the screen.",
         "good": "That is readable. Send it.",
         "tooBig": "That photograph is too large. Take a new one with the camera rather than sending a file.",
-        "wrongType": "That is not a photograph we can read. Use the camera."
+        "wrongType": "That is not a photograph we can read. Use the camera.",
+        "sizeNote": "We shrink each photograph on your phone before sending, so it uses very little data."
       },
       "payout": {
         "title": "Where your money goes",
@@ -974,7 +975,9 @@
         "locked": "This application has already been sent.",
         "notYours": "Please sign in again.",
         "consentFirst": "Please agree to the notice before uploading anything.",
-        "tooManyRequests": "Too many attempts. Wait a minute and try again."
+        "tooManyRequests": "Too many attempts. Wait a minute and try again.",
+        "pickATrade": "Choose at least one kind of work before you continue.",
+        "pickAnArea": "Choose at least one area you can work in."
       }
     },
     "successContinue": "Continue",
