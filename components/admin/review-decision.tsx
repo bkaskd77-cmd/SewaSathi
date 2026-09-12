@@ -105,17 +105,52 @@ export function ReviewDecision(props: ReviewDecisionProps) {
    */
   const open = React.useCallback(
     (documentId: string) => {
-      const tab = window.open("", "_blank", "noopener,noreferrer");
+      /*
+       * NO `noopener` IN THE FEATURE STRING, AND THAT IS THE WHOLE BUG.
+       *
+       * It was there, and `noopener` makes `window.open` return null by
+       * design — severing the reference is the point of it. So the new tab
+       * opened and sat on about:blank for ever, while the null handle sent the
+       * code down the fallback that navigated the CURRENT tab to the image.
+       * The reviewer lost the application they were reading and had to find
+       * their way back.
+       *
+       * The protection `noopener` provides is given back below by nulling
+       * `opener` before navigating. That is safe here because the tab starts
+       * as same-origin about:blank, so it is still ours to write to.
+       */
+      const tab = window.open("", "_blank");
+
       void (async () => {
         const result = await props.openDocumentAction(documentId);
-        if (result.ok) {
-          setOpened((previous) => new Set(previous).add(documentId));
-          if (tab) tab.location.href = result.url;
-          else window.location.href = result.url;
+
+        if (!result.ok) {
+          tab?.close();
+          setFailed((previous) => new Set(previous).add(documentId));
           return;
         }
-        tab?.close();
-        setFailed((previous) => new Set(previous).add(documentId));
+
+        setOpened((previous) => new Set(previous).add(documentId));
+
+        if (!tab) {
+          /*
+           * A popup blocker took it. The current tab is NOT navigated away —
+           * losing a half-written decision to see one photograph is a worse
+           * trade than asking for a second click, and it is the mistake this
+           * fix exists to undo.
+           */
+          setFailed((previous) => new Set(previous).add(documentId));
+          return;
+        }
+
+        // Hand back what `noopener` would have done for us.
+        try {
+          tab.opener = null;
+        } catch {
+          // Already navigated or cross-origin; nothing to sever.
+        }
+        // `replace`, so Back from the photograph does not land on about:blank.
+        tab.location.replace(result.url);
       })();
     },
     [props],
