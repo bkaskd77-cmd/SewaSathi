@@ -21,6 +21,7 @@ export {
   isProtectedRoute,
   isProviderRoute,
   isPublicRoute,
+  landingFor,
   roleOpensProviderRoutes,
   safeRedirect,
   PROTECTED_ROUTES,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { ClipboardList, ShieldAlert, Wallet } from "lucide-react";
+import { ShieldAlert, Wallet } from "lucide-react";
 
 import { AvailabilityToggle } from "@/components/provider/availability-toggle";
 import { ClaimCard } from "@/components/provider/claim-card";
@@ -203,15 +203,6 @@ export default async function ProviderDashboardPage() {
           </NextIntlClientProvider>
         )}
       </section>
-
-      <div className="animate-rise mt-6">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/provider/jobs">
-            <ClipboardList aria-hidden="true" />
-            {t("toJobs")}
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

@@ -164,3 +164,30 @@ export function safeRedirect(next: string | null | undefined): string {
   if (path.startsWith("/login") || path.startsWith("/verify")) return "/";
   return path;
 }
+
+/**
+ * Where somebody lands after signing in, once `safeRedirect` has judged the
+ * `?next=` they arrived with.
+ *
+ * ONE RULE: AN EXPLICIT DESTINATION ALWAYS WINS. Somebody who tapped "book",
+ * was sent here to sign in and came back is going to their booking whatever
+ * else they are — a professional's own plumbing emergency is still a booking,
+ * and overriding it with their jobs would lose the draft they were mid-way
+ * through.
+ *
+ * The role only decides when nothing was asked for. Before this, a
+ * professional signing in cold landed on the customer homepage and had to go
+ * looking for the working half of the product, which for a tradesperson
+ * opening the app between two jobs is the whole app being in the wrong place.
+ *
+ * Pure and separate from the form so the rule can be tested, rather than being
+ * three lines inside a component nobody can call.
+ */
+export function landingFor(input: {
+  /** Already through `safeRedirect`, so "/" means "they did not say". */
+  next: string;
+  worksHere: boolean;
+}): string {
+  if (input.next !== "/") return input.next;
+  return input.worksHere ? "/provider/jobs" : "/";
+}

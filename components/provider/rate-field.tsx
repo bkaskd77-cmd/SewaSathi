@@ -51,7 +51,7 @@ export function RateField({
     setNote(null);
     try {
       const { setRateAction } = await import(
-        "@/app/[locale]/(app)/provider/actions"
+        "@/app/[locale]/(work)/provider/actions"
       );
       const result = await setRateAction(asked);
       if (result.ok) {

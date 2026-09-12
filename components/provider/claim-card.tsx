@@ -87,7 +87,7 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
             onClick={() =>
               void run(async () => {
                 const { acceptClaimAction } = await import(
-                  "@/app/[locale]/(app)/provider/actions"
+                  "@/app/[locale]/(work)/provider/actions"
                 );
                 return acceptClaimAction(claim.id);
               })
@@ -141,7 +141,7 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
               onClick={() =>
                 void run(async () => {
                   const { recordVerdictAction } = await import(
-                    "@/app/[locale]/(app)/provider/actions"
+                    "@/app/[locale]/(work)/provider/actions"
                   );
                   return recordVerdictAction(claim.id, verdict, note);
                 })
@@ -159,7 +159,7 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
               onClick={() =>
                 void run(async () => {
                   const { releaseClaimAction } = await import(
-                    "@/app/[locale]/(app)/provider/actions"
+                    "@/app/[locale]/(work)/provider/actions"
                   );
                   return releaseClaimAction(claim.id);
                 })

@@ -45,7 +45,8 @@
     "account": "Account",
     "signIn": "Sign in",
     "logOut": "Log out",
-    "bookService": "Book a service"
+    "bookService": "Book a service",
+    "myWork": "My work"
   },
   "home": {
     "badge": "Now serving the Kathmandu Valley",
@@ -1208,6 +1209,18 @@
           "customerCaused": "Damaged after the work was done"
         }
       }
+    },
+    "chrome": {
+      "wordmark": "SajiloKaam",
+      "badge": "Professional",
+      "navLabel": "Your work",
+      "jobs": "Jobs",
+      "listing": "Listing",
+      "workingAs": "Working as {name}",
+      "switchToCustomer": "My bookings",
+      "logOut": "Log out",
+      "unnamed": "your listing",
+      "footerNote": "Something wrong on a job? Ring us."
     }
   },
   "admin": {

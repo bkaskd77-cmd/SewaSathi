@@ -6,7 +6,7 @@ import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { recordSecurityEvent } from "@/lib/audit";
-import { checkNepaliMobile } from "@/lib/auth";
+import { checkNepaliMobile, roleOpensProviderRoutes } from "@/lib/auth";
 import type { OtpOutcome, VerifyOutcome } from "@/lib/auth";
 import { sendOtp, verifyOtp } from "@/lib/auth/otp";
 import { getSessionProfile } from "@/lib/auth/session";
@@ -90,7 +90,29 @@ export async function verifyOtpAction(
   // answering it differently here would be a second oracle.
   if (!/^\d{4,8}$/.test(code)) return { ok: false, error: "codeInvalid" };
 
-  return verifyOtp(check.e164, code, { ip: callerIp() });
+  const outcome = await verifyOtp(check.e164, code, { ip: callerIp() });
+  if (!outcome.ok) return outcome;
+
+  /*
+   * WHERE THEY LAND, when they did not say.
+   *
+   * The session exists by this point, so the role is read here rather than in
+   * `otp.ts` — that file is the SMS adapter and a profiles query does not
+   * belong in it. A professional signing in with no destination in mind wants
+   * their jobs; sending them to the customer homepage made the working half of
+   * the product something they had to go looking for.
+   */
+  let worksHere = false;
+  try {
+    const profile = await getSessionProfile();
+    worksHere = roleOpensProviderRoutes(profile?.role ?? null);
+  } catch {
+    // A failed read is "not a professional". They are signed in either way,
+    // and the menu carries the door.
+    worksHere = false;
+  }
+
+  return { ...outcome, worksHere };
 }
 
 /**

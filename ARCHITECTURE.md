@@ -121,6 +121,15 @@ Where a change on one side cannot reach the other.
   and the card. Everything behind it can be rebuilt as long as that shape and
   the ten category slugs hold.
 - **`lib/data/` is the only thing that talks to Supabase.** Pages never do.
+- **The customer's product and the professional's product are two route groups,
+  not two sets of cards.** `app/[locale]/(app)/` carries the marketing header
+  and the full footer, because a customer who signs in is still shopping.
+  `app/[locale]/(work)/` carries `WorkHeader`, two tabs and a phone number,
+  because a professional is working. The URLs are unchanged — a route group is
+  a frame, not a path — and the `--work` tokens in `styles/globals.css` are
+  what makes the two unmistakable at a glance for the person who is both.
+  Adding a professional screen means adding it to `(work)`; the frame comes
+  with it.
 - **A guarantee claim reaches `resolved` only through `attended`.** The visit is
   the verification, and the edge is enforced in Postgres
   (`claim_transition_allowed`) as well as in `lib/booking/claim-status.ts`.

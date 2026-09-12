@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { OtpInput } from "@/components/ui/otp-input";
 import { Link, useRouter } from "@/i18n/navigation";
 
-import { formatE164ForDisplay } from "@/lib/auth";
+import { formatE164ForDisplay, landingFor } from "@/lib/auth";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 
 const RESEND_SECONDS = 60;
@@ -71,10 +71,17 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
         return;
       }
 
+      // An explicit destination wins; the role decides only when nothing was
+      // asked for. The rule is `landingFor`, so it can be tested.
+      const landing = landingFor({
+        next,
+        worksHere: outcome.worksHere ?? false,
+      });
+
       // New accounts need a name before anyone is sent to their door.
       const destination = outcome.isNewUser
-        ? `/onboarding?next=${encodeURIComponent(next)}`
-        : next;
+        ? `/onboarding?next=${encodeURIComponent(landing)}`
+        : landing;
 
       // Land on "verified" first. Jumping straight to the next screen the
       // instant the API returns reads as if something else happened.

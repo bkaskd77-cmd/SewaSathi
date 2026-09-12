@@ -197,6 +197,6 @@ export async function claimNoShowAction(input: {
     };
   }
 
-  revalidatePath("/[locale]/(app)/provider/jobs", "page");
+  revalidatePath("/[locale]/(work)/provider/jobs", "page");
   return { ok: true };
 }

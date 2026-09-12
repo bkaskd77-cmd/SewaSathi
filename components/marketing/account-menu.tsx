@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { CalendarDays, LogOut, User } from "lucide-react";
+import { Briefcase, CalendarDays, LogOut, User } from "lucide-react";
 
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,21 @@ import { cn } from "@/lib/utils";
  *
  * Deliberately not a Radix dropdown — this is four links, and the menu is the
  * only thing on the page that would pull in another primitive.
+ *
+ * `worksHere` is the door to the other half of the product, and without it
+ * there was none: `/provider/jobs` and `/provider` were reachable only by
+ * typing the URL, which is the same oversight that left `/providers/apply`
+ * unreachable for a phase. A professional is also a customer, so this menu
+ * keeps the customer items and adds the crossing — it never replaces them.
  */
-export function AccountMenu({ name }: { name: string }) {
+export function AccountMenu({
+  name,
+  worksHere = false,
+}: {
+  name: string;
+  /** True when this account has a provider or admin role. */
+  worksHere?: boolean;
+}) {
   const t = useTranslations("nav");
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -75,6 +88,17 @@ export function AccountMenu({ name }: { name: string }) {
             <CalendarDays aria-hidden="true" className="size-4" />
             {t("bookings")}
           </Link>
+          {worksHere ? (
+            <Link
+              role="menuitem"
+              href="/provider/jobs"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 border-b border-border px-4 py-3 text-body-sm font-semibold hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            >
+              <Briefcase aria-hidden="true" className="size-4" />
+              {t("myWork")}
+            </Link>
+          ) : null}
           <Link
             role="menuitem"
             href="/account"

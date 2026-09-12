@@ -130,7 +130,7 @@ export function JobCard(props: JobCardProps) {
   const claim = () =>
     void run(async () => {
       const { claimJobAction } = await import(
-        "@/app/[locale]/(app)/provider/jobs/actions"
+        "@/app/[locale]/(work)/provider/jobs/actions"
       );
       return claimJobAction(props.id);
     });
@@ -172,7 +172,7 @@ export function JobCard(props: JobCardProps) {
     if (!next) return;
     void run(async () => {
       const { advanceJobAction } = await import(
-        "@/app/[locale]/(app)/provider/jobs/actions"
+        "@/app/[locale]/(work)/provider/jobs/actions"
       );
       return advanceJobAction(props.id, next);
     });
@@ -181,7 +181,7 @@ export function JobCard(props: JobCardProps) {
   const decline = () =>
     void run(async () => {
       const { declineJobAction } = await import(
-        "@/app/[locale]/(app)/provider/jobs/actions"
+        "@/app/[locale]/(work)/provider/jobs/actions"
       );
       const result = await declineJobAction(props.id, declineReason);
       if (result.ok) setDeclining(false);
@@ -191,7 +191,7 @@ export function JobCard(props: JobCardProps) {
   const appeal = () =>
     void run(async () => {
       const { appealCommissionAction } = await import(
-        "@/app/[locale]/(app)/provider/jobs/actions"
+        "@/app/[locale]/(work)/provider/jobs/actions"
       );
       const result = await appealCommissionAction(props.id, appealReason);
       if (result.ok) setAppealing(false);
@@ -201,7 +201,7 @@ export function JobCard(props: JobCardProps) {
   const submitAmount = () =>
     void run(async () => {
       const { recordAmountAction } = await import(
-        "@/app/[locale]/(app)/provider/jobs/actions"
+        "@/app/[locale]/(work)/provider/jobs/actions"
       );
       return recordAmountAction(props.id, Number(amount), amountReason);
     });
@@ -275,13 +275,13 @@ export function JobCard(props: JobCardProps) {
           claimed={Boolean(props.noShowClaimed)}
           recordArrival={async (input) => {
             const { recordArrivalAction } = await import(
-              "@/app/[locale]/(app)/provider/jobs/actions"
+              "@/app/[locale]/(work)/provider/jobs/actions"
             );
             return recordArrivalAction(input);
           }}
           claimNoShow={async (input) => {
             const { claimNoShowAction } = await import(
-              "@/app/[locale]/(app)/provider/jobs/actions"
+              "@/app/[locale]/(work)/provider/jobs/actions"
             );
             return claimNoShowAction(input);
           }}

@@ -72,7 +72,14 @@ function AnchorLink({
  * reads it from the provider. One fewer thing every layout has to remember to
  * pass down correctly.
  */
-export function SiteHeader({ accountName }: { accountName?: string | null }) {
+export function SiteHeader({
+  accountName,
+  worksHere = false,
+}: {
+  accountName?: string | null;
+  /** Read from `profiles.role` by the layout. Adds the door to the work side. */
+  worksHere?: boolean;
+}) {
   const t = useTranslations("nav");
   const signedIn = accountName !== null && accountName !== undefined;
   const [condensed, setCondensed] = React.useState(false);
@@ -162,7 +169,11 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
           </div>
           <ThemeToggle />
           <div className="hidden sm:block">
-            {signedIn ? <AccountMenu name={accountName} /> : <SignedOutCta />}
+            {signedIn ? (
+              <AccountMenu name={accountName} worksHere={worksHere} />
+            ) : (
+              <SignedOutCta />
+            )}
           </div>
           <Button
             variant="ghost"
@@ -228,7 +239,7 @@ export function SiteHeader({ accountName }: { accountName?: string | null }) {
               <LanguageToggle />
               {signedIn ? (
                 <div className="flex-1">
-                  <AccountMenu name={accountName} />
+                  <AccountMenu name={accountName} worksHere={worksHere} />
                 </div>
               ) : (
                 // Just the primary action here — "Sign in" is already a row in

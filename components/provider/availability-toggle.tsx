@@ -36,7 +36,7 @@ export function AvailabilityToggle({
     setFailed(false);
     try {
       const { setAvailabilityAction } = await import(
-        "@/app/[locale]/(app)/provider/actions"
+        "@/app/[locale]/(work)/provider/actions"
       );
       const result = await setAvailabilityAction(!on);
       if (!result.ok) setFailed(true);

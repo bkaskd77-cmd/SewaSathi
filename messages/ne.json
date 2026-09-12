@@ -45,7 +45,8 @@
     "account": "खाता",
     "signIn": "साइन इन",
     "logOut": "लगआउट",
-    "bookService": "सेवा बुक गर्नुहोस्"
+    "bookService": "सेवा बुक गर्नुहोस्",
+    "myWork": "मेरो काम"
   },
   "home": {
     "badge": "अहिले काठमाडौँ उपत्यकामा उपलब्ध",
@@ -1208,6 +1209,18 @@
           "customerCaused": "काम सकिएपछि बिग्रेको"
         }
       }
+    },
+    "chrome": {
+      "wordmark": "सजिलो काम",
+      "badge": "प्राविधिक",
+      "navLabel": "तपाईंको काम",
+      "jobs": "काम",
+      "listing": "सूची",
+      "workingAs": "{name} भएर काम गर्दै",
+      "switchToCustomer": "मेरो बुकिङ",
+      "logOut": "लग आउट",
+      "unnamed": "तपाईंको सूची",
+      "footerNote": "कामको बेला केही बिग्रियो? फोन गर्नुहोस्।"
     }
   },
   "admin": {

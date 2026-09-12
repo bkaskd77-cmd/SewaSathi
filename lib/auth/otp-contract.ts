@@ -47,7 +47,23 @@ export type OtpOutcome =
 
 /** Verification additionally reports whether this is a brand-new account. */
 export type VerifyOutcome =
-  | { ok: true; isNewUser: boolean }
+  | {
+      ok: true;
+      isNewUser: boolean;
+      /**
+       * Does this account have work waiting on the other side of the product?
+       *
+       * Read from `profiles.role` by the server action AFTER the session
+       * exists, never by this module — `otp.ts` talks to an SMS gateway and
+       * nothing else. It only chooses where somebody lands when they asked for
+       * nowhere in particular: an explicit `?next=` always wins, so a
+       * professional who tapped "book" and then signed in still arrives at
+       * their own booking.
+       *
+       * Optional because the send path has no session to read it from.
+       */
+      worksHere?: boolean;
+    }
   | { ok: false; error: OtpError; detail?: string };
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  landingFor,
   isProtectedRoute,
   isProviderRoute,
   isPublicRoute,
@@ -229,5 +230,27 @@ describe("roleOpensProviderRoutes", () => {
     for (const invented of ["Admin", "ADMIN", "superuser", "provider ", "", "true"]) {
       expect(roleOpensProviderRoutes(invented)).toBe(false);
     }
+  });
+});
+
+describe("where somebody lands after signing in", () => {
+  /**
+   * The rule that must not invert: an explicit destination always wins.
+   * A professional's own burst pipe is still a booking, and sending them to
+   * their jobs instead would drop the draft they were part-way through.
+   */
+  it("honours an explicit destination for a professional", () => {
+    expect(landingFor({ next: "/book", worksHere: true })).toBe("/book");
+    expect(landingFor({ next: "/bookings/abc", worksHere: true })).toBe(
+      "/bookings/abc",
+    );
+  });
+
+  it("sends a professional who asked for nothing to their work", () => {
+    expect(landingFor({ next: "/", worksHere: true })).toBe("/provider/jobs");
+  });
+
+  it("leaves a customer on the homepage", () => {
+    expect(landingFor({ next: "/", worksHere: false })).toBe("/");
   });
 });

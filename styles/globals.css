@@ -97,6 +97,25 @@
     --chart-4: 22 78% 46%;
     --chart-5: 280 26% 46%;
 
+    /*
+     * THE WORK SURFACE.
+     *
+     * A professional is not shopping. `/provider` and `/provider/jobs` are
+     * where somebody earns a living several times a day, and they were wearing
+     * the same ivory chrome as the catalogue — which made the two halves of
+     * the product indistinguishable at a glance for the one person who uses
+     * both. This pair is the ground that tells them apart, and it is here
+     * rather than hardcoded in a header because nothing in this product
+     * hardcodes a colour.
+     *
+     * Deeper than `--primary` on purpose: the brand emerald is a button, and a
+     * whole bar of it competes with every call to action sitting on it.
+     */
+    --work: 170 74% 15%;
+    --work-foreground: 42 70% 97%;
+    /* Text-sized on the work ground — a muted ivory that still clears 4.5:1. */
+    --work-muted: 42 30% 80%;
+
     --radius: 0.625rem;
 
     /* Elevation tinted with the slate hue so shadows sit with the ink rather
@@ -134,6 +153,12 @@
 
     --secondary: 202 16% 19%;
     --secondary-foreground: 42 28% 93%;
+
+    /* Dark theme keeps the work ground darker than the cards on it, so the
+       bar still reads as a frame rather than as another panel. */
+    --work: 172 40% 12%;
+    --work-foreground: 42 28% 95%;
+    --work-muted: 170 12% 70%;
 
     --gold: 40 72% 62%;
     --gold-foreground: 40 60% 10%;
