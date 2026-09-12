@@ -41,6 +41,19 @@ export type LeadResult =
     }
   | { ok: false; errors: LeadErrors };
 
+/**
+ * "This number has already applied for this trade."
+ *
+ * 23505 is Postgres's unique-violation class, and the only unique constraint a
+ * submission can hit here is `(phone, category_slug)` — the one that makes a
+ * double tap idempotent. Exported so the decision is testable without a
+ * database, because the alternative to getting it right is showing somebody a
+ * red error for having already done the thing they wanted to do.
+ */
+export function isDuplicateLead(error: { code?: string } | null): boolean {
+  return error?.code === "23505";
+}
+
 const schema = z.object({
   fullName: z.string().trim().min(2).max(80),
   category: z.string().refine((v) => CATEGORY_SLUGS.includes(v)),
@@ -89,23 +102,45 @@ export async function submitProviderLead(
   }
 
   try {
-    const { error } = await createClient()
-      .from("provider_leads")
-      .upsert(
-        {
-          full_name: parsed.data.fullName,
-          phone: phone.e164,
-          category_slug: parsed.data.category,
-          area_key: parsed.data.area,
-          years_experience: parsed.data.years,
-          note: parsed.data.note || null,
-          locale,
-        },
-        // Tapping submit twice is not two applications.
-        { onConflict: "phone,category_slug" },
-      );
+    /*
+     * A PLAIN INSERT, NEVER AN UPSERT, AND THE REASON IS RLS.
+     *
+     * This ran as an upsert on `phone,category_slug` so that tapping submit
+     * twice was not two applications. It refused every single submission in
+     * production with "new row violates row-level security policy" — on an
+     * empty table, where no conflict was possible.
+     *
+     * `INSERT ... ON CONFLICT DO UPDATE` needs an UPDATE policy, because
+     * Postgres has to satisfy the update arm of the statement whether or not a
+     * conflict actually occurs. `provider_leads` grants anonymous visitors
+     * INSERT and nothing else, so the update arm was denied and took the whole
+     * statement with it.
+     *
+     * The fix is NOT to add an UPDATE policy. This table is written by
+     * strangers with no account, so an update policy that let one of them
+     * write would let any of them rewrite anybody else's lead — a worse
+     * problem than the one the upsert solved. Insert-only is the right surface
+     * for an open form.
+     *
+     * So the duplicate is handled here instead: a unique violation means this
+     * person already applied for this trade, which from their side is the same
+     * outcome as applying, and is reported as success.
+     */
+    const { error } = await createClient().from("provider_leads").insert({
+      full_name: parsed.data.fullName,
+      phone: phone.e164,
+      category_slug: parsed.data.category,
+      area_key: parsed.data.area,
+      years_experience: parsed.data.years,
+      note: parsed.data.note || null,
+      locale,
+    });
 
     if (error) {
+      // Tapping submit twice is not two applications, and it is not an error
+      // either — the row they wanted is already there.
+      if (isDuplicateLead(error)) return { ok: true, phone: phone.national };
+
       console.error(`[leads] insert failed — ${describeError(error)}`);
       return { ok: false, errors: { form: "saveFailed" } };
     }
