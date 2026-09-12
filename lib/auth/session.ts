@@ -11,6 +11,26 @@ export type SessionProfile = {
   phone: string | null;
   preferredLanguage: "en" | "ne";
   role: "customer" | "provider" | "admin";
+  /**
+   * The listing this account owns, if any.
+   *
+   * THE DOOR TO THE WORKING SIDE OPENS ON THIS, NOT ON THE ROLE. A role is
+   * permission to reach a screen; a listing is the reason to. `admin` passes
+   * `roleOpensProviderRoutes` so support can help a professional standing in
+   * somebody's kitchen — but showing an admin with no listing a "My work" link
+   * puts the wrong entity's door in their menu, which is exactly the blur this
+   * separation exists to remove.
+   */
+  providerId: string | null;
+  /**
+   * The name on that listing, which is NOT always the name on the account.
+   *
+   * A provisioned or linked account can carry one name while the listing
+   * carries another, and the working header said "Working as Bikas Khadka"
+   * over a listing customers see as "Manoj Yadav". The name that matters on a
+   * working surface is the one the customer is expecting at their door.
+   */
+  providerName: string | null;
 };
 
 /**
@@ -19,13 +39,18 @@ export type SessionProfile = {
  * Returns null rather than throwing when Supabase is unconfigured, so the
  * marketing pages still render on a fresh clone with no keys.
  *
- * MEMOISED PER REQUEST, and it matters more than it looks. This is two network
- * calls — an Auth API call to verify the token, then a `profiles` row — and it
- * is asked for by the site header, by the page, and sometimes by a component
- * inside the page. Every one of those was paying for both calls again. React's
- * `cache` gives one answer per request and per visitor: the second and third
- * callers get the first one's result, and nobody's session can leak into
- * anybody else's render because the store is scoped to the request.
+ * MEMOISED PER REQUEST, and it matters more than it looks. This is an Auth API
+ * call to verify the token and then two rows, and it is asked for by the site
+ * header, by the page, and sometimes by a component inside the page. Every one
+ * of those was paying for all of it again. React's `cache` gives one answer per
+ * request and per visitor: the second and third callers get the first one's
+ * result, and nobody's session can leak into anybody else's render because the
+ * store is scoped to the request.
+ *
+ * TWO WAVES, NOT THREE. The listing lookup needs the user id, so it cannot
+ * start before `getUser`, but it does not depend on the profile row — so the
+ * two go together and the extra read costs nothing. A second `await` here
+ * would have put a round trip on every signed-in page for one menu item.
  */
 export const getSessionProfile = cache(async (): Promise<SessionProfile | null> => {
   if (!hasSupabaseConfig()) return null;
@@ -36,11 +61,18 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile | null> 
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, full_name, phone, preferred_language, role")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data }, { data: listing }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, phone, preferred_language, role")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("providers")
+      .select("id, display_name")
+      .eq("profile_id", user.id)
+      .maybeSingle(),
+  ]);
 
   // The signup trigger creates the row, but a user who somehow predates it
   // should still get a usable header rather than a crash.
@@ -51,5 +83,7 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile | null> 
     preferredLanguage:
       (data?.preferred_language as "en" | "ne" | undefined) ?? "en",
     role: (data?.role as SessionProfile["role"] | undefined) ?? "customer",
+    providerId: (listing?.id as string | undefined) ?? null,
+    providerName: (listing?.display_name as string | undefined) ?? null,
   };
 });

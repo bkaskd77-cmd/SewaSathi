@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeftRight, ClipboardList, LogOut, Store } from "lucide-react";
+import { ClipboardList, LogOut, Store } from "lucide-react";
 
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Link, usePathname } from "@/i18n/navigation";
@@ -30,11 +30,21 @@ import { cn } from "@/lib/utils";
  *     here is trying to sell them anything; they are the supply side.
  *   * TWO TABS AND NOTHING ELSE — the work, and the listing. A working screen
  *     with six destinations is a screen somebody has to read before acting.
- *   * ONE DELIBERATE DOOR BACK. A professional is also a customer, so the way
- *     across is explicit and labelled rather than hidden behind a logo.
+ *   * THE WORDMARK GOES TO THE PUBLIC SITE, as a wordmark does everywhere
+ *     else on the internet. It pointed at the jobs list for one version, on
+ *     the theory that the home of a working surface is the work — which left
+ *     a professional with no route to the homepage at all, because the tabs
+ *     are work and there was nothing else. The tabs are the work navigation;
+ *     the wordmark is the way out.
  *
- * The wordmark still goes to the professional's own jobs, not to the landing
- * page. On a working surface the home is the work.
+ * THERE IS NO "MY BOOKINGS" LINK, and its removal is the point rather than a
+ * simplification. A professional reading "my bookings" on a working screen
+ * reads it as the jobs they have been given, which is what the Jobs tab is —
+ * two labels for what looks like one thing, and the wrong one leads somewhere
+ * that will be empty for nearly everybody. Most professionals will never book
+ * a service from us. How somebody who does crosses over is an open question
+ * (possibly a separate number), and a confusing link is not a placeholder for
+ * an answer.
  */
 export function WorkHeader({ name }: { name: string }) {
   const t = useTranslations("provider.chrome");
@@ -49,7 +59,8 @@ export function WorkHeader({ name }: { name: string }) {
     <header className="bg-work text-work-foreground">
       <div className="container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
         <Link
-          href="/provider/jobs"
+          href="/"
+          aria-label={t("home")}
           className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-work-foreground/70"
         >
           <span className="font-display text-body-md font-bold tracking-tight">
@@ -88,8 +99,8 @@ export function WorkHeader({ name }: { name: string }) {
         </nav>
       </div>
 
-      {/* The second row carries who you are and the two ways out. Separated
-          from the tabs so the thing pressed all day is never beside sign-out. */}
+      {/* The second row carries who you are and the way out. Separated from the
+          tabs so the thing pressed all day is never beside sign-out. */}
       <div className="border-t border-work-foreground/15">
         <div className="container flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
           <p className="text-caption text-work-muted">
@@ -97,13 +108,6 @@ export function WorkHeader({ name }: { name: string }) {
           </p>
 
           <div className="ml-auto flex items-center gap-1">
-            <Link
-              href="/bookings"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-caption text-work-muted transition-colors hover:text-work-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-work-foreground/70"
-            >
-              <ArrowLeftRight aria-hidden="true" className="size-3.5" />
-              {t("switchToCustomer")}
-            </Link>
             <form action={signOutAction}>
               <button
                 type="submit"

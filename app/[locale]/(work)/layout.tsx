@@ -36,7 +36,12 @@ export default async function WorkLayout({
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <WorkHeader name={profile?.fullName ?? t("unnamed")} />
+      {/* The LISTING's name, not the account's. They are not always the same,
+          and the one that matters here is the one a customer is expecting at
+          their door. */}
+      <WorkHeader
+        name={profile?.providerName ?? profile?.fullName ?? t("unnamed")}
+      />
 
       <main id="main" className="container flex-1 py-8 sm:py-10">
         {children}

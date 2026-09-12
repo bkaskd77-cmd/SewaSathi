@@ -2,7 +2,6 @@ import { getTranslations } from "next-intl/server";
 
 import { SiteFooter } from "@/components/marketing/footer";
 import { SiteHeader } from "@/components/marketing/site-header";
-import { roleOpensProviderRoutes } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
 
 /**
@@ -37,11 +36,13 @@ export default async function AppLayout({
       */}
       <SiteHeader
         accountName={profile ? (profile.fullName ?? t("account")) : null}
-        /* The door to the working side. Without it `/provider` and
-           `/provider/jobs` were reachable only by typing the URL. The role
-           comes from `profiles`, never from the token's `user_metadata` —
-           see the note on `roleOpensProviderRoutes`. */
-        worksHere={roleOpensProviderRoutes(profile?.role ?? null)}
+        /* The door to the working side, and it opens on OWNING A LISTING
+           rather than on a role. `admin` passes the route guard so support can
+           reach a professional's screen, but an admin with no listing has no
+           work — and putting "My work" in their menu is the entity blur this
+           split exists to remove. Permission to reach a screen and a reason to
+           go there are different questions. */
+        worksHere={profile?.providerId != null}
       />
 
       <main id="main" className="container flex-1 py-10 sm:py-14">
