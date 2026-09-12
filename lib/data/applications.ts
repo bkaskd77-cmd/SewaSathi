@@ -11,9 +11,11 @@ import type { Database } from "@/types/supabase";
 import {
   CONSENT_SCOPE,
   CONSENT_VERSION,
+  judgeReference,
   knownTrade,
   seedFromLead,
   type ProviderLead,
+  type ReferenceVerdict,
 } from "@/lib/verification";
 
 /**
@@ -393,14 +395,21 @@ export async function listReferences(applicationId: string) {
   return data ?? [];
 }
 
+/** Why a reference was refused, so the form can say which. */
+export type AddReferenceResult =
+  | "ok"
+  | "failed"
+  | "notYours"
+  | ReferenceVerdict;
+
 export async function addReference(input: {
   applicationId: string;
   actorId: string;
   name: string;
   phone: string;
   relationship: string;
-}): Promise<boolean> {
-  if (!hasSupabaseConfig()) return false;
+}): Promise<AddReferenceResult> {
+  if (!hasSupabaseConfig()) return "failed";
   const db = createAdminClient();
 
   const { data: application } = await db
@@ -414,8 +423,32 @@ export async function addReference(input: {
     application.profile_id !== input.actorId ||
     application.status !== "draft"
   ) {
-    return false;
+    return "notYours";
   }
+
+  /*
+   * TWO REFERENCES MEANS TWO PEOPLE, and the form accepted the same number
+   * twice — including the applicant's own. Checked here rather than in the
+   * form because the form is the one place a submission cannot be trusted
+   * from, and because the numbers already on the application only exist here.
+   */
+  const { data: owner } = await db
+    .from("profiles")
+    .select("phone")
+    .eq("id", input.actorId)
+    .maybeSingle();
+
+  const { data: existing } = await db
+    .from("application_references")
+    .select("phone")
+    .eq("application_id", input.applicationId);
+
+  const verdict = judgeReference({
+    phone: input.phone,
+    applicantPhone: (owner?.phone as string | null) ?? null,
+    existing: (existing ?? []).map((row) => row.phone as string),
+  });
+  if (verdict !== "ok") return verdict;
 
   const { error } = await db.from("application_references").insert({
     application_id: input.applicationId,
@@ -428,7 +461,7 @@ export async function addReference(input: {
       : "other",
   });
 
-  return !error;
+  return error ? "failed" : "ok";
 }
 
 /** Which documents have arrived, for the progress display and the review step. */

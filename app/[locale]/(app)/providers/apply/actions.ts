@@ -15,6 +15,7 @@ import {
 import { uploadProviderDocument } from "@/lib/data/provider-documents";
 import { sealApplication } from "@/lib/data/verification";
 import { checkRateLimit } from "@/lib/server/rate-limit";
+import { judgeAge } from "@/lib/verification";
 
 /**
  * Everything the application form posts to.
@@ -154,6 +155,26 @@ export async function saveStepAction(
     return { ok: false, error: required.error };
   }
 
+  /*
+   * NOBODY UNDER EIGHTEEN GOES INTO A STRANGER'S HOUSE.
+   *
+   * The date of birth was collected, printed on the reviewer's screen, and
+   * checked by nothing — an application giving 2008 was accepted and approved
+   * during the walkthrough. Refused here rather than raised for a reviewer,
+   * because unlike the rest of this phase there is no judgement that makes a
+   * sixteen-year-old acceptable, and letting it reach the queue only creates a
+   * chance of it being waved through.
+   */
+  if (value("dateOfBirth")) {
+    const verdict = judgeAge(value("dateOfBirth"));
+    if (!verdict.ok) {
+      return {
+        ok: false,
+        error: verdict.reason === "tooYoung" ? "tooYoung" : "dateOfBirth",
+      };
+    }
+  }
+
   const patch: StepPatch = {};
   if (value("fullName")) patch.fullName = value("fullName");
   if (value("fullNameNe")) patch.fullNameNe = value("fullNameNe");
@@ -193,7 +214,7 @@ export async function addReferenceAction(
   const actorId = await actor();
   if (!actorId) return { ok: false, error: "notYours" };
 
-  const ok = await addReference({
+  const result = await addReference({
     applicationId: String(formData.get("applicationId") ?? ""),
     actorId,
     name: String(formData.get("name") ?? "").trim(),
@@ -201,7 +222,17 @@ export async function addReferenceAction(
     relationship: String(formData.get("relationship") ?? "other"),
   });
 
-  if (!ok) return { ok: false, error: "generic" };
+  // Both refusals are about the number typed, so they are named rather than
+  // hidden behind "generic" — the person can fix either in five seconds if
+  // they are told which one it is.
+  if (result === "sameAsApplicant") {
+    return { ok: false, error: "referenceIsYou" };
+  }
+  if (result === "alreadyListed") {
+    return { ok: false, error: "referenceRepeated" };
+  }
+  if (result !== "ok") return { ok: false, error: "generic" };
+
   refresh();
   return { ok: true };
 }

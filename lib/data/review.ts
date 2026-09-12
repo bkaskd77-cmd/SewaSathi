@@ -12,7 +12,11 @@ import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { documentsFor, identityMatchingIsLive } from "@/lib/verification";
+import {
+  documentsFor,
+  identityMatchingIsLive,
+  payoutIsSomebodyElses,
+} from "@/lib/verification";
 
 /**
  * Everything a reviewer needs on one screen, and what happens when they decide.
@@ -66,6 +70,16 @@ export type ApplicationForReview = {
   panNumber: string | null;
   payoutMethod: string | null;
   payoutAccount: string | null;
+  /**
+   * The payout number is not the number they sign in with.
+   *
+   * ALLOWED, AND USUALLY INNOCENT — a lot of tradespeople here use a spouse's
+   * or a son's wallet, and requiring a match would exclude exactly the supply
+   * this platform is for. But it is the one place "we verified this person"
+   * stops being true of where the money goes, so the reviewer is told rather
+   * than shown a number that looks like every other number.
+   */
+  payoutIsSomebodyElses: boolean;
   yearsExperience: number | null;
   submittedAt: string | null;
   riskScore: number;
@@ -142,6 +156,14 @@ export async function applicationForReview(input: {
       findDuplicates(input.applicationId),
     ]);
 
+  // Their own number, only to compare against where the money is going.
+  const { data: owner } = await db
+    .from("profiles")
+    .select("phone")
+    .eq("id", application.profile_id as string)
+    .maybeSingle();
+  const applicantPhone = (owner?.phone as string | null) ?? null;
+
   const byKind = new Map(
     (documentRows.data ?? []).map((row) => [row.kind as string, row]),
   );
@@ -207,6 +229,10 @@ export async function applicationForReview(input: {
     panNumber: (application.pan_number as string | null) ?? null,
     payoutMethod: (application.payout_method as string | null) ?? null,
     payoutAccount: (application.payout_account as string | null) ?? null,
+    payoutIsSomebodyElses: payoutIsSomebodyElses({
+      payoutAccount: application.payout_account as string | null,
+      applicantPhone: applicantPhone,
+    }),
     yearsExperience: (application.years_experience as number | null) ?? null,
     submittedAt: (application.submitted_at as string | null) ?? null,
     riskScore: (application.risk_score as number | null) ?? 0,

@@ -981,7 +981,11 @@
         "photoTooLarge": "That photograph is too big to send. Take it again a little further back.",
         "photoNotAnImage": "We could not read that file. Photograph the paper with your camera rather than sending a screenshot.",
         "photoWrongFormat": "That kind of picture will not work here. Use your camera and send the photograph it takes.",
-        "photoCorrupt": "That photograph did not come through whole. Take it again."
+        "photoCorrupt": "That photograph did not come through whole. Take it again.",
+        "referenceIsYou": "That is your own number. A reference has to be somebody else.",
+        "referenceRepeated": "You have already given this number. The second person needs a different one.",
+        "tooYoung": "You need to be 18 or older to work through us.",
+        "dateOfBirth": "Check the date of birth."
       }
     },
     "successContinue": "Continue",
@@ -1157,6 +1161,7 @@
       "absorbed": "First one — we absorb it",
       "recovered": "Added to their next bill"
     },
-    "openFailed": "Could not open that. Try once more."
+    "openFailed": "Could not open that. Try once more.",
+    "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about."
   }
 }

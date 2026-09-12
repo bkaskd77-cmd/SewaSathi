@@ -87,7 +87,15 @@ export default async function ApplicationReviewPage({
             .map((key) => areaShortLabel(key, locale))
             .join(", ")}
         />
-        <Pair label={tApply("payout.title")} value={application.payoutAccount} />
+        <Pair
+          label={tApply("payout.title")}
+          value={application.payoutAccount}
+          note={
+            application.payoutIsSomebodyElses
+              ? t("payoutIsSomebodyElses")
+              : null
+          }
+        />
       </dl>
 
       {/* Duplicates first: a match against somebody we removed changes how
@@ -232,11 +240,27 @@ export default async function ApplicationReviewPage({
   );
 }
 
-function Pair({ label, value }: { label: string; value: string | null }) {
+function Pair({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string | null;
+  /** A fact about the value, when the value alone does not carry it. */
+  note?: string | null;
+}) {
   return (
     <>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mb-1 sm:mb-0">{value || "—"}</dd>
+      <dd className="mb-1 sm:mb-0">
+        {value || "—"}
+        {note ? (
+          <span className="mt-0.5 block text-caption text-warning-ink">
+            {note}
+          </span>
+        ) : null}
+      </dd>
     </>
   );
 }

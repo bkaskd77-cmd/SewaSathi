@@ -49,6 +49,18 @@ export {
 } from "./consent";
 
 export {
+  MINIMUM_AGE,
+  ageOn,
+  judgeAge,
+  judgeReference,
+  nationalDigits,
+  payoutIsSomebodyElses,
+  samePhone,
+  type AgeVerdict,
+  type ReferenceVerdict,
+} from "./applicant-rules";
+
+export {
   seedFromLead,
   type LeadSeed,
   type ProviderLead,
