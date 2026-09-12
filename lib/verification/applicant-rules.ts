@@ -110,7 +110,11 @@ export function judgeAge(
  * typed, and telling somebody at the moment they type it is far kinder than
  * rejecting their application three days later.
  */
-export type ReferenceVerdict = "ok" | "sameAsApplicant" | "alreadyListed";
+export type ReferenceVerdict =
+  | "ok"
+  | "sameAsApplicant"
+  | "alreadyListed"
+  | "sameAsPayout";
 
 export function judgeReference(input: {
   /** The number being added. */
@@ -119,11 +123,24 @@ export function judgeReference(input: {
   applicantPhone: string | null | undefined;
   /** Numbers already on this application. */
   existing: ReadonlyArray<string>;
+  /** Where their money is going. */
+  payoutAccount?: string | null;
 }): ReferenceVerdict {
   if (samePhone(input.phone, input.applicantPhone)) return "sameAsApplicant";
   if (input.existing.some((phone) => samePhone(phone, input.phone))) {
     return "alreadyListed";
   }
+  /*
+   * A REFEREE WHO HOLDS THE WALLET IS NOT AN INDEPENDENT REFEREE.
+   *
+   * The payout number is allowed to be somebody else's — usually a spouse or a
+   * son — and that is fine on its own. It stops being fine when the same
+   * person is also the one vouching for the work, because then the two checks
+   * that were supposed to be independent are one person with an interest in
+   * the answer. Refused rather than flagged: a second referee costs the
+   * applicant nothing, and there is no reading of this that makes it evidence.
+   */
+  if (samePhone(input.phone, input.payoutAccount)) return "sameAsPayout";
   return "ok";
 }
 

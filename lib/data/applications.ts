@@ -414,7 +414,7 @@ export async function addReference(input: {
 
   const { data: application } = await db
     .from("provider_applications")
-    .select("id, profile_id, status")
+    .select("id, profile_id, status, payout_account")
     .eq("id", input.applicationId)
     .maybeSingle();
 
@@ -447,6 +447,7 @@ export async function addReference(input: {
     phone: input.phone,
     applicantPhone: (owner?.phone as string | null) ?? null,
     existing: (existing ?? []).map((row) => row.phone as string),
+    payoutAccount: (application.payout_account as string | null) ?? null,
   });
   if (verdict !== "ok") return verdict;
 

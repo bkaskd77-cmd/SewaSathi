@@ -196,6 +196,18 @@ export async function sealApplication(input: {
     return { ok: false };
   }
 
+  /*
+   * The referees, read at sealing rather than carried on the application.
+   *
+   * A reference is the only human check on competence in this phase, so the
+   * cheap way to defeat it is one friend vouching for six applicants rather
+   * than any forgery. Keys are what make that visible across applications.
+   */
+  const { data: referenceRows } = await db
+    .from("application_references")
+    .select("phone")
+    .eq("application_id", input.applicationId);
+
   const keys: MatchKey[] = matchKeysFor({
     documentNumbers: [
       application.citizenship_number ?? "",
@@ -205,6 +217,7 @@ export async function sealApplication(input: {
     fullName: application.full_name ?? "",
     areaKeys: (application.service_areas as string[]) ?? [],
     deviceFingerprint: application.device_fingerprint ?? undefined,
+    referencePhones: (referenceRows ?? []).map((row) => row.phone as string),
   });
 
   if (keys.length > 0) {

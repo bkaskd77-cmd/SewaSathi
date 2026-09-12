@@ -334,7 +334,8 @@ export type MatchKeyKind =
   | "name"
   | "area"
   | "device"
-  | "face";
+  | "face"
+  | "reference";
 
 export type MatchKey = { kind: MatchKeyKind; value: string };
 
@@ -350,6 +351,15 @@ export type MatchKeyInput = {
   deviceFingerprint?: string;
   /** Opaque descriptor from the face adapter, when one is enabled. */
   faceSignature?: string;
+  /**
+   * The people who vouched for them.
+   *
+   * References are the only human check on competence here, so the way to
+   * defeat that check is not forgery — it is one friend vouching for six
+   * applicants. Stored on the application and compared against nothing, that
+   * was invisible.
+   */
+  referencePhones?: string[];
 };
 
 /**
@@ -383,6 +393,12 @@ export function matchKeysFor(input: MatchKeyInput): MatchKey[] {
   if (input.faceSignature) {
     push("face", input.faceSignature.trim());
   }
+  for (const phone of input.referencePhones ?? []) {
+    // `accountKey` because a referee's number is a phone number like any
+    // other, and it must fold the country code the same way or the same
+    // person written two ways becomes two people.
+    push("reference", accountKey(phone));
+  }
 
   const seen = new Set<string>();
   return keys.filter((key) => {
@@ -413,5 +429,13 @@ export const MATCH_WEIGHTS: Record<MatchKeyKind, number> = {
   account: 70,
   name: 25,
   device: 20,
+  /*
+   * LOW ON PURPOSE. A foreman vouching for his whole crew is the ordinary case
+   * and exactly the supply this platform wants, so two applicants sharing a
+   * referee must not read as suspicious. Six of them is a pattern — and a
+   * pattern is for a reviewer to see, not for a rule to decide. The value here
+   * is that the hit appears at all.
+   */
+  reference: 12,
   area: 5,
 };

@@ -985,7 +985,8 @@
         "referenceIsYou": "That is your own number. A reference has to be somebody else.",
         "referenceRepeated": "You have already given this number. The second person needs a different one.",
         "tooYoung": "You need to be 18 or older to work through us.",
-        "dateOfBirth": "Check the date of birth."
+        "dateOfBirth": "Check the date of birth.",
+        "referenceIsPayout": "That is the number your payments go to. A reference has to be someone with nothing to gain."
       }
     },
     "successContinue": "Continue",

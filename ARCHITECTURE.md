@@ -363,6 +363,37 @@ Where a change on one side cannot reach the other.
   barred at night, and a code four minutes late is a failed sign-in while one
   barred at 2am is a flooding bathroom nobody can report. Both are in the
   pre-contract question list.
+- **DUPLICATE NUMBERS ARE JUDGED PER RELATIONSHIP, NEVER BY ONE BLANKET RULE.**
+  "No identical numbers anywhere" would be wrong here: a shared family wallet
+  is normal in Nepal, a professional's own number legitimately appears both as
+  their sign-in and as their published contact, and a foreman vouching for his
+  whole crew is the supply this platform wants rather than a fraud. So each
+  pairing gets its own answer, and `lib/verification/applicant-rules.ts` holds
+  them. Every comparison folds the country code, leading zeros and Devanagari
+  numerals through one normaliser, because otherwise every rule below is
+  defeated by typing `+977` in front of a number.
+  - **Refused at the moment of typing**, because no reading of the evidence
+    rescues them: a reference equal to another reference, a reference equal to
+    the applicant's own number, and a reference equal to the payout account —
+    the last because a referee who holds the wallet is not an independent
+    referee, and the two checks that were meant to be separate become one
+    person with an interest in the answer.
+  - **Allowed but stated**: a payout account that is not the applicant's own
+    number. Requiring a match would exclude the older and less formally banked
+    professionals this product exists to reach.
+  - **Recorded as a signal**: reference phones are match keys now, weighted low
+    (`MATCH_WEIGHTS.reference`). One friend vouching for six applicants was the
+    cheapest collusion available and was completely invisible, because
+    references were stored on the application and compared against nothing.
+    Low, not high, so a crew sharing a foreman is unremarkable and only a
+    pattern stands out.
+  - **STILL OPEN, and deliberately deferred to the admin surface** rather than
+    forgotten: the same payout account across two *approved* professionals;
+    changing a payout number after approval, which is the classic
+    account-takeover move and needs re-verification rather than a form; and the
+    customer side, where booking contact numbers are unconstrained. These are
+    internal checks on people already in the product, so they belong with the
+    tools for acting on them.
 - **A role can wait for its person.** `provisioned_accounts` maps a phone
   number to a role and an optional provider listing, and `handle_new_user`
   applies it at signup. Before it, walking the provider or admin surfaces meant

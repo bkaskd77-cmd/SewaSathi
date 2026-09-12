@@ -231,6 +231,9 @@ export async function addReferenceAction(
   if (result === "alreadyListed") {
     return { ok: false, error: "referenceRepeated" };
   }
+  if (result === "sameAsPayout") {
+    return { ok: false, error: "referenceIsPayout" };
+  }
   if (result !== "ok") return { ok: false, error: "generic" };
 
   refresh();
