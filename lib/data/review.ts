@@ -90,12 +90,16 @@ export type ApplicationForReview = {
 };
 
 /**
- * Load one application, minting a signed URL per document.
+ * Load one application. Documents are named, never signed.
  *
- * EVERY URL MINTED IS LOGGED against the admin who asked, by
- * `signDocumentForReview`. An admin looking at somebody's citizenship
+ * SIGNING IS AN ACCESS, AND AN ACCESS IS LOGGED, so it cannot happen here.
+ * This used to mint a URL per document while rendering, which recorded the
+ * admin as having viewed every identity document on the screen — including
+ * the ones they never opened. An admin looking at somebody's citizenship
  * certificate is the access nobody would otherwise ever see, and admins are
- * the largest single risk in a platform holding these.
+ * the largest single risk in a platform holding these, so a log that invents
+ * looks is worse than no log at all. `openDocumentAction` signs one document
+ * when a reviewer asks for it.
  */
 export async function applicationForReview(input: {
   applicationId: string;
@@ -341,6 +345,55 @@ export async function decideApplication(input: {
             category_slug: slug,
           })),
         );
+
+        /*
+         * A STATS ROW FROM DAY ONE, so a new professional is the same shape as
+         * every other one rather than a special case with nulls in it. The
+         * ranking reads it through optional chaining, so its absence was not
+         * fatal — which is exactly why it would have gone unnoticed until
+         * something less forgiving read it.
+         *
+         * The defaults are deliberately neutral, not flattering: no rating, no
+         * jobs. `bayesianRating` has a prior for precisely this, so an empty
+         * record ranks like an unknown rather than like a perfect one.
+         */
+        await db
+          .from("provider_stats")
+          .insert({ provider_id: provider.id as string });
+      }
+    }
+
+    /*
+     * AND THE ROLE, WHICH APPROVAL USED TO FORGET.
+     *
+     * The listing was created, the categories were written, the documents were
+     * verified — and `profiles.role` stayed `customer`. So the product had a
+     * professional it had approved and did not consider a professional. It
+     * happened not to break `/provider/jobs`, which is gated on the session
+     * rather than the role, and that is luck rather than design: the
+     * middleware now reads `profiles.role` for provider routes, so the first
+     * route added to that list would have locked an approved professional out
+     * of their own work.
+     *
+     * Last, and after the listing exists, so a failure here leaves somebody
+     * with a listing and the wrong role rather than a role and no listing.
+     * An admin is left alone: promoting to provider would take away an admin's
+     * own access, and an admin who is also a professional is a real case.
+     */
+    const { data: current } = await db
+      .from("profiles")
+      .select("role")
+      .eq("id", application.profile_id as string)
+      .maybeSingle();
+
+    if (current && current.role !== "admin") {
+      const { error: roleError } = await db
+        .from("profiles")
+        .update({ role: "provider" })
+        .eq("id", application.profile_id as string);
+
+      if (roleError) {
+        console.error(`[review] role — ${describeError(roleError)}`);
       }
     }
 
