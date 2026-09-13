@@ -22,6 +22,12 @@ export type PreferredLanguage = "en" | "ne";
 export type Urgency = "emergency" | "soon" | "routine";
 /** Which path produced a triage row — see supabase/migrations. */
 export type TriageSource = "claude" | "cache" | "fallback";
+/**
+ * The availability column AS STORED. The state a customer is shown is wider
+ * (`on_job`, `busy`) and is computed by `providerState` in lib/provider from
+ * this plus two timestamps — this file describes the database, so it keeps the
+ * narrow union the check constraint actually enforces.
+ */
 export type Availability = "now" | "today" | "scheduled";
 export type IdDocumentStatus = "verified" | "pending" | "not_submitted";
 export type VerificationCheck = "id" | "background" | "skill";
@@ -213,6 +219,12 @@ export type Database = {
           customer_reported_amount: number | null;
           amount_mismatch_at: string | null;
           payout_due_at: string | null;
+          /**
+           * The customer stopped waiting and opened the job to everybody.
+           * NOT a refusal: nothing is counted against the professional and
+           * they may still claim it.
+           */
+          widened_by_customer_at: string | null;
         };
         Insert: {
           id?: string;
@@ -261,6 +273,7 @@ export type Database = {
           customer_reported_amount?: number | null;
           amount_mismatch_at?: string | null;
           payout_due_at?: string | null;
+          widened_by_customer_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -923,6 +936,10 @@ export type Database = {
            * so there is no job that can stop running. See lib/provider.
            */
           available_until: string | null;
+          /** Self-declared, with an end. Never counted against anybody. */
+          busy_until: string | null;
+          /** System-maintained by a trigger on bookings. Never writable by a professional. */
+          on_job_since: string | null;
           /** What they typed, before the band clamped it. Never read per person. */
           base_rate_requested: number | null;
         };
@@ -930,6 +947,8 @@ export type Database = {
           id?: string;
           profile_id?: string | null;
           available_until?: string | null;
+          busy_until?: string | null;
+          on_job_since?: string | null;
           base_rate_requested?: number | null;
           display_name: string;
           bio?: string;
@@ -1094,6 +1113,7 @@ export type Database = {
           jobs_completed?: number;
           completion_rate?: number;
           avg_response_minutes?: number;
+          response_samples?: number;
           jobs_accepted?: number;
           withdrawals?: number;
           declines?: number;

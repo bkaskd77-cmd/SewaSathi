@@ -125,7 +125,7 @@ alter table public.categories
 -- Providers (development data) -------------------------------
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('d431eabc-3d3f-5b99-a484-03ffe615e7e9', 'Ramesh Tamang', 'Twelve years on Kathmandu Valley plumbing. Most of my work is leaks and blocked lines in older buildings, and I carry the common fittings on the bike so a single visit usually finishes it.', ARRAY['lalitpur-4', 'lalitpur-3', 'lalitpur-10']::text[], 12, true, now() - interval '72 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 900)
+values ('d431eabc-3d3f-5b99-a484-03ffe615e7e9', 'Ramesh Tamang', 'Twelve years on Kathmandu Valley plumbing. Most of my work is leaks and blocked lines in older buildings, and I carry the common fittings on the bike so a single visit usually finishes it.', ARRAY['lalitpur-4', 'lalitpur-3', 'lalitpur-10']::text[], 12, true, now() - interval '72 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 900)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -144,7 +144,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('1d6a72bd-83eb-59e6-9ba5-3caee8e94740', 'Sabina Maharjan', 'I run a two-person cleaning team, mostly deep cleans and move-outs. We bring our own supplies and we do not charge extra for the kitchen.', ARRAY['lalitpur-3', 'lalitpur-4', 'kathmandu-10']::text[], 7, true, now() - interval '67 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1600)
+values ('1d6a72bd-83eb-59e6-9ba5-3caee8e94740', 'Sabina Maharjan', 'I run a two-person cleaning team, mostly deep cleans and move-outs. We bring our own supplies and we do not charge extra for the kitchen.', ARRAY['lalitpur-3', 'lalitpur-4', 'kathmandu-10']::text[], 7, true, now() - interval '67 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1600)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -163,7 +163,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('852371c7-8dc8-56cf-94bd-c8677f63ef4e', 'Dipak Shrestha', 'Licensed electrician. Wiring faults, MCB tripping and inverter installs. I explain what failed before I quote, because most people have been overcharged for a fuse at least once.', ARRAY['kathmandu-10', 'kathmandu-31', 'kathmandu-32']::text[], 15, true, now() - interval '75 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 850)
+values ('852371c7-8dc8-56cf-94bd-c8677f63ef4e', 'Dipak Shrestha', 'Licensed electrician. Wiring faults, MCB tripping and inverter installs. I explain what failed before I quote, because most people have been overcharged for a fuse at least once.', ARRAY['kathmandu-10', 'kathmandu-31', 'kathmandu-32']::text[], 15, true, now() - interval '75 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 850)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -202,7 +202,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('abda134f-2de4-547a-85d8-d0c122e657b2', 'Anita Rai', 'AC servicing and gas top-ups, plus fridge and washing machine work. I trained with a Samsung service centre and still use their diagnostic order.', ARRAY['kathmandu-10', 'kathmandu-31', 'lalitpur-10']::text[], 6, true, now() - interval '66 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1800)
+values ('abda134f-2de4-547a-85d8-d0c122e657b2', 'Anita Rai', 'AC servicing and gas top-ups, plus fridge and washing machine work. I trained with a Samsung service centre and still use their diagnostic order.', ARRAY['kathmandu-10', 'kathmandu-31', 'lalitpur-10']::text[], 6, true, now() - interval '66 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1800)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -242,7 +242,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('6324d929-612e-59e9-b327-4638ffa42b7e', 'Sunita Karki', 'Cleaning and pest treatment. For cockroaches I do the gel treatment first and a follow-up after two weeks, which is included in the price.', ARRAY['kathmandu-26', 'kathmandu-16', 'kathmandu-4']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1700)
+values ('6324d929-612e-59e9-b327-4638ffa42b7e', 'Sunita Karki', 'Cleaning and pest treatment. For cockroaches I do the gel treatment first and a follow-up after two weeks, which is included in the price.', ARRAY['kathmandu-26', 'kathmandu-16', 'kathmandu-4']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1700)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -262,7 +262,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('18f47ede-45d4-5765-804e-59e38c10b176', 'Manoj Yadav', 'Electrical and appliance repair. Geysers and washing machines are most of it. I tell you the part price before I open anything.', ARRAY['kathmandu-31', 'kathmandu-32', 'kathmandu-10']::text[], 11, true, now() - interval '71 days', 'verified', ARRAY['id', 'skill']::text[], 'now', 900)
+values ('18f47ede-45d4-5765-804e-59e38c10b176', 'Manoj Yadav', 'Electrical and appliance repair. Geysers and washing machines are most of it. I tell you the part price before I open anything.', ARRAY['kathmandu-31', 'kathmandu-32', 'kathmandu-10']::text[], 11, true, now() - interval '71 days', 'verified', ARRAY['id', 'skill']::text[], 'today', 900)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -301,7 +301,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('54054138-1656-5c5a-8c6a-897284a44c42', 'Rita Shrestha', 'Regular household cleaning, weekly or fortnightly. Most of my customers have been with me over a year, which I take as the review that matters.', ARRAY['kathmandu-4', 'kathmandu-7', 'kathmandu-26']::text[], 4, true, now() - interval '64 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1500)
+values ('54054138-1656-5c5a-8c6a-897284a44c42', 'Rita Shrestha', 'Regular household cleaning, weekly or fortnightly. Most of my customers have been with me over a year, which I take as the review that matters.', ARRAY['kathmandu-4', 'kathmandu-7', 'kathmandu-26']::text[], 4, true, now() - interval '64 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1500)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -339,7 +339,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('101f71bb-2af5-5ea9-91e9-aa5a03bfe274', 'Sanjay Magar', 'AC only. Servicing, gas, installation and the drainage problems that come with a badly fitted unit.', ARRAY['kathmandu-10', 'kathmandu-32', 'lalitpur-10']::text[], 7, true, now() - interval '67 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1900)
+values ('101f71bb-2af5-5ea9-91e9-aa5a03bfe274', 'Sanjay Magar', 'AC only. Servicing, gas, installation and the drainage problems that come with a badly fitted unit.', ARRAY['kathmandu-10', 'kathmandu-32', 'lalitpur-10']::text[], 7, true, now() - interval '67 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1900)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -377,7 +377,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('ef54ba0f-3453-5e37-bf5f-c18ae40235de', 'Kamala Tamang', 'Cleaning and tank washing. Newer to the platform but not to the work — I did the same job for a housing society for six years.', ARRAY['lalitpur-10', 'lalitpur-14']::text[], 3, true, now() - interval '63 days', 'verified', ARRAY['id', 'background']::text[], 'now', 1500)
+values ('ef54ba0f-3453-5e37-bf5f-c18ae40235de', 'Kamala Tamang', 'Cleaning and tank washing. Newer to the platform but not to the work — I did the same job for a housing society for six years.', ARRAY['lalitpur-10', 'lalitpur-14']::text[], 3, true, now() - interval '63 days', 'verified', ARRAY['id', 'background']::text[], 'today', 1500)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -397,7 +397,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('e3b65774-6005-5667-b177-370b514a8b72', 'Gopal Bhattarai', 'Plumbing, mostly in the old town where the pipework is a hundred years of patches. I like the puzzles nobody else wants.', ARRAY['kathmandu-26', 'kathmandu-16', 'kathmandu-4']::text[], 14, true, now() - interval '74 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1000)
+values ('e3b65774-6005-5667-b177-370b514a8b72', 'Gopal Bhattarai', 'Plumbing, mostly in the old town where the pipework is a hundred years of patches. I like the puzzles nobody else wants.', ARRAY['kathmandu-26', 'kathmandu-16', 'kathmandu-4']::text[], 14, true, now() - interval '74 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1000)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -455,7 +455,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('a04d411f-3f95-5fe5-905d-94f195400400', 'Milan Basnet', 'Electrical work in Bhaktapur. Switchboards, new points and the inverter wiring people put off until load-shedding returns.', ARRAY['bhaktapur-4', 'bhaktapur-6', 'kathmandu-32']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background']::text[], 'now', 800)
+values ('a04d411f-3f95-5fe5-905d-94f195400400', 'Milan Basnet', 'Electrical work in Bhaktapur. Switchboards, new points and the inverter wiring people put off until load-shedding returns.', ARRAY['bhaktapur-4', 'bhaktapur-6', 'kathmandu-32']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background']::text[], 'today', 800)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -493,7 +493,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('19aca5c4-5511-5ef2-879c-d06fb51b2193', 'Laxmi Poudel', 'Household cleaning. I am building up my rating here — my background check is still with the office, and the price reflects that.', ARRAY['kathmandu-14', 'kathmandu-16']::text[], 2, true, now() - interval '62 days', 'pending', ARRAY['id']::text[], 'now', 1500)
+values ('19aca5c4-5511-5ef2-879c-d06fb51b2193', 'Laxmi Poudel', 'Household cleaning. I am building up my rating here — my background check is still with the office, and the price reflects that.', ARRAY['kathmandu-14', 'kathmandu-16']::text[], 2, true, now() - interval '62 days', 'pending', ARRAY['id']::text[], 'today', 1500)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -512,7 +512,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('8674dcbf-94c7-56d3-bfcc-119a9210ac4d', 'Roshan Khadka', 'Plumbing and small appliance work. I take the jobs other people call too small — a single tap, a running cistern.', ARRAY['kathmandu-10', 'kathmandu-31']::text[], 4, true, now() - interval '64 days', 'verified', ARRAY['id', 'background']::text[], 'now', 900)
+values ('8674dcbf-94c7-56d3-bfcc-119a9210ac4d', 'Roshan Khadka', 'Plumbing and small appliance work. I take the jobs other people call too small — a single tap, a running cistern.', ARRAY['kathmandu-10', 'kathmandu-31']::text[], 4, true, now() - interval '64 days', 'verified', ARRAY['id', 'background']::text[], 'today', 900)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -591,7 +591,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('911633b9-2f9e-5369-a1bd-2d76200885c2', 'Ganesh Bhandari', 'AC servicing and basic electrical. New here — my documents are with the verification team and I am pricing low while my rating builds.', ARRAY['kathmandu-26', 'kathmandu-4']::text[], 3, false, null, 'pending', ARRAY[]::text[], 'now', 1800)
+values ('911633b9-2f9e-5369-a1bd-2d76200885c2', 'Ganesh Bhandari', 'AC servicing and basic electrical. New here — my documents are with the verification team and I am pricing low while my rating builds.', ARRAY['kathmandu-26', 'kathmandu-4']::text[], 3, false, null, 'pending', ARRAY[]::text[], 'today', 1800)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,
@@ -649,7 +649,7 @@ on conflict (provider_id) do update set
   last_active_at = excluded.last_active_at, updated_at = now();
 
 insert into public.providers (id, display_name, bio, service_areas, years_experience, is_verified, verified_at, id_document_status, checks, availability, base_rate)
-values ('f0829cde-c83b-50f7-b9af-ab1306785bac', 'Sarita Gurung', 'Appliance repair, specialising in front-load washing machines. Only a handful of jobs here so far, so the rating is thin — ask me anything before booking.', ARRAY['lalitpur-3', 'kathmandu-10', 'kathmandu-32']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'now', 1250)
+values ('f0829cde-c83b-50f7-b9af-ab1306785bac', 'Sarita Gurung', 'Appliance repair, specialising in front-load washing machines. Only a handful of jobs here so far, so the rating is thin — ask me anything before booking.', ARRAY['lalitpur-3', 'kathmandu-10', 'kathmandu-32']::text[], 5, true, now() - interval '65 days', 'verified', ARRAY['id', 'background', 'skill']::text[], 'today', 1250)
 on conflict (id) do update set
   display_name = excluded.display_name, bio = excluded.bio,
   service_areas = excluded.service_areas, years_experience = excluded.years_experience,

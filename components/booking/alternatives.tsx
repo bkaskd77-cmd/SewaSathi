@@ -40,7 +40,11 @@ export type AlternativeOption = {
   ratingLabel: string;
   jobsLabel: string;
   rateLabel: string;
-  availability: "now" | "today" | "scheduled";
+  /**
+   * The computed state, not the stored column — a replacement who is currently
+   * on a job says so here rather than claiming to be free.
+   */
+  availability: "now" | "on_job" | "busy" | "today" | "scheduled";
 };
 
 /** Reasons the customer gets a real sentence for. Anything else is ours. */

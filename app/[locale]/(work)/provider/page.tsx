@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { ShieldAlert, Wallet } from "lucide-react";
 
-import { AvailabilityToggle } from "@/components/provider/availability-toggle";
+import { AvailabilityControls } from "@/components/provider/availability-toggle";
 import { ClaimCard } from "@/components/provider/claim-card";
 import { RateField } from "@/components/provider/rate-field";
 import { Button } from "@/components/ui/button";
@@ -101,8 +101,8 @@ export default async function ProviderDashboardPage() {
             locale={locale}
             messages={{ provider: messages.provider }}
           >
-            <AvailabilityToggle
-              on={dashboard.availability === "now"}
+            <AvailabilityControls
+              state={dashboard.availability}
               minutesLeft={dashboard.availableFor}
             />
           </NextIntlClientProvider>

@@ -58,10 +58,16 @@ export const DISPATCH_WINDOWS: Record<
    */
   soon: { firstRefusalMinutes: 20, giveUpMinutes: 180 },
   /*
-   * A scheduled job. Nobody is inconvenienced by an hour, and widening too
-   * early would trample the customer's choice for no gain.
+   * A scheduled job — and the hour this used to be was too long.
+   *
+   * "Nobody is inconvenienced by an hour" was written about the professional.
+   * It is wrong about the customer: an hour of silence on a booking, with
+   * nothing on screen saying whether anybody has even seen it, is an hour in
+   * which they open another app. Twenty minutes is still long enough for
+   * somebody between tasks to answer, and the customer can now widen it
+   * themselves before that — see `widenBooking`.
    */
-  routine: { firstRefusalMinutes: 60, giveUpMinutes: 24 * 60 },
+  routine: { firstRefusalMinutes: 20, giveUpMinutes: 24 * 60 },
 };
 
 export type DispatchStage = "first-refusal" | "open" | "give-up";

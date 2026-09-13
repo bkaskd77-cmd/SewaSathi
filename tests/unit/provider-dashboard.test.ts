@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  availabilityNow,
+  BUSY_PRESETS,
   availableUntil,
   bandForTrades,
+  busyUntil,
+  canTakeWorkNow,
   clampRate,
   endOfWorkingDay,
+  isBusyPreset,
   minutesRemaining,
+  providerState,
 } from "@/lib/provider";
 import {
   NEWCOMER_SLOT_INDEX,
@@ -116,31 +120,31 @@ describe("available now expires on its own", () => {
     const until = availableUntil({ on: true, at: morning })!;
 
     expect(
-      availabilityNow({ availableUntil: until, base: "today", at: morning }),
+      providerState({ availableUntil: until, base: "today", at: morning }),
     ).toBe("now");
 
     // The next morning: the flag is gone and they are whatever they normally
     // are. Nothing had to run overnight for that to be true.
     const tomorrow = new Date(morning.getTime() + 24 * 60 * 60_000);
     expect(
-      availabilityNow({ availableUntil: until, base: "today", at: tomorrow }),
+      providerState({ availableUntil: until, base: "today", at: tomorrow }),
     ).toBe("today");
   });
 
   it("never invents now from a missing or unreadable stamp", () => {
     for (const stamp of [null, undefined, "not a date"]) {
       expect(
-        availabilityNow({ availableUntil: stamp, base: "scheduled", at: morning }),
+        providerState({ availableUntil: stamp, base: "scheduled", at: morning }),
       ).toBe("scheduled");
     }
   });
 
   it("reports the time left, and nothing once it has passed", () => {
     const until = availableUntil({ on: true, at: morning })!;
-    expect(minutesRemaining({ availableUntil: until, at: morning })).toBeGreaterThan(0);
+    expect(minutesRemaining({ until, at: morning })).toBeGreaterThan(0);
 
     const after = new Date(until.getTime() + 60_000);
-    expect(minutesRemaining({ availableUntil: until, at: after })).toBeNull();
+    expect(minutesRemaining({ until, at: after })).toBeNull();
   });
 });
 
@@ -193,5 +197,125 @@ describe("the newcomer slot", () => {
 
   it("changes nothing when there are no newcomers", () => {
     expect(slot(rows([])).map((row) => row.id)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+});
+
+describe("the precedence, which is the whole design", () => {
+  const morning = new Date("2026-09-13T04:00:00Z"); // 09:45 in Kathmandu
+  const live = availableUntil({ on: true, at: morning })!;
+
+  /**
+   * THE RULE WORTH THE MOST IN THIS FILE. A professional can leave the switch
+   * on and then set off to a customer's house. Before this, the listing went on
+   * saying "available now" — and availability is 0.40 of an emergency search,
+   * so the person least able to come ranked as the most able. The customer who
+   * paid for that was the one with a burst pipe at 2am.
+   */
+  it("lets the system's own fact beat a live available stamp", () => {
+    expect(
+      providerState({
+        onJobSince: morning,
+        availableUntil: live,
+        base: "today",
+        at: morning,
+      }),
+    ).toBe("on_job");
+  });
+
+  it("lets on-a-job beat a declared busy window too", () => {
+    expect(
+      providerState({
+        onJobSince: morning,
+        busyUntil: busyUntil({ preset: "restOfDay", at: morning }),
+        base: "today",
+        at: morning,
+      }),
+    ).toBe("on_job");
+  });
+
+  /** The more recent deliberate statement wins between the two of theirs. */
+  it("lets busy beat available", () => {
+    expect(
+      providerState({
+        busyUntil: busyUntil({ preset: "twoHours", at: morning }),
+        availableUntil: live,
+        base: "today",
+        at: morning,
+      }),
+    ).toBe("busy");
+  });
+
+  it("falls back to the stored base when every stamp is cold", () => {
+    expect(
+      providerState({
+        onJobSince: null,
+        busyUntil: null,
+        availableUntil: null,
+        base: "scheduled",
+        at: morning,
+      }),
+    ).toBe("scheduled");
+  });
+
+  /**
+   * NOTHING HAS TO RUN FOR A WINDOW TO END. The same property the available
+   * stamp has: a sweep that stops one night would otherwise leave somebody
+   * marked busy for ever.
+   */
+  it("restores the base when a busy window lapses, with no write", () => {
+    const until = busyUntil({ preset: "twoHours", at: morning });
+    const later = new Date(until.getTime() + 60_000);
+
+    expect(
+      providerState({ busyUntil: until, base: "today", at: morning }),
+    ).toBe("busy");
+    expect(
+      providerState({ busyUntil: until, base: "today", at: later }),
+    ).toBe("today");
+  });
+
+  it("offers work to nobody but the genuinely free", () => {
+    expect(canTakeWorkNow("now")).toBe(true);
+    for (const state of ["on_job", "busy", "today", "scheduled"] as const) {
+      expect(canTakeWorkNow(state)).toBe(false);
+    }
+  });
+});
+
+describe("busy windows come from presets, never from the browser", () => {
+  const morning = new Date("2026-09-13T04:00:00Z");
+  const evening = new Date("2026-09-13T15:00:00Z"); // 20:45 in Kathmandu
+
+  it("recognises only the published presets", () => {
+    for (const preset of BUSY_PRESETS) expect(isBusyPreset(preset)).toBe(true);
+    expect(isBusyPreset("forever")).toBe(false);
+    expect(isBusyPreset("")).toBe(false);
+  });
+
+  it("gives two hours for the short one", () => {
+    const until = busyUntil({ preset: "twoHours", at: morning });
+    expect(until.getTime() - morning.getTime()).toBe(2 * 60 * 60_000);
+  });
+
+  it("ends the rest of the day at closing time", () => {
+    expect(busyUntil({ preset: "restOfDay", at: morning }).toISOString()).toBe(
+      endOfWorkingDay(morning).toISOString(),
+    );
+  });
+
+  /**
+   * A window that is already over is a button that did nothing. Same rule as
+   * the available switch after closing.
+   */
+  it("rolls the rest of the day to tomorrow when the day has ended", () => {
+    const until = busyUntil({ preset: "restOfDay", at: evening });
+    expect(until.getTime()).toBeGreaterThan(evening.getTime());
+  });
+
+  it("gives tomorrow evening for the long one", () => {
+    const until = busyUntil({ preset: "tomorrow", at: morning });
+    expect(until.getTime()).toBeGreaterThan(
+      endOfWorkingDay(morning).getTime(),
+    );
   });
 });

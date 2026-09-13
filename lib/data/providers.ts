@@ -14,7 +14,11 @@ import {
   pickAlternatives,
   type Alternative,
 } from "@/lib/data/recommendations";
-import { availabilityNow } from "@/lib/provider";
+import {
+  providerState,
+  type Availability,
+  type BaseAvailability,
+} from "@/lib/provider";
 import { createPublicClient } from "@/lib/supabase/public";
 
 /**
@@ -30,16 +34,29 @@ import { createPublicClient } from "@/lib/supabase/public";
  */
 
 /**
- * AUTHORED TODAY, NOT OBSERVED. `providers.availability` is a column somebody
- * set when the listing was written; nothing moves it when a professional
- * accepts three jobs in an hour or stops opening the app. It ranks and filters
- * as though it were live, which is the one thing to remember about it.
+ * OBSERVED NOW, NOT AUTHORED. It used to be a column somebody set when the
+ * listing was written, and nothing moved it when a professional took three
+ * jobs in an hour or stopped opening the app — it ranked and filtered as
+ * though it were live when it was not.
  *
- * Phase 10 makes it real — derived from accepted-and-unfinished jobs, the
- * working-hours config and last-seen — and the column stays as the
- * professional's own declared ceiling rather than the whole answer.
+ * It is computed by `providerState` (lib/provider) from three facts, only one
+ * of which we take anybody's word for: a trigger-maintained `on_job_since`,
+ * and their own `busy_until` and `available_until`, both of which expire on
+ * the clock. The stored column is the base underneath all three.
+ *
+ * Re-exported from `@/lib/provider` rather than declared here, because the
+ * professional's dashboard renders the same states and a second copy of this
+ * union would drift the first time one was edited.
  */
-export type Availability = "now" | "today" | "scheduled";
+export type { Availability };
+
+/**
+ * What a customer can filter by, which is deliberately narrower.
+ *
+ * "Available now" is a promise that somebody can come now, so `on_job` and
+ * `busy` are not offered as choices — they are answers, not questions.
+ */
+export type AvailabilityFilter = "now" | "today" | "scheduled";
 export type IdDocumentStatus = "verified" | "pending" | "not_submitted";
 /** What was actually checked, rather than one vague "verified" badge. */
 export type VerificationCheck = "id" | "background" | "skill";
@@ -51,6 +68,13 @@ export type ProviderStats = {
   /** Percent of accepted jobs finished. */
   completionRate: number;
   avgResponseMinutes: number;
+  /**
+   * How many replies that average is made of.
+   *
+   * Zero means nobody has ever timed them, which is NOT the same as being slow
+   * — and the ranking scores it neutral for exactly that reason.
+   */
+  responseSamples: number;
   lastActiveMinutesAgo: number;
   /**
    * Jobs accepted, ever. The denominator a withdrawal rate needs: one
@@ -104,7 +128,7 @@ export type ProviderFilters = {
   category: string;
   /** Ward key, e.g. "lalitpur-4". */
   area?: string | null;
-  availability?: Availability | "any" | null;
+  availability?: AvailabilityFilter | "any" | null;
   verifiedOnly?: boolean;
   minRating?: number | null;
   /** Starting price ceiling, NPR. */
@@ -124,12 +148,24 @@ function matches(provider: Provider, filters: ProviderFilters): boolean {
   if (filters.area && !provider.serviceAreas.includes(filters.area)) {
     return false;
   }
+  /*
+   * "Available now" means CAN COME NOW, so it admits exactly one state.
+   * Somebody on a job and somebody who has declared themselves busy are both
+   * honest answers to a different question, and letting either through would
+   * make the filter a lie for the customer who most depends on it.
+   */
   if (filters.availability === "now" && provider.availability !== "now") {
     return false;
   }
+  /*
+   * "Today" admits somebody currently on a job — a professional finishing at
+   * 3pm genuinely can come later today, and dropping them would penalise the
+   * exact behaviour the platform exists to produce. It excludes a declared
+   * busy window, because they have said otherwise themselves.
+   */
   if (
     filters.availability === "today" &&
-    provider.availability === "scheduled"
+    (provider.availability === "scheduled" || provider.availability === "busy")
   ) {
     return false;
   }
@@ -150,9 +186,14 @@ type ProviderRow = {
   is_verified: boolean;
   id_document_status: IdDocumentStatus;
   checks: VerificationCheck[] | null;
-  availability: Availability;
-  /** The "available now" stamp. Null on seeded rows, which never decay. */
+  /** The stored base, not the answer. See `providerState`. */
+  availability: BaseAvailability;
+  /** The "available now" stamp, theirs to set and the clock's to expire. */
   available_until: string | null;
+  /** Their own "not today", with an end on it. */
+  busy_until: string | null;
+  /** Ours, written by a trigger while a job of theirs is en route or underway. */
+  on_job_since: string | null;
   base_rate: number;
   service_areas: string[] | null;
   provider_categories: Array<{ category_slug: string }> | null;
@@ -162,6 +203,7 @@ type ProviderRow = {
     jobs_completed: number;
     completion_rate: number;
     avg_response_minutes: number;
+    response_samples: number | null;
     last_active_at: string | null;
     jobs_accepted: number | null;
     withdrawals: number | null;
@@ -191,14 +233,18 @@ function fromRow(row: ProviderRow): Provider {
     idDocumentStatus: row.id_document_status,
     checks: row.checks ?? [],
     /*
-     * THE SWITCH TURNS IT ON AND TIME TURNS IT OFF.
+     * THREE FACTS, ONE ANSWER, AND THE VERIFIED ONE WINS.
      *
-     * The stored column is the base; the stamp grants "now" while it is in the
-     * future. Computed on read rather than swept by a cron, so there is no job
-     * that can stop running one night and leave a sleeping professional at the
-     * top of an emergency search. See lib/provider/availability.ts.
+     * The stored column is only the base. `on_job_since` is ours and overrides
+     * everything; `busy_until` and `available_until` are theirs. Computed on
+     * read rather than swept by a cron, so there is no job that can stop
+     * running one night and leave somebody who is on the way to a house at the
+     * top of an emergency search. `providerState` is the single rule and the
+     * professional's own dashboard calls it with the same row.
      */
-    availability: availabilityNow({
+    availability: providerState({
+      onJobSince: row.on_job_since,
+      busyUntil: row.busy_until,
       availableUntil: row.available_until,
       base: row.availability,
     }),
@@ -209,6 +255,7 @@ function fromRow(row: ProviderRow): Provider {
       jobsCompleted: stats?.jobs_completed ?? 0,
       completionRate: stats?.completion_rate ?? 0,
       avgResponseMinutes: stats?.avg_response_minutes ?? 120,
+      responseSamples: stats?.response_samples ?? 0,
       lastActiveMinutesAgo: lastActive,
       jobsAccepted: stats?.jobs_accepted ?? 0,
       withdrawals: stats?.withdrawals ?? 0,
@@ -217,7 +264,7 @@ function fromRow(row: ProviderRow): Provider {
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, last_active_at, jobs_accepted, withdrawals)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals)";
 
 /**
  * Providers in one category, filtered but not yet ranked.

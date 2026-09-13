@@ -37,6 +37,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
       jobsCompleted: 60,
       completionRate: 96,
       avgResponseMinutes: 15,
+      responseSamples: 40,
       lastActiveMinutesAgo: 5,
       jobsAccepted: 60,
       withdrawals: 0,

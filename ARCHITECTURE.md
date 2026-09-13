@@ -140,13 +140,22 @@ Where a change on one side cannot reach the other.
   `npm run check:transitions` now parses three pairs rather than two. A refund
   needs a person on top of that: `refund_rupees > 0` without
   `refund_decided_by` is refused for every caller, service role included.
-- **A professional's "available now" is granted by a switch and taken away by
-  the clock.** `providers.available_until` is the stamp;
-  `lib/provider/availability.ts` reads it. There is NO sweep — a background job
-  that turns flags off is a background job that stops running one night — so
-  every read computes it, `lib/data/providers.ts` included, and the directory
-  query widens in SQL and narrows in JS because no index can express
-  "whichever of these two columns is true right now".
+- **Whether a professional can come is three facts and only two are theirs.**
+  `providerState` in `lib/provider/availability.ts` is the single rule:
+  `on_job_since` (ours, written by a trigger from booking status) beats
+  `busy_until` beats `available_until`, and the stored `availability` column is
+  only the base underneath all three. The precedence is the anti-gaming core —
+  nobody is listed "available now" while `en_route` to a house, whatever their
+  switch says. There is NO sweep for any of it: a background job that turns
+  flags off is one that stops running some night, so every read computes it and
+  the directory query widens in SQL and narrows in JS.
+- **A customer can stop waiting on silence, and it is not a refusal.**
+  `widenBooking` sets `bookings.widened_by_customer_at`, and
+  `record_provider_release` reads that stamp and records nothing. Without it,
+  clearing `provider_id` would count a decline against somebody who did nothing
+  and hide the job from them for ever via `provider_refused` — contradicting
+  "Turning work down. You are allowed to be busy" on `/providers/standards`.
+  The db suite asserts both halves.
 - **Two Supabase clients, and the split is about caching as much as identity.**
   `lib/supabase/server.ts` reads cookies and acts as the signed-in person;
   `lib/supabase/public.ts` has no cookies and serves the catalogue. Touching

@@ -256,7 +256,9 @@
     "availability": {
       "now": "Available now",
       "today": "Available today",
-      "scheduled": "By appointment"
+      "scheduled": "By appointment",
+      "on_job": "On a job",
+      "busy": "Busy today"
     },
     "availabilityLong": {
       "now": "Available now — usually accepts within the hour",
@@ -617,7 +619,15 @@
         "call": "Call {name}",
         "noPhone": "We do not have a number for them yet."
       },
-      "checkForProvider": "Check for a professional now"
+      "checkForProvider": "Check for a professional now",
+      "stillWaiting": {
+        "title": "No answer yet",
+        "waitingOn": "{name} has not replied yet. They may be on a job with their phone in the van.",
+        "open": "Any professional in your area can take this now.",
+        "widen": "Let anyone take it",
+        "widenNote": "{name} can still take it. This only means you stop waiting for them alone.",
+        "failed": "That did not work. Try again."
+      }
     },
     "payment": {
       "methods": {
@@ -1169,12 +1179,23 @@
       "unlinked": "This account is not linked to a listing yet.",
       "toJobs": "Your jobs",
       "availability": {
-        "heading": "Available now",
-        "onLabel": "You are available now",
-        "offLabel": "Say you are available now",
-        "until": "Until the end of today — {hours}h {minutes}m left.",
-        "explain": "It switches off at the end of the working day, so nobody is sent to you at midnight.",
-        "failed": "That did not save. Try again."
+        "heading": "Can you come out?",
+        "free": "Free now",
+        "busyToday": "Busy today",
+        "neither": "By arrangement",
+        "onJob": "You are on a job, so customers see that. This is set by us, not by you.",
+        "until": "Free until the end of today — {hours}h {minutes}m left.",
+        "busyUntil": "Busy for another {hours}h {minutes}m.",
+        "explain": "\"Free now\" switches off at the end of the working day, so nobody is sent to you at midnight.",
+        "noPenalty": "Turning work down costs you nothing. Being busy is never counted against you.",
+        "errors": {
+          "onAJob": "You are on a job. This will be yours to set again when it is finished.",
+          "noListing": "This account is not linked to a listing.",
+          "unknownPreset": "That did not save. Try again.",
+          "notSignedIn": "Sign in again to change this.",
+          "unavailable": "That did not save. Try again.",
+          "generic": "That did not save. Try again."
+        }
       },
       "rate": {
         "heading": "Your starting price",

@@ -29,10 +29,16 @@ describe("the chosen professional gets first refusal", () => {
     expect(dispatchStage(BOOKED, "emergency", at(4))).toBe("first-refusal");
   });
 
-  it("keeps a routine job with them for a full hour", () => {
-    // Nobody is inconvenienced by an hour on a repaint, and widening sooner
-    // would trample a choice the customer deliberately made.
-    expect(dispatchStage(BOOKED, "routine", at(59))).toBe("first-refusal");
+  it("keeps a routine job with them for twenty minutes", () => {
+    /*
+     * It was an hour, on the reasoning that nobody is inconvenienced by an
+     * hour on a repaint. That was written about the professional and is wrong
+     * about the customer: an hour of silence, with nothing on screen saying
+     * whether anybody has even looked, is an hour in which they open another
+     * app. Twenty minutes still lets somebody between tasks answer, and the
+     * customer can now widen it themselves before that either way.
+     */
+    expect(dispatchStage(BOOKED, "routine", at(19))).toBe("first-refusal");
   });
 });
 
@@ -42,8 +48,8 @@ describe("an unanswered job opens to everybody", () => {
     expect(dispatchStage(BOOKED, "emergency", at(30))).toBe("open");
   });
 
-  it("opens a routine job only after the hour", () => {
-    expect(dispatchStage(BOOKED, "routine", at(60))).toBe("open");
+  it("opens a routine job once its window is up", () => {
+    expect(dispatchStage(BOOKED, "routine", at(20))).toBe("open");
   });
 
   it("opens the boundary minute itself rather than waiting one more", () => {
@@ -76,12 +82,24 @@ describe("a job nobody takes ends, rather than waiting for ever", () => {
     }
   });
 
-  it("escalates an emergency faster than a routine job at every stage", () => {
+  /**
+   * The ordering that has to hold whatever the numbers become. `soon` and
+   * `routine` now share a first-refusal window — the difference between them
+   * is how long we keep trying, not how long one person gets to answer — so
+   * this asserts the relationship rather than three magic numbers.
+   */
+  it("escalates an emergency faster than anything else at every stage", () => {
     expect(DISPATCH_WINDOWS.emergency.firstRefusalMinutes).toBeLessThan(
       DISPATCH_WINDOWS.soon.firstRefusalMinutes,
     );
-    expect(DISPATCH_WINDOWS.soon.firstRefusalMinutes).toBeLessThan(
+    expect(DISPATCH_WINDOWS.soon.firstRefusalMinutes).toBeLessThanOrEqual(
       DISPATCH_WINDOWS.routine.firstRefusalMinutes,
+    );
+    expect(DISPATCH_WINDOWS.emergency.giveUpMinutes).toBeLessThan(
+      DISPATCH_WINDOWS.soon.giveUpMinutes,
+    );
+    expect(DISPATCH_WINDOWS.soon.giveUpMinutes).toBeLessThan(
+      DISPATCH_WINDOWS.routine.giveUpMinutes,
     );
   });
 });
@@ -104,9 +122,15 @@ describe("only a job nobody has accepted is dispatchable", () => {
 describe("an unknown urgency still gets a schedule", () => {
   it("falls back to the most patient one rather than throwing", () => {
     // A bad value must not stop the sweep dead and strand every other booking
-    // behind it.
-    const stage = dispatchStage(BOOKED, "nonsense" as never, at(30));
-    expect(stage).toBe("first-refusal");
+    // behind it. It falls back to `routine`, so it behaves exactly as a
+    // routine job would at the same age rather than getting a schedule of its
+    // own — asserted against the constant, not a number, because the windows
+    // are a product decision that moves.
+    for (const minutes of [1, 30, 24 * 60 + 1]) {
+      expect(dispatchStage(BOOKED, "nonsense" as never, at(minutes))).toBe(
+        dispatchStage(BOOKED, "routine", at(minutes)),
+      );
+    }
   });
 });
 

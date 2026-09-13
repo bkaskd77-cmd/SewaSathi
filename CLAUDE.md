@@ -408,6 +408,22 @@ Phase 8. A booking now moves with a real person on each end.
   push in Phase 13 is one file implementing `NotificationChannel` plus a line
   in the registry; `notify()` never throws, because the event already happened
   and a dead gateway must not roll a booking back.
+- **Availability is three facts and the verified one wins.** `providerState`
+  (`lib/provider`) ranks `on_job_since` over `busy_until` over
+  `available_until`. The first is ours, written by a trigger from booking
+  status, and it is `en_route`/`in_progress` only — an `accepted` job on
+  Thursday does not make somebody busy today. Being busy costs a professional
+  nothing beyond not being shown as free: `/providers/standards` publishes
+  "Turning work down. You are allowed to be busy" under *What is never a
+  signal*, so no counter reads a busy window and none should be added. What IS
+  measured is the opposite claim — saying you are available and not answering —
+  and that stays in ranking, never in rating, because a busy plumber is not a
+  worse plumber.
+- **Silence is answered, not waited out.** A routine job holds with the chosen
+  professional for 20 minutes, not an hour, and the customer can open it to
+  everybody before that. `widenBooking` stamps `widened_by_customer_at` so the
+  release trigger records no decline and writes no refusal row — the
+  professional was slow, not unwilling, and can still take the job.
 - **`/provider/jobs` is minimal and says so.** Phase 10 is the real dashboard.
   This is the smallest surface on which a booking can travel from pending to
   paid. An account not yet linked to a listing gets the exact SQL to link it,

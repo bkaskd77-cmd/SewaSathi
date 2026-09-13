@@ -1,35 +1,50 @@
 /**
- * "Available now", and why it has to expire on its own.
+ * What a professional's listing says about whether they can come, and which
+ * of those facts the product is allowed to take their word for.
  *
- * A SELF-DECLARED FLAG THAT NEVER DECAYS IS TWO BAD THINGS AT ONCE, and the
- * second one is the one that ruins the product:
+ * THREE THINGS DECIDE IT AND ONLY TWO ARE THEIRS TO SET:
  *
- *   1. It sends a customer with a burst pipe to somebody who is asleep. The
- *      person most harmed by a stale flag is the person in the worst trouble,
- *      because "available now" is exactly what an emergency search sorts on.
- *   2. It outranks honesty. Availability and response carry 0.65 between them
- *      in `EMERGENCY_WEIGHTS`, so a professional who leaves the switch on
- *      permanently beats every professional who turns it off when they are
- *      busy. A rule whose payoff is worth gaming gets gamed, and this one pays
- *      in bookings.
+ *   1. `onJobSince` — the system's own fact, written by a trigger when a
+ *      booking of theirs goes `en_route`. Not settable, not overridable.
+ *   2. `busyUntil` — their declaration, carrying an end time.
+ *   3. `availableUntil` — their declaration, expiring at the end of the day.
  *
- * SO THE SWITCH TURNS IT ON AND TIME TURNS IT OFF. It lapses at the end of the
- * working day rather than after a fixed number of hours, because that is how
- * the person actually thinks about it — a tradesperson is available "today",
- * not "for the next six hours", and a flag that dies at 3pm while they are
- * still working is its own kind of lie.
+ * THE PRECEDENCE IS THE WHOLE DESIGN. The verified fact beats both
+ * declarations: nobody is listed "available now" while they are on the way to
+ * somebody's house, however the switch was left. Before this, they could be —
+ * and `EMERGENCY_WEIGHTS` puts 0.40 on availability, the largest single term in
+ * that blend, so the person least able to come ranked as the most able. The
+ * customer who paid for that was the one with a burst pipe at 2am.
  *
- * DECAY, NOT A CRON. `availabilityNow` reads the stamp and decides, so there is
- * no sweep to fail and nothing is stale between runs. A background job that
- * turns flags off is a background job that stops running one night, and nobody
- * notices until a customer does.
+ * `busy` beats `available` because it is the more recent deliberate statement.
  *
- * Pure and dependency-free: it decides what a customer is shown about whether
+ * DECAY, NOT A CRON, for both stamps. A background job that turns flags off is
+ * a background job that stops running one night, and nobody notices until a
+ * customer does. Every read compares against the clock instead, so there is no
+ * sweep to fail and nothing is stale between runs.
+ *
+ * BEING BUSY COSTS NOTHING BEYOND NOT BEING SHOWN AS FREE. `/providers/standards`
+ * publishes, in both languages, "Turning work down. You are allowed to be
+ * busy." under *What is never a signal*. Nothing here is counted, ranked or
+ * remembered against anybody, and a future reader looking for the place to add
+ * that should read that page first.
+ *
+ * Pure and dependency-free: it decides what a customer is told about whether
  * somebody will come, so it has to be testable without a database.
  */
 
-/** What the directory shows, and what the ranking sorts on. */
-export type Availability = "now" | "today" | "scheduled";
+/**
+ * What the directory shows and the ranking sorts on.
+ *
+ * `on_job` and `busy` are new and both mean "not now, but not gone". They are
+ * deliberately distinct: a customer reading "On a job" learns something good
+ * about a professional, and "Back by 5pm" tells them whether to wait. "Busy"
+ * alone would tell them neither.
+ */
+export type Availability = "now" | "on_job" | "busy" | "today" | "scheduled";
+
+/** The states a professional can be in when no stamp of theirs is live. */
+export type BaseAvailability = Extract<Availability, "now" | "today" | "scheduled">;
 
 /**
  * When the working day ends, in Nepal time.
@@ -81,49 +96,123 @@ export function availableUntil(input: {
   return endOfWorkingDay(new Date(at.getTime() + 24 * 60 * 60_000));
 }
 
+/* ------------------------------------------------------------------ *
+ * Busy, with an end on it
+ * ------------------------------------------------------------------ */
+
 /**
- * What to show right now, given the stamp and the professional's own default.
+ * How long "busy" lasts, offered as a few taps rather than a time picker.
  *
- * `base` is what they are when the flag is not lit: `today` for somebody who
- * generally works same-day, `scheduled` for somebody who books ahead. For a
- * real professional it is never `now` — the toggle writes the stamp and never
- * the column, so `now` is the flag's to grant and time's to take away.
- *
- * The type still admits `now` because the seeded demo listings carry it and
- * have since Phase 4. They are fixtures rather than people, nobody is
- * dispatched to them, and quietly demoting them here would change the
- * catalogue to hide a fact about the seed.
+ * A FREE TIMESTAMP FROM THE BROWSER IS NOT ACCEPTED, and the reason is the
+ * same one that keeps `availableUntil` out of the action's parameters: a
+ * professional who could name their own expiry could name one in 2035, and
+ * "busy" would quietly become the flag that never decays. Presets also match
+ * how somebody actually thinks between two jobs — "a couple of hours", "the
+ * rest of today" — rather than making them do arithmetic on a phone.
  */
-export function availabilityNow(input: {
-  availableUntil: Date | string | null | undefined;
-  base: Availability;
-  at?: Date;
-}): Availability {
-  if (!input.availableUntil) return input.base;
+export const BUSY_PRESETS = ["twoHours", "restOfDay", "tomorrow"] as const;
 
-  const until =
-    input.availableUntil instanceof Date
-      ? input.availableUntil
-      : new Date(input.availableUntil);
+export type BusyPreset = (typeof BUSY_PRESETS)[number];
 
-  if (Number.isNaN(until.getTime())) return input.base;
-
-  const at = input.at ?? new Date();
-  return until.getTime() > at.getTime() ? "now" : input.base;
+export function isBusyPreset(value: string): value is BusyPreset {
+  return (BUSY_PRESETS as readonly string[]).includes(value);
 }
 
-/** How long the flag has left, for the sentence beside the switch. */
+/**
+ * The instant a busy window ends, from a preset.
+ *
+ * `restOfDay` past closing rolls to tomorrow evening for the same reason
+ * `availableUntil` does: a window that is already over is a button that did
+ * nothing.
+ */
+export function busyUntil(input: {
+  preset: BusyPreset;
+  at?: Date;
+}): Date {
+  const at = input.at ?? new Date();
+
+  if (input.preset === "twoHours") {
+    return new Date(at.getTime() + 2 * 60 * 60_000);
+  }
+
+  if (input.preset === "tomorrow") {
+    return endOfWorkingDay(new Date(at.getTime() + 24 * 60 * 60_000));
+  }
+
+  const end = endOfWorkingDay(at);
+  if (end.getTime() > at.getTime()) return end;
+  return endOfWorkingDay(new Date(at.getTime() + 24 * 60 * 60_000));
+}
+
+/* ------------------------------------------------------------------ *
+ * The one answer
+ * ------------------------------------------------------------------ */
+
+export type ProviderStateInput = {
+  /** System-maintained. Set while a booking of theirs is en route or underway. */
+  onJobSince?: Date | string | null;
+  /** Self-declared, with an end. */
+  busyUntil?: Date | string | null;
+  /** Self-declared, expiring at the end of the working day. */
+  availableUntil?: Date | string | null;
+  /**
+   * What the listing is when no stamp is live.
+   *
+   * `today` for somebody who generally works same-day, `scheduled` for
+   * somebody who books ahead. The type admits `now` only because the seeded
+   * demo listings carry it; for a real professional the toggle writes the
+   * stamp and never the column.
+   */
+  base: BaseAvailability;
+  at?: Date;
+};
+
+function instant(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const when = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
+/**
+ * What to show right now. One function, every surface.
+ *
+ * The professional's own dashboard and the customer's card call this with the
+ * same row, so the two cannot disagree about whether somebody is free — which
+ * they would within a week if the rule were written twice.
+ */
+export function providerState(input: ProviderStateInput): Availability {
+  const at = input.at ?? new Date();
+
+  // The verified fact first, and it is not overridable. Somebody is either on
+  // the way to a house or they are not, and we know which.
+  if (instant(input.onJobSince)) return "on_job";
+
+  const busy = instant(input.busyUntil);
+  if (busy && busy.getTime() > at.getTime()) return "busy";
+
+  const available = instant(input.availableUntil);
+  if (available && available.getTime() > at.getTime()) return "now";
+
+  return input.base;
+}
+
+/** Can this listing be dispatched to a job starting right now? */
+export function canTakeWorkNow(state: Availability): boolean {
+  return state === "now";
+}
+
+/**
+ * How long a live stamp has left, for the sentence beside the control.
+ *
+ * Returns null once it has lapsed rather than a negative number: "0h 0m left"
+ * on an expired flag reads as a bug, and the state has already changed anyway.
+ */
 export function minutesRemaining(input: {
-  availableUntil: Date | string | null | undefined;
+  until: Date | string | null | undefined;
   at?: Date;
 }): number | null {
-  if (!input.availableUntil) return null;
-
-  const until =
-    input.availableUntil instanceof Date
-      ? input.availableUntil
-      : new Date(input.availableUntil);
-  if (Number.isNaN(until.getTime())) return null;
+  const until = instant(input.until);
+  if (!until) return null;
 
   const at = input.at ?? new Date();
   const minutes = Math.floor((until.getTime() - at.getTime()) / 60_000);

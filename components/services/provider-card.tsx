@@ -28,8 +28,16 @@ import { cn, formatNpr } from "@/lib/utils";
  * one keyboard stop with no way to reach the second.
  */
 
+/*
+ * WHAT EACH STATE LOOKS LIKE, and the two new ones are deliberately not
+ * warnings. "On a job" is good news about a professional — somebody is
+ * working — and dressing it in a caution colour would read as a fault. "Busy"
+ * is their own honest answer and carries no judgement either.
+ */
 const AVAILABILITY_VARIANT = {
   now: "urgent" as const,
+  on_job: "info" as const,
+  busy: "muted" as const,
   today: "info" as const,
   scheduled: "muted" as const,
 };

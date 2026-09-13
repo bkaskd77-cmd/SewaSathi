@@ -2,10 +2,11 @@
  * The provider module's public surface: what a professional controls about
  * their own listing, and the rules that bound it.
  *
- * Two things live here and they are bounded differently on purpose. A rate is
+ * Three things live here and they are bounded differently on purpose. A rate is
  * CLAMPED, because a figure outside the band is usually honest pricing against
  * a band we drew badly. Availability DECAYS, because a flag nobody can leave
- * on for ever is the only version that stays true.
+ * on for ever is the only version that stays true. And being on a job is
+ * DERIVED, because it is the one of the three we can verify.
  *
  * Isomorphic — the dashboard renders these decisions beside the controls, so
  * nothing here may import `server-only`. The reads and writes live in
@@ -19,10 +20,17 @@ export {
 } from "./rates";
 
 export {
+  BUSY_PRESETS,
   DAY_ENDS_HOUR,
-  availabilityNow,
   availableUntil,
+  busyUntil,
+  canTakeWorkNow,
   endOfWorkingDay,
+  isBusyPreset,
   minutesRemaining,
+  providerState,
   type Availability,
+  type BaseAvailability,
+  type BusyPreset,
+  type ProviderStateInput,
 } from "./availability";

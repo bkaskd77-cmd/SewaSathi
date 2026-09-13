@@ -4,15 +4,19 @@ import { getPriceBands } from "@/lib/ai/price-bands";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import {
-  availabilityNow,
   availableUntil,
   bandForTrades,
+  busyUntil,
   clampRate,
+  isBusyPreset,
   minutesRemaining,
+  providerState,
+  type Availability,
+  type BaseAvailability,
+  type BusyPreset,
   type RateVerdict,
 } from "@/lib/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Availability } from "@/types/supabase";
 
 /**
  * The two things a professional may change about their own listing, and the
@@ -64,7 +68,7 @@ export async function getProviderDashboard(
     const { data: provider } = await admin
       .from("providers")
       .select(
-        "id, display_name, base_rate, base_rate_requested, availability, available_until",
+        "id, display_name, base_rate, base_rate_requested, availability, available_until, busy_until, on_job_since",
       )
       .eq("profile_id", profileId)
       .maybeSingle();
@@ -107,16 +111,28 @@ export async function getProviderDashboard(
 
     const requested = provider.base_rate_requested as number | null;
 
+    const state = providerState({
+      onJobSince: provider.on_job_since as string | null,
+      busyUntil: provider.busy_until as string | null,
+      availableUntil: provider.available_until as string | null,
+      base: provider.availability as BaseAvailability,
+    });
+
     return {
       providerId,
       displayName: provider.display_name as string,
       trades: tradeSlugs,
-      availability: availabilityNow({
-        availableUntil: provider.available_until as string | null,
-        base: provider.availability as Availability,
-      }),
+      availability: state,
+      /*
+       * The countdown belongs to whichever stamp is actually deciding the
+       * state. Showing "5h left" beside "On a job" would be counting down a
+       * flag that is not what the customer is seeing.
+       */
       availableFor: minutesRemaining({
-        availableUntil: provider.available_until as string | null,
+        until:
+          state === "busy"
+            ? (provider.busy_until as string | null)
+            : (provider.available_until as string | null),
       }),
       baseRate: Number(provider.base_rate ?? 0),
       band,
@@ -203,40 +219,158 @@ export async function setBaseRate(input: {
   }
 }
 
+export type AvailabilityWriteResult =
+  | { ok: true; state: Availability; until: string | null }
+  | { ok: false; reason: string };
+
 /**
- * The availability switch. On until the end of the working day.
+ * "I am free now." On until the end of the working day.
  *
- * The stamp is computed here from `availableUntil`, never taken from the
- * caller — a professional who could name their own expiry would be back to a
- * flag that never decays, which is the thing this exists to prevent.
+ * THE EXPIRY IS COMPUTED HERE, never taken from the caller — a professional
+ * who could name their own would be back to a flag that never decays, which is
+ * the thing the whole design exists to prevent.
+ *
+ * IT REFUSES WHILE THEY ARE ON A JOB, and that refusal is the honest half of
+ * the precedence rule. `providerState` would ignore the stamp anyway, so
+ * writing it would leave somebody tapping a control that changes nothing they
+ * can see — which is how a professional learns to distrust the whole screen.
+ * Better to say why.
+ *
+ * Turning it OFF while on a job is allowed: they are clearing a stamp that will
+ * matter the moment the job ends, and refusing that would be refusing somebody
+ * permission to tell us they are finishing for the day.
  */
 export async function setAvailableNow(input: {
   profileId: string;
   on: boolean;
-}): Promise<{ ok: boolean; until: string | null }> {
-  if (!hasSupabaseConfig()) return { ok: false, until: null };
+}): Promise<AvailabilityWriteResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
 
   try {
     const admin = createAdminClient();
+
+    const { data: provider } = await admin
+      .from("providers")
+      .select("id, availability, available_until, busy_until, on_job_since")
+      .eq("profile_id", input.profileId)
+      .maybeSingle();
+
+    if (!provider) return { ok: false, reason: "noListing" };
+
+    if (input.on && provider.on_job_since) {
+      return { ok: false, reason: "onAJob" };
+    }
+
     const until = availableUntil({ on: input.on });
 
+    /*
+     * Saying "I am free now" clears any busy window. The two are opposite
+     * claims and leaving both set would mean the more recent tap did nothing,
+     * because `busy` wins the precedence.
+     */
     const { error } = await admin
       .from("providers")
-      .update({ available_until: until ? until.toISOString() : null })
-      .eq("profile_id", input.profileId);
+      .update({
+        available_until: until ? until.toISOString() : null,
+        ...(input.on ? { busy_until: null } : {}),
+      })
+      .eq("id", provider.id as string);
 
     if (error) {
       console.error(
         `[provider-profile] availability failed — ${describeError(error)}`,
       );
-      return { ok: false, until: null };
+      return { ok: false, reason: "generic" };
     }
 
-    return { ok: true, until: until ? until.toISOString() : null };
+    return {
+      ok: true,
+      state: providerState({
+        onJobSince: provider.on_job_since as string | null,
+        busyUntil: input.on ? null : (provider.busy_until as string | null),
+        availableUntil: until,
+        base: provider.availability as BaseAvailability,
+      }),
+      until: until ? until.toISOString() : null,
+    };
   } catch (thrown) {
     console.error(
       `[provider-profile] availability threw — ${describeError(thrown)}`,
     );
-    return { ok: false, until: null };
+    return { ok: false, reason: "generic" };
+  }
+}
+
+/**
+ * "Not today", with an end on it.
+ *
+ * THE WINDOW COMES FROM A PRESET, never a timestamp from the browser. A
+ * professional who could post their own would be able to post one in 2035, and
+ * "busy" would become exactly the flag that never decays that `available` was
+ * designed not to be.
+ *
+ * NOTHING HERE IS COUNTED AGAINST ANYBODY. `/providers/standards` publishes
+ * "Turning work down. You are allowed to be busy." under *What is never a
+ * signal*, in both languages, on a page linked before anybody signs up. No
+ * counter is incremented by this function and none should be added to it.
+ */
+export async function setBusyUntil(input: {
+  profileId: string;
+  /** A member of BUSY_PRESETS, or null to clear the window. */
+  preset: string | null;
+}): Promise<AvailabilityWriteResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
+
+  if (input.preset !== null && !isBusyPreset(input.preset)) {
+    return { ok: false, reason: "unknownPreset" };
+  }
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: provider } = await admin
+      .from("providers")
+      .select("id, availability, available_until, busy_until, on_job_since")
+      .eq("profile_id", input.profileId)
+      .maybeSingle();
+
+    if (!provider) return { ok: false, reason: "noListing" };
+
+    const until =
+      input.preset === null
+        ? null
+        : busyUntil({ preset: input.preset as BusyPreset });
+
+    /*
+     * Declaring yourself busy clears "available now" for the same reason the
+     * reverse does: two opposite claims, and the one they did not just tap is
+     * the one that should give way.
+     */
+    const { error } = await admin
+      .from("providers")
+      .update({
+        busy_until: until ? until.toISOString() : null,
+        ...(until ? { available_until: null } : {}),
+      })
+      .eq("id", provider.id as string);
+
+    if (error) {
+      console.error(`[provider-profile] busy failed — ${describeError(error)}`);
+      return { ok: false, reason: "generic" };
+    }
+
+    return {
+      ok: true,
+      state: providerState({
+        onJobSince: provider.on_job_since as string | null,
+        busyUntil: until,
+        availableUntil: until ? null : (provider.available_until as string | null),
+        base: provider.availability as BaseAvailability,
+      }),
+      until: until ? until.toISOString() : null,
+    };
+  } catch (thrown) {
+    console.error(`[provider-profile] busy threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "generic" };
   }
 }

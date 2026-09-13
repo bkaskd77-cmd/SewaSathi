@@ -131,9 +131,36 @@ const RATING_PRIOR_MEAN = 4.5;
 const VOLUME_CEILING = 300;
 /** A reply slower than this scores zero, not negative. */
 const RESPONSE_CEILING_MINUTES = 120;
+/**
+ * What a professional nobody has timed is worth on the response axis.
+ *
+ * Halfway, so an unmeasured listing sits between the fast and the slow rather
+ * than at either end. Scoring it 1.0 would let anybody buy the top of an
+ * emergency search by being new; scoring it 0 is what the product did until
+ * now, and it put every real professional below every fixture.
+ */
+const UNMEASURED_RESPONSE = 0.5;
 
+/*
+ * WHAT EACH STATE IS WORTH, and the two new rows carry more weight than
+ * anything else here: availability is 0.40 of an emergency search, the largest
+ * single term in that blend, so the spread between `now` and `scheduled` moves
+ * somebody further than any other number in the product.
+ *
+ * `on_job` SCORES LIKE `today`, NOT LIKE `scheduled`. Somebody finishing a job
+ * at 3pm genuinely can come later today, and demoting them for working would
+ * punish the exact behaviour the platform exists to produce. They drop out of
+ * the "available now" filter and no further.
+ *
+ * `busy` scores like `scheduled`, because that is what they have said about
+ * themselves. It costs them nothing else: `/providers/standards` publishes
+ * "Turning work down. You are allowed to be busy" under *What is never a
+ * signal*, and no counter anywhere reads a busy window.
+ */
 const AVAILABILITY_SCORE: Record<Provider["availability"], number> = {
   now: 1,
+  on_job: 0.55,
+  busy: 0.15,
   today: 0.55,
   scheduled: 0.15,
 };
@@ -186,9 +213,26 @@ export function scoreParts(
 
   const availability = AVAILABILITY_SCORE[provider.availability] ?? 0.15;
 
-  const response = clamp01(
-    1 - stats.avgResponseMinutes / RESPONSE_CEILING_MINUTES,
-  );
+  /*
+   * AN UNMEASURED RESPONSE TIME SCORES NEUTRAL, NOT ZERO.
+   *
+   * `avg_response_minutes` defaults to 120, which is exactly
+   * RESPONSE_CEILING_MINUTES — so a professional nobody has ever timed scored
+   * zero on this, forever, indistinguishable from somebody measured at two
+   * hours. Nothing computes the column from real bookings yet, which meant
+   * every real approved professional forfeited the whole 0.25 of the emergency
+   * blend while the seeded fixtures at 12 minutes kept 0.90. Real people ranked
+   * below demo rows.
+   *
+   * The fix is the shape `bayesianRating` already uses for the same problem:
+   * with no evidence, score like an unknown rather than like the worst case.
+   * `UNMEASURED_RESPONSE` is deliberately mid-scale — it neither rewards nor
+   * punishes a listing for being new.
+   */
+  const response =
+    stats.responseSamples > 0
+      ? clamp01(1 - stats.avgResponseMinutes / RESPONSE_CEILING_MINUTES)
+      : UNMEASURED_RESPONSE;
 
   // With no ward chosen, proximity is neutral for everyone rather than zero —
   // otherwise the term would just add noise to a list nobody has localised.

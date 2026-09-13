@@ -210,3 +210,83 @@ export async function checkDispatchNow(input: {
 
   return applyDispatch(row);
 }
+
+/**
+ * The customer stops waiting and opens the job to everybody.
+ *
+ * WHY THIS EXISTS. A professional who simply ignores the notification produced
+ * nothing at all on the customer's screen: the job held with them for the
+ * first-refusal window, and the replacement chooser only appears when somebody
+ * actively refuses. Silence looked exactly like progress, and the customer had
+ * no way to act on it. `checkDispatchNow` deliberately only applies what the
+ * clock already made due, so it could not answer this — tapping it early
+ * correctly moves nothing.
+ *
+ * IT IS NOT A REFUSAL AND MUST NEVER BE COUNTED AS ONE. Clearing `provider_id`
+ * on a pending booking is exactly how a decline is detected, so without the
+ * `widened_by_customer_at` stamp this would write `declines + 1` and a
+ * `booking_refusals` row against somebody who did nothing — contradicting a
+ * published promise, and hiding the job from them for ever through
+ * `provider_refused`. The trigger reads that stamp and records nothing; the db
+ * suite asserts both halves.
+ *
+ * THE ORIGINAL PROFESSIONAL CAN STILL TAKE IT. They were slow, not unwilling,
+ * and somebody who picks their phone up thirty seconds later should find the
+ * job waiting rather than gone.
+ */
+export async function widenBooking(input: {
+  bookingId: string;
+  actorId: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: booking } = await admin
+      .from("bookings")
+      .select("id, customer_id, status, provider_id, widened_by_customer_at")
+      .eq("id", input.bookingId)
+      .maybeSingle();
+
+    if (!booking || booking.customer_id !== input.actorId) {
+      return { ok: false, reason: "notYours" };
+    }
+    // Only a job still waiting has anywhere to go. A booking somebody has
+    // accepted is theirs, and widening it would send two people to one house.
+    if (booking.status !== "pending") {
+      return { ok: false, reason: "notWaiting" };
+    }
+    if (!booking.provider_id) return { ok: true };
+
+    /*
+     * The customer's original choice survives, exactly as it does when the
+     * sweep widens a job: "I asked for Krishna and Sita came" has to stay
+     * answerable afterwards.
+     */
+    const { error } = await admin
+      .from("bookings")
+      .update({
+        widened_by_customer_at: new Date().toISOString(),
+        provider_id: null,
+        opened_at: new Date().toISOString(),
+        first_choice_provider_id:
+          (booking.provider_id as string | null) ?? undefined,
+      })
+      .eq("id", input.bookingId)
+      // The state this was judged against. Two taps a second apart: the second
+      // updates nothing rather than re-stamping.
+      .eq("status", "pending")
+      .not("provider_id", "is", null);
+
+    if (error) {
+      console.error(`[dispatch] widen failed — ${describeError(error)}`);
+      return { ok: false, reason: "generic" };
+    }
+
+    return { ok: true };
+  } catch (thrown) {
+    console.error(`[dispatch] widen threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "generic" };
+  }
+}

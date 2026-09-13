@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/session";
 import { acceptClaim, recordVerdict, releaseClaim } from "@/lib/data/claims";
 import { getMyProvider } from "@/lib/data/provider-jobs";
-import { setAvailableNow, setBaseRate } from "@/lib/data/provider-profile";
+import {
+  setAvailableNow,
+  setBaseRate,
+  setBusyUntil,
+} from "@/lib/data/provider-profile";
 import { CLAIM_VERDICTS, type ClaimVerdict } from "@/lib/config/guarantee";
 
 /**
@@ -38,7 +42,35 @@ export async function setAvailabilityAction(
   if (!profile) return { ok: false, error: "notSignedIn" };
 
   const result = await setAvailableNow({ profileId: profile.id, on });
-  if (!result.ok) return { ok: false, error: "generic" };
+  // The reason is passed through rather than flattened: "you are on a job" is
+  // something the professional can act on, and "that did not save" is not.
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath("/provider");
+  return { ok: true };
+}
+
+/**
+ * "Not today", with an end on it.
+ *
+ * THE PRESET IS A NAME, NOT A TIMESTAMP, and that is the same rule as the
+ * availability expiry above: a professional who could post their own end time
+ * could post one years out, and busy would become the flag that never decays.
+ * `setBusyUntil` validates the name against the published list again, because
+ * an action is a public endpoint and this one arrives as a string.
+ *
+ * NOTHING IS COUNTED BY THIS. `/providers/standards` publishes "Turning work
+ * down. You are allowed to be busy." No counter is incremented here and none
+ * should be added.
+ */
+export async function setBusyAction(
+  preset: string | null,
+): Promise<ProviderSettingResult> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, error: "notSignedIn" };
+
+  const result = await setBusyUntil({ profileId: profile.id, preset });
+  if (!result.ok) return { ok: false, error: result.reason };
 
   revalidatePath("/provider");
   return { ok: true };

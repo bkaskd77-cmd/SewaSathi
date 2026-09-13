@@ -318,3 +318,23 @@ export async function withdrawClaimAction(
   if (result.ok) revalidatePath("/bookings", "layout");
   return { ok: result.ok };
 }
+
+/**
+ * Stop waiting on somebody who is not answering.
+ *
+ * The booking id is all the browser supplies; `widenBooking` re-reads the row,
+ * checks whose it is and refuses anything that is not still pending. It is
+ * deliberately NOT recorded as the professional refusing — see the note there.
+ */
+export async function widenBookingAction(
+  bookingId: string,
+): Promise<{ ok: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false };
+
+  const { widenBooking } = await import("@/lib/data/dispatch");
+  const result = await widenBooking({ bookingId, actorId: profile.id });
+
+  if (result.ok) revalidatePath(`/bookings/${bookingId}`);
+  return { ok: result.ok };
+}

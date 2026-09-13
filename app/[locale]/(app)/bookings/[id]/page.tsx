@@ -10,6 +10,7 @@ import {
 } from "@/components/booking/alternatives";
 import { CancelBooking } from "@/components/booking/cancel-booking";
 import { GuaranteePanel } from "@/components/booking/guarantee-panel";
+import { StillWaiting } from "@/components/booking/still-waiting";
 import { ConfirmTrip } from "@/components/booking/confirm-trip";
 import { LiveProgress } from "@/components/booking/live-progress";
 import { ProviderCard } from "@/components/booking/provider-card";
@@ -22,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatInstant, formatSlotInstant } from "@/lib/booking";
+import { dispatchStage, formatInstant, formatSlotInstant } from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { guaranteeFor } from "@/lib/config/guarantee";
@@ -209,6 +210,27 @@ export default async function BookingDetailPage({
           claimsForBooking(booking.id),
         ])
       : ([{ allowed: false, reason: "notCompleted" }, []] as const);
+
+  /*
+   * HAS ANYBODY ANSWERED?
+   *
+   * `pending` past its first-refusal window means the professional the customer
+   * chose has not replied. That used to look identical on screen to a booking
+   * that was proceeding, which is the whole reason `StillWaiting` exists. The
+   * stage comes from the booking's own timestamps, so this and the sweep cannot
+   * disagree about whether the window has passed.
+   */
+  const unanswered =
+    booking.status === "pending" &&
+    !released &&
+    dispatchStage(
+      booking.createdAt,
+      booking.urgency,
+      new Date(),
+      // The clock restarts when a customer re-picks, so a replacement chosen
+      // seconds ago is not instantly "unanswered".
+      null,
+    ) !== "first-refusal";
 
   const area = address ? findArea(address.areaKey) : null;
   const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
@@ -503,6 +525,20 @@ export default async function BookingDetailPage({
             failureReason={lastFailed?.failureReason ?? null}
             inFlightSince={inFlight?.initiatedAt ?? null}
             supportPhone={site.supportPhone}
+          />
+        </NextIntlClientProvider>
+      ) : null}
+
+      {/* Nobody has answered. Said plainly, with the one decision that is the
+          customer's to make. */}
+      {unanswered ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <StillWaiting
+            bookingId={booking.id}
+            providerName={provider?.displayName ?? null}
           />
         </NextIntlClientProvider>
       ) : null}

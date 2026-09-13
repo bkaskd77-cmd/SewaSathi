@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
-import { listProviders, type Availability } from "@/lib/data/providers";
+import {
+  listProviders,
+  type AvailabilityFilter,
+} from "@/lib/data/providers";
 import { sortProviders, type SortOption } from "@/lib/data/ranking";
 
 /**
@@ -50,7 +53,7 @@ export async function ProviderList({
   const providers = await listProviders({
     category: params.category,
     area: params.area,
-    availability: (params.availability as Availability | "any") ?? null,
+    availability: (params.availability as AvailabilityFilter | "any") ?? null,
     verifiedOnly: params.verified,
     minRating: params.rating,
     maxRate: params.maxRate,
