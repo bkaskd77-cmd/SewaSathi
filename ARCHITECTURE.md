@@ -217,6 +217,26 @@ Where a change on one side cannot reach the other.
   triggers fire alphabetically and `bookings_enforce_immutability` raises on a
   `quoted_min` change from any browser session, which `claimJob` is — the db
   suite asserts the ordering.
+- **Every published band records where it came from, and a guess cannot
+  launch.** `categories.pricing_source` is `invented`, `researched` or
+  `observed`, beside `pricing_checked_at` and `pricing_note`. All ten are
+  `invented` today — a developer's guess at a Kathmandu price, on every category
+  card, in the triage answer, and as the floor of every quote the fee is charged
+  on. `npm run check:blockers` reads the seed directly, so `category-price-bands`
+  cannot be marked resolved while any category still says `invented`: the one
+  entry in that register checked against data rather than taken at its word.
+- **Two floors on a booking, and only one of them is ours.** `band_min` is the
+  category band as published when the booking was made, frozen by
+  `freeze_booking_band` (filled at insert, pinned on update); `quoted_min` is
+  the holding professional's starting price. `category_pricing_signals` counts
+  `below_band_jobs` against ours and `below_quote_jobs` against theirs, because
+  they answer different questions — our price being wrong versus the commission
+  floor biting on one person, which `commission_appeals` handles. Before the
+  split there was one column and the quote-floor change silently turned the
+  band-review signal into a measure of how expensive individual professionals
+  are. It is frozen rather than joined to `categories` at read time so the
+  question stays "was the band we PUBLISHED right" rather than re-judging every
+  past job against a band we have since moved.
 - **A professional's rate is clamped on OUR writes too, not only on theirs.**
   `clampRate` ran on the dashboard save and nowhere else, while approval wrote a
   flat Rs 500 — below every band floor we publish. Every professional approved

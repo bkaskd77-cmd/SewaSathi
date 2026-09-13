@@ -282,3 +282,86 @@ describe("the guards that make this survive an edit", () => {
     expect(rows).toEqual([]);
   });
 });
+
+describe("the band we published is kept apart from the price they set", () => {
+  /*
+   * WHY BOTH FLOORS EXIST. `quoted_min` is now the holding professional's own
+   * starting price. `band_min` is ours, as published when the booking was made.
+   * Before this column, the pricing signal compared settled amounts against
+   * `quoted_min` and therefore read "this professional is expensive" as "our
+   * band is too high" — the measurement that is meant to tell us what a trade
+   * really costs, answering a different question than the one it was asked.
+   */
+  it("fills the band from the category even when the caller omits it", async () => {
+    // The insert above never mentions band_min. createBooking is the only
+    // caller today; the trigger is what makes a second one safe.
+    const id = await booking(dear);
+    const { rows } = await pg.admin.query(
+      "select band_min from public.bookings where id = $1",
+      [id],
+    );
+
+    expect(Number(rows[0].band_min)).toBe(BAND.low);
+  });
+
+  it("holds the band still while the professional's floor moves", async () => {
+    const id = await booking(null);
+    await pg.admin.query(
+      "update public.bookings set provider_id = $1 where id = $2",
+      [dear, id],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select band_min, quoted_min from public.bookings where id = $1",
+      [id],
+    );
+    expect(Number(rows[0].band_min)).toBe(BAND.low);
+    expect(Number(rows[0].quoted_min)).toBe(2400);
+  });
+
+  it("cannot be rewritten, by anybody, after the fact", async () => {
+    // Pinned rather than raised on: every ordinary status write touches this
+    // row and none of them should have to know the column exists.
+    const id = await booking(cheap);
+    await pg.admin.query(
+      "update public.bookings set band_min = 50 where id = $1",
+      [id],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select band_min from public.bookings where id = $1",
+      [id],
+    );
+    expect(Number(rows[0].band_min)).toBe(BAND.low);
+  });
+
+  it("counts a job under our band separately from one under theirs", async () => {
+    /*
+     * Sita starts at 2,400 and settles a job at 1,500. That is under HER floor
+     * and comfortably inside OUR band — so it is a commission-floor case for
+     * one person, and says nothing at all about plumbing being overpriced.
+     */
+    const id = await booking(null);
+    // Assigning through an update is what moves quoted_min to her rate — the
+    // sync is a BEFORE UPDATE trigger, and createBooking does the same
+    // arithmetic in TypeScript on the insert.
+    await pg.admin.query(
+      "update public.bookings set provider_id = $1 where id = $2",
+      [dear, id],
+    );
+    await finish(id, 1500);
+    await pg.admin.query(
+      "update public.bookings set payment_status = 'paid' where id = $1",
+      [id],
+    );
+
+    const { rows } = await pg.admin.query(
+      `select below_band_jobs, below_quote_jobs
+         from public.category_pricing_signals
+        where category_slug = 'plumbing'`,
+    );
+
+    expect(Number(rows[0].below_quote_jobs)).toBeGreaterThan(0);
+    expect(Number(rows[0].below_band_jobs)).toBe(0);
+  });
+});

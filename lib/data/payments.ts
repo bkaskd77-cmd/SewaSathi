@@ -1275,16 +1275,17 @@ export async function listPricingSignals(): Promise<PricingSignal[]> {
       .map((row) => ({
         categorySlug: row.category_slug as string,
         settledJobs: Number(row.settled_jobs ?? 0),
-        belowFloorJobs: Number(row.below_floor_jobs ?? 0),
-        belowFloorPct: Number(row.below_floor_pct ?? 0),
+        belowBandJobs: Number(row.below_band_jobs ?? 0),
+        belowBandPct: Number(row.below_band_pct ?? 0),
+        belowQuoteJobs: Number(row.below_quote_jobs ?? 0),
         aboveBandJobs: Number(row.above_band_jobs ?? 0),
-        quotedMin: Number(row.quoted_min ?? 0),
-        quotedMax: Number(row.quoted_max ?? 0),
+        bandMin: Number(row.band_min ?? 0),
+        bandMax: Number(row.band_max ?? 0),
         medianFinal: Number(row.median_final ?? 0),
         p25Final: Number(row.p25_final ?? 0),
         p75Final: Number(row.p75_final ?? 0),
       }))
-      .sort((a, b) => b.belowFloorPct - a.belowFloorPct);
+      .sort((a, b) => b.belowBandPct - a.belowBandPct);
   } catch (thrown) {
     console.error(`[pricing] signals threw — ${describeError(thrown)}`);
     return [];

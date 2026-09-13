@@ -68,6 +68,12 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Lives in: `lib/mock/categoryStats.ts`, rendered by `app/[locale]/page.tsx`
 - Replaced by: a rolling 7-day count per category over the `bookings` table, cached. Phase 9.
 
+### BLOCKER: category-price-bands
+- Status: unresolved
+- Claims: a price range for every service — "Rs 900–Rs 4,500" for plumbing and nine more like it — on every category card, on `/services`, on each category page, inside the triage answer, and as the floor of every booking's quote. A visitor reads it as what the work costs. All twenty numbers are a developer's guess at a Kathmandu price; not one was checked against a competitor or a real job. **This is the only invented data in this file that moves money**: the platform fee is charged on `max(final_amount, quoted_min)`, and `quoted_min` starts from the band's floor.
+- Lives in: `lib/data/seed/categories.json` (`basePriceMin`/`basePriceMax`), the `categories` table, and through them `lib/ai/price-bands.ts`, `quoteFloor` and `clampRate`
+- Replaced by: competitor research per trade, written into the same records — `pricingSource: "researched"` with `pricingCheckedAt` and a `pricingNote` naming who was checked. `npm run check:blockers` reads those fields directly, so this entry cannot be marked resolved while any active category still says `invented`. Later the numbers become `observed`: `category_pricing_signals` reports `belowBandPct` per category against the floor each booking was actually quoted under, and `needsBandReview` asks for a person once ten jobs have settled. Nothing moves a price automatically — the same stance as `commission_appeals`.
+
 ### BLOCKER: seed-providers-and-reviews
 - Status: unresolved
 - Claims: 28 named professionals with photos-worth-of-detail, ratings, job counts, completion rates, response times, and 94 written reviews from named customers. All invented. A visitor can browse them, read their verification breakdown, and tap "Book".

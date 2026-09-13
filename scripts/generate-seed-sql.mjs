@@ -49,17 +49,33 @@ lines.push(`-- GENERATED FILE — do not edit.
 -- providers are onboarded.
 `);
 
-lines.push("-- Categories ------------------------------------------------\n");
+lines.push(`-- Categories ------------------------------------------------
+
+-- These columns are declared here as well as in 20260913000003, and the
+-- repetition is deliberate: this file is regenerated from the seed JSON but
+-- keeps its 2026-08-30 position, so on a fresh project it runs BEFORE the
+-- migration that adds them. \`if not exists\` makes whichever runs second a
+-- no-op. The same reason the not-null tightening at the end of this section
+-- lives here rather than in the migration that added those columns.
+alter table public.categories
+  add column if not exists pricing_source text not null default 'invented'
+    check (pricing_source in ('invented', 'researched', 'observed')),
+  add column if not exists pricing_checked_at date,
+  add column if not exists pricing_note text;
+`);
 for (const c of categories) {
   lines.push(
-    `insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.descriptorNe)}, ${q(c.description)}, ${q(c.descriptionNe)}, ${q(c.ctaLabel)}, ${q(c.ctaLabelNe)}, ${c.basePriceMin}, ${c.basePriceMax}, ${q(c.icon)}, ${c.sortOrder})
+    `insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.descriptorNe)}, ${q(c.description)}, ${q(c.descriptionNe)}, ${q(c.ctaLabel)}, ${q(c.ctaLabelNe)}, ${c.basePriceMin}, ${c.basePriceMax}, ${q(c.pricingSource)}, ${c.pricingCheckedAt ? q(c.pricingCheckedAt) : "null"}, ${c.pricingNote ? q(c.pricingNote) : "null"}, ${q(c.icon)}, ${c.sortOrder})
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;\n`,
   );
 }

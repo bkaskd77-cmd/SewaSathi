@@ -42,6 +42,9 @@ type CategoryRow = {
   cta_label_ne: string;
   base_price_min: number;
   base_price_max: number;
+  pricing_source: string;
+  pricing_checked_at: string | null;
+  pricing_note: string | null;
   icon: string;
   sort_order: number;
 };
@@ -59,6 +62,17 @@ function fromRow(row: CategoryRow): Category {
     ctaLabelNe: row.cta_label_ne,
     basePriceMin: row.base_price_min,
     basePriceMax: row.base_price_max,
+    /*
+     * An unrecognised value reads as `invented` rather than being trusted. The
+     * point of this field is to refuse a launch on made-up prices, and a
+     * default that fails open would defeat it silently.
+     */
+    pricingSource:
+      row.pricing_source === "researched" || row.pricing_source === "observed"
+        ? row.pricing_source
+        : "invented",
+    pricingCheckedAt: row.pricing_checked_at,
+    pricingNote: row.pricing_note,
     icon: row.icon,
     sortOrder: row.sort_order,
   };
@@ -80,7 +94,7 @@ export const getCategories = cache(async (): Promise<Category[]> => {
     const { data, error } = await createPublicClient()
       .from("categories")
       .select(
-        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order",
+        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order",
       )
       .eq("is_active", true)
       .order("sort_order");

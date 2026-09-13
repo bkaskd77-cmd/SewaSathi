@@ -26,6 +26,31 @@ import process from "node:process";
 const FILE = "LAUNCH-BLOCKERS.md";
 const VALID_STATUS = new Set(["unresolved", "resolved"]);
 
+/**
+ * One entry is checked against the data rather than taken at its word.
+ *
+ * Every other entry here is resolved by a human judgement this script cannot
+ * make — is the legal text reviewed, is the SMS gateway real. The price bands
+ * are different: whether they are still invented is a fact recorded in the
+ * seed, so a `resolved` status that disagrees with it is a lie inside the
+ * register that exists to prevent lies. That check runs always, not only at
+ * launch, because a false `resolved` is worse than an honest `unresolved`.
+ */
+const BANDS_ENTRY = "category-price-bands";
+const CATEGORY_SEED = "lib/data/seed/categories.json";
+
+function inventedCategories() {
+  try {
+    const raw = readFileSync(path.join(process.cwd(), CATEGORY_SEED), "utf8");
+    return JSON.parse(raw)
+      .filter((c) => (c.pricingSource ?? "invented") === "invented")
+      .map((c) => c.slug);
+  } catch {
+    // A seed that cannot be read is not evidence that the bands are researched.
+    return ["<could not read the category seed>"];
+  }
+}
+
 /** Fenced code blocks hold the format example, which is not an entry. */
 function stripFences(markdown) {
   return markdown.replace(/^```[\s\S]*?^```/gm, "");
@@ -69,6 +94,9 @@ function main() {
   );
   const unresolved = entries.filter((e) => e.status === "unresolved");
 
+  const invented = inventedCategories();
+  const bands = entries.find((e) => e.id === BANDS_ENTRY);
+
   const launching =
     process.env.LAUNCH === "true" && process.env.NODE_ENV === "production";
 
@@ -79,6 +107,25 @@ function main() {
   for (const entry of entries) {
     const mark = entry.status === "resolved" ? "done" : "OPEN";
     console.log(`  ${mark}  ${entry.id}`);
+  }
+
+  if (invented.length > 0) {
+    console.log(
+      `  ${invented.length} of the service price bands are still invented.`,
+    );
+  }
+
+  if (bands?.status === "resolved" && invented.length > 0) {
+    console.error(
+      `\n${FILE} marks ${BANDS_ENTRY} resolved, but ${CATEGORY_SEED} still carries invented bands:\n`,
+    );
+    for (const slug of invented) console.error(`  - ${slug}`);
+    console.error(
+      `\nResolving that entry means researching the numbers and recording it —\n` +
+        `pricingSource "researched" or "observed", with pricingCheckedAt and a\n` +
+        `pricingNote naming what was checked — not changing the status line.\n`,
+    );
+    process.exit(1);
   }
 
   if (malformed.length > 0) {

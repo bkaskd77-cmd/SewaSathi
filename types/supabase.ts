@@ -101,6 +101,9 @@ export type Database = {
           cta_label_ne: string;
           base_price_min: number;
           base_price_max: number;
+          pricing_source: string;
+          pricing_checked_at: string | null;
+          pricing_note: string | null;
           icon: string;
           sort_order: number;
           is_active: boolean;
@@ -118,6 +121,9 @@ export type Database = {
           cta_label_ne: string;
           base_price_min: number;
           base_price_max: number;
+          pricing_source?: string;
+          pricing_checked_at?: string | null;
+          pricing_note?: string | null;
           icon: string;
           sort_order: number;
           is_active?: boolean;
@@ -185,6 +191,8 @@ export type Database = {
           status: string;
           quoted_min: number;
           quoted_max: number;
+          /** The category band's floor as published when this was booked. */
+          band_min: number;
           final_amount: number | null;
           payment_method: string;
           payment_status: string;
@@ -240,6 +248,8 @@ export type Database = {
           status?: string;
           quoted_min: number;
           quoted_max: number;
+          /** Filled by `freeze_booking_band` when omitted, so never required. */
+          band_min?: number;
           final_amount?: number | null;
           payment_method?: string;
           payment_status?: string;

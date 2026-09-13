@@ -97,11 +97,12 @@ describe("a category that keeps landing under its floor is our pricing bug", () 
   const signal = (over: Partial<PricingSignal> = {}): PricingSignal => ({
     categorySlug: "plumbing",
     settledJobs: 100,
-    belowFloorJobs: 30,
-    belowFloorPct: 30,
+    belowBandJobs: 30,
+    belowBandPct: 30,
+    belowQuoteJobs: 41,
     aboveBandJobs: 2,
-    quotedMin: 900,
-    quotedMax: 4000,
+    bandMin: 900,
+    bandMax: 4000,
     medianFinal: 1200,
     p25Final: 700,
     p75Final: 2100,
@@ -113,7 +114,7 @@ describe("a category that keeps landing under its floor is our pricing bug", () 
   });
 
   it("says nothing about a category that sits inside its band", () => {
-    expect(needsBandReview(signal({ belowFloorJobs: 2, belowFloorPct: 2 }))).toBe(
+    expect(needsBandReview(signal({ belowBandJobs: 2, belowBandPct: 2 }))).toBe(
       false,
     );
   });
@@ -121,7 +122,22 @@ describe("a category that keeps landing under its floor is our pricing bug", () 
   it("refuses to draw a conclusion from a handful of jobs", () => {
     // Acting on noise is how a correct band gets "corrected" into a wrong one.
     expect(
-      needsBandReview(signal({ settledJobs: 4, belowFloorJobs: 3, belowFloorPct: 75 })),
+      needsBandReview(signal({ settledJobs: 4, belowBandJobs: 3, belowBandPct: 75 })),
+    ).toBe(false);
+  });
+
+  it("ignores the professional's own floor being crossed", () => {
+    /*
+     * THE DISTINCTION THIS RENAME EXISTS FOR. `quoted_min` is now the holding
+     * professional's starting price, not our published floor, so jobs landing
+     * under it says something about one person's pricing and nothing about
+     * ours. A band review triggered by that number would have us cutting a
+     * category's price because a few expensive professionals took cheap jobs.
+     */
+    expect(
+      needsBandReview(
+        signal({ belowBandJobs: 1, belowBandPct: 1, belowQuoteJobs: 90 }),
+      ),
     ).toBe(false);
   });
 

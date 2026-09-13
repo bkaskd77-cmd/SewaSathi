@@ -41,6 +41,31 @@ export type Category = {
   ctaLabelNe: string;
   basePriceMin: number;
   basePriceMax: number;
+  /**
+   * WHERE THESE TWO NUMBERS CAME FROM, recorded beside them.
+   *
+   * The band is not decoration: it is published on every category card, on
+   * `/services`, on the category page, inside the triage prompt, and it is the
+   * floor of every booking's quote — which the platform fee is charged on.
+   * Today every one of them is `invented`: a developer's guess at a Kathmandu
+   * price, never checked against a competitor or a real settled job.
+   *
+   * Nothing distinguished a guess from a researched figure, so after the first
+   * trade is researched there would be no way to tell which nine were still
+   * made up. Hence a field rather than a comment.
+   *
+   *   `invented`   — a guess. Cannot go live; `npm run check:blockers` refuses.
+   *   `researched` — taken from named competitors, recorded in `pricingNote`
+   *                  with the date it was checked. The launch position.
+   *   `observed`   — derived from our own settled jobs, once there are enough
+   *                  of them to mean anything. `category_pricing_signals` is
+   *                  the measurement that gets us here.
+   */
+  pricingSource: "invented" | "researched" | "observed";
+  /** ISO date the band was last checked against the world. Null while invented. */
+  pricingCheckedAt: string | null;
+  /** Who was checked, or what the figure was derived from. */
+  pricingNote: string | null;
   /** Lucide icon name — resolved through CATEGORY_ICONS below. */
   icon: string;
   sortOrder: number;

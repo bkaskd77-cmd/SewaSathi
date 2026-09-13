@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CATEGORY_SEED } from "@/lib/config/services";
 import { bandForTrades, clampRate, quoteFloor } from "@/lib/provider";
 
 /**
@@ -80,5 +81,39 @@ describe("the floor can never cross the ceiling", () => {
     // pair rather than trapping every rate at an impossible value.
     const floor = quoteFloor({ providerRate: 2000, band: { low: 4500, high: 900 } });
     expect(floor).toBe(2000);
+  });
+});
+
+describe("every published band says where it came from", () => {
+  /*
+   * The band is on every category card, in the triage answer, and is the floor
+   * of every quote the fee is charged on. Nothing distinguished a guess from a
+   * researched figure, so after the first trade was researched there would have
+   * been no way to tell which nine were still made up.
+   */
+  it("carries a recognised provenance on all ten trades", () => {
+    expect(CATEGORY_SEED.length).toBeGreaterThan(0);
+    for (const category of CATEGORY_SEED) {
+      expect(["invented", "researched", "observed"]).toContain(
+        category.pricingSource,
+      );
+    }
+  });
+
+  it("never claims a band was checked without saying when and against what", () => {
+    // "researched" with no date and no source is the same as invented, with a
+    // label that stops anybody asking.
+    for (const category of CATEGORY_SEED) {
+      if (category.pricingSource === "invented") continue;
+      expect(category.pricingCheckedAt).toBeTruthy();
+      expect(category.pricingNote).toBeTruthy();
+    }
+  });
+
+  it("has a floor below its ceiling on every trade", () => {
+    for (const category of CATEGORY_SEED) {
+      expect(category.basePriceMin).toBeGreaterThan(0);
+      expect(category.basePriceMax).toBeGreaterThan(category.basePriceMin);
+    }
   });
 });

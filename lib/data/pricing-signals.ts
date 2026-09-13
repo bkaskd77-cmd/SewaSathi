@@ -13,9 +13,20 @@
  * mispricing, which is the exact failure mode of every automated integrity
  * system that has ever been built badly.
  *
- * What to do with a high `belowFloorPct`: move `basePriceMin` in the category
- * seed, re-run `seed:sql`, apply the migration. The band changes for future
- * bookings only — every existing booking carries its own frozen copy.
+ * TWO FLOORS NOW, AND ONLY ONE OF THEM ANSWERS THIS QUESTION. `quoted_min` used
+ * to be our published floor; it is now the holding professional's own starting
+ * price, so a professional starting at Rs 2,400 who does a Rs 1,500 job would
+ * have read as evidence that OUR band is too high. `bandMin` is ours, frozen on
+ * the booking at the moment it was made, and it is what `belowBandPct`
+ * measures. `belowQuoteJobs` is the other question — the commission floor
+ * biting on one person — and `commission_appeals` is what answers that.
+ *
+ * What to do with a high `belowBandPct`: move `basePriceMin` in the category
+ * seed, set `pricingSource` to `observed` with the date and what it was derived
+ * from, re-run `seed:sql`, apply the migration. The band changes for future
+ * bookings only — every existing booking carries its own frozen copy, which is
+ * what keeps this measurement answerable about the band that was actually
+ * published rather than the one we have since moved to.
  *
  * PURE, like `ranking.ts` and `recommendations.ts`. The read that fills it is
  * `listPricingSignals` in `lib/data/payments.ts`, next to the appeal it exists
@@ -25,12 +36,19 @@
 export type PricingSignal = {
   categorySlug: string;
   settledJobs: number;
-  belowFloorJobs: number;
-  /** Percent of settled jobs that landed under the published minimum. */
-  belowFloorPct: number;
+  /** Settled under OUR published floor. The band-review number. */
+  belowBandJobs: number;
+  /** Percent of settled jobs that landed under our published floor. */
+  belowBandPct: number;
+  /**
+   * Settled under the holding professional's own starting price — the
+   * commission floor biting. A different question, kept separate on purpose.
+   */
+  belowQuoteJobs: number;
   aboveBandJobs: number;
-  quotedMin: number;
-  quotedMax: number;
+  /** Our published floor, as frozen onto these bookings. */
+  bandMin: number;
+  bandMax: number;
   medianFinal: number;
   p25Final: number;
   p75Final: number;
@@ -49,7 +67,7 @@ export function needsBandReview(signal: PricingSignal): boolean {
   // noise is how a correct band gets "corrected" into a wrong one.
   return (
     signal.settledJobs >= 10 &&
-    signal.belowFloorPct >= BAND_REVIEW_THRESHOLD_PCT
+    signal.belowBandPct >= BAND_REVIEW_THRESHOLD_PCT
   );
 }
 

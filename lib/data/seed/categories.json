@@ -11,6 +11,9 @@
     "ctaLabelNe": "प्लम्बिङ",
     "basePriceMin": 900,
     "basePriceMax": 4500,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Wrench",
     "sortOrder": 1
   },
@@ -26,6 +29,9 @@
     "ctaLabelNe": "बिजुली मर्मत",
     "basePriceMin": 800,
     "basePriceMax": 4000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Zap",
     "sortOrder": 2
   },
@@ -41,6 +47,9 @@
     "ctaLabelNe": "घर सरसफाइ",
     "basePriceMin": 1500,
     "basePriceMax": 5000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Sparkles",
     "sortOrder": 3
   },
@@ -56,6 +65,9 @@
     "ctaLabelNe": "उपकरण मर्मत",
     "basePriceMin": 1200,
     "basePriceMax": 4000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "WashingMachine",
     "sortOrder": 4
   },
@@ -71,6 +83,9 @@
     "ctaLabelNe": "सिकर्मी काम",
     "basePriceMin": 1000,
     "basePriceMax": 3500,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Hammer",
     "sortOrder": 5
   },
@@ -86,6 +101,9 @@
     "ctaLabelNe": "किरा नियन्त्रण",
     "basePriceMin": 2000,
     "basePriceMax": 6000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Bug",
     "sortOrder": 6
   },
@@ -101,6 +119,9 @@
     "ctaLabelNe": "रङरोगन",
     "basePriceMin": 4000,
     "basePriceMax": 25000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "PaintRoller",
     "sortOrder": 7
   },
@@ -116,6 +137,9 @@
     "ctaLabelNe": "एसी सर्भिसिङ",
     "basePriceMin": 1800,
     "basePriceMax": 5500,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "AirVent",
     "sortOrder": 8
   },
@@ -131,6 +155,9 @@
     "ctaLabelNe": "पानी ट्यांकी सफाइ",
     "basePriceMin": 1500,
     "basePriceMax": 4000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Droplets",
     "sortOrder": 9
   },
@@ -146,6 +173,9 @@
     "ctaLabelNe": "सामान सार्ने",
     "basePriceMin": 5000,
     "basePriceMax": 20000,
+    "pricingSource": "invented",
+    "pricingCheckedAt": null,
+    "pricingNote": null,
     "icon": "Truck",
     "sortOrder": 10
   }

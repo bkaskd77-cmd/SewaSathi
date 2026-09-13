@@ -12,104 +12,146 @@
 
 -- Categories ------------------------------------------------
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('plumbing', 'Plumbing', 'प्लम्बिङ', 'Leaks, blocked drains, fittings', 'चुहावट, जाम, फिटिङ', 'Taps, pipes, drains, tanks and the pump that stopped working.', 'धारा, पाइप, ढल, ट्यांकी र नचल्ने पम्प।', 'plumbing', 'प्लम्बिङ', 900, 4500, 'Wrench', 1)
+-- These columns are declared here as well as in 20260913000003, and the
+-- repetition is deliberate: this file is regenerated from the seed JSON but
+-- keeps its 2026-08-30 position, so on a fresh project it runs BEFORE the
+-- migration that adds them. `if not exists` makes whichever runs second a
+-- no-op. The same reason the not-null tightening at the end of this section
+-- lives here rather than in the migration that added those columns.
+alter table public.categories
+  add column if not exists pricing_source text not null default 'invented'
+    check (pricing_source in ('invented', 'researched', 'observed')),
+  add column if not exists pricing_checked_at date,
+  add column if not exists pricing_note text;
+
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('plumbing', 'Plumbing', 'प्लम्बिङ', 'Leaks, blocked drains, fittings', 'चुहावट, जाम, फिटिङ', 'Taps, pipes, drains, tanks and the pump that stopped working.', 'धारा, पाइप, ढल, ट्यांकी र नचल्ने पम्प।', 'plumbing', 'प्लम्बिङ', 900, 4500, 'invented', null, null, 'Wrench', 1)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('electrical', 'Electrical', 'बिजुली मर्मत', 'Wiring, switches, inverters', 'वायरिङ, स्विच, इन्भर्टर', 'Switches, sockets, MCBs, inverters and the light that will not come on.', 'स्विच, सकेट, एमसीबी, इन्भर्टर र नबल्ने बत्ती।', 'electrical', 'बिजुली मर्मत', 800, 4000, 'Zap', 2)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('electrical', 'Electrical', 'बिजुली मर्मत', 'Wiring, switches, inverters', 'वायरिङ, स्विच, इन्भर्टर', 'Switches, sockets, MCBs, inverters and the light that will not come on.', 'स्विच, सकेट, एमसीबी, इन्भर्टर र नबल्ने बत्ती।', 'electrical', 'बिजुली मर्मत', 800, 4000, 'invented', null, null, 'Zap', 2)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('home-cleaning', 'Home Cleaning', 'घर सरसफाइ', 'Deep clean, kitchen, bathrooms', 'गहिरो सफाइ, भान्सा, बाथरुम', 'Deep cleans, kitchens, bathrooms and the flat you are moving out of.', 'गहिरो सफाइ, भान्सा, बाथरुम र सर्नुपर्ने फ्ल्याट।', 'home cleaning', 'घर सरसफाइ', 1500, 5000, 'Sparkles', 3)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('home-cleaning', 'Home Cleaning', 'घर सरसफाइ', 'Deep clean, kitchen, bathrooms', 'गहिरो सफाइ, भान्सा, बाथरुम', 'Deep cleans, kitchens, bathrooms and the flat you are moving out of.', 'गहिरो सफाइ, भान्सा, बाथरुम र सर्नुपर्ने फ्ल्याट।', 'home cleaning', 'घर सरसफाइ', 1500, 5000, 'invented', null, null, 'Sparkles', 3)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('appliance-repair', 'Appliance Repair', 'उपकरण मर्मत', 'Fridge, washing machine, geyser', 'फ्रिज, वासिङ मेसिन, गिजर', 'Fridges, washing machines, geysers, microwaves and televisions.', 'फ्रिज, वासिङ मेसिन, गिजर, माइक्रोवेभ र टेलिभिजन।', 'appliance repair', 'उपकरण मर्मत', 1200, 4000, 'WashingMachine', 4)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('appliance-repair', 'Appliance Repair', 'उपकरण मर्मत', 'Fridge, washing machine, geyser', 'फ्रिज, वासिङ मेसिन, गिजर', 'Fridges, washing machines, geysers, microwaves and televisions.', 'फ्रिज, वासिङ मेसिन, गिजर, माइक्रोवेभ र टेलिभिजन।', 'appliance repair', 'उपकरण मर्मत', 1200, 4000, 'invented', null, null, 'WashingMachine', 4)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('carpentry', 'Carpentry', 'सिकर्मी काम', 'Doors, furniture, fittings', 'ढोका, फर्निचर, फिटिङ', 'Doors, cupboards, hinges, shelves and furniture that needs rebuilding.', 'ढोका, दराज, कब्जा, र्‍याक र बनाउनुपर्ने फर्निचर।', 'carpentry', 'सिकर्मी काम', 1000, 3500, 'Hammer', 5)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('carpentry', 'Carpentry', 'सिकर्मी काम', 'Doors, furniture, fittings', 'ढोका, फर्निचर, फिटिङ', 'Doors, cupboards, hinges, shelves and furniture that needs rebuilding.', 'ढोका, दराज, कब्जा, र्‍याक र बनाउनुपर्ने फर्निचर।', 'carpentry', 'सिकर्मी काम', 1000, 3500, 'invented', null, null, 'Hammer', 5)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('pest-control', 'Pest Control', 'किरा नियन्त्रण', 'Cockroaches, termites, bed bugs', 'साङ्लो, धमिरा, उडुस', 'Cockroaches, termites, bed bugs and rodents, treated flat by flat.', 'साङ्लो, धमिरा, उडुस र मुसा — फ्ल्याटैपिच्छे उपचार।', 'pest control', 'किरा नियन्त्रण', 2000, 6000, 'Bug', 6)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('pest-control', 'Pest Control', 'किरा नियन्त्रण', 'Cockroaches, termites, bed bugs', 'साङ्लो, धमिरा, उडुस', 'Cockroaches, termites, bed bugs and rodents, treated flat by flat.', 'साङ्लो, धमिरा, उडुस र मुसा — फ्ल्याटैपिच्छे उपचार।', 'pest control', 'किरा नियन्त्रण', 2000, 6000, 'invented', null, null, 'Bug', 6)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('painting', 'Painting', 'रङरोगन', 'Interior, exterior, touch-ups', 'भित्र, बाहिर, टचअप', 'Interior and exterior painting, damp patches and touch-ups.', 'भित्री र बाहिरी रङरोगन, ओसका दाग र टचअप।', 'painting', 'रङरोगन', 4000, 25000, 'PaintRoller', 7)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('painting', 'Painting', 'रङरोगन', 'Interior, exterior, touch-ups', 'भित्र, बाहिर, टचअप', 'Interior and exterior painting, damp patches and touch-ups.', 'भित्री र बाहिरी रङरोगन, ओसका दाग र टचअप।', 'painting', 'रङरोगन', 4000, 25000, 'invented', null, null, 'PaintRoller', 7)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('ac-servicing', 'AC Servicing & Gas Refill', 'एसी सर्भिसिङ', 'Servicing, gas top-up, install', 'सर्भिसिङ, ग्यास, जडान', 'Servicing, gas top-ups and installation for split and window units.', 'स्प्लिट र विन्डो एसीको सर्भिसिङ, ग्यास भर्ने र जडान।', 'AC servicing', 'एसी सर्भिसिङ', 1800, 5500, 'AirVent', 8)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('ac-servicing', 'AC Servicing & Gas Refill', 'एसी सर्भिसिङ', 'Servicing, gas top-up, install', 'सर्भिसिङ, ग्यास, जडान', 'Servicing, gas top-ups and installation for split and window units.', 'स्प्लिट र विन्डो एसीको सर्भिसिङ, ग्यास भर्ने र जडान।', 'AC servicing', 'एसी सर्भिसिङ', 1800, 5500, 'invented', null, null, 'AirVent', 8)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('water-tank-cleaning', 'Water Tank Cleaning', 'पानी ट्यांकी सफाइ', 'Tanks, sumps, overhead drums', 'ट्यांकी, सम्प, माथिको ड्रम', 'Overhead drums, underground sumps and the water that started smelling.', 'माथिको ड्रम, भूमिगत ट्यांकी र गन्हाउन थालेको पानी।', 'water tank cleaning', 'पानी ट्यांकी सफाइ', 1500, 4000, 'Droplets', 9)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('water-tank-cleaning', 'Water Tank Cleaning', 'पानी ट्यांकी सफाइ', 'Tanks, sumps, overhead drums', 'ट्यांकी, सम्प, माथिको ड्रम', 'Overhead drums, underground sumps and the water that started smelling.', 'माथिको ड्रम, भूमिगत ट्यांकी र गन्हाउन थालेको पानी।', 'water tank cleaning', 'पानी ट्यांकी सफाइ', 1500, 4000, 'invented', null, null, 'Droplets', 9)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, icon, sort_order)
-values ('movers-packers', 'Movers & Packers', 'सामान सार्ने सेवा', 'Shifting flats, offices, storage', 'फ्ल्याट, अफिस, भण्डारण सार्ने', 'Shifting a flat or an office, packing, loading and storage.', 'फ्ल्याट वा अफिस सार्ने, प्याकिङ, लोडिङ र भण्डारण।', 'moving & packing', 'सामान सार्ने', 5000, 20000, 'Truck', 10)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order)
+values ('movers-packers', 'Movers & Packers', 'सामान सार्ने सेवा', 'Shifting flats, offices, storage', 'फ्ल्याट, अफिस, भण्डारण सार्ने', 'Shifting a flat or an office, packing, loading and storage.', 'फ्ल्याट वा अफिस सार्ने, प्याकिङ, लोडिङ र भण्डारण।', 'moving & packing', 'सामान सार्ने', 5000, 20000, 'invented', null, null, 'Truck', 10)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  pricing_source = excluded.pricing_source,
+  pricing_checked_at = excluded.pricing_checked_at,
+  pricing_note = excluded.pricing_note,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
 
