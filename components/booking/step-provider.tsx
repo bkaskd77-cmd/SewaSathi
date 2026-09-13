@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { BadgeCheck, Check, Sparkles, Star } from "lucide-react";
 
 import type { ShortlistEntry } from "@/app/[locale]/(app)/book/actions";
 import { Badge } from "@/components/ui/badge";
-import { canServeAt, type Availability } from "@/lib/provider";
-import { cn } from "@/lib/utils";
+import { canServeAt, quoteFloor, type Availability } from "@/lib/provider";
+import { cn, formatNpr } from "@/lib/utils";
 
 /**
  * Step d — who.
@@ -31,6 +31,7 @@ export function StepProvider({
   onChoose,
   onChosenEntry,
   when = null,
+  band,
 }: {
   category: string;
   area: string | null;
@@ -48,8 +49,12 @@ export function StepProvider({
   onChosenEntry?: (entry: ShortlistEntry | null) => void;
   /** The slot the customer picked, or null for as soon as possible. */
   when?: string | null;
+  /** The published band of the category being booked. */
+  band: { low: number; high: number } | null;
 }) {
   const t = useTranslations("booking.flow.provider");
+  const tc = useTranslations("common");
+  const locale = useLocale() as "en" | "ne";
   const [list, setList] = React.useState<ShortlistEntry[] | null>(null);
 
   React.useEffect(() => {
@@ -286,6 +291,31 @@ export function StepProvider({
                               n: String(provider.avgResponseMinutes),
                             })}
                           </span>
+                        </span>
+                      </span>
+
+                      {/*
+                          THE PRICE ON THE ROW. This screen had no price on it
+                          at all: the customer chose a professional blind and
+                          met a range on the next page. The figure shown is the
+                          one that becomes the floor of their quote — the same
+                          `quoteFloor` the server writes — so the review screen
+                          repeats it rather than introducing it.
+                       */}
+                      <span className="shrink-0 text-right">
+                        <span className="block text-body-sm font-semibold tabular-nums">
+                          {formatNpr(
+                            band
+                              ? quoteFloor({
+                                  providerRate: provider.baseRate,
+                                  band,
+                                })
+                              : provider.baseRate,
+                            { locale },
+                          )}
+                        </span>
+                        <span className="text-caption block text-muted-foreground">
+                          {tc("from")}
                         </span>
                       </span>
 

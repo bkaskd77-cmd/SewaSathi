@@ -202,6 +202,27 @@ Where a change on one side cannot reach the other.
   scales and must never be confused: `commission_appeals` per job, decided by a
   person, and `category_pricing_signals` per category — a band that jobs keep
   landing under is our price being wrong, not our professionals.
+- **The floor of a quote is the professional's own starting price; the ceiling
+  is always ours.** `quoteFloor` (`lib/provider/rates.ts`) is the rule and it is
+  `clampRate` against the band of the trade being booked — a multi-trade
+  professional is clamped against the UNION of their bands, so taking their rate
+  raw would write `quoted_min` above `quoted_max` and the table's own check
+  would refuse the insert. `createBooking` writes it; after that
+  `bookings_sync_quote_floor` maintains it, because a job changes hands five
+  ways and the one that matters is a widened job claimed by somebody cheaper —
+  a stale floor would charge them a commission built from a price they never
+  set. Released bookings fall back to the category floor, and
+  `freeze_quote_after_work` refuses any change once `final_amount` is set, with
+  no service-role bypass. **That trigger's name is load-bearing**: BEFORE
+  triggers fire alphabetically and `bookings_enforce_immutability` raises on a
+  `quoted_min` change from any browser session, which `claimJob` is — the db
+  suite asserts the ordering.
+- **A professional's rate is clamped on OUR writes too, not only on theirs.**
+  `clampRate` ran on the dashboard save and nowhere else, while approval wrote a
+  flat Rs 500 — below every band floor we publish. Every professional approved
+  through the real application flow was therefore listed at a price the product
+  refuses from them. `lib/data/review.ts` now writes the floor of their own
+  band, and the db suite reads the catalog to assert no listing sits outside it.
 - **For cash, the customer is the witness.** `blindCashEntry` decides when the
   screen hides the professional's figure; `confirmCashPayment` compares the two
   server-side and settles nothing when they disagree. Both figures survive on

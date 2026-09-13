@@ -126,7 +126,10 @@ export default async function BookPage({
       <div className="animate-rise mt-8" style={{ animationDelay: "60ms" }}>
         <NextIntlClientProvider
           locale={locale}
-          messages={{ booking: messages.booking }}
+          /* `common` carries the shared "from" the price on each shortlist
+             row needs. Thirteen short keys, and the alternative is a second
+             spelling of the same word living inside the booking namespace. */
+          messages={{ booking: messages.booking, common: messages.common }}
         >
         <BookingFlow
           seed={{
@@ -162,6 +165,7 @@ export default async function BookPage({
                   ratingCount: provider.stats.ratingCount,
                   jobsCompleted: provider.stats.jobsCompleted,
                   avgResponseMinutes: provider.stats.avgResponseMinutes,
+                  baseRate: provider.baseRate,
                 }
               : null
           }

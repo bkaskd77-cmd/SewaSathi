@@ -51,6 +51,12 @@ export type ShortlistEntry = {
   ratingCount: number;
   jobsCompleted: number;
   avgResponseMinutes: number;
+  /**
+   * Their starting price. Shown on the row, and it is the floor of the quote
+   * this booking will carry — see `quoteFloor`. The customer used to pick
+   * somebody with no price on screen at all and meet a range on the next page.
+   */
+  baseRate: number;
 };
 
 export async function shortlistAction(input: {
@@ -83,6 +89,7 @@ export async function shortlistAction(input: {
     ratingCount: provider.stats.ratingCount,
     jobsCompleted: provider.stats.jobsCompleted,
     avgResponseMinutes: provider.stats.avgResponseMinutes,
+    baseRate: provider.baseRate,
   }));
 }
 

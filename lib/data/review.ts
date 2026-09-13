@@ -11,6 +11,8 @@ import { describeError } from "@/lib/data/source";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
+import { getPriceBands } from "@/lib/ai/price-bands";
+import { bandForTrades, clampRate } from "@/lib/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   documentsFor,
@@ -339,6 +341,33 @@ export async function decideApplication(input: {
     .eq("id", input.applicationId);
 
   if (input.decision === "approved") {
+    /*
+     * THE STARTING PRICE IS THE FLOOR OF THEIR OWN BAND, not a constant.
+     *
+     * This was `base_rate: 500` for every trade, and 500 is below every band
+     * floor in the product — the lowest is electrical at 800. So every
+     * professional approved through the real application flow was listed at a
+     * price `clampRate` refuses the moment they touch the field themselves,
+     * and their card promised a figure the booking quote contradicted. The
+     * clamp only ever ran on their edit; nothing ran on ours.
+     *
+     * A trade we do not recognise leaves the column at its own default rather
+     * than inventing a number — `bandForTrades` returns null on purpose.
+     */
+    const trades = (application.trades as string[]) ?? [];
+    const bands = await getPriceBands();
+    const band =
+      bandForTrades(trades, bands) ??
+      /*
+       * No recognised trade. `base_rate` is `not null` with no default, so
+       * something has to be written; the cheapest floor we publish anywhere is
+       * the only figure that is not below a band we actually sell. It should
+       * be unreachable — the application form offers our own category list.
+       */
+      { low: Math.min(...bands.map((b) => b.low)), high: Math.max(...bands.map((b) => b.high)) };
+
+    const startingRate = clampRate({ rate: band.low, band }).rate;
+
     const { error: providerError } = await db.from("providers").insert({
       profile_id: application.profile_id as string,
       application_id: input.applicationId,
@@ -352,7 +381,7 @@ export async function decideApplication(input: {
       // Probation. Never established on day one.
       standing: "provisional",
       approved_at: new Date().toISOString(),
-      base_rate: 500,
+      base_rate: startingRate,
     });
 
     if (providerError) {

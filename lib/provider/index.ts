@@ -16,6 +16,7 @@
 export {
   bandForTrades,
   clampRate,
+  quoteFloor,
   type RateVerdict,
 } from "./rates";
 

@@ -14,7 +14,12 @@ import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
-import { blocksBooking, canServeAt, servingWhen } from "@/lib/provider";
+import {
+  blocksBooking,
+  canServeAt,
+  quoteFloor,
+  servingWhen,
+} from "@/lib/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -233,6 +238,18 @@ export async function createBooking(
    * case that is not an attack at all: a customer who picked somebody free,
    * filled in an address slowly, and confirmed after that professional set off.
    */
+  /*
+   * THE FLOOR OF THE QUOTE IS THE CHOSEN PROFESSIONAL'S OWN STARTING PRICE,
+   * clamped into this category's band — see `quoteFloor`. Nobody chosen leaves
+   * it at ours. The ceiling is always ours.
+   *
+   * Read from the same fetch as the availability check above, so the honesty
+   * costs no extra round trip. After this insert the floor is maintained by
+   * `bookings_sync_quote_floor`, because a job can change hands four different
+   * ways and writing the recompute at each is four chances to forget.
+   */
+  let floor = category.basePriceMin;
+
   if (parsed.data.provider) {
     const provider = await getProvider(parsed.data.provider);
     if (!provider || !provider.categories.includes(category.slug)) {
@@ -248,6 +265,11 @@ export async function createBooking(
     if (blocksBooking({ urgency: parsed.data.urgency, verdict })) {
       return { ok: false, errors: { provider: "providerBusyNow" } };
     }
+
+    floor = quoteFloor({
+      providerRate: provider.baseRate,
+      band: { low: category.basePriceMin, high: category.basePriceMax },
+    });
   }
 
   if (!hasSupabaseConfig()) {
@@ -297,7 +319,7 @@ export async function createBooking(
           urgency: parsed.data.urgency,
           scheduled_for: scheduledFor,
           // Frozen here, on purpose. See the note at the top of the file.
-          quoted_min: category.basePriceMin,
+          quoted_min: floor,
           quoted_max: category.basePriceMax,
           payment_method: parsed.data.paymentMethod,
           // The customer's actual choice, kept separately so it survives the

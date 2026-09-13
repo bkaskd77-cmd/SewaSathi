@@ -32,7 +32,14 @@ import {
   type FlowStep,
 } from "@/lib/booking";
 import { formatInstant, formatSlotInstant } from "@/lib/booking";
-import { blocksBooking, canServeAt, servingWhen, type Availability } from "@/lib/provider";
+import {
+  blocksBooking,
+  canServeAt,
+  quoteFloor,
+  servingWhen,
+  type Availability,
+} from "@/lib/provider";
+import { formatNpr } from "@/lib/utils";
 
 /**
  * The booking flow.
@@ -291,6 +298,31 @@ export function BookingFlow({
   const blocked =
     !state.autoAssign && !!chosen && blocksBooking({ urgency, verdict });
 
+  /*
+   * THE QUOTE ON THE REVIEW SCREEN IS THE CHOSEN PROFESSIONAL'S, not the
+   * category's. It used to be the pre-formatted category range, which meant
+   * the number a professional set on their own dashboard never once appeared
+   * in the flow that decides what anybody pays. `quoteFloor` is the same rule
+   * the server writes and the trigger maintains, so the three cannot disagree.
+   *
+   * The ceiling stays the category's in every case — a professional names a
+   * starting price, never a maximum.
+   */
+  const band = selectedCategory
+    ? { low: selectedCategory.priceMin, high: selectedCategory.priceMax }
+    : null;
+
+  const quoteLabel = band
+    ? `${formatNpr(
+        quoteFloor({
+          providerRate:
+            !state.autoAssign && chosen ? chosen.baseRate : null,
+          band,
+        }),
+        { locale },
+      )}–${formatNpr(band.high, { locale })}`
+    : (selectedCategory?.quoteLabel ?? "");
+
   return (
     <div>
       <BookingProgress
@@ -368,6 +400,7 @@ export function BookingFlow({
               autoAssign={state.autoAssign}
               preselected={preselectedProvider}
               when={when}
+              band={band}
               onChoose={patch}
               onChosenEntry={setChosen}
             />
@@ -382,7 +415,7 @@ export function BookingFlow({
                 savedAddresses,
                 areaLabels,
               })}
-              quoteLabel={selectedCategory?.quoteLabel ?? ""}
+              quoteLabel={quoteLabel}
               payment={state.paymentMethod}
               error={errors.form ?? errors.provider ?? errors.category}
               serving={

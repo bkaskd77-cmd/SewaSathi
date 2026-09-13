@@ -84,3 +84,41 @@ export function bandForTrades(
     high: Math.max(...matched.map((band) => band.high)),
   };
 }
+
+/**
+ * The floor of the quote on a booking, when a specific professional holds it.
+ *
+ * WHY THE PROFESSIONAL'S FIGURE BELONGS HERE AT ALL. Before this, a booking
+ * froze the whole category band whoever the customer had picked — so a plumbing
+ * job quoted Rs 900–4,500 for somebody starting at 900 and for somebody
+ * starting at 2,000 alike. The number a professional sets on their own
+ * dashboard reached their card, their profile and the replacement list, and
+ * then vanished from the one screen that decides what anybody pays.
+ *
+ * THE CEILING IS STILL OURS. A professional names a starting price, never a
+ * maximum, and `judgeFinalAmount` measures the 2× customer protection off
+ * `quoted_max`. Nothing a professional can type may move that.
+ *
+ * IT IS `clampRate` AGAINST THE JOB'S OWN BAND, and reusing it is the point
+ * rather than a shortcut. A multi-trade professional is clamped against the
+ * UNION of their bands — a plumber-and-painter may legally sit at Rs 25,000 —
+ * so taking their rate raw as the floor of a plumbing job would write
+ * `quoted_min` above `quoted_max` and the table's own check constraint would
+ * refuse the insert. Clamping to the band of the trade actually being booked is
+ * the same rule the professional already lives under, applied to the right band.
+ *
+ * NO GAMING PAYOFF EITHER WAY: the clamp stops them going under the published
+ * band, and going over only raises the floor their own commission is charged on.
+ */
+export function quoteFloor(input: {
+  /** Their starting price, or null when nobody is chosen yet. */
+  providerRate: number | null | undefined;
+  /** The band of the category being booked — not the union of their trades. */
+  band: { low: number; high: number };
+}): number {
+  const floor = Math.min(input.band.low, input.band.high);
+  if (input.providerRate == null || !Number.isFinite(input.providerRate)) {
+    return floor;
+  }
+  return clampRate({ rate: input.providerRate, band: input.band }).rate;
+}
