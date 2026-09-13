@@ -20,6 +20,15 @@ export {
 } from "./rates";
 
 export {
+  blocksBooking,
+  canServeAt,
+  servingWhen,
+  type ServingInput,
+  type ServingRefusal,
+  type ServingVerdict,
+} from "./serving";
+
+export {
   BUSY_PRESETS,
   DAY_ENDS_HOUR,
   availableUntil,

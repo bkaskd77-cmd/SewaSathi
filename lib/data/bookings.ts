@@ -14,6 +14,7 @@ import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
+import { blocksBooking, canServeAt, servingWhen } from "@/lib/provider";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -213,12 +214,39 @@ export async function createBooking(
   const category = await getCategory(parsed.data.category);
   if (!category) return { ok: false, errors: { category: "categoryUnavailable" } };
 
-  // Is the chosen professional still taking work? Booking someone who has gone
-  // unavailable is a job that sits pending until it times out.
+  /*
+   * Is the chosen professional still taking work?
+   *
+   * This comment has been here since Phase 6 and only the category was ever
+   * checked. The rest of it is now true: `canServeAt` decides, against the
+   * time the customer actually wants somebody.
+   *
+   * ONLY AN EMERGENCY IS REFUSED. A scheduled job against somebody who is on
+   * another job right now is a perfectly good booking — they will have
+   * finished — and refusing it would take work from the busiest professionals.
+   * An emergency is different: the customer has already told us they need
+   * somebody now, and holding it for five minutes for somebody demonstrably in
+   * another house spends the one window that matters.
+   *
+   * THE SCREEN CHECKS THIS TOO, and both are needed. The screen can explain and
+   * offer alternatives; this one holds whatever the browser did — including the
+   * case that is not an attack at all: a customer who picked somebody free,
+   * filled in an address slowly, and confirmed after that professional set off.
+   */
   if (parsed.data.provider) {
     const provider = await getProvider(parsed.data.provider);
     if (!provider || !provider.categories.includes(category.slug)) {
       return { ok: false, errors: { provider: "providerUnavailable" } };
+    }
+
+    const verdict = canServeAt({
+      state: provider.availability,
+      busyUntil: provider.busyUntil,
+      when: servingWhen({ urgency: parsed.data.urgency, scheduledFor }),
+    });
+
+    if (blocksBooking({ urgency: parsed.data.urgency, verdict })) {
+      return { ok: false, errors: { provider: "providerBusyNow" } };
     }
   }
 
@@ -434,6 +462,25 @@ export async function chooseProvider(input: {
   const refusals = await listRefusals(input.bookingId);
   if (refusals.some((r) => r.providerId === input.providerId)) {
     return { ok: false, reason: "alreadyRefused" };
+  }
+
+  /*
+   * A REPLACEMENT WHO ALSO CANNOT COME IS NOT A REPLACEMENT. This path is
+   * reached from the withdrawal panel, which is the moment a customer is
+   * already waiting and already let down once; handing them somebody
+   * demonstrably in another house would spend their patience on a second
+   * failure. Same rule, same function, same single stop: only an emergency.
+   */
+  const verdict = canServeAt({
+    state: provider.availability,
+    busyUntil: provider.busyUntil,
+    when: servingWhen({
+      urgency: booking.urgency,
+      scheduledFor: booking.scheduledFor,
+    }),
+  });
+  if (blocksBooking({ urgency: booking.urgency, verdict })) {
+    return { ok: false, reason: "providerBusyNow" };
   }
 
   const { data, error } = await createAdminClient()

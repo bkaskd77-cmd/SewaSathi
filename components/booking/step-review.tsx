@@ -6,7 +6,9 @@ import { Banknote, Info, Pencil, Smartphone, Wallet } from "lucide-react";
 import { FieldError } from "@/components/auth/field-error";
 import { Badge } from "@/components/ui/badge";
 import type { FlowStep } from "@/lib/booking";
+import { CannotCome } from "@/components/booking/cannot-come";
 import { DigitalBenefits } from "@/components/booking/digital-benefits";
+import type { ServingVerdict } from "@/lib/provider";
 import { cn } from "@/lib/utils";
 
 export type PaymentMethod = "cash" | "esewa" | "khalti";
@@ -22,6 +24,24 @@ export type ReviewRow = {
   label: string;
   value: string;
   hint?: string | null;
+};
+
+/**
+ * Everything the screen needs to say whether the chosen professional can come.
+ *
+ * Passed in rather than computed here: the provider step already holds the
+ * shortlist, and a second fetch on this screen could disagree with the first
+ * — which would mean the customer being told two different things about the
+ * same person on two consecutive screens.
+ */
+export type ServingNotice = {
+  verdict: ServingVerdict;
+  providerName: string;
+  /** True when the urgency makes this a stop rather than a note. */
+  blocking: boolean;
+  holdMinutes: number;
+  freeFromLabel: string | null;
+  onChooseAnother: () => void;
 };
 
 /**
@@ -44,6 +64,7 @@ export function StepReview({
   quoteLabel,
   payment,
   error,
+  serving,
   onJump,
   onPayment,
 }: {
@@ -51,6 +72,8 @@ export function StepReview({
   quoteLabel: string;
   payment: PaymentMethod;
   error?: string | null;
+  /** Null when the customer let us assign, or when nobody is chosen yet. */
+  serving?: ServingNotice | null;
   onJump: (step: FlowStep) => void;
   onPayment: (method: PaymentMethod) => void;
 }) {
@@ -59,6 +82,23 @@ export function StepReview({
 
   return (
     <div className="flex flex-col gap-5">
+      {/*
+        FIRST, ABOVE THE SUMMARY. Whether the person they picked can come is a
+        precondition for everything below it — putting it under the payment
+        buttons would mean somebody reaches the confirm button having read the
+        whole screen and not the one line that changes the answer.
+      */}
+      {serving ? (
+        <CannotCome
+          verdict={serving.verdict}
+          providerName={serving.providerName}
+          blocking={serving.blocking}
+          holdMinutes={serving.holdMinutes}
+          freeFromLabel={serving.freeFromLabel}
+          onChooseAnother={serving.onChooseAnother}
+        />
+      ) : null}
+
       <dl
         className="assemble divide-y divide-border rounded-xl border border-border"
         style={{ ["--assemble-step" as string]: "0.05s" }}

@@ -263,7 +263,9 @@
     "availabilityLong": {
       "now": "Available now — usually accepts within the hour",
       "today": "Available today",
-      "scheduled": "By appointment, usually within a few days"
+      "scheduled": "By appointment, usually within a few days",
+      "on_job": "On a job right now — free again once it is done",
+      "busy": "Not taking work right now"
     },
     "profile": {
       "specialisations": "{trades} · {n} years",
@@ -294,7 +296,9 @@
           "label": "Skill assessment",
           "detail": "Practical test in this trade, marked by a senior professional."
         }
-      }
+      },
+      "onJobNote": "On a job right now. Book a later time, or choose somebody who is free.",
+      "busyNote": "Not taking work right now. Book a later time, or choose somebody who is free."
     },
     "ward": "Ward {n}",
     "searchLabel": "Search services",
@@ -495,10 +499,17 @@
         "autoBody": "We send it to the highest-ranked professional free at your time.",
         "orChoose": "Or pick someone yourself",
         "verified": "Verified",
-        "availableNow": "Free now",
         "jobs": "{n} jobs",
         "respondsIn": "replies in ~{n} min",
-        "noneNearby": "Nobody is listed in that ward yet. Let us choose and we will widen the search."
+        "noneNearby": "Nobody is listed in that ward yet. Let us choose and we will widen the search.",
+        "availability": {
+          "now": "Free now",
+          "on_job": "On a job",
+          "busy": "Busy today",
+          "today": "Free today",
+          "scheduled": "By appointment"
+        },
+        "cannotComeNow": "Cannot come right now"
       },
       "review": {
         "problem": "Problem",
@@ -552,7 +563,19 @@
           "unsupportedFormat": "Please use a photo from your camera — a JPG.",
           "tooManyPixels": "That photo is too large to display. Try a smaller one."
         },
-        "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again."
+        "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again.",
+        "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick."
+      },
+      "cannotCome": {
+        "reason": {
+          "onJobNow": "{name} is on another job right now",
+          "busyNow": "{name} is not taking work right now",
+          "busyThen": "{name} is not free at the time you picked"
+        },
+        "emergencyBody": "You told us you need somebody now, so we will not keep you waiting on one person. Pick anybody marked free — they can set off straight away.",
+        "waitBody": "We will let them know the moment you confirm. If there is no answer in {minutes} minutes, you can open the job to everybody from your booking page.",
+        "freeFrom": "Free again from {when}.",
+        "chooseAnother": "Choose somebody who is free"
       }
     },
     "status": {

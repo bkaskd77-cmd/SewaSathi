@@ -6,6 +6,7 @@ import { BadgeCheck, Check, Sparkles, Star } from "lucide-react";
 
 import type { ShortlistEntry } from "@/app/[locale]/(app)/book/actions";
 import { Badge } from "@/components/ui/badge";
+import { canServeAt, type Availability } from "@/lib/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +29,8 @@ export function StepProvider({
   autoAssign,
   preselected,
   onChoose,
+  onChosenEntry,
+  when = null,
 }: {
   category: string;
   area: string | null;
@@ -37,6 +40,14 @@ export function StepProvider({
   /** The professional who came in on the URL, if any. */
   preselected: ShortlistEntry | null;
   onChoose: (next: { providerId: string | null; autoAssign: boolean }) => void;
+  /**
+   * The chosen entry, lifted so the review screen can say whether they can
+   * actually come. Held by the flow outside the saved draft — it is derivable
+   * and the draft is sessionStorage, same reasoning as the photo preview.
+   */
+  onChosenEntry?: (entry: ShortlistEntry | null) => void;
+  /** The slot the customer picked, or null for as soon as possible. */
+  when?: string | null;
 }) {
   const t = useTranslations("booking.flow.provider");
   const [list, setList] = React.useState<ShortlistEntry[] | null>(null);
@@ -66,6 +77,63 @@ export function StepProvider({
     if (!preselected) return list;
     return [preselected, ...list.filter((p) => p.id !== preselected.id)];
   }, [list, preselected]);
+
+  /*
+   * Hand the chosen entry up so the review screen can judge it. Done here
+   * rather than re-fetched there because this component already has the list,
+   * and a second fetch could disagree with the first.
+   */
+  React.useEffect(() => {
+    if (!onChosenEntry) return;
+    if (autoAssign || !providerId) {
+      onChosenEntry(null);
+      return;
+    }
+    // Nothing is reported while the list is still in flight: clearing it would
+    // make the review screen say "we can assign somebody" for a moment about a
+    // professional the customer definitely picked.
+    if (!entries) return;
+    onChosenEntry(entries.find((p) => p.id === providerId) ?? null);
+  }, [onChosenEntry, entries, providerId, autoAssign]);
+
+  /** What each option can do about the time the customer asked for. */
+  const verdictFor = (provider: ShortlistEntry) =>
+    canServeAt({
+      state: provider.availability as Availability,
+      busyUntil: provider.busyUntil,
+      when,
+    });
+
+  /*
+   * ON AN EMERGENCY THE TWO GROUPS ARE SEPARATED, and only here.
+   *
+   * Somebody who picked emergency needs a person now, so ranking a professional
+   * who is demonstrably in another house above one who is free would be the
+   * list actively misleading them — and `EMERGENCY_WEIGHTS` puts 0.40 on
+   * availability precisely because that is the term that matters at 2am.
+   *
+   * The unavailable ones are shown rather than hidden: a customer who came from
+   * Krishna's profile and cannot find Krishna in the list assumes the product
+   * is broken. They are shown, marked, and not selectable — which is the
+   * honest version of what tapping them would have led to.
+   *
+   * For every other urgency nothing is reordered. "On a job at 11am" says
+   * nothing about a Thursday slot, and demoting the busiest people for it would
+   * take work from exactly the professionals the platform runs on.
+   */
+  const emergency = urgency === "emergency";
+  const groups = React.useMemo(() => {
+    if (!entries) return null;
+    if (!emergency) return [{ free: true, entries }];
+    const free = entries.filter((p) => verdictFor(p).ok);
+    const engaged = entries.filter((p) => !verdictFor(p).ok);
+    return [
+      ...(free.length > 0 ? [{ free: true, entries: free }] : []),
+      ...(engaged.length > 0 ? [{ free: false, entries: engaged }] : []),
+    ];
+    // verdictFor is derived from `when`, which is already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, emergency, when]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -123,77 +191,116 @@ export function StepProvider({
           {t("noneNearby")}
         </p>
       ) : (
-        <div className="assemble flex flex-col gap-2">
-          {entries.map((provider, i) => {
-            const active = !autoAssign && providerId === provider.id;
-            return (
-              <button
-                key={provider.id}
-                type="button"
-                onClick={() =>
-                  onChoose({ providerId: provider.id, autoAssign: false })
-                }
-                aria-pressed={active}
-                style={{ ["--i" as string]: i }}
-                className={cn(
-                  "flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-200",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  active
-                    ? "border-primary bg-primary/[0.06]"
-                    : "border-border hover:border-primary/40 hover:bg-muted/40",
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-body-md font-semibold text-muted-foreground"
-                >
-                  {provider.displayName.slice(0, 1)}
-                </span>
+        <div className="flex flex-col gap-4">
+          {groups?.map((group) => (
+            <div key={group.free ? "free" : "engaged"}>
+              {/* Only ever two groups, and only on an emergency — so the
+                  heading appears exactly when it is carrying information. */}
+              {!group.free ? (
+                <p className="mb-2 text-caption font-semibold uppercase text-muted-foreground">
+                  {t("cannotComeNow")}
+                </p>
+              ) : null}
 
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-body-md font-semibold">
-                      {provider.displayName}
-                    </span>
-                    {provider.isVerified ? (
-                      <Badge variant="verified">
-                        <BadgeCheck aria-hidden="true" className="size-3" />
-                        {t("verified")}
-                      </Badge>
-                    ) : null}
-                    {provider.availability === "now" ? (
-                      <Badge variant="gold-subtle">{t("availableNow")}</Badge>
-                    ) : null}
-                  </span>
+              <div className="assemble flex flex-col gap-2">
+                {group.entries.map((provider, i) => {
+                  const active = !autoAssign && providerId === provider.id;
+                  const verdict = verdictFor(provider);
+                  // An emergency is the only case where a refusal stops the
+                  // choice. Everywhere else it is a note, and the review
+                  // screen makes the promise about what happens next.
+                  const barred = emergency && !verdict.ok;
 
-                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 tabular-nums">
-                      <Star
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      disabled={barred}
+                      onClick={() =>
+                        onChoose({ providerId: provider.id, autoAssign: false })
+                      }
+                      aria-pressed={active}
+                      style={{ ["--i" as string]: i }}
+                      className={cn(
+                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        barred
+                          ? "cursor-not-allowed border-border opacity-60"
+                          : active
+                            ? "border-primary bg-primary/[0.06]"
+                            : "border-border hover:border-primary/40 hover:bg-muted/40",
+                      )}
+                    >
+                      <span
                         aria-hidden="true"
-                        className="size-3 fill-gold text-gold"
-                      />
-                      {provider.ratingAvg.toFixed(1)} ({provider.ratingCount})
-                    </span>
-                    <span className="tabular-nums">
-                      {t("jobs", { n: String(provider.jobsCompleted) })}
-                    </span>
-                    <span className="tabular-nums">
-                      {t("respondsIn", {
-                        n: String(provider.avgResponseMinutes),
-                      })}
-                    </span>
-                  </span>
-                </span>
+                        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-body-md font-semibold text-muted-foreground"
+                      >
+                        {provider.displayName.slice(0, 1)}
+                      </span>
 
-                {active ? (
-                  <Check
-                    aria-hidden="true"
-                    className="mt-0.5 size-4 shrink-0 text-primary"
-                  />
-                ) : null}
-              </button>
-            );
-          })}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-body-md font-semibold">
+                            {provider.displayName}
+                          </span>
+                          {provider.isVerified ? (
+                            <Badge variant="verified">
+                              <BadgeCheck aria-hidden="true" className="size-3" />
+                              {t("verified")}
+                            </Badge>
+                          ) : null}
+                          {/*
+                              EVERY STATE, NOT ONLY `now`. This used to render
+                              a badge for a free professional and nothing at
+                              all for anybody else, so somebody on a job looked
+                              identical to somebody free by appointment — on
+                              the one screen where the customer chooses.
+                           */}
+                          <Badge
+                            variant={
+                              provider.availability === "now"
+                                ? "gold-subtle"
+                                : provider.availability === "on_job"
+                                  ? "info"
+                                  : "muted"
+                            }
+                          >
+                            {t(`availability.${provider.availability}`)}
+                          </Badge>
+                        </span>
+
+                        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
+                          <span className="inline-flex items-center gap-1 tabular-nums">
+                            <Star
+                              aria-hidden="true"
+                              className="size-3 fill-gold text-gold"
+                            />
+                            {provider.ratingAvg.toFixed(1)} ({provider.ratingCount}
+                            )
+                          </span>
+                          <span className="tabular-nums">
+                            {t("jobs", { n: String(provider.jobsCompleted) })}
+                          </span>
+                          <span className="tabular-nums">
+                            {t("respondsIn", {
+                              n: String(provider.avgResponseMinutes),
+                            })}
+                          </span>
+                        </span>
+                      </span>
+
+                      {active && !barred ? (
+                        <Check
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-primary"
+                        />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

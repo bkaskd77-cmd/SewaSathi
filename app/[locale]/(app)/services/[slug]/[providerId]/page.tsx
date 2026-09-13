@@ -182,7 +182,13 @@ export default async function ProviderProfilePage({
               <Badge variant="muted">{t("card.verificationInProgress")}</Badge>
             )}
             <Badge
-              variant={provider.availability === "now" ? "urgent" : "info"}
+              variant={
+                provider.availability === "now"
+                  ? "urgent"
+                  : provider.availability === "busy"
+                    ? "muted"
+                    : "info"
+              }
             >
               <Clock aria-hidden="true" />
               {t(`availabilityLong.${provider.availability}`)}
@@ -379,6 +385,23 @@ export default async function ProviderProfilePage({
               {t("profile.starting")} ·{" "}
               {categoryCopy(category, locale).ctaLabel}
             </span>
+            {/*
+              THE STATE BESIDE THE ACTION, not only in the header. The badge is
+              at the top of a page that is four screens long on a phone, and
+              this card is sticky — so without this line the one element always
+              on screen is a Book button that says nothing about whether the
+              person can come.
+            */}
+            {provider.availability === "on_job" ||
+            provider.availability === "busy" ? (
+              <span className="mt-1 block text-caption text-muted-foreground">
+                {t(
+                  provider.availability === "on_job"
+                    ? "profile.onJobNote"
+                    : "profile.busyNote",
+                )}
+              </span>
+            ) : null}
           </p>
           <Button variant="gold" size="lg" asChild className="btn-tactile">
             <Link

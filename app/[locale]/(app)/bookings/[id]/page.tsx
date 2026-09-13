@@ -176,6 +176,7 @@ export default async function BookingDetailPage({
         category: booking.categorySlug,
         area: address?.areaKey ?? null,
         urgency: booking.urgency,
+        scheduledFor: booking.scheduledFor,
         exclude: refusals.map((refusal) => refusal.providerId),
       })
     : [];

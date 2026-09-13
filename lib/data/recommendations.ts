@@ -1,5 +1,6 @@
 import type { Provider } from "@/lib/data/providers";
 import { rankProviders } from "@/lib/data/ranking";
+import { blocksBooking, canServeAt, servingWhen } from "@/lib/provider";
 
 /**
  * Who to offer a customer whose professional has just pulled out.
@@ -26,6 +27,19 @@ import { rankProviders } from "@/lib/data/ranking";
  * Ranking inside a tier is the ordinary one, urgency and all, which means the
  * withdrawal penalty applies here too: the replacement for somebody who pulled
  * out is not chosen from people who habitually pull out.
+ *
+ * ON AN EMERGENCY, ANYBODY WHO CANNOT COME NOW IS NOT A SUGGESTION. This list
+ * is read at the worst moment a customer has with us — they have already been
+ * let down once — and a name they tap that the server then refuses is a second
+ * failure inside a minute. `canServeAt` is the same rule the booking flow and
+ * `chooseProvider` use, so the three cannot disagree about who is bookable.
+ * Everything else is unfiltered: being on a job now says nothing about
+ * Thursday, and demoting the busiest people for it would take work from the
+ * professionals the platform runs on.
+ *
+ * The strictness can empty the list, and that is the honest outcome. The panel
+ * answers an empty list with a phone number, which is a better answer at 2am
+ * than a name that cannot help.
  */
 
 export type Reach = "ward" | "city" | "anywhere";
@@ -63,13 +77,28 @@ export function pickAlternatives(
      * is the single worst thing this list could do.
      */
     exclude?: readonly string[];
+    /** The slot the booking is for. Null or absent means as soon as possible. */
+    scheduledFor?: string | null;
     limit?: number;
   } = {},
 ): Alternative[] {
   const excluded = new Set(options.exclude ?? []);
   const limit = options.limit ?? MAX_ALTERNATIVES;
 
-  const eligible = providers.filter((p) => !excluded.has(p.id));
+  const when = servingWhen({
+    urgency: options.urgency,
+    scheduledFor: options.scheduledFor,
+  });
+
+  const eligible = providers.filter((p) => {
+    if (excluded.has(p.id)) return false;
+    const verdict = canServeAt({
+      state: p.availability,
+      busyUntil: p.busyUntil,
+      when,
+    });
+    return !blocksBooking({ urgency: options.urgency, verdict });
+  });
   const ranked = rankProviders(eligible, {
     urgency: options.urgency,
     area: options.area,

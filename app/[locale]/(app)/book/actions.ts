@@ -40,7 +40,13 @@ export type ShortlistEntry = {
   photoUrl: string | null;
   yearsExperience: number;
   isVerified: boolean;
+  /** The computed state — `now`, `on_job`, `busy`, `today`, `scheduled`. */
   availability: string;
+  /**
+   * Their declared window, carried so the review screen can judge a SLOT
+   * against it rather than only asking "can they come this minute".
+   */
+  busyUntil: string | null;
   ratingAvg: number;
   ratingCount: number;
   jobsCompleted: number;
@@ -72,6 +78,7 @@ export async function shortlistAction(input: {
     yearsExperience: provider.yearsExperience,
     isVerified: provider.isVerified,
     availability: provider.availability,
+    busyUntil: provider.busyUntil,
     ratingAvg: provider.stats.ratingAvg,
     ratingCount: provider.stats.ratingCount,
     jobsCompleted: provider.stats.jobsCompleted,

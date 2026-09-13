@@ -97,6 +97,12 @@ export type Provider = {
   idDocumentStatus: IdDocumentStatus;
   checks: VerificationCheck[];
   availability: Availability;
+  /**
+   * Their declared window, carried alongside the state because a SLOT can fall
+   * inside it. The state alone answers "can they come now"; `canServeAt` needs
+   * this to answer "can they come at three".
+   */
+  busyUntil: string | null;
   /** Starting price for a visit, NPR. */
   baseRate: number;
   stats: ProviderStats;
@@ -248,6 +254,7 @@ function fromRow(row: ProviderRow): Provider {
       availableUntil: row.available_until,
       base: row.availability,
     }),
+    busyUntil: row.busy_until,
     baseRate: row.base_rate,
     stats: {
       ratingAvg: Number(stats?.rating_avg ?? 0),
@@ -487,11 +494,15 @@ export async function listAlternatives(input: {
   area?: string | null;
   urgency?: string | null;
   exclude?: readonly string[];
+  /** The booking's slot, so an emergency is judged against now and a scheduled
+   * job against the time it is actually for. */
+  scheduledFor?: string | null;
 }): Promise<Alternative[]> {
   const providers = await listProviders({ category: input.category });
   return pickAlternatives(providers, {
     area: input.area,
     urgency: input.urgency,
     exclude: input.exclude,
+    scheduledFor: input.scheduledFor,
   });
 }

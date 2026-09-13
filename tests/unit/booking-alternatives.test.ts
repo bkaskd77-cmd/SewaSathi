@@ -30,6 +30,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     idDocumentStatus: "verified",
     checks: ["id"],
     availability: "now",
+    busyUntil: null,
     baseRate: 800,
     stats: {
       ratingAvg: 4.6,
@@ -179,5 +180,81 @@ describe("the chooser is shown only while there is nobody to do the job", () => 
 
   it("is not shown on an ordinary wait, where nobody has refused anything", () => {
     expect(needsReplacement({ ...waiting, refusalCount: 0 })).toBe(false);
+  });
+});
+
+describe("an emergency is only ever offered people who can come now", () => {
+  it("drops the professional who is on another job", () => {
+    // The withdrawal panel is read by somebody already let down once. A name
+    // they tap that the server then refuses is a second failure inside a
+    // minute, so the list never contains one.
+    const engaged = provider({ availability: "on_job" });
+    const free = provider({ availability: "now" });
+
+    const picked = pickAlternatives([engaged, free], {
+      area: "lalitpur-4",
+      urgency: "emergency",
+    });
+
+    expect(picked.map((p) => p.provider.id)).toEqual([free.id]);
+  });
+
+  it("drops somebody inside their own declared busy window", () => {
+    const busy = provider({
+      availability: "busy",
+      busyUntil: new Date(Date.now() + 3 * 60 * 60_000).toISOString(),
+    });
+    const free = provider({ availability: "now" });
+
+    const picked = pickAlternatives([busy, free], { urgency: "emergency" });
+    expect(picked.map((p) => p.provider.id)).toEqual([free.id]);
+  });
+
+  it("returns nothing rather than somebody who cannot come", () => {
+    // Empty is the honest answer, and the panel answers it with a phone
+    // number. A name that cannot help at 2am is worse than no name.
+    const engaged = provider({ availability: "on_job" });
+    expect(pickAlternatives([engaged], { urgency: "emergency" })).toEqual([]);
+  });
+});
+
+describe("nothing else is filtered, because being busy now is not being gone", () => {
+  it("keeps a professional on a job for a routine booking", () => {
+    // On a job at 11am says nothing about Thursday. Dropping them here would
+    // take work from exactly the people the platform runs on.
+    const engaged = provider({ availability: "on_job" });
+
+    const picked = pickAlternatives([engaged], { urgency: "routine" });
+    expect(picked.map((p) => p.provider.id)).toEqual([engaged.id]);
+  });
+
+  it("keeps a professional whose busy window ends before the chosen slot", () => {
+    const busy = provider({
+      availability: "busy",
+      busyUntil: new Date(Date.now() + 60 * 60_000).toISOString(),
+    });
+
+    const picked = pickAlternatives([busy], {
+      urgency: "routine",
+      scheduledFor: new Date(Date.now() + 48 * 60 * 60_000).toISOString(),
+    });
+    expect(picked.map((p) => p.provider.id)).toEqual([busy.id]);
+  });
+
+  it("drops a professional whose busy window covers the chosen slot only when it is an emergency", () => {
+    // `busyThen` is a real refusal, but it is still not a stop: the booking
+    // goes through, the professional is told, and the customer can widen it.
+    // Only the urgency decides, and this pins that the two differ.
+    const busyUntil = new Date(Date.now() + 72 * 60 * 60_000).toISOString();
+    const busy = provider({ availability: "busy", busyUntil });
+    const slot = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+
+    expect(
+      pickAlternatives([busy], { urgency: "routine", scheduledFor: slot }),
+    ).toHaveLength(1);
+    // An emergency ignores the slot entirely — it is always "now".
+    expect(
+      pickAlternatives([busy], { urgency: "emergency", scheduledFor: slot }),
+    ).toHaveLength(0);
   });
 });

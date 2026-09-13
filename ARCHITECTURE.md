@@ -23,7 +23,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **booking** | `@/lib/booking` | Status machine, working hours and slots, flow draft persistence |
 | **payments** | `@/lib/payments` (server)<br>`@/lib/payments/client` (isomorphic) | Payment status machine, the price-integrity rules, the commission split, the gateway registry, callback reading |
 | **notify** | `@/lib/notify` (server) | The channel contract and registry. In-app today; SMS and push are Phase 13 and are one file each. |
-| **provider** | `@/lib/provider` (isomorphic) | What a professional controls about their own listing: the rate clamp and the availability decay |
+| **provider** | `@/lib/provider` (isomorphic) | What a professional controls about their own listing: the rate clamp, the availability decay, and whether they can serve a given time |
 | **auth** | `@/lib/auth` (isomorphic)<br>`@/lib/auth/session` (server)<br>`@/lib/auth/otp` (client) | Route rules, redirect safety, phone parsing, session reads, the SMS adapter |
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
@@ -149,6 +149,20 @@ Where a change on one side cannot reach the other.
   switch says. There is NO sweep for any of it: a background job that turns
   flags off is one that stops running some night, so every read computes it and
   the directory query widens in SQL and narrows in JS.
+- **"Can they come?" is a property of the professional AND of when the customer
+  wants them, and `canServeAt` in `lib/provider/serving.ts` is the only place
+  that decides it.** A state shown on a card and read by nothing else is
+  decoration: a customer could see "On a job", tap Book, walk four screens and
+  confirm without the product ever repeating what it already knew. Every
+  surface now reads the same answer — the shortlist, the review screen,
+  `createBooking`, `chooseProvider` and `pickAlternatives` — so none of them can
+  say a different thing about the same person. **Only an emergency is a stop**
+  (`blocksBooking`): the customer picking emergency has already told us they
+  need somebody now, so the screen hands them who is free instead. Everything
+  else books, is notified, and can be widened after `DISPATCH_WINDOWS`'
+  first-refusal window. Being on a job at 11am is never allowed to count
+  against a Thursday slot — that branch is the one a careless edit breaks, and
+  `tests/unit/provider-serving.test.ts` pins it hardest.
 - **A customer can stop waiting on silence, and it is not a refusal.**
   `widenBooking` sets `bookings.widened_by_customer_at`, and
   `record_provider_release` reads that stamp and records nothing. Without it,

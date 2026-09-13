@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 import type { ShortlistEntry } from "@/app/[locale]/(app)/book/actions";
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import {
   clearDraft,
+  DISPATCH_WINDOWS,
   FLOW_STEPS,
   initialState,
   loadDraft,
@@ -30,7 +31,8 @@ import {
   type FlowState,
   type FlowStep,
 } from "@/lib/booking";
-import { formatSlotInstant } from "@/lib/booking";
+import { formatInstant, formatSlotInstant } from "@/lib/booking";
+import { blocksBooking, canServeAt, servingWhen, type Availability } from "@/lib/provider";
 
 /**
  * The booking flow.
@@ -82,6 +84,7 @@ export function BookingFlow({
   areaLabels: Record<string, string>;
 }) {
   const t = useTranslations("booking.flow");
+  const locale = useLocale() as "en" | "ne";
   const router = useRouter();
 
   const [state, setState] = React.useState<FlowState>(() =>
@@ -104,6 +107,15 @@ export function BookingFlow({
   // attached — the path survives — it just no longer shows a thumbnail, which
   // is a fair trade for not blowing the quota mid-booking.
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+  /*
+   * The chosen professional's whole row, not just their id. Held outside the
+   * draft for the same reason as the preview: it is derivable from a fetch the
+   * provider step already makes, and sessionStorage is not the place for
+   * anything we can ask for again.
+   */
+  const [chosen, setChosen] = React.useState<ShortlistEntry | null>(
+    preselectedProvider,
+  );
   const submitted = React.useRef(false);
 
   // Restore before first paint of the flow body, so a returning customer never
@@ -180,12 +192,7 @@ export function BookingFlow({
         booking: {
           category: state.category,
           provider: state.autoAssign ? null : state.providerId,
-          urgency:
-            state.timing === "emergency"
-              ? "emergency"
-              : state.timing === "today"
-                ? "soon"
-                : "routine",
+          urgency: urgencyFor(state),
           description: state.description,
           photoUrl: state.photoPath,
           scheduledFor: state.timing === "scheduled" ? state.slot : null,
@@ -256,6 +263,33 @@ export function BookingFlow({
   const areaKey = state.addressId
     ? (savedAddresses.find((a) => a.id === state.addressId)?.areaKey ?? null)
     : state.newAddress.area || null;
+
+  /*
+   * WHEN THEY ARE NEEDED, which is what makes "can they come" answerable. An
+   * emergency is always now whatever the form holds; everything else is the
+   * slot they picked, or as-soon-as-possible.
+   */
+  const urgency = urgencyFor(state);
+  const when = servingWhen({
+    urgency,
+    scheduledFor: state.timing === "scheduled" ? state.slot : null,
+  });
+
+  const verdict = chosen
+    ? canServeAt({
+        state: chosen.availability as Availability,
+        busyUntil: chosen.busyUntil,
+        when,
+      })
+    : { ok: true as const };
+
+  /*
+   * The one stop in the flow. An emergency against somebody who cannot come
+   * now is refused here as well as on the server — the server refusal is what
+   * makes it true, this is what makes it explainable on a page.
+   */
+  const blocked =
+    !state.autoAssign && !!chosen && blocksBooking({ urgency, verdict });
 
   return (
     <div>
@@ -333,7 +367,9 @@ export function BookingFlow({
               providerId={state.providerId}
               autoAssign={state.autoAssign}
               preselected={preselectedProvider}
+              when={when}
               onChoose={patch}
+              onChosenEntry={setChosen}
             />
           ) : null}
 
@@ -349,6 +385,20 @@ export function BookingFlow({
               quoteLabel={selectedCategory?.quoteLabel ?? ""}
               payment={state.paymentMethod}
               error={errors.form ?? errors.provider ?? errors.category}
+              serving={
+                chosen && !state.autoAssign && !verdict.ok
+                  ? {
+                      verdict,
+                      providerName: chosen.displayName,
+                      blocking: blocked,
+                      holdMinutes: DISPATCH_WINDOWS[urgency].firstRefusalMinutes,
+                      freeFromLabel: verdict.freeFrom
+                        ? formatInstant(verdict.freeFrom.toISOString(), locale)
+                        : null,
+                      onChooseAnother: () => goTo("provider"),
+                    }
+                  : null
+              }
               onJump={goTo}
               onPayment={(method) => patch({ paymentMethod: method })}
             />
@@ -378,7 +428,10 @@ export function BookingFlow({
             size="lg"
             className="btn-tactile"
             onClick={() => void confirm()}
-            disabled={submitting}
+            /* Blocked is a real stop, not a warning to click past. The server
+               refuses it anyway; disabling here saves a round trip that can
+               only end in an error. */
+            disabled={submitting || blocked}
           >
             {submitting ? (
               <>
@@ -407,6 +460,20 @@ export function BookingFlow({
       </div>
     </div>
   );
+}
+
+/**
+ * The timing the customer picked, as the urgency the rest of the product
+ * speaks.
+ *
+ * One function because two places need it and they must not disagree: the
+ * confirm call sends it to the server, and `canServeAt` uses it to decide
+ * whether the screen may let them confirm at all.
+ */
+function urgencyFor(state: FlowState): "emergency" | "soon" | "routine" {
+  if (state.timing === "emergency") return "emergency";
+  if (state.timing === "today") return "soon";
+  return "routine";
 }
 
 /** Which field is missing, phrased as message keys the steps understand. */

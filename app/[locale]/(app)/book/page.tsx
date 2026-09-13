@@ -153,6 +153,7 @@ export default async function BookPage({
               ? {
                   id: provider.id,
                   displayName: provider.displayName,
+                  busyUntil: provider.busyUntil,
                   photoUrl: provider.photoUrl,
                   yearsExperience: provider.yearsExperience,
                   isVerified: provider.isVerified,
