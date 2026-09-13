@@ -75,7 +75,26 @@ same commit as the change, never afterwards.
    somebody in a hurry would actually type them — including the ordinary
    complaints that must NOT fire, because a product that cries wolf is worth
    nothing when it is real ("करेन्ट आएको छैन" means the power is out).
-6. **When something breaks, reproduce it with a failing test first.** Never fix
+6. **A default is never a measurement.** Unmeasured must be distinguishable
+   from measured-as-zero *everywhere* — in ranking, on cards, in filters, in
+   any number a customer reads as evidence. This has now bitten three times and
+   every time a column default was being presented as a fact: `rating_avg 0`
+   rendered as "0.0" beside real ratings; `avg_response_minutes 120` sat exactly
+   at the scoring ceiling so an untimed professional scored zero forever;
+   `availability` was a stored column that never decayed so "available now"
+   outlived the day it was set. A fourth was found by the audit that produced
+   this rule: `completion_rate` defaults to **100**, so a listing nobody has
+   ever measured scored a perfect completion rate and outranked a real
+   professional at 96%.
+   The shape of the fix is always the same and `bayesianRating` had it first:
+   **carry the sample count, and with no evidence score like an unknown rather
+   than like an extreme.** `lib/provider/measured.ts` is the one place that
+   decides whether a stat has evidence behind it — `hasRating`, `hasResponse`,
+   `hasCompletion` — and every surface asks it rather than re-deriving the
+   test. A screen with no evidence says so; it does not print the default.
+   Before adding any column with a numeric default, say in the summary how an
+   unmeasured row will be told apart from a measured one.
+7. **When something breaks, reproduce it with a failing test first.** Never fix
    blind. The regression test stays in the suite permanently. If the fix
    touches shared code, say so explicitly and list what else you verified.
 

@@ -1,4 +1,5 @@
 import type { Provider } from "@/lib/data/providers";
+import { hasCompletion, hasResponse } from "@/lib/provider";
 
 /**
  * Which professional to show first.
@@ -141,6 +142,19 @@ const RESPONSE_CEILING_MINUTES = 120;
  */
 const UNMEASURED_RESPONSE = 0.5;
 
+/**
+ * What a professional nobody has given a job to is worth on completion.
+ *
+ * `completion_rate` DEFAULTS TO 100, so before this a listing with no record at
+ * all scored 1.0 — the maximum — and outranked a real professional at 96% on
+ * that axis. The default was doing the work of a measurement, in the direction
+ * that flatters whoever has done the least.
+ *
+ * Mid-scale for the same reason as `UNMEASURED_RESPONSE`: an unknown belongs
+ * between the good and the bad, not at either end.
+ */
+const UNMEASURED_COMPLETION = 0.5;
+
 /*
  * WHAT EACH STATE IS WORTH, and the two new rows carry more weight than
  * anything else here: availability is 0.40 of an emergency search, the largest
@@ -209,7 +223,9 @@ export function scoreParts(
     Math.log10(1 + stats.jobsCompleted) / Math.log10(1 + VOLUME_CEILING),
   );
 
-  const completion = clamp01(stats.completionRate / 100);
+  const completion = hasCompletion(stats)
+    ? clamp01(stats.completionRate / 100)
+    : UNMEASURED_COMPLETION;
 
   const availability = AVAILABILITY_SCORE[provider.availability] ?? 0.15;
 
@@ -229,10 +245,9 @@ export function scoreParts(
    * `UNMEASURED_RESPONSE` is deliberately mid-scale — it neither rewards nor
    * punishes a listing for being new.
    */
-  const response =
-    stats.responseSamples > 0
-      ? clamp01(1 - stats.avgResponseMinutes / RESPONSE_CEILING_MINUTES)
-      : UNMEASURED_RESPONSE;
+  const response = hasResponse(stats)
+    ? clamp01(1 - stats.avgResponseMinutes / RESPONSE_CEILING_MINUTES)
+    : UNMEASURED_RESPONSE;
 
   // With no ward chosen, proximity is neutral for everyone rather than zero —
   // otherwise the term would just add noise to a list nobody has localised.

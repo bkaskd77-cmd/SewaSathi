@@ -66,7 +66,9 @@ export {
 } from "./flow-state";
 
 export {
+  CLAIM_FIRST_REFUSAL_MINUTES,
   canTransitionClaim,
+  claimOpenToAll,
   CLAIM_STATUSES,
   CLAIM_TRANSITIONS,
   countsAgainstLimit,

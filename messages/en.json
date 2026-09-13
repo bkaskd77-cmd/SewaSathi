@@ -298,7 +298,9 @@
         }
       },
       "onJobNote": "On a job right now. Book a later time, or choose somebody who is free.",
-      "busyNote": "Not taking work right now. Book a later time, or choose somebody who is free."
+      "busyNote": "Not taking work right now. Book a later time, or choose somebody who is free.",
+      "notRated": "Not rated yet",
+      "notMeasured": "Not measured yet"
     },
     "ward": "Ward {n}",
     "searchLabel": "Search services",
@@ -509,7 +511,8 @@
           "today": "Free today",
           "scheduled": "By appointment"
         },
-        "cannotComeNow": "Cannot come right now"
+        "cannotComeNow": "Cannot come right now",
+        "notRated": "Not rated yet"
       },
       "review": {
         "problem": "Problem",
@@ -784,7 +787,8 @@
         "notWaiting": "This booking has moved on. Look again.",
         "providerUnavailable": "That professional is not taking this work now.",
         "failed": "That didn't go through. Try again."
-      }
+      },
+      "notRated": "Not rated yet"
     },
     "digital": {
       "heading": "Paying with eSewa or Khalti also means",

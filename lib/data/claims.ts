@@ -1,6 +1,11 @@
 import "server-only";
 
-import { isClaimStatus, type ClaimStatus } from "@/lib/booking";
+import {
+  CLAIM_FIRST_REFUSAL_MINUTES,
+  claimOpenToAll,
+  isClaimStatus,
+  type ClaimStatus,
+} from "@/lib/booking";
 import {
   claimIsAllowed,
   claimOutcome,
@@ -245,12 +250,45 @@ export async function acceptClaim(input: {
   claimId: string;
   providerId: string;
 }): Promise<ClaimWriteResult> {
+  /*
+   * The trades are re-read here rather than taken as a parameter. An eligibility
+   * list that arrives from the caller is an eligibility list the caller can
+   * assert — the same shape as the three `actorId` holes, all of which were an
+   * id arriving from outside with nothing asking whose it was.
+   */
+  const trades = await tradesFor(input.providerId);
+
   return moveClaim({
     claimId: input.claimId,
     to: "dispatched",
-    guard: (claim) =>
-      claim.provider_id === input.providerId ||
-      claim.attending_provider_id === input.providerId,
+    /*
+     * THE THIRD CLAUSE IS THE FIX. Before it, only the original professional
+     * or the one already attending could accept — so when the original handed
+     * it back, the claim went to `open` and nobody alive was permitted to take
+     * it. `/legal/refunds` promises a visit without conditions, and the code
+     * quietly did not keep that promise.
+     *
+     * `claimOpenToAll` is the same clock-driven rule the policy in SQL applies,
+     * so a screen and the database cannot disagree about whether a claim is
+     * still being held for its first refusal.
+     */
+    guard: (claim) => {
+      if (claim.provider_id === input.providerId) return true;
+      if (claim.attending_provider_id === input.providerId) return true;
+
+      const openToAll = claimOpenToAll({
+        status: toStatus(claim.status),
+        attendingProviderId:
+          (claim.attending_provider_id as string | null) ?? null,
+        openedAt: claim.opened_at as string,
+        releasedAt: (claim.released_at as string | null) ?? null,
+      });
+
+      return (
+        openToAll &&
+        trades.includes(claim.category_slug as string)
+      );
+    },
     patch: { attending_provider_id: input.providerId },
   });
 }
@@ -264,7 +302,14 @@ export async function releaseClaim(input: {
     claimId: input.claimId,
     to: "open",
     guard: (claim) => claim.attending_provider_id === input.providerId,
-    patch: {},
+    /*
+     * CLEARING THE ATTENDING ID IS THE RELEASE. `patch: {}` left the claim
+     * pointing at the person who had just said they could not go, which is how
+     * "back to open" managed to be open to nobody. `released_at` opens it to
+     * the trade at once — a hand-back is an answer, not silence, so there is no
+     * first-refusal window left to serve.
+     */
+    patch: { attending_provider_id: null, released_at: new Date().toISOString() },
   });
 }
 
@@ -425,6 +470,26 @@ async function recordRedoDebt(input: {
   }
 }
 
+/** Which categories this listing actually covers. */
+async function tradesFor(providerId: string): Promise<string[]> {
+  if (!hasSupabaseConfig()) return [];
+  try {
+    const { data } = await createAdminClient()
+      .from("provider_categories")
+      .select("category_slug")
+      .eq("provider_id", providerId);
+
+    return ((data ?? []) as { category_slug: string }[]).map(
+      (row) => row.category_slug,
+    );
+  } catch (thrown) {
+    // An unreadable trade list is not permission. Failing closed here costs
+    // somebody one tap; failing open sends a plumber to an electrical claim.
+    console.error(`[claims] trades threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
 /** One guarded move, re-read and re-judged here rather than trusted. */
 async function moveClaim(input: {
   claimId: string;
@@ -439,7 +504,9 @@ async function moveClaim(input: {
 
     const { data: claim } = await admin
       .from("guarantee_claims")
-      .select("id, status, customer_id, provider_id, attending_provider_id")
+      .select(
+        "id, status, customer_id, provider_id, attending_provider_id, category_slug, opened_at, released_at",
+      )
       .eq("id", input.claimId)
       .maybeSingle();
 
@@ -531,6 +598,78 @@ export async function claimsForBooking(bookingId: string): Promise<ClaimRow[]> {
  * Hiding the first would mean a ledger entry arrives with no explanation, and
  * a deduction nobody can account for is worse than the deduction.
  */
+/**
+ * Claims nobody is holding that this professional could take.
+ *
+ * THE OTHER HALF OF THE PROMISE. `/legal/refunds` says a visit happens; making
+ * one possible in `acceptClaim` is not the same as anybody knowing it is there.
+ * Without this read the reassignment path exists and is never walked, which
+ * from the customer's side is indistinguishable from the bug it replaced.
+ *
+ * The window is `claimOpenToAll`'s, applied in SQL so the list and the accept
+ * cannot disagree: the original professional holds it alone for twenty minutes,
+ * or until they hand it back.
+ */
+export async function openClaimsForTrade(input: {
+  providerId: string;
+  /** Excluded, since they are the one who could not go. */
+  excludeProviderId?: string | null;
+}): Promise<ClaimRow[]> {
+  if (!hasSupabaseConfig()) return [];
+  try {
+    const admin = createAdminClient();
+    const trades = await tradesFor(input.providerId);
+    if (trades.length === 0) return [];
+
+    const cutoff = new Date(
+      Date.now() - CLAIM_FIRST_REFUSAL_MINUTES * 60_000,
+    ).toISOString();
+
+    const { data, error } = await admin
+      .from("guarantee_claims")
+      .select(
+        "id, booking_id, status, description, category_slug, provider_id, attending_provider_id, verdict, verdict_note, payer, refund_rupees, opened_at, closed_at",
+      )
+      .eq("status", "open")
+      .is("attending_provider_id", null)
+      .in("category_slug", trades)
+      .or(`released_at.not.is.null,opened_at.lte.${cutoff}`)
+      .order("opened_at", { ascending: true })
+      .limit(20);
+
+    if (error) {
+      console.error(`[claims] open read failed — ${describeError(error)}`);
+      return [];
+    }
+
+    const rows = ((data ?? []) as Record<string, unknown>[]).filter(
+      // Their own work coming back is already on their dashboard as a claim
+      // against them; it does not belong in the open list twice.
+      (row) => row.provider_id !== input.providerId,
+    );
+    if (rows.length === 0) return [];
+
+    const { data: bookings } = await admin
+      .from("bookings")
+      .select("id, reference")
+      .in("id", Array.from(new Set(rows.map((r) => r.booking_id as string))));
+
+    const references = new Map(
+      ((bookings ?? []) as { id: string; reference: string }[]).map((b) => [
+        b.id,
+        b.reference,
+      ]),
+    );
+
+    return rows.map((row) =>
+      toRow(row, references.get(row.booking_id as string) ?? ""),
+    );
+  } catch (thrown) {
+    console.error(`[claims] open read threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
 export async function claimsForProvider(
   providerId: string,
 ): Promise<ClaimRow[]> {

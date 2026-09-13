@@ -29,6 +29,7 @@ import { categoryCopy } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories, getCategory } from "@/lib/data/categories";
 import { getProvider, type VerificationCheck } from "@/lib/data/providers";
+import { hasCompletion, hasRating, hasResponse } from "@/lib/provider";
 import { bookingHref } from "@/lib/routes/booking";
 import { formatNpr } from "@/lib/utils";
 
@@ -202,17 +203,31 @@ export default async function ProviderProfilePage({
         style={{ animationDelay: "120ms" }}
       >
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
+          {/*
+            A DEFAULT IS NEVER A MEASUREMENT. This block printed 0.0, 100% and
+            "~120 min" for a professional nobody had rated, given a job, or
+            timed — three column defaults dressed as three facts, on the page a
+            customer reads before letting somebody into their house. The
+            catalogue card had been fixed; this page had not, so the two
+            disagreed about the same person.
+          */}
           <div>
             <dt className="text-overline uppercase text-muted-foreground">
               {t("card.rating")}
             </dt>
-            <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
-              <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
-              {stats.ratingAvg.toFixed(1)}
-              <span className="text-caption font-normal text-muted-foreground">
-                ({stats.ratingCount})
-              </span>
-            </dd>
+            {hasRating(stats) ? (
+              <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
+                <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
+                {stats.ratingAvg.toFixed(1)}
+                <span className="text-caption font-normal text-muted-foreground">
+                  ({stats.ratingCount})
+                </span>
+              </dd>
+            ) : (
+              <dd className="mt-0.5 text-body-sm text-muted-foreground">
+                {t("profile.notRated")}
+              </dd>
+            )}
           </div>
           <div>
             <dt className="text-overline uppercase text-muted-foreground">
@@ -222,22 +237,26 @@ export default async function ProviderProfilePage({
               {stats.jobsCompleted}
             </dd>
           </div>
-          <div>
-            <dt className="text-overline uppercase text-muted-foreground">
-              {t("profile.completion")}
-            </dt>
-            <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
-              {stats.completionRate}%
-            </dd>
-          </div>
-          <div>
-            <dt className="text-overline uppercase text-muted-foreground">
-              {t("card.respondsIn")}
-            </dt>
-            <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
-              {t("card.minutes", { n: String(stats.avgResponseMinutes) })}
-            </dd>
-          </div>
+          {hasCompletion(stats) ? (
+            <div>
+              <dt className="text-overline uppercase text-muted-foreground">
+                {t("profile.completion")}
+              </dt>
+              <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+                {stats.completionRate}%
+              </dd>
+            </div>
+          ) : null}
+          {hasResponse(stats) ? (
+            <div>
+              <dt className="text-overline uppercase text-muted-foreground">
+                {t("card.respondsIn")}
+              </dt>
+              <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+                {t("card.minutes", { n: String(stats.avgResponseMinutes) })}
+              </dd>
+            </div>
+          ) : null}
         </dl>
 
         <div className="text-right">

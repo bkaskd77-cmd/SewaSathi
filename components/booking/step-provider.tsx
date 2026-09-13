@@ -6,7 +6,13 @@ import { BadgeCheck, Check, Sparkles, Star } from "lucide-react";
 
 import type { ShortlistEntry } from "@/app/[locale]/(app)/book/actions";
 import { Badge } from "@/components/ui/badge";
-import { canServeAt, quoteFloor, type Availability } from "@/lib/provider";
+import {
+  canServeAt,
+  hasRating,
+  hasResponse,
+  quoteFloor,
+  type Availability,
+} from "@/lib/provider";
 import { cn, formatNpr } from "@/lib/utils";
 
 /**
@@ -274,23 +280,32 @@ export function StepProvider({
                           </Badge>
                         </span>
 
+                        {/* Defaults are not printed as facts here either —
+                            the same rule the catalogue card follows, asked of
+                            the same function. */}
                         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
-                          <span className="inline-flex items-center gap-1 tabular-nums">
-                            <Star
-                              aria-hidden="true"
-                              className="size-3 fill-gold text-gold"
-                            />
-                            {provider.ratingAvg.toFixed(1)} ({provider.ratingCount}
-                            )
-                          </span>
+                          {hasRating(provider) ? (
+                            <span className="inline-flex items-center gap-1 tabular-nums">
+                              <Star
+                                aria-hidden="true"
+                                className="size-3 fill-gold text-gold"
+                              />
+                              {provider.ratingAvg.toFixed(1)} (
+                              {provider.ratingCount})
+                            </span>
+                          ) : (
+                            <span>{t("notRated")}</span>
+                          )}
                           <span className="tabular-nums">
                             {t("jobs", { n: String(provider.jobsCompleted) })}
                           </span>
-                          <span className="tabular-nums">
-                            {t("respondsIn", {
-                              n: String(provider.avgResponseMinutes),
-                            })}
-                          </span>
+                          {hasResponse(provider) ? (
+                            <span className="tabular-nums">
+                              {t("respondsIn", {
+                                n: String(provider.avgResponseMinutes),
+                              })}
+                            </span>
+                          ) : null}
                         </span>
                       </span>
 

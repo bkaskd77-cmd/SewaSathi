@@ -39,6 +39,7 @@ import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider, listAlternatives } from "@/lib/data/providers";
 import { needsReplacement } from "@/lib/data/recommendations";
+import { hasRating } from "@/lib/provider";
 import {
   availableMethods,
   blindCashEntry,
@@ -187,7 +188,12 @@ export default async function BookingDetailPage({
     photoUrl: option.provider.photoUrl,
     verified: option.provider.isVerified,
     reach: option.reach,
-    ratingLabel: `${option.provider.stats.ratingAvg.toFixed(1)} (${option.provider.stats.ratingCount})`,
+    // "0.0 (0)" on the screen somebody reads after being let down once. The
+    // replacement list is the worst place in the product to print a default as
+    // if it were a rating.
+    ratingLabel: hasRating(option.provider.stats)
+      ? `${option.provider.stats.ratingAvg.toFixed(1)} (${option.provider.stats.ratingCount})`
+      : tAlternatives("notRated"),
     jobsLabel: tAlternatives("jobsDone", {
       n: String(option.provider.stats.jobsCompleted),
     }),

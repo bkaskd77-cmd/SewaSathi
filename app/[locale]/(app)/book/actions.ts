@@ -52,6 +52,12 @@ export type ShortlistEntry = {
   jobsCompleted: number;
   avgResponseMinutes: number;
   /**
+   * The denominator, carried so this screen can tell an untimed professional
+   * from a slow one. Without it the row printed the 120-minute column default
+   * as a measurement — see `lib/provider/measured.ts`.
+   */
+  responseSamples: number;
+  /**
    * Their starting price. Shown on the row, and it is the floor of the quote
    * this booking will carry — see `quoteFloor`. The customer used to pick
    * somebody with no price on screen at all and meet a range on the next page.
@@ -89,6 +95,7 @@ export async function shortlistAction(input: {
     ratingCount: provider.stats.ratingCount,
     jobsCompleted: provider.stats.jobsCompleted,
     avgResponseMinutes: provider.stats.avgResponseMinutes,
+    responseSamples: provider.stats.responseSamples,
     baseRate: provider.baseRate,
   }));
 }

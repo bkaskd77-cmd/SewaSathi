@@ -1008,6 +1008,8 @@ export type Database = {
           /** A refund requires a person. No verdict fills this in. */
           refund_decided_by: string | null;
           closed_reason: string | null;
+          /** Set when the attending professional handed the visit back. */
+          released_at: string | null;
           opened_at: string;
           dispatched_at: string | null;
           attended_at: string | null;
@@ -1029,6 +1031,7 @@ export type Database = {
           refund_rupees?: number;
           refund_decided_by?: string | null;
           closed_reason?: string | null;
+          released_at?: string | null;
           opened_at?: string;
           dispatched_at?: string | null;
           attended_at?: string | null;

@@ -87,6 +87,63 @@ export function countsAgainstLimit(status: ClaimStatus): boolean {
   return status !== "withdrawn";
 }
 
+/**
+ * How long the professional whose job it was has the return visit to
+ * themselves before anybody else may take it.
+ *
+ * They get first refusal because it is their work and their obligation: the
+ * ledger only charges a redo debt when SOMEBODY ELSE goes, so the cheapest
+ * outcome for everybody is the original professional going back. Twenty
+ * minutes matches `DISPATCH_WINDOWS.soon` — long enough to answer between
+ * tasks, short enough that a customer standing in the same wet kitchen is not
+ * waiting on one phone.
+ */
+export const CLAIM_FIRST_REFUSAL_MINUTES = 20;
+
+/**
+ * May a professional other than the original one take this claim?
+ *
+ * WHAT THIS FIXES. `/legal/refunds` promises "we send somebody back and you pay
+ * nothing" — unconditionally. The code did not keep it: `acceptClaim` admitted
+ * only the original professional or the one already attending, and
+ * `releaseClaim` sent the claim back to `open` without clearing the attending
+ * id. So a professional who declined to return left the claim in a state
+ * nobody on earth was permitted to accept, and it sat there. A customer with a
+ * valid guarantee had a written promise and no path.
+ *
+ * SETTLING IT INSTEAD WAS THE OTHER OPTION AND IT IS THE WRONG ONE. The
+ * guarantee is a re-do verified by a visit, and no verdict produces a refund
+ * without a person — that is the whole anti-farming shape of the policy. A
+ * declined claim that pays out automatically is a repeatable route to free
+ * money for anyone whose professional is hard to reach.
+ *
+ * Pure and clock-driven like `dispatchStage`, so a sweep can run late, twice or
+ * overlapping without changing the answer.
+ */
+export function claimOpenToAll(
+  claim: {
+    status: ClaimStatus;
+    attendingProviderId: string | null;
+    openedAt: Date | string;
+    /** Stamped when somebody hands the visit back. Opens it immediately. */
+    releasedAt?: Date | string | null;
+  },
+  at: Date = new Date(),
+): boolean {
+  if (claim.status !== "open") return false;
+  // Somebody is already holding it; the release is what un-holds it.
+  if (claim.attendingProviderId) return false;
+
+  // A hand-back is an answer, not silence. No point re-serving the window.
+  if (claim.releasedAt) return true;
+
+  const opened = new Date(claim.openedAt);
+  if (Number.isNaN(opened.getTime())) return true;
+
+  const minutes = (at.getTime() - opened.getTime()) / 60_000;
+  return minutes >= CLAIM_FIRST_REFUSAL_MINUTES;
+}
+
 export function isClaimStatus(value: string): value is ClaimStatus {
   return (CLAIM_STATUSES as readonly string[]).includes(value);
 }

@@ -165,6 +165,7 @@ export default async function BookPage({
                   ratingCount: provider.stats.ratingCount,
                   jobsCompleted: provider.stats.jobsCompleted,
                   avgResponseMinutes: provider.stats.avgResponseMinutes,
+                  responseSamples: provider.stats.responseSamples,
                   baseRate: provider.baseRate,
                 }
               : null

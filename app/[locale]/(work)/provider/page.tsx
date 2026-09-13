@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { claimsForProvider } from "@/lib/data/claims";
+import { claimsForProvider, openClaimsForTrade } from "@/lib/data/claims";
 import { getProviderDashboard } from "@/lib/data/provider-profile";
 import { formatNpr } from "@/lib/utils";
 
@@ -75,7 +75,15 @@ export default async function ProviderDashboardPage() {
     );
   }
 
-  const claims = await claimsForProvider(dashboard.providerId);
+  /*
+   * Two lists, and the second is what makes the guarantee's promise true. A
+   * claim whose professional cannot return used to sit open where nobody could
+   * see or take it; these are the ones now offered to the rest of the trade.
+   */
+  const [claims, openToMe] = await Promise.all([
+    claimsForProvider(dashboard.providerId),
+    openClaimsForTrade({ providerId: dashboard.providerId }),
+  ]);
   const live = claims.filter((claim) =>
     ["open", "dispatched", "attended"].includes(claim.status),
   );
@@ -174,7 +182,7 @@ export default async function ProviderDashboardPage() {
           {t("claims.heading")}
         </h2>
 
-        {claims.length === 0 ? (
+        {claims.length === 0 && openToMe.length === 0 ? (
           <p className="text-caption mt-2 text-muted-foreground">
             {t("claims.none")}
           </p>
@@ -184,7 +192,7 @@ export default async function ProviderDashboardPage() {
             messages={{ provider: messages.provider }}
           >
             <ul className="mt-3 space-y-3">
-              {[...live, ...settled].map((claim) => (
+              {[...live, ...openToMe, ...settled].map((claim) => (
                 <ClaimCard
                   key={claim.id}
                   claim={{

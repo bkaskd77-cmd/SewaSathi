@@ -21,6 +21,13 @@ export {
 } from "./rates";
 
 export {
+  hasCompletion,
+  hasRating,
+  hasResponse,
+  type StatEvidence,
+} from "./measured";
+
+export {
   blocksBooking,
   canServeAt,
   servingWhen,

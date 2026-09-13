@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   canTransitionClaim,
+  CLAIM_FIRST_REFUSAL_MINUTES,
+  claimOpenToAll,
   CLAIM_STATUSES,
   CLAIM_TRANSITIONS,
   countsAgainstLimit,
@@ -108,5 +110,48 @@ describe("no verdict produces a refund on its own", () => {
     expect(claimOutcome("differentProblem").payer).toBe("customer");
     expect(claimOutcome("nothingWrong").payer).toBe("customer");
     expect(claimOutcome("customerCaused").payer).toBe("customer");
+  });
+});
+
+describe("a claim nobody will attend still reaches somebody", () => {
+  const base = {
+    status: "open" as const,
+    attendingProviderId: null,
+    openedAt: new Date("2026-09-13T10:00:00Z"),
+  };
+  const at = (minutes: number) =>
+    new Date(base.openedAt.getTime() + minutes * 60_000);
+
+  it("holds it for the professional whose job it was, at first", () => {
+    // Their work and their obligation, and the ledger only charges a redo debt
+    // when somebody ELSE goes — so them returning is cheapest for everybody.
+    expect(claimOpenToAll(base, at(5))).toBe(false);
+    expect(claimOpenToAll(base, at(CLAIM_FIRST_REFUSAL_MINUTES - 1))).toBe(false);
+  });
+
+  it("opens it to the trade once the window passes", () => {
+    // Before this the claim simply sat: `acceptClaim` admitted nobody else and
+    // RLS showed it to nobody else. /legal/refunds promised a visit anyway.
+    expect(claimOpenToAll(base, at(CLAIM_FIRST_REFUSAL_MINUTES))).toBe(true);
+    expect(claimOpenToAll(base, at(600))).toBe(true);
+  });
+
+  it("opens it immediately when the visit is handed back", () => {
+    // A hand-back is an answer, not silence. There is no window left to serve.
+    expect(
+      claimOpenToAll({ ...base, releasedAt: at(3) }, at(4)),
+    ).toBe(true);
+  });
+
+  it("never opens one somebody is already holding", () => {
+    expect(
+      claimOpenToAll({ ...base, attendingProviderId: "p1" }, at(600)),
+    ).toBe(false);
+  });
+
+  it("never opens a claim that is not open", () => {
+    for (const status of ["dispatched", "attended", "resolved", "withdrawn", "rejected"] as const) {
+      expect(claimOpenToAll({ ...base, status }, at(600))).toBe(false);
+    }
   });
 });

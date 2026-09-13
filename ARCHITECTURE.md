@@ -217,6 +217,27 @@ Where a change on one side cannot reach the other.
   triggers fire alphabetically and `bookings_enforce_immutability` raises on a
   `quoted_min` change from any browser session, which `claimJob` is — the db
   suite asserts the ordering.
+- **A default is never a measurement, and `lib/provider/measured.ts` is where
+  that is decided.** `hasRating`, `hasResponse`, `hasCompletion` — one
+  definition each, asked by the ranking and by every screen, because the rule
+  was previously re-derived per surface and the surfaces disagreed (the
+  catalogue card gated the response time on `jobsCompleted`, `scoreParts` on
+  `responseSamples`). Unmeasured scores mid-scale rather than at an extreme, the
+  shape `bayesianRating` had first. See rule 6 in CLAUDE.md for the four times
+  this has bitten.
+- **A declined guarantee claim reaches somebody else.** `/legal/refunds`
+  promises a visit without conditions; `acceptClaim` admitted only the original
+  professional or the one already attending, and `releaseClaim` did not clear
+  `attending_provider_id` — so a hand-back left the claim open to nobody at all.
+  `claimOpenToAll` is the rule, applied in TypeScript and again in the
+  `Providers read open claims in their trade` policy so a screen and the
+  database cannot disagree: first refusal to the professional whose work it was
+  for `CLAIM_FIRST_REFUSAL_MINUTES`, then the trade. **Settling it instead was
+  rejected** — the guarantee is a re-do a visit verifies, and a claim that pays
+  out because somebody was hard to reach is the repeatable route to free money
+  the whole policy is shaped to avoid. The money keeps the path it had:
+  `provider_ledger` charges the original a redo debt only when somebody else
+  attends and finds the same fault.
 - **Every published band records where it came from, and a guess cannot
   launch.** `categories.pricing_source` is `invented`, `researched` or
   `observed`, beside `pricing_checked_at` and `pricing_note`. All ten are
