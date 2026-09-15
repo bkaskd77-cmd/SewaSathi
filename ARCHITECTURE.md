@@ -238,6 +238,24 @@ Where a change on one side cannot reach the other.
   the whole policy is shaped to avoid. The money keeps the path it had:
   `provider_ledger` charges the original a redo debt only when somebody else
   attends and finds the same fault.
+- **A band is proposed by the system and decided by a person. It never applies
+  itself — and the reason is not caution, it is that the measurement is
+  circular.** The band sets the quote; the quote is what a professional sees
+  before naming a figure and what a customer expects to pay; those agreed
+  figures are the `final_amount` rows the next proposal is computed from. An
+  auto-adjusting band therefore **measures its own shadow**: raise the floor and
+  next quarter's settlements drift up, which the loop reads as evidence the
+  floor should rise again. Nothing in the data can tell that apart from the
+  market actually moving, because the two are the same rows.
+  Two independent reasons on top of that, either of which would be enough. The
+  band is **published copy** — a promise on a public page — and copy that
+  rewrites itself is copy nobody has read. And it **moves commission**: the fee
+  is charged on `max(final_amount, quoted_min)` and the floor starts from the
+  band, so an automatic band change silently changes what every professional in
+  that trade pays us. That is a business decision with an owner, not a computed
+  one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
+  it is meant for, and the robust statistic that keeps a handful of large jobs
+  from dragging a proposal.
 - **Every published band records where it came from, and a guess cannot
   launch.** `categories.pricing_source` is `invented`, `researched` or
   `observed`, beside `pricing_checked_at` and `pricing_note`. All ten are
