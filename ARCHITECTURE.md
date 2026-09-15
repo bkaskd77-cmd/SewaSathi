@@ -140,6 +140,18 @@ Where a change on one side cannot reach the other.
   `npm run check:transitions` now parses three pairs rather than two. A refund
   needs a person on top of that: `refund_rupees > 0` without
   `refund_decided_by` is refused for every caller, service role included.
+- **Whether a window is already taken is the database's answer, not a
+  screen's.** `enforce_slot_capacity` is a BEFORE trigger because a booking
+  gains a professional five ways — the customer choosing one, `claimJob`,
+  `chooseProvider` after a withdrawal, the dispatch sweep and an admin — and
+  writing the check at each is four chances to forget the one that
+  double-books. `lib/booking/capacity.ts` is the same rule in TypeScript so a
+  row can be greyed before anybody taps it; the trigger is the one that cannot
+  be bypassed. It **serialises on the professional** with a transaction-scoped
+  advisory lock: two claims for two different jobs are not competing for the
+  same row, so no policy `using` clause can settle that race, and under read
+  committed both would otherwise count zero and both commit.
+  `tests/db/slot-capacity.test.ts` fails without the lock.
 - **Whether a professional can come is three facts and only two are theirs.**
   `providerState` in `lib/provider/availability.ts` is the single rule:
   `on_job_since` (ours, written by a trigger from booking status) beats
@@ -256,6 +268,22 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
+- **A job has a duration and nothing in the product models it. This is the gap,
+  not concurrency.** `WORKING_HOURS.slotHours` is 2, and a multi-day job holds a
+  *site*, not a slot: painting occupies a room for four days and a painter for a
+  few hours of each, because putty dries, primer cures and coats need hours
+  between them. Two separate systems need duration to be honest about that.
+  **The scheduler** can only express "how many two-hour windows at once", which
+  is roughly right for booking collisions and roughly meaningless as a model of
+  anybody's week. **The pricing sub-bands** already split painting into
+  labour-only and paint-supplied, and the thing that actually separates them is
+  how long the work takes. One missing field, two systems working around it —
+  which is what makes it structural rather than a scheduling detail.
+  Until it exists, `categories.max_concurrent_jobs` is the workaround and every
+  copy of that number says so: painting's 3 is "do not block a painter from a
+  second job", never a considered model of their capacity. The next phase takes
+  `typical_duration_hours`, per-job durations on the sub-bands, and a scheduler
+  that can reason in days.
 - **The narrowed figure is the promise, so the sub-bands are data.**
   `category_price_bands` holds one row per product inside a trade — AC servicing
   is a routine service, a gas refill and an installation, not one 500-12,000

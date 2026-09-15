@@ -66,18 +66,21 @@ alter table public.categories
   add column if not exists pricing_confidence text not null default 'low'
     check (pricing_confidence in ('high', 'medium', 'low')),
   add column if not exists pricing_model text not null default 'band'
-    check (pricing_model in ('band', 'survey'));
+    check (pricing_model in ('band', 'survey')),
+  add column if not exists max_concurrent_jobs integer not null default 2
+    check (max_concurrent_jobs between 1 and 10);
 `);
 for (const c of categories) {
   lines.push(
-    `insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.descriptorNe)}, ${q(c.description)}, ${q(c.descriptionNe)}, ${q(c.ctaLabel)}, ${q(c.ctaLabelNe)}, ${c.basePriceMin}, ${c.basePriceMax}, ${q(c.pricingSource)}, ${c.pricingCheckedAt ? q(c.pricingCheckedAt) : "null"}, ${c.pricingNote ? q(c.pricingNote) : "null"}, ${q(c.pricingConfidence)}, ${q(c.pricingModel)}, ${q(c.icon)}, ${c.sortOrder})
+    `insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values (${q(c.slug)}, ${q(c.nameEn)}, ${q(c.nameNe)}, ${q(c.descriptor)}, ${q(c.descriptorNe)}, ${q(c.description)}, ${q(c.descriptionNe)}, ${q(c.ctaLabel)}, ${q(c.ctaLabelNe)}, ${c.basePriceMin}, ${c.basePriceMax}, ${c.maxConcurrentJobs}, ${q(c.pricingSource)}, ${c.pricingCheckedAt ? q(c.pricingCheckedAt) : "null"}, ${c.pricingNote ? q(c.pricingNote) : "null"}, ${q(c.pricingConfidence)}, ${q(c.pricingModel)}, ${q(c.icon)}, ${c.sortOrder})
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,

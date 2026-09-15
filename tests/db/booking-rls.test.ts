@@ -1240,14 +1240,32 @@ describe("saying no to a job, and what it costs", () => {
   let deepaListing: string;
   let jobAddress: string;
 
+  /*
+   * A WINDOW OF ITS OWN PER JOB. These were all as-soon-as-possible, so they
+   * all started at the same instant — and once `enforce_slot_capacity` shipped,
+   * the third one handed to the same professional was correctly refused. That
+   * is the trigger doing its job, not a test breaking: this block is about who
+   * may decline what, so its jobs are spaced a day apart and never collide.
+   */
+  let jobDay = 0;
+
   const freshJob = async (reference: string, provider: string | null) => {
+    jobDay += 1;
     const { rows } = await pg.admin.query(
       `insert into public.bookings
          (reference, customer_id, category_slug, address_id, description,
-          quoted_min, quoted_max, provider_id, first_choice_provider_id)
-       values ($1, $2, 'ac-servicing', $3, 'AC not cooling', 1200, 6000, $4, $4)
+          quoted_min, quoted_max, provider_id, first_choice_provider_id,
+          scheduled_for)
+       values ($1, $2, 'ac-servicing', $3, 'AC not cooling', 1200, 6000, $4, $4,
+               $5)
        returning id`,
-      [reference, ALICE, jobAddress, provider],
+      [
+        reference,
+        ALICE,
+        jobAddress,
+        provider,
+        new Date(Date.UTC(2026, 10, jobDay, 8, 15)).toISOString(),
+      ],
     );
     return rows[0].id as string;
   };
@@ -2105,8 +2123,9 @@ describe("booking photos are the customer's, and the professional's only while t
     const { rows: booking } = await pg.admin.query(
       `insert into public.bookings
          (reference, customer_id, category_slug, address_id, description,
-          quoted_min, quoted_max, photo_url, provider_id)
-       values ('SK-PHOTO', $1, 'ac-servicing', $2, 'Photo of the unit', 1200, 6000, $3, $4)
+          quoted_min, quoted_max, photo_url, provider_id, scheduled_for)
+       values ('SK-PHOTO', $1, 'ac-servicing', $2, 'Photo of the unit', 1200, 6000, $3, $4,
+               timestamptz '2026-12-01 08:15+00')
        returning id`,
       [ALICE, address[0].id, photoPath, carlListing],
     );

@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/data/providers";
-import { hasCompletion, hasResponse } from "@/lib/provider";
+import { hasCompletion, hasOverbookRecord, hasResponse } from "@/lib/provider";
 
 /**
  * Which professional to show first.
@@ -122,6 +122,23 @@ const WITHDRAWAL_PRIOR = 5;
 /** The rate at which the full penalty applies. One job in five is a pattern. */
 const WITHDRAWAL_RATE_CEILING = 0.2;
 
+/**
+ * What an overbooking record costs, and why it is half a withdrawal's.
+ *
+ * A miss is somebody who OFFERED to fit a customer in beside a job they already
+ * held and then could not reach them in the window. They turned up to work;
+ * they were trying to take more of it. Scoring that as hard as accepting a job
+ * and pulling out of it would teach every professional the safe move is never
+ * to offer — and the offer is the only reason the second customer got a slot at
+ * all. So the ceiling is 0.06, half of WITHDRAWAL_RANKING_PENALTY_MAX, and it
+ * is a ranking subtraction like that one: never money, never a fine.
+ */
+export const OVERBOOK_RANKING_PENALTY_MAX = 0.06;
+/** Phantom clean offers, so the tenth offer is not a cliff. */
+const OVERBOOK_PRIOR = 5;
+/** The miss rate at which the full penalty applies. */
+const OVERBOOK_RATE_CEILING = 0.3;
+
 /** Ratings below this are treated as the floor of the useful range. */
 const RATING_FLOOR = 3.5;
 /** Prior strength: a provider needs ~20 ratings before their own average wins. */
@@ -206,6 +223,29 @@ export function withdrawalRankingPenalty(stats: Provider["stats"]): number {
   return WITHDRAWAL_RANKING_PENALTY_MAX * clamp01(rate / WITHDRAWAL_RATE_CEILING);
 }
 
+/**
+ * How much a record of overbooking and then missing costs, 0 to
+ * OVERBOOK_RANKING_PENALTY_MAX.
+ *
+ * THE FLOOR IS THE POINT. `hasOverbookRecord` gates the whole thing on
+ * OVERBOOK_MIN_OFFERS, because a ratio over a handful of offers is not a
+ * measurement and rule 6 does not stop at columns with numeric defaults — one
+ * miss out of two offers reads as a 50% failure rate and is statistically
+ * nothing. Below the floor this returns exactly 0, the same as a clean record,
+ * and the two are told apart in the DATA (`overbookOffers`) rather than by
+ * inventing a difference in the score.
+ *
+ * Above the floor it is the shape `withdrawalRankingPenalty` already uses: a
+ * rate with a prior, so the qualifying edge is soft. At exactly ten offers one
+ * miss is 1/15, a small subtraction rather than a cliff out of nothing.
+ */
+export function overbookRankingPenalty(stats: Provider["stats"]): number {
+  if (!hasOverbookRecord(stats)) return 0;
+  if (stats.overbookMisses <= 0) return 0;
+  const rate = stats.overbookMisses / (stats.overbookOffers + OVERBOOK_PRIOR);
+  return OVERBOOK_RANKING_PENALTY_MAX * clamp01(rate / OVERBOOK_RATE_CEILING);
+}
+
 export type ScoreParts = Record<keyof RankingWeights, number>;
 
 export function scoreParts(
@@ -280,6 +320,7 @@ export function scoreProvider(
   }
   if (provider.isVerified) score += VERIFIED_BONUS;
   score -= withdrawalRankingPenalty(provider.stats);
+  score -= overbookRankingPenalty(provider.stats);
 
   return { score, parts };
 }

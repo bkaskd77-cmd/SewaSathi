@@ -42,6 +42,8 @@ function provider(overrides: Partial<Provider> = {}): Provider {
       lastActiveMinutesAgo: 5,
       jobsAccepted: 60,
       withdrawals: 0,
+      overbookOffers: 0,
+      overbookMisses: 0,
     },
     ...overrides,
   };

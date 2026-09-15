@@ -1,0 +1,165 @@
+import { WORKING_HOURS } from "./schedule";
+
+/**
+ * How many jobs one professional can hold in an overlapping window.
+ *
+ * WHAT THIS FIXES. Nothing stopped two customers booking the same professional
+ * at 2pm. The one who lost found out on the day, from somebody who did not
+ * arrive. `canServeAt` deliberately left this out — it answers "are they in
+ * somebody's house right now", which is a different question from "is Thursday
+ * 2pm already spoken for".
+ *
+ * THE UNIT IS AN OVERLAPPING WINDOW, NOT A SLOT. A job at 2pm occupies
+ * 14:00–16:00 and collides with anything starting before 16:00. Overlap is
+ * half-open on purpose: a job ending exactly as another starts does NOT
+ * overlap, or every back-to-back pair in a full day would read as a conflict.
+ *
+ * AND THE WHOLE MODEL IS A WORKAROUND FOR A MISSING FIELD. A job has a
+ * duration and the product does not record one — see the structural item in
+ * ARCHITECTURE.md. Counting two-hour windows is roughly right for booking
+ * collisions and roughly meaningless as a model of anybody's week, which is why
+ * painting's number below is not a considered answer about painters.
+ *
+ * Pure and dependency-free: it decides whether a customer may book, so it has
+ * to be testable without a database.
+ */
+
+/** Minutes a booking occupies, from its start. */
+export const SLOT_MINUTES = WORKING_HOURS.slotHours * 60;
+
+/** Statuses that still hold a professional's time. */
+const HOLDS_TIME = new Set([
+  "pending",
+  "accepted",
+  "en_route",
+  "in_progress",
+]);
+
+export type HeldJob = {
+  /** The slot start, or null for an as-soon-as-possible job. */
+  scheduledFor: Date | string | null;
+  status: string;
+  /** Distinguishes a job from itself when re-checking an existing booking. */
+  id?: string;
+};
+
+export type SlotWindow = { start: Date; end: Date };
+
+function instant(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const when = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
+/**
+ * The window a job occupies.
+ *
+ * An as-soon-as-possible job is treated as starting now, because that is what
+ * the customer asked for and what the professional will actually be doing.
+ */
+export function slotWindow(
+  scheduledFor: Date | string | null,
+  at: Date = new Date(),
+): SlotWindow {
+  const start = instant(scheduledFor) ?? at;
+  return { start, end: new Date(start.getTime() + SLOT_MINUTES * 60_000) };
+}
+
+/** Half-open: touching windows do not overlap. */
+export function overlaps(a: SlotWindow, b: SlotWindow): boolean {
+  return a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime();
+}
+
+/**
+ * How many jobs this listing may hold at once.
+ *
+ * THE OVERRIDE IS ADMIN-SET, NEVER SELF-SET, and that is the load-bearing half.
+ * A `providers` row is sometimes one person and sometimes a firm with three
+ * crews — movers is where a category number breaks hardest, since one man with
+ * a pickup does one move and a company with three trucks does three. So a
+ * verified firm gets its own number at onboarding. A professional setting their
+ * own would make every listing say ten and the cap would mean nothing.
+ *
+ * PROBATION ALWAYS CAPS, whatever the override says: a new listing has not yet
+ * shown it can hold two jobs, let alone a firm's three.
+ *
+ * THE OFFER ADDS EXACTLY ONE. A professional may deliberately fit somebody in
+ * beside a job they already hold, but only on that one booking and only once
+ * over — otherwise offers stack until the limit is decorative.
+ */
+export function capacityFor(input: {
+  categoryLimit: number;
+  /** Null when this listing has no admin-set override. */
+  providerLimit?: number | null;
+  probationLimit?: number | null;
+  /** True when THIS booking carries an explicit offer from the professional. */
+  overbookOffered?: boolean;
+}): number {
+  const base =
+    input.providerLimit != null && input.providerLimit > 0
+      ? input.providerLimit
+      : input.categoryLimit;
+
+  const capped =
+    input.probationLimit != null && input.probationLimit > 0
+      ? Math.min(base, input.probationLimit)
+      : base;
+
+  return Math.max(1, capped) + (input.overbookOffered ? 1 : 0);
+}
+
+/** How many of these jobs collide with the window a new one would occupy. */
+export function countOverlapping(input: {
+  jobs: readonly HeldJob[];
+  scheduledFor: Date | string | null;
+  at?: Date;
+  /** Re-checking an existing booking must not count it against itself. */
+  excludeId?: string | null;
+}): number {
+  const at = input.at ?? new Date();
+  const wanted = slotWindow(input.scheduledFor, at);
+
+  return input.jobs.filter((job) => {
+    if (!HOLDS_TIME.has(job.status)) return false;
+    if (input.excludeId && job.id === input.excludeId) return false;
+    return overlaps(wanted, slotWindow(job.scheduledFor, at));
+  }).length;
+}
+
+/** Is there room for one more? */
+export function hasRoom(input: {
+  jobs: readonly HeldJob[];
+  scheduledFor: Date | string | null;
+  capacity: number;
+  at?: Date;
+  excludeId?: string | null;
+}): boolean {
+  return countOverlapping(input) < input.capacity;
+}
+
+/**
+ * The first offered slot this professional could actually take.
+ *
+ * Returned to the customer on a greyed row, so it has to come from the same
+ * generator the When step renders — a "next free" the picker does not offer is
+ * a button that leads nowhere. Null means nothing inside the horizon, which the
+ * row says rather than showing a Book button that cannot work.
+ */
+export function nextFreeSlot(input: {
+  /** Slots the picker would offer, in order, as ISO strings. */
+  candidates: readonly string[];
+  jobs: readonly HeldJob[];
+  capacity: number;
+  at?: Date;
+}): string | null {
+  for (const candidate of input.candidates) {
+    const free = hasRoom({
+      jobs: input.jobs,
+      scheduledFor: candidate,
+      capacity: input.capacity,
+      at: input.at,
+    });
+    if (free) return candidate;
+  }
+  return null;
+}

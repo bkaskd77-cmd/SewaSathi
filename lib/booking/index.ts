@@ -84,3 +84,15 @@ export {
   type AttentionInput,
   type AttentionKind,
 } from "./attention";
+
+export {
+  SLOT_MINUTES,
+  capacityFor,
+  countOverlapping,
+  hasRoom,
+  nextFreeSlot,
+  overlaps,
+  slotWindow,
+  type HeldJob,
+  type SlotWindow,
+} from "./capacity";

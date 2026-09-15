@@ -21,7 +21,9 @@ export {
 } from "./rates";
 
 export {
+  OVERBOOK_MIN_OFFERS,
   hasCompletion,
+  hasOverbookRecord,
   hasRating,
   hasResponse,
   type StatEvidence,

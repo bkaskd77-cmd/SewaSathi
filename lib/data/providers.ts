@@ -83,6 +83,16 @@ export type ProviderStats = {
   jobsAccepted: number;
   /** Accepted a job and then pulled out. See `withdrawalRankingPenalty` — list position, never money. */
   withdrawals: number;
+  /**
+   * Times they offered to fit a customer in beside a job they already held.
+   *
+   * Small by construction — there is no standing setting and a customer cannot
+   * ask — which is exactly why `hasOverbookRecord` puts a floor under the ratio
+   * before it may touch ranking.
+   */
+  overbookOffers: number;
+  /** Offers that then ran past the second customer's window. */
+  overbookMisses: number;
 };
 
 export type Provider = {
@@ -125,7 +135,10 @@ const SEED_PROVIDERS = providerSeed as Array<
     // the seed does not carry them. A fresh clone with no keys therefore reads
     // every professional as having withdrawn from nothing — which is true of a
     // product that has taken no bookings.
-    stats: Omit<Provider["stats"], "jobsAccepted" | "withdrawals">;
+    stats: Omit<
+      Provider["stats"],
+      "jobsAccepted" | "withdrawals" | "overbookOffers" | "overbookMisses"
+    >;
   }
 >;
 const SEED_REVIEWS = reviewSeed as Review[];
@@ -145,7 +158,13 @@ function seedProviders(): Provider[] {
   return SEED_PROVIDERS.map((provider) => ({
     ...provider,
     photoUrl: provider.photoUrl ?? null,
-    stats: { ...provider.stats, jobsAccepted: 0, withdrawals: 0 },
+    stats: {
+      ...provider.stats,
+      jobsAccepted: 0,
+      withdrawals: 0,
+      overbookOffers: 0,
+      overbookMisses: 0,
+    },
   }));
 }
 
@@ -213,6 +232,8 @@ type ProviderRow = {
     last_active_at: string | null;
     jobs_accepted: number | null;
     withdrawals: number | null;
+    overbook_offers: number | null;
+    overbook_misses: number | null;
   } | null;
 };
 
@@ -266,12 +287,14 @@ function fromRow(row: ProviderRow): Provider {
       lastActiveMinutesAgo: lastActive,
       jobsAccepted: stats?.jobs_accepted ?? 0,
       withdrawals: stats?.withdrawals ?? 0,
+      overbookOffers: stats?.overbook_offers ?? 0,
+      overbookMisses: stats?.overbook_misses ?? 0,
     },
   };
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals, overbook_offers, overbook_misses)";
 
 /**
  * Providers in one category, filtered but not yet ranked.

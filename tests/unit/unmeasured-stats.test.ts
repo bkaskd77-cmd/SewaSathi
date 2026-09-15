@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { Provider } from "@/lib/data/providers";
-import { scoreParts } from "@/lib/data/ranking";
-import { hasCompletion, hasRating, hasResponse } from "@/lib/provider";
+import {
+  OVERBOOK_RANKING_PENALTY_MAX,
+  overbookRankingPenalty,
+  scoreParts,
+} from "@/lib/data/ranking";
+import {
+  OVERBOOK_MIN_OFFERS,
+  hasCompletion,
+  hasOverbookRecord,
+  hasRating,
+  hasResponse,
+} from "@/lib/provider";
 
 /**
  * A default is never a measurement.
@@ -46,6 +56,8 @@ function provider(stats: Partial<Provider["stats"]> = {}): Provider {
       lastActiveMinutesAgo: 5,
       jobsAccepted: 0,
       withdrawals: 0,
+      overbookOffers: 0,
+      overbookMisses: 0,
       ...stats,
     },
   };
@@ -156,5 +168,81 @@ describe("every surface asks the same question", () => {
     // And the ranking agrees, which is the half that was already right.
     expect(scoreParts(finishedButNeverTimed).response).toBeGreaterThan(0);
     expect(scoreParts(finishedButNeverTimed).response).toBeLessThan(1);
+  });
+});
+
+describe("an unmeasured overbooking record is not a measurement either", () => {
+  /*
+   * Same rule, a counter with no default at all. `overbook_misses` over
+   * `overbook_offers` is the right measure and a small denominator makes it
+   * vicious: one miss out of two offers reads as a 50% failure rate and is
+   * statistically nothing. Offers are RARE BY CONSTRUCTION — a professional
+   * only generates one by choosing to fit somebody in — so the floor is ten,
+   * not the thirty a freely-generated signal would deserve.
+   */
+
+  it("does not count a record below the floor as a record", () => {
+    expect(hasOverbookRecord({ overbookOffers: OVERBOOK_MIN_OFFERS - 1 })).toBe(
+      false,
+    );
+    expect(hasOverbookRecord({ overbookOffers: OVERBOOK_MIN_OFFERS })).toBe(true);
+  });
+
+  it("changes ranking by nothing at nine offers and three misses", () => {
+    // A 33% miss rate on paper. Three misses is a real number and nine offers
+    // is not a sample, so it moves them nowhere at all.
+    expect(
+      overbookRankingPenalty(
+        provider({ overbookOffers: 9, overbookMisses: 3 }).stats,
+      ),
+    ).toBe(0);
+  });
+
+  it("changes it at ten", () => {
+    const penalty = overbookRankingPenalty(
+      provider({ overbookOffers: 10, overbookMisses: 3 }).stats,
+    );
+    expect(penalty).toBeGreaterThan(0);
+    expect(penalty).toBeLessThanOrEqual(OVERBOOK_RANKING_PENALTY_MAX);
+  });
+
+  it("crosses the floor softly rather than as a cliff", () => {
+    // At exactly ten offers with one miss the prior makes the rate 1/15, so
+    // qualifying costs a fraction of the ceiling rather than the whole of it.
+    const penalty = overbookRankingPenalty(
+      provider({ overbookOffers: 10, overbookMisses: 1 }).stats,
+    );
+    expect(penalty).toBeGreaterThan(0);
+    expect(penalty).toBeLessThan(OVERBOOK_RANKING_PENALTY_MAX / 2);
+  });
+
+  it("never exceeds the ceiling, however bad the record", () => {
+    expect(
+      overbookRankingPenalty(
+        provider({ overbookOffers: 40, overbookMisses: 40 }).stats,
+      ),
+    ).toBeLessThanOrEqual(OVERBOOK_RANKING_PENALTY_MAX);
+  });
+
+  it("costs at most half of what pulling out of a job costs", () => {
+    /*
+     * They turned up and were trying to take MORE work; somebody who withdraws
+     * accepted a job and left the customer with nobody. Scoring the two the
+     * same would teach every professional that the safe move is never to
+     * offer, and the offer is the only reason the second customer got a slot.
+     */
+    expect(OVERBOOK_RANKING_PENALTY_MAX).toBeLessThanOrEqual(0.12 / 2);
+  });
+
+  it("scores somebody with no offers exactly like a clean record, and keeps them apart in the data", () => {
+    const untested = provider({ overbookOffers: 0, overbookMisses: 0 });
+    const clean = provider({ overbookOffers: 20, overbookMisses: 0 });
+    expect(overbookRankingPenalty(untested.stats)).toBe(
+      overbookRankingPenalty(clean.stats),
+    );
+    // Identical in the score is fine; indistinguishable in the data is not —
+    // that is how a default becomes a fact. The dashboard reads the counts.
+    expect(hasOverbookRecord(untested.stats)).toBe(false);
+    expect(hasOverbookRecord(clean.stats)).toBe(true);
   });
 });

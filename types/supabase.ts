@@ -106,6 +106,7 @@ export type Database = {
           pricing_note: string | null;
           pricing_confidence: string;
           pricing_model: string;
+          max_concurrent_jobs: number;
           icon: string;
           sort_order: number;
           is_active: boolean;
@@ -128,6 +129,7 @@ export type Database = {
           pricing_note?: string | null;
           pricing_confidence?: string;
           pricing_model?: string;
+          max_concurrent_jobs?: number;
           icon: string;
           sort_order: number;
           is_active?: boolean;
@@ -224,6 +226,8 @@ export type Database = {
           cancelled_by_role: string | null;
           cancellation_fee: number;
           first_choice_provider_id: string | null;
+          overbook_offered_by: string | null;
+          overbook_offered_at: string | null;
           opened_at: string | null;
           reassigned_at: string | null;
           commission_basis: number | null;
@@ -280,6 +284,8 @@ export type Database = {
           cancelled_by_role?: string | null;
           cancellation_fee?: number;
           first_choice_provider_id?: string | null;
+          overbook_offered_by?: string | null;
+          overbook_offered_at?: string | null;
           opened_at?: string | null;
           reassigned_at?: string | null;
           commission_basis?: number | null;
@@ -956,6 +962,7 @@ export type Database = {
           on_job_since: string | null;
           /** What they typed, before the band clamped it. Never read per person. */
           base_rate_requested: number | null;
+          max_concurrent_jobs: number | null;
         };
         Insert: {
           id?: string;
@@ -964,6 +971,7 @@ export type Database = {
           busy_until?: string | null;
           on_job_since?: string | null;
           base_rate_requested?: number | null;
+          max_concurrent_jobs?: number | null;
           display_name: string;
           bio?: string;
           photo_url?: string | null;
@@ -1118,6 +1126,8 @@ export type Database = {
           avg_response_minutes: number;
           jobs_accepted: number;
           withdrawals: number;
+          overbook_offers: number;
+          overbook_misses: number;
           declines: number;
           last_withdrawal_at: string | null;
           last_active_at: string | null;
@@ -1133,6 +1143,8 @@ export type Database = {
           response_samples?: number;
           jobs_accepted?: number;
           withdrawals?: number;
+          overbook_offers?: number;
+          overbook_misses?: number;
           declines?: number;
           last_withdrawal_at?: string | null;
           last_active_at?: string | null;

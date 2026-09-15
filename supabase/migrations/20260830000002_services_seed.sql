@@ -26,16 +26,19 @@ alter table public.categories
   add column if not exists pricing_confidence text not null default 'low'
     check (pricing_confidence in ('high', 'medium', 'low')),
   add column if not exists pricing_model text not null default 'band'
-    check (pricing_model in ('band', 'survey'));
+    check (pricing_model in ('band', 'survey')),
+  add column if not exists max_concurrent_jobs integer not null default 2
+    check (max_concurrent_jobs between 1 and 10);
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('plumbing', 'Plumbing', 'प्लम्बिङ', 'Leaks, blocked drains, fittings', 'चुहावट, जाम, फिटिङ', 'Taps, pipes, drains, tanks and the pump that stopped working.', 'धारा, पाइप, ढल, ट्यांकी र नचल्ने पम्प।', 'plumbing', 'प्लम्बिङ', 350, 6000, 'researched', '2026-09-15', 'Cheapest published service 350; consultation 300-600; leak 500-1200; pipes/sink 1500-3000; geyser 1000-2000. A full bathroom fitting (8000-15000) is deliberately outside the band as a renovation quoted on site. Sajilo Sewa, Technical Sewa, Repairing Service Nepal. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Wrench', 1)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('plumbing', 'Plumbing', 'प्लम्बिङ', 'Leaks, blocked drains, fittings', 'चुहावट, जाम, फिटिङ', 'Taps, pipes, drains, tanks and the pump that stopped working.', 'धारा, पाइप, ढल, ट्यांकी र नचल्ने पम्प।', 'plumbing', 'प्लम्बिङ', 350, 6000, 2, 'researched', '2026-09-15', 'Cheapest published service 350; consultation 300-600; leak 500-1200; pipes/sink 1500-3000; geyser 1000-2000. A full bathroom fitting (8000-15000) is deliberately outside the band as a renovation quoted on site. Sajilo Sewa, Technical Sewa, Repairing Service Nepal. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Wrench', 1)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -43,14 +46,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('electrical', 'Electrical', 'बिजुली मर्मत', 'Wiring, switches, inverters', 'वायरिङ, स्विच, इन्भर्टर', 'Switches, sockets, MCBs, inverters and the light that will not come on.', 'स्विच, सकेट, एमसीबी, इन्भर्टर र नबल्ने बत्ती।', 'electrical', 'बिजुली मर्मत', 350, 5000, 'researched', '2026-09-15', 'Socket fitting 350, MCB 500, light point 550, decorative 650; one firm''s minimum service charge is 650 but that is their policy, not a market floor, so the floor is the cheapest real line item. Rewiring is quoted after a visit. Sajilo Sewa rate card. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Zap', 2)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('electrical', 'Electrical', 'बिजुली मर्मत', 'Wiring, switches, inverters', 'वायरिङ, स्विच, इन्भर्टर', 'Switches, sockets, MCBs, inverters and the light that will not come on.', 'स्विच, सकेट, एमसीबी, इन्भर्टर र नबल्ने बत्ती।', 'electrical', 'बिजुली मर्मत', 350, 5000, 3, 'researched', '2026-09-15', 'Socket fitting 350, MCB 500, light point 550, decorative 650; one firm''s minimum service charge is 650 but that is their policy, not a market floor, so the floor is the cheapest real line item. Rewiring is quoted after a visit. Sajilo Sewa rate card. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Zap', 2)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -58,14 +62,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('home-cleaning', 'Home Cleaning', 'घर सरसफाइ', 'Deep clean, kitchen, bathrooms', 'गहिरो सफाइ, भान्सा, बाथरुम', 'Deep cleans, kitchens, bathrooms and the flat you are moving out of.', 'गहिरो सफाइ, भान्सा, बाथरुम र सर्नुपर्ने फ्ल्याट।', 'home cleaning', 'घर सरसफाइ', 800, 12000, 'researched', '2026-09-15', 'Basic housekeeping visit 800-1500 for 1-2 hours; standard 2BHK from 2500; deep clean from 5000. Post-construction (to 60000) excluded as a different product. Namaste Nepal Cleaning, Royal Cleaning. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'Sparkles', 3)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('home-cleaning', 'Home Cleaning', 'घर सरसफाइ', 'Deep clean, kitchen, bathrooms', 'गहिरो सफाइ, भान्सा, बाथरुम', 'Deep cleans, kitchens, bathrooms and the flat you are moving out of.', 'गहिरो सफाइ, भान्सा, बाथरुम र सर्नुपर्ने फ्ल्याट।', 'home cleaning', 'घर सरसफाइ', 800, 12000, 1, 'researched', '2026-09-15', 'Basic housekeeping visit 800-1500 for 1-2 hours; standard 2BHK from 2500; deep clean from 5000. Post-construction (to 60000) excluded as a different product. Namaste Nepal Cleaning, Royal Cleaning. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'Sparkles', 3)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -73,14 +78,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('appliance-repair', 'Appliance Repair', 'उपकरण मर्मत', 'Fridge, washing machine, geyser', 'फ्रिज, वासिङ मेसिन, गिजर', 'Fridges, washing machines, geysers, microwaves and televisions.', 'फ्रिज, वासिङ मेसिन, गिजर, माइक्रोवेभ र टेलिभिजन।', 'appliance repair', 'उपकरण मर्मत', 500, 5000, 'researched', '2026-09-15', 'Only a published ''starting at 500'' was found, plus universal quote-before-repair and parts charged separately. The band is labour and diagnosis; the part is its own quote. Sajilo Sewa. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'WashingMachine', 4)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('appliance-repair', 'Appliance Repair', 'उपकरण मर्मत', 'Fridge, washing machine, geyser', 'फ्रिज, वासिङ मेसिन, गिजर', 'Fridges, washing machines, geysers, microwaves and televisions.', 'फ्रिज, वासिङ मेसिन, गिजर, माइक्रोवेभ र टेलिभिजन।', 'appliance repair', 'उपकरण मर्मत', 500, 5000, 2, 'researched', '2026-09-15', 'Only a published ''starting at 500'' was found, plus universal quote-before-repair and parts charged separately. The band is labour and diagnosis; the part is its own quote. Sajilo Sewa. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'WashingMachine', 4)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -88,14 +94,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('carpentry', 'Carpentry', 'सिकर्मी काम', 'Doors, furniture, fittings', 'ढोका, फर्निचर, फिटिङ', 'Doors, cupboards, hinges, shelves and furniture that needs rebuilding.', 'ढोका, दराज, कब्जा, र्‍याक र बनाउनुपर्ने फर्निचर।', 'carpentry', 'सिकर्मी काम', 500, 6000, 'researched', '2026-09-15', 'No per-call-out rate published anywhere; the figures that exist are for fabrication (550/sq ft up to 2200-3200/sq ft) which is not the hinge, lock and door work this category sells. Anchored to the skilled-trade day rate 900-1200 and the shape of the other repair trades. Homeplex, Ghatal Groups. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'low', 'band', 'Hammer', 5)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('carpentry', 'Carpentry', 'सिकर्मी काम', 'Doors, furniture, fittings', 'ढोका, फर्निचर, फिटिङ', 'Doors, cupboards, hinges, shelves and furniture that needs rebuilding.', 'ढोका, दराज, कब्जा, र्‍याक र बनाउनुपर्ने फर्निचर।', 'carpentry', 'सिकर्मी काम', 500, 6000, 2, 'researched', '2026-09-15', 'No per-call-out rate published anywhere; the figures that exist are for fabrication (550/sq ft up to 2200-3200/sq ft) which is not the hinge, lock and door work this category sells. Anchored to the skilled-trade day rate 900-1200 and the shape of the other repair trades. Homeplex, Ghatal Groups. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'low', 'band', 'Hammer', 5)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -103,14 +110,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('pest-control', 'Pest Control', 'किरा नियन्त्रण', 'Cockroaches, termites, bed bugs', 'साङ्लो, धमिरा, उडुस', 'Cockroaches, termites, bed bugs and rodents, treated flat by flat.', 'साङ्लो, धमिरा, उडुस र मुसा — फ्ल्याटैपिच्छे उपचार।', 'pest control', 'किरा नियन्त्रण', 1500, 8000, 'researched', '2026-09-15', 'Only commercial rates are published: 4-15 per sq ft with an 800 sq ft minimum. Every residential provider quotes after inspection, so the residential floor is inference and is set low accordingly. Orange Ball. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'low', 'band', 'Bug', 6)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('pest-control', 'Pest Control', 'किरा नियन्त्रण', 'Cockroaches, termites, bed bugs', 'साङ्लो, धमिरा, उडुस', 'Cockroaches, termites, bed bugs and rodents, treated flat by flat.', 'साङ्लो, धमिरा, उडुस र मुसा — फ्ल्याटैपिच्छे उपचार।', 'pest control', 'किरा नियन्त्रण', 1500, 8000, 2, 'researched', '2026-09-15', 'Only commercial rates are published: 4-15 per sq ft with an 800 sq ft minimum. Every residential provider quotes after inspection, so the residential floor is inference and is set low accordingly. Orange Ball. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'low', 'band', 'Bug', 6)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -118,14 +126,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('painting', 'Painting', 'रङरोगन', 'Interior, exterior, touch-ups', 'भित्र, बाहिर, टचअप', 'Interior and exterior painting, damp patches and touch-ups.', 'भित्री र बाहिरी रङरोगन, ओसका दाग र टचअप।', 'painting', 'रङरोगन', 1000, 40000, 'researched', '2026-09-15', 'Labour only 8-15 per sq ft; labour plus materials 45-90; repaint 25-50; skilled labour 900-1200 a day. The band is wide because a labour-only repaint and a supply-and-paint job are two products - see the sub-bands. Reshape Home, Ghar Durbar, Ghatal Groups. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'PaintRoller', 7)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('painting', 'Painting', 'रङरोगन', 'Interior, exterior, touch-ups', 'भित्र, बाहिर, टचअप', 'Interior and exterior painting, damp patches and touch-ups.', 'भित्री र बाहिरी रङरोगन, ओसका दाग र टचअप।', 'painting', 'रङरोगन', 1000, 40000, 3, 'researched', '2026-09-15', 'Labour only 8-15 per sq ft; labour plus materials 45-90; repaint 25-50; skilled labour 900-1200 a day. The band is wide because a labour-only repaint and a supply-and-paint job are two products - see the sub-bands. Reshape Home, Ghar Durbar, Ghatal Groups. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'medium', 'band', 'PaintRoller', 7)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -133,14 +142,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('ac-servicing', 'AC Servicing & Gas Refill', 'एसी सर्भिसिङ', 'Servicing, gas top-up, install', 'सर्भिसिङ, ग्यास, जडान', 'Servicing, gas top-ups and installation for split and window units.', 'स्प्लिट र विन्डो एसीको सर्भिसिङ, ग्यास भर्ने र जडान।', 'AC servicing', 'एसी सर्भिसिङ', 500, 12000, 'researched', '2026-09-15', 'Repairs start at 500; deep-clean service 1200-2000; gas refill 3500-7500; split installation 5000-12000. The previous band was wrong at both ends. Everest Electro, Blue Diamond Service Centre. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'AirVent', 8)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('ac-servicing', 'AC Servicing & Gas Refill', 'एसी सर्भिसिङ', 'Servicing, gas top-up, install', 'सर्भिसिङ, ग्यास, जडान', 'Servicing, gas top-ups and installation for split and window units.', 'स्प्लिट र विन्डो एसीको सर्भिसिङ, ग्यास भर्ने र जडान।', 'AC servicing', 'एसी सर्भिसिङ', 500, 12000, 2, 'researched', '2026-09-15', 'Repairs start at 500; deep-clean service 1200-2000; gas refill 3500-7500; split installation 5000-12000. The previous band was wrong at both ends. Everest Electro, Blue Diamond Service Centre. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'AirVent', 8)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -148,14 +158,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('water-tank-cleaning', 'Water Tank Cleaning', 'पानी ट्यांकी सफाइ', 'Tanks, sumps, overhead drums', 'ट्यांकी, सम्प, माथिको ड्रम', 'Overhead drums, underground sumps and the water that started smelling.', 'माथिको ड्रम, भूमिगत ट्यांकी र गन्हाउन थालेको पानी।', 'water tank cleaning', 'पानी ट्यांकी सफाइ', 1500, 6000, 'researched', '2026-09-15', 'The best-published trade: steel/plastic 1500 for 1000L then 1/L; cemented 2400 to 6000L; beyond 8000L at 30 paisa/L; combined at 70 paisa/L; 100-200 transport outside the Ring Road. United Facility. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Droplets', 9)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('water-tank-cleaning', 'Water Tank Cleaning', 'पानी ट्यांकी सफाइ', 'Tanks, sumps, overhead drums', 'ट्यांकी, सम्प, माथिको ड्रम', 'Overhead drums, underground sumps and the water that started smelling.', 'माथिको ड्रम, भूमिगत ट्यांकी र गन्हाउन थालेको पानी।', 'water tank cleaning', 'पानी ट्यांकी सफाइ', 1500, 6000, 1, 'researched', '2026-09-15', 'The best-published trade: steel/plastic 1500 for 1000L then 1/L; cemented 2400 to 6000L; beyond 8000L at 30 paisa/L; combined at 70 paisa/L; 100-200 transport outside the Ring Road. United Facility. Floor set at the bottom of the researched range, not its middle: published prices come from firms that advertise, while the independent mistri who does not publish is cheaper, so every researched figure carries an upward bias. clampRate moves a professional''s rate UP into the band, which takes money from customers and inflates the commission basis, so the error is taken low on purpose.', 'high', 'band', 'Droplets', 9)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,
@@ -163,14 +174,15 @@ on conflict (slug) do update set
   pricing_model = excluded.pricing_model,
   icon = excluded.icon, sort_order = excluded.sort_order;
 
-insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
-values ('movers-packers', 'Movers & Packers', 'सामान सार्ने सेवा', 'Shifting flats, offices, storage', 'फ्ल्याट, अफिस, भण्डारण सार्ने', 'Shifting a flat or an office, packing, loading and storage.', 'फ्ल्याट वा अफिस सार्ने, प्याकिङ, लोडिङ र भण्डारण।', 'moving & packing', 'सामान सार्ने', 5000, 20000, 'invented', null, 'No Nepali pricing is published by anybody: two searches, one in Nepali, found only quote-after-survey. That is the finding, and forcing a band onto it would invent the one number the market refuses to state. The category moves to a request-a-survey model and shows no band; these figures are the old guess and must not be displayed. Deliberately still `invented` so check:blockers keeps refusing launch until the survey flow exists.', 'low', 'survey', 'Truck', 10)
+insert into public.categories (slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, max_concurrent_jobs, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order)
+values ('movers-packers', 'Movers & Packers', 'सामान सार्ने सेवा', 'Shifting flats, offices, storage', 'फ्ल्याट, अफिस, भण्डारण सार्ने', 'Shifting a flat or an office, packing, loading and storage.', 'फ्ल्याट वा अफिस सार्ने, प्याकिङ, लोडिङ र भण्डारण।', 'moving & packing', 'सामान सार्ने', 5000, 20000, 1, 'invented', null, 'No Nepali pricing is published by anybody: two searches, one in Nepali, found only quote-after-survey. That is the finding, and forcing a band onto it would invent the one number the market refuses to state. The category moves to a request-a-survey model and shows no band; these figures are the old guess and must not be displayed. Deliberately still `invented` so check:blockers keeps refusing launch until the survey flow exists.', 'low', 'survey', 'Truck', 10)
 on conflict (slug) do update set
   name_en = excluded.name_en, name_ne = excluded.name_ne,
   descriptor = excluded.descriptor, descriptor_ne = excluded.descriptor_ne,
   description = excluded.description, description_ne = excluded.description_ne,
   cta_label = excluded.cta_label, cta_label_ne = excluded.cta_label_ne,
   base_price_min = excluded.base_price_min, base_price_max = excluded.base_price_max,
+  max_concurrent_jobs = excluded.max_concurrent_jobs,
   pricing_source = excluded.pricing_source,
   pricing_checked_at = excluded.pricing_checked_at,
   pricing_note = excluded.pricing_note,

@@ -32,6 +32,12 @@ export type StatEvidence = {
   jobsCompleted: number;
   jobsAccepted: number;
   responseSamples: number;
+  /**
+   * Times this professional offered to fit a customer in beside a job they
+   * already held. The denominator a miss rate needs, and it is small on
+   * purpose — see `OVERBOOK_MIN_OFFERS`.
+   */
+  overbookOffers: number;
 };
 
 /** Has anybody actually rated them? */
@@ -64,4 +70,31 @@ export function hasCompletion(
   stats: Pick<StatEvidence, "jobsAccepted">,
 ): boolean {
   return stats.jobsAccepted > 0;
+}
+
+/**
+ * How many offers a record needs before its miss rate means anything.
+ *
+ * TEN, AND THE REASON IS THAT OFFERS ARE RARE BY CONSTRUCTION. A professional
+ * only generates one by choosing to fit somebody in beside a job they already
+ * hold — there is no standing setting and the customer cannot ask for it — so
+ * the usual 30 would mean the signal never activates at all. At ten offers a
+ * 30% miss rate is three real misses and a pattern. It matches the 10-job floor
+ * `needsBandReview` already uses, for the same reason.
+ */
+export const OVERBOOK_MIN_OFFERS = 10;
+
+/**
+ * Is there an overbooking record to speak of?
+ *
+ * One miss out of two offers reads as a 50% failure rate and is statistically
+ * nothing. Rule 6 applies exactly as it does to ratings and response times: an
+ * UNMEASURED overbooking record must not be presented, or scored, as a
+ * measurement. Below the floor the dashboard says "not enough yet — 4 of 10"
+ * rather than printing a percentage nobody should act on.
+ */
+export function hasOverbookRecord(
+  stats: Pick<StatEvidence, "overbookOffers">,
+): boolean {
+  return stats.overbookOffers >= OVERBOOK_MIN_OFFERS;
 }

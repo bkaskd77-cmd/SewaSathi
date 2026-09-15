@@ -43,8 +43,8 @@ async function booking(providerId: string | null): Promise<string> {
   const { rows } = await pg.admin.query(
     `insert into public.bookings
        (reference, customer_id, provider_id, category_slug, address_id,
-        description, quoted_min, quoted_max)
-     values ($1, $2, $3, 'plumbing', $4, 'Tap is dripping', $5, $6)
+        description, quoted_min, quoted_max, scheduled_for)
+     values ($1, $2, $3, 'plumbing', $4, 'Tap is dripping', $5, $6, $7)
      returning id`,
     [
       `SK-QF${(counter += 1)}`,
@@ -53,6 +53,15 @@ async function booking(providerId: string | null): Promise<string> {
       address,
       BAND.low,
       BAND.high,
+      /*
+       * A WINDOW OF ITS OWN PER FIXTURE. These were all as-soon-as-possible,
+       * which means they all started now — so once `enforce_slot_capacity`
+       * existed, a fixture handing the same professional a third job at the
+       * same instant was correctly refused. That is the trigger working, not a
+       * test breaking: this file is about the quote floor, so its bookings are
+       * spaced a day apart and never collide.
+       */
+      new Date(Date.UTC(2026, 10, 1 + counter, 8, 15)).toISOString(),
     ],
   );
   return rows[0].id as string;

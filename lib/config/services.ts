@@ -92,6 +92,18 @@ export type Category = {
    *                  of them to mean anything. `category_pricing_signals` is
    *                  the measurement that gets us here.
    */
+  /**
+   * How many jobs one professional may hold in one two-hour window.
+   *
+   * A WORKAROUND WITH AN EXPIRY, NOT A MODEL OF ANYBODY'S WEEK. A job has a
+   * duration and this product does not record one — the named structural item
+   * in ARCHITECTURE.md. Painting's 3 does not mean a painter paints three
+   * flats at once; it means do not block a painter from a second job because
+   * the first one's putty is drying. Read as a considered answer about
+   * capacity it is simply wrong, and `typical_duration_hours` is what would
+   * replace it.
+   */
+  maxConcurrentJobs: number;
   pricingSource: "invented" | "researched" | "observed";
   /** ISO date the band was last checked against the world. Null while invented. */
   pricingCheckedAt: string | null;
