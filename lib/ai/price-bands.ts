@@ -1,6 +1,11 @@
 import "server-only";
 
-import { CATEGORY_SEED, type Category } from "@/lib/config/services";
+import {
+  CATEGORY_SEED,
+  SUB_BAND_SEED,
+  type Category,
+  type SubBand,
+} from "@/lib/config/services";
 
 /**
  * The price bands Claude is given as reference data.
@@ -9,37 +14,23 @@ import { CATEGORY_SEED, type Category } from "@/lib/config/services";
  * plausible number that is not what our providers charge. These are our
  * published rates, so they go into the prompt.
  *
- * Phase 5 moved the bounds into the `categories` table: repricing a category
- * there reprices the catalogue, the category page and this prompt together.
- * The notes are still written here by hand, because a range alone does not
- * tell the model that a gas refill sits at the top of the AC band and a filter
- * clean at the bottom.
+ * THE SUB-BANDS ARE DATA NOW, NOT PROSE. They used to be a hand-written
+ * `BAND_NOTES` string per category — "gas refill 3500-5500; filter clean at the
+ * bottom" — which worked as a hint to the model and was worthless as anything
+ * else: it could not be measured against settled jobs, could not be revised by
+ * evidence, and carried no provenance, so nobody could tell a researched figure
+ * from a guess. And it is the number that matters most, because a category band
+ * spanning 10-13x cannot carry "no surprises": AC servicing runs 500 to 12,000
+ * because a routine service, a gas refill and an installation are three
+ * products. What the customer actually reads is the narrowed figure, so that
+ * figure is the real promise.
+ *
+ * The note handed to the model is therefore GENERATED from the sub-bands. One
+ * source, and repricing a sub-band reprices the prompt with it. The format is
+ * deliberately the same terse shape the hand-written strings used, because this
+ * is prompt budget and the prompt has to stay byte-identical per request to
+ * prefix-cache.
  */
-
-/** What moves a job within its band. Keep short — this is prompt budget. */
-const BAND_NOTES: Record<string, string> = {
-  plumbing:
-    "washer or joint leak 900-2200; blocked drain 1200-3000; no water, pump or airlock 1000-2800; burst pipe or flooding 1500-4500",
-  electrical:
-    "switch, socket, fitting or MCB 800-2500; short circuit, sparking or burning smell 1500-4000; rewiring a room is quoted after a visit",
-  "home-cleaning":
-    "priced by hours and flat size; a kitchen or bathroom alone at the bottom, a full deep clean or move-out at the top",
-  "appliance-repair":
-    "diagnosis plus labour 1200-4000; the part is quoted separately on site, so do not fold a compressor or a drum into this band",
-  carpentry:
-    "hinge, lock, drawer or shelf at the bottom; a door or a cupboard rebuild at the top; new furniture is quoted separately",
-  "pest-control":
-    "one flat, one treatment 2000-6000; termites and bed bugs sit at the top and need a follow-up visit",
-  painting:
-    "quoted per square foot after a site visit; a touch-up at the bottom, a whole flat at the top. Say the range is wide until someone measures",
-  "ac-servicing":
-    "service and filter clean at the bottom; gas refill 3500-5500; installation at the top",
-  "water-tank-cleaning":
-    "priced by tank capacity; a single overhead drum at the bottom, an underground sump at the top",
-  "movers-packers":
-    "within the Valley 5000-20000, by distance, floor level and volume; a survey call settles it",
-};
-
 export type PriceBand = {
   slug: string;
   name: string;
@@ -47,17 +38,46 @@ export type PriceBand = {
   nameNe: string;
   low: number;
   high: number;
+  /** Generated from `subBands`. Never hand-written. */
   note: string;
+  /** The products inside this trade, in display order. */
+  subBands: SubBand[];
+  /** `survey` trades have no price until somebody has looked. */
+  model: Category["pricingModel"];
 };
 
-function toBand(category: Category): PriceBand {
+/** "Routine service and deep clean 1200-2000; Gas refill 3500-7500; ..." */
+function noteFrom(subBands: readonly SubBand[]): string {
+  // Case is left alone: lowercasing turned "MCB" into "mcb" and "1,000 L" into
+  // "1,000 l", which is the kind of small wrongness a model happily copies.
+  return subBands
+    .map((band) => `${band.labelEn} ${band.low}-${band.high}`)
+    .join("; ");
+}
+
+function toBand(category: Category, subBands: readonly SubBand[]): PriceBand {
+  const mine = subBands
+    .filter((band) => band.categorySlug === category.slug)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
   return {
     slug: category.slug,
     name: category.nameEn,
     nameNe: category.nameNe,
     low: category.basePriceMin,
     high: category.basePriceMax,
-    note: BAND_NOTES[category.slug] ?? "",
+    /*
+     * A survey trade has no sub-bands and must not be handed a range to copy.
+     * Movers is the case: no Nepali operator publishes a price, so the stored
+     * bounds are the old guess and the prompt says so plainly rather than
+     * letting the model assert a figure nobody quoted.
+     */
+    note:
+      category.pricingModel === "survey"
+        ? "Priced only after a free survey. Do not state a figure; say a surveyor will come and quote."
+        : noteFrom(mine),
+    subBands: mine,
+    model: category.pricingModel,
   };
 }
 
@@ -67,7 +87,7 @@ function toBand(category: Category): PriceBand {
  */
 export const FALLBACK_PRICE_BANDS: PriceBand[] = [...CATEGORY_SEED]
   .sort((a, b) => a.sortOrder - b.sortOrder)
-  .map(toBand);
+  .map((category) => toBand(category, SUB_BAND_SEED));
 
 /**
  * The live bands, from the database, falling back to the authored ones.
@@ -80,8 +100,13 @@ export const FALLBACK_PRICE_BANDS: PriceBand[] = [...CATEGORY_SEED]
  * loadable on its own; a test that cannot import it is a test nobody writes.
  */
 export async function getPriceBands(): Promise<PriceBand[]> {
-  const { getCategories } = await import("@/lib/data/categories");
-  const categories = await getCategories();
+  const { getCategories, getSubBands } = await import("@/lib/data/categories");
+  const [categories, subBands] = await Promise.all([
+    getCategories(),
+    getSubBands(),
+  ]);
   if (categories.length === 0) return FALLBACK_PRICE_BANDS;
-  return [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map(toBand);
+  return [...categories]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((category) => toBand(category, subBands));
 }

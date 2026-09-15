@@ -32,12 +32,17 @@ export type DataReading = {
   detail?: string;
 };
 
-export type DataSourceKey = "categories" | "providers" | "reviews";
+export type DataSourceKey =
+  | "categories"
+  | "subBands"
+  | "providers"
+  | "reviews";
 
 export type DataSources = Record<DataSourceKey, DataReading>;
 
 const store = cache((): DataSources => ({
   categories: { source: "unread" },
+  subBands: { source: "unread" },
   providers: { source: "unread" },
   reviews: { source: "unread" },
 }));
@@ -60,6 +65,7 @@ export function readDataSources(): DataSources {
   const current = store();
   return {
     categories: { ...current.categories },
+    subBands: { ...current.subBands },
     providers: { ...current.providers },
     reviews: { ...current.reviews },
   };

@@ -1797,6 +1797,12 @@ describe("RLS covers every table, including ones nobody has written a test for",
   /** Readable by anybody, on purpose: the catalogue and the public directory. */
   const PUBLIC_TO_ANON = new Set([
     "categories",
+    // Published price ranges, exactly like categories.base_price_min beside
+    // them: shown on the category page, read by the triage prompt, and
+    // carrying no personal data. Added here deliberately — this suite reads the
+    // catalog rather than a maintained list, so a new table lands as a failure
+    // until somebody decides out loud whether the world may read it.
+    "category_price_bands",
     "providers",
     "provider_categories",
     "provider_reviews",

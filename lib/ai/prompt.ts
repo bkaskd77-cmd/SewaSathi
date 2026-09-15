@@ -34,9 +34,15 @@ export function buildTriagePrompt(
   genericExplanation: string,
 ): string {
   const categoryLines = bands
-    .map(
-      ({ slug, name, nameNe, low, high, note }) =>
-        `- ${slug} (${name} / ${nameNe}): NPR ${low}-${high}. ${note}`,
+    .map(({ slug, name, nameNe, low, high, note, model }) =>
+      /*
+       * A survey trade is listed WITHOUT a range. Printing one would hand the
+       * model the invented figure the category exists to avoid publishing —
+       * see `pricing_model` and the movers entry in LAUNCH-BLOCKERS.md.
+       */
+      model === "survey"
+        ? `- ${slug} (${name} / ${nameNe}): ${note}`
+        : `- ${slug} (${name} / ${nameNe}): NPR ${low}-${high}. ${note}`,
     )
     .join("\n");
 

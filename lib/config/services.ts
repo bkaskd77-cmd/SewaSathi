@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import categorySeed from "@/lib/data/seed/categories.json";
+import subBandSeed from "@/lib/data/seed/price-bands.json";
 
 import type { Locale } from "@/i18n/routing";
 
@@ -28,6 +29,36 @@ import type { Locale } from "@/i18n/routing";
  * browser. The database read lives in lib/data/categories.ts, which is
  * server-only.
  */
+
+/**
+ * One product inside a trade, with its own price range and its own provenance.
+ *
+ * WHY THESE EXIST AS DATA. A category band spanning 10-13x cannot carry "no
+ * surprises" — AC servicing runs 500 to 12,000 because a routine service, a gas
+ * refill and an installation are three different products, not one. The number
+ * a customer actually reads is the one the triage narrows to, so that number is
+ * the real promise and it has to be researched, sourced and dated like any
+ * other published price. It was prompt text until 2026-09-15, which meant it
+ * could not be measured, could not be revised by evidence, and had no
+ * provenance at all.
+ *
+ * The category band is the union of its sub-bands, exactly — asserted by a test
+ * rather than assumed, because a sub-band added outside the category range
+ * would quote a figure the clamp then refuses.
+ */
+export type SubBand = {
+  categorySlug: string;
+  slug: string;
+  labelEn: string;
+  labelNe: string;
+  low: number;
+  high: number;
+  pricingSource: "invented" | "researched" | "observed";
+  pricingCheckedAt: string | null;
+  pricingConfidence: "high" | "medium" | "low";
+  pricingNote: string | null;
+  sortOrder: number;
+};
 
 export type Category = {
   slug: string;
@@ -116,6 +147,12 @@ export function categoryCopy(category: Category, locale: Locale): CategoryCopy {
 }
 
 export const CATEGORY_SEED = categorySeed as Category[];
+
+/**
+ * The authored sub-bands. Seeds `category_price_bands` and answers when the
+ * database is unconfigured or unreachable, exactly like `CATEGORY_SEED`.
+ */
+export const SUB_BAND_SEED = subBandSeed as SubBand[];
 
 /**
  * Icon names to components.

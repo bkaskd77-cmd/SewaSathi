@@ -256,6 +256,23 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
+- **The narrowed figure is the promise, so the sub-bands are data.**
+  `category_price_bands` holds one row per product inside a trade — AC servicing
+  is a routine service, a gas refill and an installation, not one 500-12,000
+  range — each with its own provenance, date and confidence. They were a
+  hand-written string per category in `lib/ai/price-bands.ts`, which meant the
+  number a customer actually reads could not be measured, revised by evidence or
+  sourced. **The category band is the union of its sub-bands, exactly**, and
+  `tests/unit/sub-bands.test.ts` asserts it: a sub-band outside the category
+  range would quote a figure `quoteFloor` then clamps away, so the triage and
+  the booking would disagree. The model's note is generated from the table, so
+  repricing a product reprices the prompt with it.
+- **A trade with no market price publishes none.** `categories.pricing_model` is
+  `band` or `survey`. Movers is `survey`: no Nepali operator publishes a figure,
+  every one quotes after a look, so the category keeps its listing and loses its
+  range rather than carrying an invented one. The prompt lists a survey trade
+  without a range at all, because handing the model bounds is handing it a
+  number to assert.
 - **Every published band records where it came from, and a guess cannot
   launch.** `categories.pricing_source` is `invented`, `researched` or
   `observed`, beside `pricing_checked_at` and `pricing_note`. All ten are

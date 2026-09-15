@@ -2,7 +2,12 @@ import "server-only";
 
 import { cache } from "react";
 
-import { CATEGORY_SEED, type Category } from "@/lib/config/services";
+import {
+  CATEGORY_SEED,
+  SUB_BAND_SEED,
+  type Category,
+  type SubBand,
+} from "@/lib/config/services";
 import {
   describeError,
   markDataSource,
@@ -131,5 +136,65 @@ export async function getCategory(slug: string): Promise<Category | null> {
   const categories = await getCategories();
   return categories.find((category) => category.slug === slug) ?? null;
 }
+
+/**
+ * The sub-bands, in display order.
+ *
+ * `cache`d per request like the categories, because the prompt builder and any
+ * screen that explains a quote both want them and one request should mean one
+ * query. Falls back to the seed on the same terms and announces which path it
+ * took, so a broken query cannot render a perfect-looking page — see
+ * `lib/data/source.ts`.
+ */
+export const getSubBands = cache(async (): Promise<SubBand[]> => {
+  if (!hasSupabaseConfig()) {
+    markDataSource("subBands", "seed", "no Supabase URL or anon key");
+    return SUB_BAND_SEED;
+  }
+
+  try {
+    const { data, error } = await createPublicClient()
+      .from("category_price_bands")
+      .select(
+        "category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order",
+      )
+      .order("sort_order");
+
+    if (error || !data || data.length === 0) {
+      markDataSource(
+        "subBands",
+        "seed",
+        error ? describeError(error) : "no rows",
+      );
+      return SUB_BAND_SEED;
+    }
+
+    markDataSource("subBands", "database");
+    return (data as Array<Record<string, unknown>>).map((row) => ({
+      categorySlug: row.category_slug as string,
+      slug: row.slug as string,
+      labelEn: row.label_en as string,
+      labelNe: row.label_ne as string,
+      low: Number(row.low),
+      high: Number(row.high),
+      // Fails closed, same as the category columns.
+      pricingSource:
+        row.pricing_source === "researched" || row.pricing_source === "observed"
+          ? row.pricing_source
+          : "invented",
+      pricingCheckedAt: (row.pricing_checked_at as string | null) ?? null,
+      pricingConfidence:
+        row.pricing_confidence === "high" || row.pricing_confidence === "medium"
+          ? row.pricing_confidence
+          : "low",
+      pricingNote: (row.pricing_note as string | null) ?? null,
+      sortOrder: Number(row.sort_order),
+    }));
+  } catch (thrown) {
+    rethrowFrameworkSignal(thrown);
+    markDataSource("subBands", "seed", describeError(thrown));
+    return SUB_BAND_SEED;
+  }
+});
 
 export { categoryCopy } from "@/lib/config/services";
