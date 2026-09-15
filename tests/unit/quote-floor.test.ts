@@ -117,3 +117,66 @@ describe("every published band says where it came from", () => {
     }
   });
 });
+
+describe("a trade with no published price does not pretend to have one", () => {
+  /*
+   * Movers and packers is the case. No Nepali operator publishes a figure —
+   * every one quotes after a survey — so the honest model is to publish no band
+   * rather than to invent the one number the market refuses to state before
+   * looking at the job.
+   */
+  const survey = CATEGORY_SEED.filter((c) => c.pricingModel === "survey");
+
+  it("marks the trade as survey-priced rather than guessing a band", () => {
+    expect(survey.map((c) => c.slug)).toEqual(["movers-packers"]);
+  });
+
+  it("never claims a survey trade's band was researched", () => {
+    // Stamping `researched` here would be exactly the dishonesty the
+    // provenance column exists to prevent: the research found no price.
+    for (const category of survey) {
+      expect(category.pricingSource).toBe("invented");
+    }
+  });
+
+  it("carries a confidence level on every trade, band or survey", () => {
+    for (const category of CATEGORY_SEED) {
+      expect(["high", "medium", "low"]).toContain(category.pricingConfidence);
+    }
+  });
+});
+
+describe("the researched floors err low on purpose", () => {
+  it("never sits above the cheapest published job in the trade", () => {
+    /*
+     * Published prices come from firms that advertise; the independent mistri
+     * is cheaper and publishes nothing. clampRate then moves a professional's
+     * rate UP into the band, which takes money from customers and inflates the
+     * commission basis — so a floor that drifted upward would compound a bias
+     * we already know about. These are the cheapest figures the research found.
+     */
+    const cheapestFound: Record<string, number> = {
+      plumbing: 350,
+      electrical: 350,
+      "home-cleaning": 800,
+      "appliance-repair": 500,
+      "ac-servicing": 500,
+      "water-tank-cleaning": 1500,
+    };
+
+    for (const [slug, cheapest] of Object.entries(cheapestFound)) {
+      const category = CATEGORY_SEED.find((c) => c.slug === slug)!;
+      expect(category.basePriceMin).toBeLessThanOrEqual(cheapest);
+    }
+  });
+
+  it("says where every researched band came from and when", () => {
+    for (const category of CATEGORY_SEED) {
+      if (category.pricingSource !== "researched") continue;
+      expect(category.pricingCheckedAt).toBe("2026-09-15");
+      // The sources and the err-low reasoning both live in the note, so a
+      // future reader can re-derive the figure rather than inherit it.
+      expect(category.pricingNote).toMatch(/bottom of the researched range/);
+    }
+  });
+});

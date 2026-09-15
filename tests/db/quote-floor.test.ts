@@ -23,12 +23,19 @@ const ANITA = "aaaaaaaa-7333-4333-8333-aaaaaaaaaaaa";
 const KRISHNA = "bbbbbbbb-7444-4444-8444-bbbbbbbbbbbb";
 const SITA = "cccccccc-7555-4555-8555-cccccccccccc";
 
-/** plumbing, as seeded. The floor the product publishes for the trade. */
-const BAND = { low: 900, high: 4500 };
+/*
+ * Plumbing's published band, READ FROM THE CATALOGUE rather than written here.
+ * It was hardcoded and broke the day the band was researched and moved — a test
+ * that pins a product decision fails every time the decision legitimately
+ * changes, which teaches people to edit tests instead of reading them.
+ */
+let BAND: { low: number; high: number };
 
 let pg: Harness;
 let cheap: string;
 let dear: string;
+let cheapRate: number;
+let dearRate: number;
 let address: string;
 let counter = 0;
 
@@ -76,6 +83,14 @@ async function quote(id: string): Promise<{ min: number; max: number }> {
 beforeAll(async () => {
   pg = await startPostgres();
 
+  const { rows: band } = await pg.admin.query(
+    "select base_price_min, base_price_max from public.categories where slug = 'plumbing'",
+  );
+  BAND = {
+    low: Number(band[0].base_price_min),
+    high: Number(band[0].base_price_max),
+  };
+
   for (const [id, name, role] of [
     [ANITA, "Anita Shrestha", "customer"],
     [KRISHNA, "Krishna Tamang", "provider"],
@@ -90,9 +105,15 @@ beforeAll(async () => {
     );
   }
 
+  // Derived from the band so the "cheap" one is its floor and the "dear" one
+  // is comfortably inside — the relationship is what the tests assert, not the
+  // particular rupees.
+  cheapRate = BAND.low;
+  dearRate = Math.round((BAND.low + BAND.high) / 2 / 100) * 100;
+
   for (const [profile, name, rate] of [
-    [KRISHNA, "Krishna Tamang", 900],
-    [SITA, "Sita Rai", 2400],
+    [KRISHNA, "Krishna Tamang", cheapRate],
+    [SITA, "Sita Rai", dearRate],
   ] as const) {
     const { rows } = await pg.admin.query(
       `insert into public.providers (profile_id, display_name, base_rate, availability)
@@ -132,7 +153,7 @@ describe("the floor follows the professional", () => {
       [dear, id],
     );
 
-    expect(await quote(id)).toEqual({ min: 2400, max: BAND.high });
+    expect(await quote(id)).toEqual({ min: dearRate, max: BAND.high });
   });
 
   it("goes back to ours when the job is released", async () => {
@@ -165,7 +186,7 @@ describe("the floor follows the professional", () => {
       [cheap, id],
     );
 
-    expect((await quote(id)).min).toBe(900);
+    expect((await quote(id)).min).toBe(cheapRate);
   });
 
   it("never lifts the floor above our ceiling", async () => {
@@ -173,8 +194,8 @@ describe("the floor follows the professional", () => {
     // so they can legally sit above a given category's maximum. quoted_min
     // must still never cross quoted_max — the table's own check refuses it.
     await pg.admin.query(
-      "update public.providers set base_rate = 20000 where id = $1",
-      [dear],
+      "update public.providers set base_rate = $1 where id = $2",
+      [BAND.high * 4, dear],
     );
 
     try {
@@ -189,8 +210,8 @@ describe("the floor follows the professional", () => {
       // Restored even on a failure: the band check at the bottom of this file
       // reads every listing, and a leftover would fail it for the wrong reason.
       await pg.admin.query(
-        "update public.providers set base_rate = 2400 where id = $1",
-        [dear],
+        "update public.providers set base_rate = $1 where id = $2",
+        [dearRate, dear],
       );
     }
   });
@@ -224,7 +245,7 @@ describe("a priced job's quote never moves again", () => {
       [id],
     );
 
-    expect((await quote(id)).min).toBe(900);
+    expect((await quote(id)).min).toBe(cheapRate);
   });
 });
 
@@ -316,7 +337,7 @@ describe("the band we published is kept apart from the price they set", () => {
       [id],
     );
     expect(Number(rows[0].band_min)).toBe(BAND.low);
-    expect(Number(rows[0].quoted_min)).toBe(2400);
+    expect(Number(rows[0].quoted_min)).toBe(dearRate);
   });
 
   it("cannot be rewritten, by anybody, after the fact", async () => {

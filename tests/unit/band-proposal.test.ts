@@ -64,25 +64,56 @@ describe("a few large jobs cannot drag the proposal", () => {
 describe("no proposal without enough evidence", () => {
   it("returns null below the minimum sample", () => {
     expect(
-      proposeBand({ amounts: ordinary(MIN_PROPOSAL_SAMPLE - 1), current: CURRENT }),
+      proposeBand({
+        amounts: ordinary(MIN_PROPOSAL_SAMPLE.high - 1),
+        current: CURRENT,
+      }),
     ).toBeNull();
   });
 
   it("proposes once the minimum is met", () => {
     expect(
-      proposeBand({ amounts: ordinary(MIN_PROPOSAL_SAMPLE), current: CURRENT }),
+      proposeBand({ amounts: ordinary(MIN_PROPOSAL_SAMPLE.high), current: CURRENT }),
     ).not.toBeNull();
   });
 
   it("ignores rubbish amounts rather than counting them toward the minimum", () => {
     const amounts = [
-      ...ordinary(MIN_PROPOSAL_SAMPLE - 1),
+      ...ordinary(MIN_PROPOSAL_SAMPLE.high - 1),
       0,
       -500,
       Number.NaN,
       Number.POSITIVE_INFINITY,
     ];
     expect(proposeBand({ amounts, current: CURRENT })).toBeNull();
+  });
+});
+
+describe("confidence governs how soon the data may speak", () => {
+  /*
+   * A high-confidence band is probably right, so disturbing it needs a solid
+   * sample. A low-confidence one is a guess — carpentry anchored to a day rate
+   * because nobody publishes a call-out price — so leaving it unchallenged
+   * costs more than an early, noisier look. A person approves either way.
+   */
+  it("reaches a first proposal sooner on a low-confidence band", () => {
+    const thin = ordinary(MIN_PROPOSAL_SAMPLE.low);
+
+    expect(proposeBand({ amounts: thin, current: CURRENT, confidence: "low" }))
+      .not.toBeNull();
+    expect(proposeBand({ amounts: thin, current: CURRENT, confidence: "high" }))
+      .toBeNull();
+  });
+
+  it("orders the thresholds strictest-first", () => {
+    expect(MIN_PROPOSAL_SAMPLE.high).toBeGreaterThan(MIN_PROPOSAL_SAMPLE.medium);
+    expect(MIN_PROPOSAL_SAMPLE.medium).toBeGreaterThan(MIN_PROPOSAL_SAMPLE.low);
+  });
+
+  it("defaults to the strictest when confidence is not given", () => {
+    expect(
+      proposeBand({ amounts: ordinary(MIN_PROPOSAL_SAMPLE.low), current: CURRENT }),
+    ).toBeNull();
   });
 });
 
@@ -113,6 +144,24 @@ describe("no single revision may leap", () => {
     })!;
 
     expect(result.uncapped.high).toBeGreaterThan(result.high);
+  });
+
+  it("does not cap a human correcting a band they know is wrong", () => {
+    /*
+     * THE CAP IS AGAINST A BAD SAMPLE, NOT AGAINST A PERSON. AC servicing was
+     * wrong at both ends by more than a fifth — floor above an ordinary
+     * service, ceiling below a gas refill — and making that take four approval
+     * cycles would be the guard working against the thing it exists for.
+     */
+    const amounts = Array.from({ length: 50 }, () => 45_000);
+
+    const computed = proposeBand({ amounts, current: CURRENT })!;
+    const correction = proposeBand({ amounts, current: CURRENT, mode: "correction" })!;
+
+    expect(computed.capped).toBe(true);
+    expect(correction.capped).toBe(false);
+    expect(correction.high).toBeGreaterThan(computed.high);
+    expect(correction.high).toBe(correction.uncapped.high);
   });
 
   it("does not report a cap when the data agrees with the published band", () => {

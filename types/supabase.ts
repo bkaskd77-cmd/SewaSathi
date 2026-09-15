@@ -104,6 +104,8 @@ export type Database = {
           pricing_source: string;
           pricing_checked_at: string | null;
           pricing_note: string | null;
+          pricing_confidence: string;
+          pricing_model: string;
           icon: string;
           sort_order: number;
           is_active: boolean;
@@ -124,6 +126,8 @@ export type Database = {
           pricing_source?: string;
           pricing_checked_at?: string | null;
           pricing_note?: string | null;
+          pricing_confidence?: string;
+          pricing_model?: string;
           icon: string;
           sort_order: number;
           is_active?: boolean;

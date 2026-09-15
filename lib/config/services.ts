@@ -66,6 +66,19 @@ export type Category = {
   pricingCheckedAt: string | null;
   /** Who was checked, or what the figure was derived from. */
   pricingNote: string | null;
+  /**
+   * How much the band is worth trusting, which governs how soon our own data
+   * is allowed to challenge it. A low-confidence band is a guess, so it earns
+   * a proposal on a smaller sample — see `MIN_PROPOSAL_SAMPLE`.
+   */
+  pricingConfidence: "high" | "medium" | "low";
+  /**
+   * `band` publishes a price range. `survey` publishes none, because the trade
+   * genuinely does not have one until somebody has looked — movers and packers
+   * quote after a free survey everywhere in the market, and forcing a range
+   * onto that would invent the one number nobody will state.
+   */
+  pricingModel: "band" | "survey";
   /** Lucide icon name — resolved through CATEGORY_ICONS below. */
   icon: string;
   sortOrder: number;

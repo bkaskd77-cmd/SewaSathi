@@ -5,9 +5,11 @@ card, on `/services`, on each category page, inside the triage answer, and it is
 the floor of every booking's quote — which the platform fee is charged on. Ten
 pairs of numbers, all currently `invented`.
 
-**Nothing in this document is applied.** The research in §1 is a proposal
-awaiting approval; §2 designs a screen that is not built; §3 is two open
-questions; §4 is the statistic chosen for §2.
+**Status.** §1 was approved on 2026-09-15 with three changes and is **applied** —
+floors moved to the bottom of each researched range, movers moved to a survey
+model, and sub-bands promoted from a question to the real promise (§3). §2
+designs a screen that is not built; §4 is the statistic, implemented and wired
+to nothing.
 
 The authority rule is in ARCHITECTURE.md and is the reason §2 has an approve
 button rather than a cron job: **the system proposes, a person decides.** An
@@ -53,9 +55,31 @@ Sources reached, in rough order of usefulness:
 | Painting | 4,000–25,000 | **3,000–40,000** | Medium — see note |
 | Carpentry | 1,000–3,500 | **600–6,000** | Low-medium |
 | Pest control | 2,000–6,000 | **2,000–8,000** | Low |
-| Movers & packers | 5,000–20,000 | **no proposal** | None |
+| Movers & packers | 5,000–20,000 | **survey model, no band** | None |
 
-### Per trade
+### Applied 2026-09-15, with the three approved changes
+
+**Floors sit at the bottom of each researched range, not the middle.** The
+research found a systematic upward bias — published prices come from firms that
+advertise, and the independent मिस्त्री who is cheaper publishes nothing — and
+`clampRate` moves a professional's rate *up* into the band. Clamping somebody up
+takes money from customers and inflates the commission basis, so the error is
+taken low deliberately. The reasoning is recorded in each `pricing_note`, not
+just here.
+
+Final: plumbing **350**–6,000 · electrical **350**–5,000 · home cleaning
+**800**–12,000 · appliance repair **500**–5,000 · carpentry **500**–6,000 ·
+pest control **1,500**–8,000 · painting **1,000**–40,000 · AC servicing
+**500**–12,000 · water tank cleaning **1,500**–6,000.
+
+**Movers changed model rather than getting a forced band.** `pricing_model` is
+`survey`; the category keeps its listing and loses its price range, because
+quote-after-a-free-survey is what the market actually does. It stays `invented`
+on purpose so `check:blockers` keeps refusing a launch build until the
+request-a-survey flow exists — and the guard now names that as the remedy rather
+than telling somebody to go and research a number nobody publishes.
+
+### Per trade, as researched
 
 **Water tank cleaning — 1,500–6,000. High.** The best-published trade of the
 ten; one source gives a full rate card. Steel/plastic Rs 1,500 for 1,000 L then

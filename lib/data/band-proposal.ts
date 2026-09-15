@@ -19,20 +19,45 @@
  * product judgement about money and has to be testable without a database.
  */
 
-/** Below this many settled jobs there is no proposal at all, not a tentative one. */
-export const MIN_PROPOSAL_SAMPLE = 30;
+/**
+ * How many settled jobs a band must survive before our own data may challenge
+ * it — and it depends on how much the band is worth trusting.
+ *
+ * A HIGH-CONFIDENCE BAND IS PROBABLY RIGHT, so disturbing it needs a solid
+ * sample; the cost of a noisy proposal is a person being asked to approve a
+ * worse number than the one they have. A LOW-CONFIDENCE BAND IS A GUESS —
+ * carpentry's is anchored to a day rate because nobody publishes a call-out
+ * price, pest control's residential floor is inference from commercial rates —
+ * so the cost of leaving it unchallenged for another quarter is higher than the
+ * cost of an early, noisier first look. A person approves either way, which is
+ * what makes erring toward "show them sooner" safe.
+ */
+export const MIN_PROPOSAL_SAMPLE: Record<BandConfidence, number> = {
+  high: 30,
+  medium: 22,
+  low: 15,
+};
+
+export type BandConfidence = "high" | "medium" | "low";
 
 /** Tukey. A quarter of the sample can be arbitrarily large before Q3 moves. */
 export const FENCE_IQR_MULTIPLIER = 1.5;
 
 /**
- * The most a single approved revision may move either bound.
+ * The most a COMPUTED revision may move either bound.
  *
  * Robustness handles outliers; it does not handle a wrong model. A genuinely
- * bimodal category — painting, movers — yields a proposal that is stable,
- * robust and wrong, because "one band" is the thing that does not fit. The cap
- * means no one approval can move a published price by more than a fifth, and
+ * bimodal category yields a proposal that is stable, robust and wrong, because
+ * "one band" is the thing that does not fit. The cap means no one approval can
+ * move a published price by more than a fifth on the strength of a sample, and
  * `winsorised` is the tell that sub-bands are the real answer.
+ *
+ * IT DOES NOT APPLY TO A HUMAN CORRECTION, and that distinction is the whole
+ * point of `mode`. The cap exists to stop a bad SAMPLE moving a price, not to
+ * stop a person fixing a price they already know is wrong. AC servicing was
+ * wrong at both ends by more than a fifth — floor above an ordinary service,
+ * ceiling below a gas refill — and making that take four approval cycles would
+ * be the guard working against the thing it is for.
  */
 export const MAX_REVISION_MOVE = 0.2;
 
@@ -93,12 +118,21 @@ export function proposeBand(input: {
   amounts: readonly number[];
   /** The band published today, which the movement cap is measured against. */
   current: { low: number; high: number };
+  /** Governs the minimum sample. Defaults to the strictest. */
+  confidence?: BandConfidence;
+  /**
+   * `computed` is the routine path and is capped. `correction` is a person
+   * fixing a band they know is wrong, and is not — see `MAX_REVISION_MOVE`.
+   */
+  mode?: "computed" | "correction";
 }): BandProposal | null {
   const clean = input.amounts
     .filter((n) => Number.isFinite(n) && n > 0)
     .sort((a, b) => a - b);
 
-  if (clean.length < MIN_PROPOSAL_SAMPLE) return null;
+  if (clean.length < MIN_PROPOSAL_SAMPLE[input.confidence ?? "high"]) {
+    return null;
+  }
 
   const q1 = quantile(clean, 0.25);
   const q3 = quantile(clean, 0.75);
@@ -127,10 +161,13 @@ export function proposeBand(input: {
 
   const rounded = roundOut(quantile(fenced, 0.25), quantile(fenced, 0.75));
 
-  const capped = {
-    low: capMove(rounded.low, input.current.low),
-    high: capMove(rounded.high, input.current.high),
-  };
+  const correcting = input.mode === "correction";
+  const capped = correcting
+    ? rounded
+    : {
+        low: capMove(rounded.low, input.current.low),
+        high: capMove(rounded.high, input.current.high),
+      };
   const final = roundOut(capped.low, capped.high);
 
   return {

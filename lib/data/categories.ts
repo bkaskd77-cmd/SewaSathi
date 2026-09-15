@@ -45,6 +45,8 @@ type CategoryRow = {
   pricing_source: string;
   pricing_checked_at: string | null;
   pricing_note: string | null;
+  pricing_confidence: string;
+  pricing_model: string;
   icon: string;
   sort_order: number;
 };
@@ -73,6 +75,13 @@ function fromRow(row: CategoryRow): Category {
         : "invented",
     pricingCheckedAt: row.pricing_checked_at,
     pricingNote: row.pricing_note,
+    // Both fail closed for the same reason `pricingSource` does: an
+    // unrecognised value must read as the cautious answer, never be trusted.
+    pricingConfidence:
+      row.pricing_confidence === "high" || row.pricing_confidence === "medium"
+        ? row.pricing_confidence
+        : "low",
+    pricingModel: row.pricing_model === "survey" ? "survey" : "band",
     icon: row.icon,
     sortOrder: row.sort_order,
   };
@@ -94,7 +103,7 @@ export const getCategories = cache(async (): Promise<Category[]> => {
     const { data, error } = await createPublicClient()
       .from("categories")
       .select(
-        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, icon, sort_order",
+        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order",
       )
       .eq("is_active", true)
       .order("sort_order");

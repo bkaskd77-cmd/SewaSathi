@@ -44,7 +44,16 @@ function inventedCategories() {
     const raw = readFileSync(path.join(process.cwd(), CATEGORY_SEED), "utf8");
     return JSON.parse(raw)
       .filter((c) => (c.pricingSource ?? "invented") === "invented")
-      .map((c) => c.slug);
+      .map((c) =>
+        /*
+         * A `survey` category cannot be resolved by researching a band, and
+         * saying "still invented" about it would send somebody looking for a
+         * number that does not exist. Name the real remedy instead.
+         */
+        c.pricingModel === "survey"
+          ? `${c.slug} (survey model — needs the request-a-survey flow, not a band)`
+          : c.slug,
+      );
   } catch {
     // A seed that cannot be read is not evidence that the bands are researched.
     return ["<could not read the category seed>"];
@@ -111,7 +120,7 @@ function main() {
 
   if (invented.length > 0) {
     console.log(
-      `  ${invented.length} of the service price bands are still invented.`,
+      `  ${invented.length} of the service price bands are still unpublishable: ${invented.join(", ")}`,
     );
   }
 
