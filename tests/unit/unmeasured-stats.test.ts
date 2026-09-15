@@ -128,3 +128,33 @@ describe("an unmeasured stat never scores as an extreme", () => {
     expect(fast.response).toBeGreaterThan(unknown.response);
   });
 });
+
+describe("every surface asks the same question", () => {
+  /*
+   * THE REGRESSION THIS FILE EXISTS FOR. `lib/provider/measured.ts` was added
+   * to settle a disagreement between the catalogue card and the ranking, and
+   * the card was then not changed — so it went on gating the response time on
+   * `jobsCompleted > 0` while `scoreParts` gated it on `responseSamples`, and a
+   * seeded professional with finished jobs and no timings had "~120 min" on
+   * their card and a neutral score behind it.
+   *
+   * The test cannot render the card, so it pins the property the card must
+   * follow: these two facts are independent, and only one of them is evidence
+   * about replies.
+   */
+  it("treats finished jobs and timed replies as different evidence", () => {
+    const finishedButNeverTimed = provider({
+      jobsCompleted: 60,
+      jobsAccepted: 62,
+      responseSamples: 0,
+      avgResponseMinutes: 120,
+    });
+
+    expect(hasResponse(finishedButNeverTimed.stats)).toBe(false);
+    expect(hasCompletion(finishedButNeverTimed.stats)).toBe(true);
+
+    // And the ranking agrees, which is the half that was already right.
+    expect(scoreParts(finishedButNeverTimed).response).toBeGreaterThan(0);
+    expect(scoreParts(finishedButNeverTimed).response).toBeLessThan(1);
+  });
+});

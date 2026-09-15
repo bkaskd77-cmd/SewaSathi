@@ -13,6 +13,7 @@ import { areaShortLabel } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
 import { isNewProvider } from "@/lib/data/ranking";
 import { bookingHref } from "@/lib/routes/booking";
+import { hasRating, hasResponse } from "@/lib/provider";
 import { cn, formatNpr } from "@/lib/utils";
 
 /**
@@ -86,8 +87,16 @@ export function ProviderCard({
    * them yet than when it pads the card with zeros.
    */
   const newHere = isNewProvider(stats.jobsCompleted);
-  const rated = stats.ratingCount > 0;
-  const measuredResponse = stats.jobsCompleted > 0;
+  const rated = hasRating(stats);
+  /*
+   * `hasResponse`, not `jobsCompleted > 0`. This card gated the response time
+   * on having finished a job while `scoreParts` gated it on having been timed,
+   * so the card and the ranking behind it answered differently about the same
+   * person — the card printing "~120 min" for somebody the ranking was
+   * correctly treating as unmeasured. Finishing work is not being timed
+   * answering an offer.
+   */
+  const measuredResponse = hasResponse(stats);
 
   return (
     <Card
