@@ -152,6 +152,13 @@ Where a change on one side cannot reach the other.
   same row, so no policy `using` clause can settle that race, and under read
   committed both would otherwise count zero and both commit.
   `tests/db/slot-capacity.test.ts` fails without the lock.
+- **A full window is the one refusal that stops a booking at every urgency.**
+  Every other `canServeAt` refusal is a note the product says and carries on
+  past, because the booking would still work. This one would not — the trigger
+  refuses the insert — so `blocksBooking` treats it as a stop, and the greyed
+  row carries the next slot the picker itself offers rather than only a no.
+  `lib/data/capacity.ts` is the one read, deliberately thin: a window start and
+  nothing else, never whose job it is or where.
 - **Whether a professional can come is three facts and only two are theirs.**
   `providerState` in `lib/provider/availability.ts` is the single rule:
   `on_job_since` (ours, written by a trigger from booking status) beats

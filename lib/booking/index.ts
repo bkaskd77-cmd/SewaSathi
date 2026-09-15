@@ -43,6 +43,7 @@ export {
   formatInstant,
   formatSlotInstant,
   isValidSlot,
+  slotDay,
   slotLabel,
   slotsForDay,
   WORKING_HOURS,

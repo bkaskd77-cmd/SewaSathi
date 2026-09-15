@@ -3,12 +3,13 @@ import "server-only";
 import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
-import { isValidSlot } from "@/lib/booking";
+import { hasRoom, isValidSlot } from "@/lib/booking";
 import {
   isBookingStatus,
   judgeCancellation,
   type BookingStatus,
 } from "@/lib/booking";
+import { providerCapacity } from "@/lib/data/capacity";
 import { getCategory } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
@@ -256,14 +257,40 @@ export async function createBooking(
       return { ok: false, errors: { provider: "providerUnavailable" } };
     }
 
+    /*
+     * IS THAT WINDOW ALREADY SPOKEN FOR? `enforce_slot_capacity` refuses the
+     * insert either way, so this exists to return an error the flow can render
+     * rather than a raised exception the customer reads as "something went
+     * wrong". The database is the rule; this is the sentence.
+     */
+    const capacity = (await providerCapacity([provider.id], category.slug))[
+      provider.id
+    ];
+    const when = servingWhen({ urgency: parsed.data.urgency, scheduledFor });
+
     const verdict = canServeAt({
       state: provider.availability,
       busyUntil: provider.busyUntil,
-      when: servingWhen({ urgency: parsed.data.urgency, scheduledFor }),
+      when,
+      windowFull: capacity
+        ? !hasRoom({
+            jobs: capacity.held,
+            scheduledFor: when,
+            capacity: capacity.capacity,
+          })
+        : false,
     });
 
     if (blocksBooking({ urgency: parsed.data.urgency, verdict })) {
-      return { ok: false, errors: { provider: "providerBusyNow" } };
+      return {
+        ok: false,
+        errors: {
+          provider:
+            !verdict.ok && verdict.reason === "full"
+              ? "providerFull"
+              : "providerBusyNow",
+        },
+      };
     }
 
     floor = quoteFloor({
@@ -493,16 +520,38 @@ export async function chooseProvider(input: {
    * demonstrably in another house would spend their patience on a second
    * failure. Same rule, same function, same single stop: only an emergency.
    */
+  const replacementWhen = servingWhen({
+    urgency: booking.urgency,
+    scheduledFor: booking.scheduledFor,
+  });
+  const replacementCapacity = (
+    await providerCapacity([provider.id], booking.categorySlug)
+  )[provider.id];
+
   const verdict = canServeAt({
     state: provider.availability,
     busyUntil: provider.busyUntil,
-    when: servingWhen({
-      urgency: booking.urgency,
-      scheduledFor: booking.scheduledFor,
-    }),
+    when: replacementWhen,
+    // Nor is somebody whose window is already promised to another customer.
+    // The trigger would refuse this update; saying so here is what lets the
+    // panel offer the next name instead of showing a raised exception.
+    windowFull: replacementCapacity
+      ? !hasRoom({
+          jobs: replacementCapacity.held,
+          scheduledFor: replacementWhen,
+          capacity: replacementCapacity.capacity,
+          excludeId: booking.id,
+        })
+      : false,
   });
   if (blocksBooking({ urgency: booking.urgency, verdict })) {
-    return { ok: false, reason: "providerBusyNow" };
+    return {
+      ok: false,
+      reason:
+        !verdict.ok && verdict.reason === "full"
+          ? "providerFull"
+          : "providerBusyNow",
+    };
   }
 
   const { data, error } = await createAdminClient()

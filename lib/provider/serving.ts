@@ -31,7 +31,18 @@ export type ServingRefusal =
   /** Declared themselves unavailable, and the customer wants somebody now. */
   | "busyNow"
   /** The slot the customer picked falls inside a window they said no to. */
-  | "busyThen";
+  | "busyThen"
+  /**
+   * That window is already at capacity — somebody else has it.
+   *
+   * A DIFFERENT KIND OF NO FROM THE OTHERS. The three above are about what the
+   * professional has declared; this one is about what the product has already
+   * promised somebody else, and `enforce_slot_capacity` will refuse the insert
+   * whatever the screen says. So it is the one refusal that blocks a booking at
+   * every urgency rather than only an emergency, and the row offers the next
+   * free slot instead of just saying no.
+   */
+  | "full";
 
 export type ServingVerdict =
   | { ok: true }
@@ -59,6 +70,16 @@ export type ServingInput = {
    */
   when?: Date | string | null;
   at?: Date;
+  /**
+   * Is that window already spoken for?
+   *
+   * PASSED IN RATHER THAN COMPUTED HERE, because deciding it needs the jobs
+   * they already hold and this file is deliberately pure — `hasRoom` in
+   * `lib/booking/capacity.ts` is the arithmetic and `lib/data/capacity.ts`
+   * is what reads the rows. Undefined means nobody asked, which is what every
+   * caller did before capacity existed; it is not the same as "there is room".
+   */
+  windowFull?: boolean;
 };
 
 function instant(value: Date | string | null | undefined): Date | null {
@@ -71,6 +92,20 @@ export function canServeAt(input: ServingInput): ServingVerdict {
   const at = input.at ?? new Date();
   const when = instant(input.when);
   const busy = instant(input.busyUntil);
+
+  /*
+   * FIRST, BECAUSE IT OUTRANKS EVERYTHING ELSE HERE. Being free right now does
+   * not help if the window is already promised to somebody, and the database
+   * will refuse the booking regardless of what this function says. Telling a
+   * customer somebody is available and then failing at the confirm button is
+   * the worst of the three possible answers.
+   */
+  if (input.windowFull) {
+    // No `freeFrom`: a window being full says nothing about when it empties.
+    // The screen offers the next slot the picker itself would show instead of
+    // a time this function would have to invent.
+    return { ok: false, reason: "full", freeFrom: null };
+  }
 
   // As soon as possible. Only what is true right now matters.
   if (!when) {
@@ -130,5 +165,14 @@ export function blocksBooking(input: {
   urgency?: string | null;
   verdict: ServingVerdict;
 }): boolean {
+  /*
+   * A FULL WINDOW BLOCKS AT EVERY URGENCY, which is the one exception to the
+   * rule above and not a tightening of it. The others are things we tell the
+   * customer and carry on past, because the booking would still work. This one
+   * would not: `enforce_slot_capacity` refuses the insert, so carrying on past
+   * it means walking somebody through a confirm button that cannot succeed.
+   */
+  if (!input.verdict.ok && input.verdict.reason === "full") return true;
+
   return input.urgency === "emergency" && !input.verdict.ok;
 }

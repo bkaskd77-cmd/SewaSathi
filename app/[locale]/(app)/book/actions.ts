@@ -15,6 +15,7 @@ import {
   type BookingInput,
   type CreateBookingResult,
 } from "@/lib/data/bookings";
+import { providerCapacity } from "@/lib/data/capacity";
 import { listProviders } from "@/lib/data/providers";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { rankProviders } from "@/lib/data/ranking";
@@ -63,6 +64,15 @@ export type ShortlistEntry = {
    * somebody with no price on screen at all and meet a range on the next page.
    */
   baseRate: number;
+  /**
+   * Window starts this professional's time is already spoken for, so a row can
+   * be greyed BEFORE somebody taps it rather than after four screens of input.
+   * Deliberately thin — a start and nothing else, never whose job it is or
+   * where. `enforce_slot_capacity` is what actually holds; this is courtesy.
+   */
+  heldWindows: string[];
+  /** How many they may hold at once, probation and any override applied. */
+  capacity: number;
 };
 
 export async function shortlistAction(input: {
@@ -83,7 +93,13 @@ export async function shortlistAction(input: {
     area: input.area,
   });
 
-  return ranked.slice(0, 5).map((provider) => ({
+  const shortlist = ranked.slice(0, 5);
+  const capacity = await providerCapacity(
+    shortlist.map((p) => p.id),
+    input.category,
+  );
+
+  return shortlist.map((provider) => ({
     id: provider.id,
     displayName: provider.displayName,
     photoUrl: provider.photoUrl,
@@ -97,6 +113,17 @@ export async function shortlistAction(input: {
     avgResponseMinutes: provider.stats.avgResponseMinutes,
     responseSamples: provider.stats.responseSamples,
     baseRate: provider.baseRate,
+    heldWindows: (capacity[provider.id]?.held ?? []).map((job) =>
+      typeof job.scheduledFor === "string"
+        ? job.scheduledFor
+        : (job.scheduledFor?.toISOString() ?? ""),
+    ),
+    /*
+     * One when we could not read it. The trigger refuses the booking either
+     * way, so the honest failure is a row that looks busy and is not — never
+     * a row that looks free and then refuses at the confirm button.
+     */
+    capacity: capacity[provider.id]?.capacity ?? 1,
   }));
 }
 

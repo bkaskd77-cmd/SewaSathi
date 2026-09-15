@@ -7,6 +7,14 @@ import { BadgeCheck, Check, Sparkles, Star } from "lucide-react";
 import type { ShortlistEntry } from "@/app/[locale]/(app)/book/actions";
 import { Badge } from "@/components/ui/badge";
 import {
+  bookableDays,
+  formatSlotInstant,
+  hasRoom,
+  nextFreeSlot,
+  slotsForDay,
+  type HeldJob,
+} from "@/lib/booking";
+import {
   canServeAt,
   hasRating,
   hasResponse,
@@ -38,6 +46,7 @@ export function StepProvider({
   onChosenEntry,
   when = null,
   band,
+  onReslot,
 }: {
   category: string;
   area: string | null;
@@ -57,6 +66,16 @@ export function StepProvider({
   when?: string | null;
   /** The published band of the category being booked. */
   band: { low: number; high: number } | null;
+  /**
+   * One tap out of a full window.
+   *
+   * A greyed row that only says no is a dead end on the screen where somebody
+   * has already typed four screens of answers. Given the next slot this
+   * professional could actually take, this rewrites the time and keeps
+   * everything else — so choosing the person they wanted costs one tap rather
+   * than walking back through the flow.
+   */
+  onReslot?: (slot: string) => void;
 }) {
   const t = useTranslations("booking.flow.provider");
   const tc = useTranslations("common");
@@ -107,12 +126,69 @@ export function StepProvider({
     onChosenEntry(entries.find((p) => p.id === providerId) ?? null);
   }, [onChosenEntry, entries, providerId, autoAssign]);
 
+  /*
+   * Computed on mount, never at render time, for the same reason the When step
+   * does it: a tab left open overnight would otherwise keep offering a window
+   * that has passed, and the server's clock is not the customer's.
+   */
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  /*
+   * THE SAME GENERATOR THE WHEN STEP RENDERS. A "next free" the picker does
+   * not offer is a button that leads to a time the server then refuses, which
+   * is a worse dead end than the greyed row it replaced.
+   */
+  const candidates = React.useMemo(() => {
+    if (!now) return [];
+    return bookableDays(now).flatMap((day) =>
+      slotsForDay(day.value, now).map((slot) => slot.start),
+    );
+  }, [now]);
+
+  const heldFor = (provider: ShortlistEntry): HeldJob[] =>
+    provider.heldWindows.map((start) => ({
+      scheduledFor: start,
+      // Everything the server sent already holds time — it filtered on that —
+      // so the status is only here to satisfy the same shape the rule uses.
+      status: "accepted",
+    }));
+
+  /** Is the window the customer asked for already spoken for? */
+  const fullFor = (provider: ShortlistEntry) =>
+    !hasRoom({
+      jobs: heldFor(provider),
+      scheduledFor: when,
+      capacity: provider.capacity,
+      at: now ?? undefined,
+    });
+
   /** What each option can do about the time the customer asked for. */
   const verdictFor = (provider: ShortlistEntry) =>
     canServeAt({
       state: provider.availability as Availability,
       busyUntil: provider.busyUntil,
       when,
+      /*
+       * Only once the clock is known. Before that `now` is null and every
+       * window would be judged against the server's render time — and the
+       * honest answer to "is two o'clock taken" before we know what time it is
+       * is nothing, not "yes".
+       */
+      windowFull: now ? fullFor(provider) : false,
+    });
+
+  /** The first slot the picker offers that this professional could take. */
+  const nextFreeFor = (provider: ShortlistEntry) =>
+    nextFreeSlot({
+      candidates,
+      jobs: heldFor(provider),
+      capacity: provider.capacity,
+      at: now ?? undefined,
     });
 
   /*
@@ -217,31 +293,21 @@ export function StepProvider({
                 {group.entries.map((provider, i) => {
                   const active = !autoAssign && providerId === provider.id;
                   const verdict = verdictFor(provider);
-                  // An emergency is the only case where a refusal stops the
-                  // choice. Everywhere else it is a note, and the review
-                  // screen makes the promise about what happens next.
-                  const barred = emergency && !verdict.ok;
+                  /*
+                   * AN EMERGENCY IS NOT THE ONLY STOP ANY MORE. A full window
+                   * is the other, and it is a different kind: the others are
+                   * things the professional has said about themselves, this is
+                   * something the product already promised somebody else. The
+                   * database refuses the insert either way, so letting the
+                   * customer tap through would spend four screens of their
+                   * effort on a confirm button that cannot work.
+                   */
+                  const full = !verdict.ok && verdict.reason === "full";
+                  const barred = full || (emergency && !verdict.ok);
+                  const free = full ? nextFreeFor(provider) : null;
 
-                  return (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      disabled={barred}
-                      onClick={() =>
-                        onChoose({ providerId: provider.id, autoAssign: false })
-                      }
-                      aria-pressed={active}
-                      style={{ ["--i" as string]: i }}
-                      className={cn(
-                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-200",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                        barred
-                          ? "cursor-not-allowed border-border opacity-60"
-                          : active
-                            ? "border-primary bg-primary/[0.06]"
-                            : "border-border hover:border-primary/40 hover:bg-muted/40",
-                      )}
-                    >
+                  const content = (
+                    <>
                       <span
                         aria-hidden="true"
                         className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-body-md font-semibold text-muted-foreground"
@@ -340,6 +406,76 @@ export function StepProvider({
                           className="mt-0.5 size-4 shrink-0 text-primary"
                         />
                       ) : null}
+                    </>
+                  );
+
+                  /*
+                   * THE GREYED ROW. Dimmed, and deliberately NOT a warning
+                   * colour — nothing has gone wrong and nobody has done
+                   * anything careless; the time is simply taken. It carries a
+                   * way forward rather than only a refusal, because this is
+                   * the screen where somebody has already answered four
+                   * questions and a dead end here loses the whole booking.
+                   *
+                   * A div, not a disabled button, because the way forward is
+                   * itself a button and a button inside a button is not a
+                   * thing a browser will render.
+                   */
+                  if (full) {
+                    return (
+                      <div
+                        key={provider.id}
+                        style={{ ["--i" as string]: i }}
+                        className="rounded-xl border border-border p-4 opacity-60"
+                      >
+                        <div className="flex items-start gap-3 text-left">
+                          {content}
+                        </div>
+                        <p className="mt-3 text-caption text-muted-foreground">
+                          {when
+                            ? t("bookedAt", { when: formatSlotInstant(when) })
+                            : t("cannotComeNow")}
+                        </p>
+                        {free && onReslot ? (
+                          <button
+                            type="button"
+                            onClick={() => onReslot(free)}
+                            className="btn-tactile mt-2 rounded-lg border border-border px-3 py-1.5 text-body-sm font-semibold transition-colors duration-200 hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {t("nextFreeAction", { when: formatSlotInstant(free) })}
+                          </button>
+                        ) : (
+                          /* Nothing inside the horizon. Saying so beats a
+                             button that leads nowhere. */
+                          <p className="mt-1 text-caption text-muted-foreground">
+                            {t("noneFree")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      disabled={barred}
+                      onClick={() =>
+                        onChoose({ providerId: provider.id, autoAssign: false })
+                      }
+                      aria-pressed={active}
+                      style={{ ["--i" as string]: i }}
+                      className={cn(
+                        "flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        barred
+                          ? "cursor-not-allowed border-border opacity-60"
+                          : active
+                            ? "border-primary bg-primary/[0.06]"
+                            : "border-border hover:border-primary/40 hover:bg-muted/40",
+                      )}
+                    >
+                      {content}
                     </button>
                   );
                 })}

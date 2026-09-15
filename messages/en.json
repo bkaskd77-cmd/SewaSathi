@@ -512,6 +512,10 @@
           "scheduled": "By appointment"
         },
         "cannotComeNow": "Cannot come right now",
+        "bookedAt": "Already booked at {when}",
+        "nextFree": "Next free {when}",
+        "nextFreeAction": "Book {when} instead",
+        "noneFree": "No free time left this week",
         "notRated": "Not rated yet"
       },
       "review": {
@@ -567,13 +571,15 @@
           "tooManyPixels": "That photo is too large to display. Try a smaller one."
         },
         "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again.",
-        "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick."
+        "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick.",
+        "providerFull": "Somebody booked that time while you were filling this in. Pick another time, or let us choose."
       },
       "cannotCome": {
         "reason": {
           "onJobNow": "{name} is on another job right now",
           "busyNow": "{name} is not taking work right now",
-          "busyThen": "{name} is not free at the time you picked"
+          "busyThen": "{name} is not free at the time you picked",
+          "full": "{name} is already booked at the time you picked"
         },
         "emergencyBody": "You told us you need somebody now, so we will not keep you waiting on one person. Pick anybody marked free — they can set off straight away.",
         "waitBody": "We will let them know the moment you confirm. If there is no answer in {minutes} minutes, you can open the job to everybody from your booking page.",

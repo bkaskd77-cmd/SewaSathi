@@ -79,6 +79,16 @@ export function pickAlternatives(
     exclude?: readonly string[];
     /** The slot the booking is for. Null or absent means as soon as possible. */
     scheduledFor?: string | null;
+    /**
+     * Whose window is already spoken for, by listing id.
+     *
+     * PASSED IN BECAUSE THIS FILE IS PURE — the caller reads it with
+     * `providerCapacity`. Absent means nobody asked, which is not the same as
+     * "everybody is free": a caller that omits it gets today's behaviour and
+     * the database still refuses the booking. Every caller in the product
+     * passes it.
+     */
+    full?: ReadonlySet<string>;
     limit?: number;
   } = {},
 ): Alternative[] {
@@ -96,6 +106,14 @@ export function pickAlternatives(
       state: p.availability,
       busyUntil: p.busyUntil,
       when,
+      /*
+       * A NAME WHOSE WINDOW IS TAKEN IS NOT A REPLACEMENT. This list is shown
+       * to somebody already let down once, so offering a second person who
+       * cannot be booked either would spend the last of their patience on a
+       * tap that fails. `blocksBooking` treats `full` as a stop at every
+       * urgency, so this drops them here rather than only on an emergency.
+       */
+      windowFull: options.full?.has(p.id) ?? false,
     });
     return !blocksBooking({ urgency: options.urgency, verdict });
   });

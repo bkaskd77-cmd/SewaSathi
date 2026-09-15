@@ -153,3 +153,57 @@ describe("what stops a booking and what merely warns", () => {
     ).toBe(false);
   });
 });
+
+describe("a window somebody else already has", () => {
+  /*
+   * A DIFFERENT KIND OF NO FROM THE OTHER THREE. Those are things the
+   * professional has said about themselves and the product says them and
+   * carries on, because the booking would still work. This one would not:
+   * `enforce_slot_capacity` refuses the insert, so carrying on past it walks
+   * somebody through four screens to a confirm button that cannot succeed.
+   */
+
+  it("refuses whatever else is true about them", () => {
+    const verdict = canServeAt({
+      state: "now",
+      when: "2026-09-17T08:15:00Z",
+      windowFull: true,
+    });
+    expect(verdict.ok).toBe(false);
+    expect(!verdict.ok && verdict.reason).toBe("full");
+  });
+
+  it("offers no freeFrom, because a full window says nothing about when it empties", () => {
+    // The screen offers the next slot the picker itself would show, rather
+    // than a time this function would have to invent.
+    const verdict = canServeAt({ state: "now", windowFull: true });
+    expect(!verdict.ok && verdict.freeFrom).toBeNull();
+  });
+
+  it("is not the same as nobody having asked", () => {
+    // `windowFull` undefined is every caller from before capacity existed. It
+    // must read as "unknown", never as "there is room" — and never as "full".
+    expect(canServeAt({ state: "now" }).ok).toBe(true);
+    expect(canServeAt({ state: "now", windowFull: false }).ok).toBe(true);
+  });
+
+  it("stops a booking at every urgency, not only an emergency", () => {
+    const verdict = canServeAt({
+      state: "now",
+      when: "2026-09-17T08:15:00Z",
+      windowFull: true,
+    });
+    for (const urgency of ["emergency", "soon", "routine", null]) {
+      expect(blocksBooking({ urgency, verdict })).toBe(true);
+    }
+  });
+
+  it("leaves the other refusals exactly as they were", () => {
+    // The full-window rule is an exception to "only an emergency stops", not a
+    // tightening of it: a scheduled job against somebody on another job right
+    // now is still a perfectly good booking.
+    const onJob = canServeAt({ state: "on_job" });
+    expect(blocksBooking({ urgency: "emergency", verdict: onJob })).toBe(true);
+    expect(blocksBooking({ urgency: "routine", verdict: onJob })).toBe(false);
+  });
+});

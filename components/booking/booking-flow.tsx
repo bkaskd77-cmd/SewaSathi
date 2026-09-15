@@ -31,7 +31,12 @@ import {
   type FlowState,
   type FlowStep,
 } from "@/lib/booking";
-import { formatInstant, formatSlotInstant } from "@/lib/booking";
+import {
+  formatInstant,
+  formatSlotInstant,
+  hasRoom,
+  slotDay,
+} from "@/lib/booking";
 import {
   blocksBooking,
   canServeAt,
@@ -152,6 +157,26 @@ export function BookingFlow({
 
   const patch = React.useCallback((next: Partial<FlowState>) => {
     setState((current) => ({ ...current, ...next }));
+    setErrors({});
+  }, []);
+
+  /*
+   * ONE TAP OUT OF A FULL WINDOW.
+   *
+   * Rewrites the time and NOTHING ELSE — the description, the photo, the
+   * address and the professional all stay exactly as typed. The day has to
+   * move with the slot or the When step would render a picker pointing at a
+   * different date from the booking, which reads as the product losing the
+   * answer somebody just gave it.
+   */
+  const reslot = React.useCallback((slot: string) => {
+    setState((current) => ({
+      ...current,
+      timing: "scheduled",
+      // The Nepal date the slot falls on, which is what the day picker holds.
+      day: slotDay(slot),
+      slot,
+    }));
     setErrors({});
   }, []);
 
@@ -282,11 +307,30 @@ export function BookingFlow({
     scheduledFor: state.timing === "scheduled" ? state.slot : null,
   });
 
+  /*
+   * THE REVIEW SCREEN ASKS THE SAME QUESTION THE ROW DID. The customer can get
+   * here with a professional chosen and then change the time on the When step,
+   * which is exactly the path that walks somebody into a confirm button the
+   * database will refuse. Recomputed from the entry they chose rather than
+   * remembered from the row.
+   */
+  const chosenFull =
+    !!chosen &&
+    !hasRoom({
+      jobs: chosen.heldWindows.map((start) => ({
+        scheduledFor: start,
+        status: "accepted",
+      })),
+      scheduledFor: when,
+      capacity: chosen.capacity,
+    });
+
   const verdict = chosen
     ? canServeAt({
         state: chosen.availability as Availability,
         busyUntil: chosen.busyUntil,
         when,
+        windowFull: chosenFull,
       })
     : { ok: true as const };
 
@@ -403,6 +447,7 @@ export function BookingFlow({
               band={band}
               onChoose={patch}
               onChosenEntry={setChosen}
+              onReslot={reslot}
             />
           ) : null}
 

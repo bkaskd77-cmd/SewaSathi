@@ -171,6 +171,23 @@ export function formatSlotInstant(iso: string): string {
   return `${parts.y}-${pad(parts.m + 1)}-${pad(parts.d)} · ${pad(parts.h)}:00 – ${pad(end)}:00`;
 }
 
+/**
+ * The Nepal date a slot falls on — "2026-09-02".
+ *
+ * The day picker holds a Nepal date and a slot holds a UTC instant, so reading
+ * the first ten characters of the ISO string is right only because working
+ * hours happen not to straddle midnight UTC at +05:45. That is a coincidence
+ * of the current hours, not a rule, and the day a customer is shown must not
+ * depend on one. This converts properly.
+ */
+export function slotDay(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return "";
+  const parts = nptParts(when);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parts.y}-${pad(parts.m + 1)}-${pad(parts.d)}`;
+}
+
 /** Month names, both languages. Short enough not to need a formatter. */
 const MONTHS = {
   en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],

@@ -10,6 +10,7 @@ import { categoryCopy } from "@/lib/config/services";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
 import { getCategories } from "@/lib/data/categories";
+import { providerCapacity } from "@/lib/data/capacity";
 import { getProvider } from "@/lib/data/providers";
 import { formatNpr } from "@/lib/utils";
 
@@ -73,6 +74,17 @@ export default async function BookPage({
     profile ? listAddresses() : Promise.resolve([]),
     providerId ? getProvider(providerId) : Promise.resolve(null),
   ]);
+
+  /*
+   * The preselected professional's own capacity, so the review screen can say
+   * "already booked at that time" about the person who came in on the URL.
+   * Without this the one professional a customer arrived WANTING is the only
+   * one whose full window was invisible.
+   */
+  const preselectedCapacity =
+    provider && categorySlug
+      ? (await providerCapacity([provider.id], categorySlug))[provider.id]
+      : undefined;
 
   const ward = (n: number) => tServices("ward", { n: String(n) });
 
@@ -167,6 +179,12 @@ export default async function BookPage({
                   avgResponseMinutes: provider.stats.avgResponseMinutes,
                   responseSamples: provider.stats.responseSamples,
                   baseRate: provider.baseRate,
+                  heldWindows: (preselectedCapacity?.held ?? []).map((job) =>
+                    typeof job.scheduledFor === "string"
+                      ? job.scheduledFor
+                      : (job.scheduledFor?.toISOString() ?? ""),
+                  ),
+                  capacity: preselectedCapacity?.capacity ?? 1,
                 }
               : null
           }

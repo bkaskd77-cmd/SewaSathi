@@ -9,6 +9,8 @@ import {
   markDataSource,
   rethrowFrameworkSignal,
 } from "@/lib/data/source";
+import { hasRoom } from "@/lib/booking";
+import { providerCapacity } from "@/lib/data/capacity";
 import { hasSupabaseConfig } from "@/lib/env";
 import {
   pickAlternatives,
@@ -16,6 +18,7 @@ import {
 } from "@/lib/data/recommendations";
 import {
   providerState,
+  servingWhen,
   type Availability,
   type BaseAvailability,
 } from "@/lib/provider";
@@ -522,10 +525,39 @@ export async function listAlternatives(input: {
   scheduledFor?: string | null;
 }): Promise<Alternative[]> {
   const providers = await listProviders({ category: input.category });
+
+  /*
+   * Whose window is already taken, asked once for the whole list rather than
+   * per candidate. Somebody who cannot be booked is not a replacement, and
+   * this list is read by a customer who has already been let down once.
+   */
+  const capacity = await providerCapacity(
+    providers.map((p) => p.id),
+    input.category,
+  );
+  const when = servingWhen({
+    urgency: input.urgency,
+    scheduledFor: input.scheduledFor,
+  });
+  const full = new Set(
+    providers
+      .filter((provider) => {
+        const seat = capacity[provider.id];
+        if (!seat) return false;
+        return !hasRoom({
+          jobs: seat.held,
+          scheduledFor: when,
+          capacity: seat.capacity,
+        });
+      })
+      .map((provider) => provider.id),
+  );
+
   return pickAlternatives(providers, {
     area: input.area,
     urgency: input.urgency,
     exclude: input.exclude,
     scheduledFor: input.scheduledFor,
+    full,
   });
 }

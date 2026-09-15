@@ -260,3 +260,46 @@ describe("nothing else is filtered, because being busy now is not being gone", (
     ).toHaveLength(0);
   });
 });
+
+describe("a replacement whose window is already taken is not a replacement", () => {
+  /*
+   * This list is read by somebody who has already been let down once. Offering
+   * a second name that also cannot be booked spends the last of their patience
+   * on a tap that fails — so a full window drops them at EVERY urgency, unlike
+   * every other refusal here.
+   */
+
+  it("drops them from a routine job as well as an emergency", () => {
+    const taken = provider();
+    const slot = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+
+    for (const urgency of ["routine", "soon", "emergency"]) {
+      expect(
+        pickAlternatives([taken], {
+          urgency,
+          scheduledFor: slot,
+          full: new Set([taken.id]),
+        }),
+      ).toHaveLength(0);
+    }
+  });
+
+  it("keeps everybody else in the same list", () => {
+    const taken = provider();
+    const free = provider();
+
+    const picked = pickAlternatives([taken, free], {
+      urgency: "routine",
+      full: new Set([taken.id]),
+    });
+    expect(picked.map((p) => p.provider.id)).toEqual([free.id]);
+  });
+
+  it("changes nothing when the caller does not ask", () => {
+    // Omitting `full` is every caller from before capacity existed. It reads
+    // as "nobody asked", never as "everybody is busy" — the database still
+    // refuses the booking, and a list that silently emptied would be worse.
+    const anyone = provider();
+    expect(pickAlternatives([anyone], { urgency: "routine" })).toHaveLength(1);
+  });
+});
