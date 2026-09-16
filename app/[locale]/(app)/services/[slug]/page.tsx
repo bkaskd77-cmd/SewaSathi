@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
-import { categoryCopy } from "@/lib/config/services";
+import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategory } from "@/lib/data/categories";
 import type { SortOption } from "@/lib/data/ranking";
@@ -57,11 +57,18 @@ export async function generateMetadata({
 
   const copy = categoryCopy(category, locale);
   const title = t("categoryTitle", { category: copy.name });
-  const description = t("categoryDescription", {
-    description: copy.description,
-    low: formatNpr(category.basePriceMin, { locale }),
-    high: formatNpr(category.basePriceMax, { locale }),
-  });
+  /*
+   * The search snippet is the one place a price gets quoted with nobody
+   * around to qualify it, so a survey trade must not carry one here either.
+   * Google caches this; an invented range would outlive the fix.
+   */
+  const description = isSurveyPriced(category)
+    ? t("categoryDescriptionSurvey", { description: copy.description })
+    : t("categoryDescription", {
+        description: copy.description,
+        low: formatNpr(category.basePriceMin, { locale }),
+        high: formatNpr(category.basePriceMax, { locale }),
+      });
 
   return {
     title,
@@ -176,14 +183,29 @@ export default async function CategoryPage({
           </p>
         )}
 
-        <p className="mt-3 text-body-sm text-muted-foreground">
-          {t("typicalRangeLabel")}{" "}
-          <span className="font-semibold tabular-nums text-foreground">
-            {formatNpr(category.basePriceMin, { locale })} –{" "}
-            {formatNpr(category.basePriceMax, { locale })}
-          </span>{" "}
-          · {t("priceConfirmedAfter")}
-        </p>
+        {isSurveyPriced(category) ? (
+          /*
+             NO RANGE, AND A REASON RATHER THAN AN APOLOGY. "Priced after a
+             free survey" on its own reads as a product that will not say; the
+             second line says why nobody in this trade says, which is the
+             honest and more reassuring version.
+           */
+          <p className="mt-3 text-body-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {t("surveyPriced")}
+            </span>{" "}
+            · {t("surveyPricedBody")}
+          </p>
+        ) : (
+          <p className="mt-3 text-body-sm text-muted-foreground">
+            {t("typicalRangeLabel")}{" "}
+            <span className="font-semibold tabular-nums text-foreground">
+              {formatNpr(category.basePriceMin, { locale })} –{" "}
+              {formatNpr(category.basePriceMax, { locale })}
+            </span>{" "}
+            · {t("priceConfirmedAfter")}
+          </p>
+        )}
       </header>
 
       <div className="animate-rise mt-6" style={{ animationDelay: "120ms" }}>

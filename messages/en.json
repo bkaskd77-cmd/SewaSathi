@@ -6,6 +6,7 @@
     "servicesDescription": "Plumbers, electricians, cleaners and more across Kathmandu, Lalitpur and Bhaktapur — with published price bands and verified professionals.",
     "categoryTitle": "{category} professionals",
     "categoryDescription": "{description} Verified professionals across the Kathmandu Valley, {low}–{high}.",
+    "categoryDescriptionSurvey": "{description} Verified professionals across the Kathmandu Valley. Priced after a free survey.",
     "categoryNotFound": "Service not found",
     "providerTitle": "{name} — {category}",
     "providerNotFound": "Professional not found",
@@ -198,6 +199,8 @@
     "inArea": "in {area}",
     "typicalRangeLabel": "Typical range",
     "priceConfirmedAfter": "price confirmed after the professional sees the job",
+    "surveyPriced": "Priced after a free survey",
+    "surveyPricedBody": "Nobody quotes a move without seeing it. We send somebody to look, free, and the price comes from what they find.",
     "urgency": {
       "emergency": "needed now",
       "soon": "needed soon",
@@ -449,6 +452,7 @@
         "categoryHelp": "We guessed from what you wrote. Change it if we got it wrong — the wrong service sends the wrong trade.",
         "categoryPlaceholder": "Choose a service",
         "estimate": "Usually {range}",
+        "estimateSurvey": "Priced after a free survey",
         "photoLabel": "Photo",
         "photoHelp": "Optional, but it is the fastest way for someone to know what they are walking into.",
         "photoAdd": "Add a photo",
@@ -540,7 +544,10 @@
         },
         "estimateTitle": "This is an estimate, not a final price",
         "estimateBody": "Your professional checks the job on site and agrees the final figure with you before any work starts. If you do not agree it, you pay nothing and they leave.",
-        "estimateBadge": "No work begins until you agree the price"
+        "estimateBadge": "No work begins until you agree the price",
+        "surveyTitle": "We come and look first, free",
+        "surveyBody": "Nobody quotes a move without seeing how much there is. Somebody comes at the time you picked, looks, and sends you a price. You approve it before anything is loaded — and if you say no, you pay nothing.",
+        "surveyBadge": "The survey costs you nothing"
       },
       "success": {
         "title": "Booked",
@@ -760,7 +767,11 @@
       "noProviderFound": "Nobody available",
       "assigned": "Professional chosen",
       "receipt": "Receipt: {amount}",
-      "mismatch": "Amounts do not match"
+      "mismatch": "Amounts do not match",
+      "quoteReady": "Your price is ready",
+      "quoteExpired": "That price has expired",
+      "quoteApproved": "Price accepted",
+      "quoteDeclined": "Price turned down"
     },
     "alternatives": {
       "heading": "Choose someone else",
@@ -860,6 +871,28 @@
         "notSignedIn": "Sign in again to send this.",
         "unavailable": "We couldn't send that just now. Try again.",
         "generic": "We couldn't send that just now. Try again."
+      }
+    },
+    "quote": {
+      "awaitingSurveyTitle": "Somebody is coming to look",
+      "awaitingSurveyBody": "Nobody can price a move without seeing how much there is. Once they have looked you will get a price here, and nothing happens until you accept it.",
+      "readyTitle": "Your price",
+      "readyBody": "This is what the move will cost, between these two figures. Nothing is loaded until you accept.",
+      "holdsUntil": "This price holds until {when}.",
+      "approve": "Accept this price",
+      "decline": "No thanks",
+      "approving": "Accepting…",
+      "approvedTitle": "Price accepted",
+      "approvedBody": "Your professional can start at the agreed time. The final figure is still the one you accepted.",
+      "declinedTitle": "You turned this price down",
+      "declinedBody": "Nothing is owed and the survey cost you nothing. You can ask for a fresh survey any time.",
+      "expiredTitle": "That price has expired",
+      "expiredBody": "A moving price is built from that week's van and that week's crew, so it cannot be held open for long. Ask for a fresh survey and somebody will come and look again.",
+      "askAgain": "Ask for a new survey",
+      "errors": {
+        "expired": "That price expired before it was accepted. Ask for a fresh survey.",
+        "alreadyAnswered": "This price has already been answered.",
+        "failed": "That did not go through. Try again."
       }
     }
   },
@@ -1192,6 +1225,16 @@
           "upheld": "Accepted — the fee was recalculated",
           "rejected": "Reviewed — the fee stands"
         }
+      },
+      "survey": {
+        "label": "What will this move cost?",
+        "help": "A range, not one figure — the same shape every other trade quotes in, and it leaves room for the ordinary overrun without needing the customer to approve it twice.",
+        "min": "From",
+        "max": "Up to",
+        "submit": "Send this price",
+        "sending": "Sending…",
+        "sent": "Sent. Nothing starts until the customer accepts it.",
+        "holds": "The price you send holds for {hours} hours."
       }
     },
     "arrival": {

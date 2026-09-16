@@ -12,10 +12,23 @@ import { cn } from "@/lib/utils";
 export type CategoryOption = {
   slug: string;
   label: string;
-  priceMin: number;
-  priceMax: number;
-  /** Formatted on the server — currency rules are locale-aware. */
+  /**
+   * The published band, or null on a trade that has none.
+   *
+   * NULL IS A REAL ANSWER HERE, not a missing value. Movers and packers is
+   * priced after a free survey because no operator in the market quotes one
+   * before looking, and rendering the stored numbers anyway is how the invented
+   * Rs 5,000-20,000 survived on five screens after the data said otherwise.
+   */
+  priceMin: number | null;
+  priceMax: number | null;
+  /**
+   * Formatted on the server — currency rules are locale-aware. On a survey
+   * trade this is the sentence, not a range.
+   */
   quoteLabel: string;
+  /** True when this trade publishes no price at all. See `isSurveyPriced`. */
+  surveyPriced: boolean;
 };
 
 /**
@@ -159,7 +172,12 @@ export function StepProblem({
         </select>
         {selected ? (
           <p className="mt-2 text-caption tabular-nums text-muted-foreground">
-            {t("estimate", { range: selected.quoteLabel })}
+            {/* "Usually Rs 5,000-20,000" on a trade that publishes no price is
+                the invented figure wearing a hedge. A survey trade says what it
+                actually does instead. */}
+            {selected.surveyPriced
+              ? t("estimateSurvey")
+              : t("estimate", { range: selected.quoteLabel })}
           </p>
         ) : null}
       </div>

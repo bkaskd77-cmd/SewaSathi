@@ -62,6 +62,7 @@ export type ServingNotice = {
 export function StepReview({
   rows,
   quoteLabel,
+  surveyPriced = false,
   payment,
   error,
   serving,
@@ -70,6 +71,16 @@ export function StepReview({
 }: {
   rows: ReviewRow[];
   quoteLabel: string;
+  /**
+   * True on a trade that publishes no price at all.
+   *
+   * The estimate panel is the product's core promise and it cannot simply be
+   * dropped here — a screen that says nothing about money before a confirm
+   * button is worse than one that says a range. So the panel stays and the
+   * promise changes: not "this is roughly the price", but "we look first, free,
+   * and you approve the price before anything is loaded".
+   */
+  surveyPriced?: boolean;
   payment: PaymentMethod;
   error?: string | null;
   /** Null when the customer let us assign, or when nobody is chosen yet. */
@@ -182,14 +193,16 @@ export function StepReview({
       <div className="rounded-xl border border-primary/25 bg-primary/[0.05] p-4">
         <p className="flex items-center gap-2 text-body-sm font-semibold text-primary">
           <Info aria-hidden="true" className="size-4 shrink-0" />
-          {t("estimateTitle")}
+          {t(surveyPriced ? "surveyTitle" : "estimateTitle")}
         </p>
-        <p className="mt-1.5 text-body-md tabular-nums">{quoteLabel}</p>
+        {surveyPriced ? null : (
+          <p className="mt-1.5 text-body-md tabular-nums">{quoteLabel}</p>
+        )}
         <p className="mt-1.5 text-body-sm text-muted-foreground">
-          {t("estimateBody")}
+          {t(surveyPriced ? "surveyBody" : "estimateBody")}
         </p>
         <Badge variant="verified" className="mt-3">
-          {t("estimateBadge")}
+          {t(surveyPriced ? "surveyBadge" : "estimateBadge")}
         </Badge>
       </div>
 

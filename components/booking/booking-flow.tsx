@@ -352,9 +352,18 @@ export function BookingFlow({
    * The ceiling stays the category's in every case — a professional names a
    * starting price, never a maximum.
    */
-  const band = selectedCategory
-    ? { low: selectedCategory.priceMin, high: selectedCategory.priceMax }
-    : null;
+  /*
+   * NULL ON A SURVEY TRADE, and that is the point rather than a gap. Every
+   * screen downstream already handles a null band — it is what a customer who
+   * has not picked a category yet sees — so a trade with no published price
+   * travels the same path instead of needing five separate exceptions.
+   */
+  const band =
+    selectedCategory &&
+    selectedCategory.priceMin !== null &&
+    selectedCategory.priceMax !== null
+      ? { low: selectedCategory.priceMin, high: selectedCategory.priceMax }
+      : null;
 
   const quoteLabel = band
     ? `${formatNpr(
@@ -461,6 +470,7 @@ export function BookingFlow({
                 areaLabels,
               })}
               quoteLabel={quoteLabel}
+              surveyPriced={selectedCategory?.surveyPriced ?? false}
               payment={state.paymentMethod}
               error={errors.form ?? errors.provider ?? errors.category}
               serving={

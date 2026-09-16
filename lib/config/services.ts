@@ -128,6 +128,27 @@ export type Category = {
 };
 
 /**
+ * Does this trade publish a price at all?
+ *
+ * ONE PLACE ASKS IT, because the alternative is what shipped: the database
+ * said `survey`, the triage prompt listed movers with no range, the launch
+ * blocker named the right remedy — and five screens went on rendering an
+ * invented Rs 5,000–20,000. The data was honest and the product was not, which
+ * is the worse half to leave, and it happened because each screen re-derived
+ * "should I show a range" as "does it have numbers".
+ *
+ * Movers and packers is the case and the reason is a finding, not a gap: no
+ * Nepali operator publishes a figure, every one quotes after a survey, and
+ * inventing a range would fabricate the one number the market itself refuses
+ * to state before looking at the job.
+ */
+export function isSurveyPriced(
+  category: Pick<Category, "pricingModel">,
+): boolean {
+  return category.pricingModel === "survey";
+}
+
+/**
  * A category's copy in one language.
  *
  * Category copy is data, not interface strings — it lives in the `categories`

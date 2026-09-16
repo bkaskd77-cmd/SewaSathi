@@ -1,6 +1,10 @@
 import "server-only";
 
-import { judgeCancellation, type BookingStatus } from "@/lib/booking";
+import {
+  judgeCancellation,
+  type BookingStatus,
+  type QuoteModel,
+} from "@/lib/booking";
 import { canTransition } from "@/lib/booking";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -56,8 +60,18 @@ export type ProviderJob = {
   description: string;
   urgency: string;
   scheduledFor: string | null;
-  quotedMin: number;
-  quotedMax: number;
+  /**
+   * Null on a survey-priced job nobody has been to look at yet. Typed that way
+   * so the card has to say what it shows instead of formatting a null into
+   * "Rs 0" beside a real figure.
+   */
+  quotedMin: number | null;
+  quotedMax: number | null;
+  quoteModel: QuoteModel;
+  surveyedAt: string | null;
+  quoteExpiresAt: string | null;
+  quoteApprovedAt: string | null;
+  quoteDeclinedAt: string | null;
   finalAmount: number | null;
   /** pending | paid — the booking's own payment state, not a payment row. */
   paymentStatus: string;
@@ -118,7 +132,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -234,8 +248,13 @@ export async function listProviderJobs(
       description: row.description as string,
       urgency: row.urgency as string,
       scheduledFor: (row.scheduled_for as string | null) ?? null,
-      quotedMin: row.quoted_min as number,
-      quotedMax: row.quoted_max as number,
+      quotedMin: (row.quoted_min as number | null) ?? null,
+      quotedMax: (row.quoted_max as number | null) ?? null,
+      quoteModel: ((row.quote_model as string | null) ?? "band") as QuoteModel,
+      surveyedAt: (row.surveyed_at as string | null) ?? null,
+      quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
+      quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
+      quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
       finalAmount: (row.final_amount as number | null) ?? null,
       paymentStatus: (row.payment_status as string) ?? "pending",
       paymentMethod: (row.payment_method as string) ?? "cash",
@@ -546,7 +565,7 @@ export async function listOpenJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
       )
       .is("provider_id", null)
       .eq("status", "pending")
@@ -582,8 +601,13 @@ export async function listOpenJobs(
         description: row.description as string,
         urgency: row.urgency as string,
         scheduledFor: (row.scheduled_for as string | null) ?? null,
-        quotedMin: row.quoted_min as number,
-        quotedMax: row.quoted_max as number,
+        quotedMin: (row.quoted_min as number | null) ?? null,
+        quotedMax: (row.quoted_max as number | null) ?? null,
+      quoteModel: ((row.quote_model as string | null) ?? "band") as QuoteModel,
+      surveyedAt: (row.surveyed_at as string | null) ?? null,
+      quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
+      quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
+      quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
         finalAmount: null,
         paymentStatus: "pending",
         paymentMethod: (row.payment_method as string) ?? "cash",

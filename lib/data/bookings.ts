@@ -3,13 +3,14 @@ import "server-only";
 import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
-import { hasRoom, isValidSlot } from "@/lib/booking";
+import { hasRoom, isValidSlot, type QuoteModel } from "@/lib/booking";
 import {
   isBookingStatus,
   judgeCancellation,
   type BookingStatus,
 } from "@/lib/booking";
 import { providerCapacity } from "@/lib/data/capacity";
+import { isSurveyPriced } from "@/lib/config/services";
 import { getCategory } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
@@ -60,8 +61,22 @@ export type Booking = {
   photoUrl: string | null;
   /** Null means as soon as possible — the default and the common case. */
   scheduledFor: string | null;
-  quotedMin: number;
-  quotedMax: number;
+  /**
+   * NULL ON A SURVEY BOOKING THAT NOBODY HAS PRICED YET, and typed that way on
+   * purpose: making these nullable is what forces every money surface to decide
+   * what it does with a job whose band does not exist, instead of coercing it
+   * to zero and carrying on. `Number(null)` is 0, and a 2x ceiling measured off
+   * zero is no ceiling at all.
+   */
+  quotedMin: number | null;
+  quotedMax: number | null;
+  /** `band` from the moment it was made, or `survey` — priced after a visit. */
+  quoteModel: QuoteModel;
+  surveyedAt: string | null;
+  /** When the surveyed price stops being honourable. */
+  quoteExpiresAt: string | null;
+  quoteApprovedAt: string | null;
+  quoteDeclinedAt: string | null;
   finalAmount: number | null;
   /** Why the professional went over the band, in their own words. */
   finalAmountReason: string | null;
@@ -149,7 +164,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -166,8 +181,13 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     description: row.description as string,
     photoUrl: (row.photo_url as string | null) ?? null,
     scheduledFor: (row.scheduled_for as string | null) ?? null,
-    quotedMin: row.quoted_min as number,
-    quotedMax: row.quoted_max as number,
+    quotedMin: (row.quoted_min as number | null) ?? null,
+    quotedMax: (row.quoted_max as number | null) ?? null,
+    quoteModel: (row.quote_model as QuoteModel | null) ?? "band",
+    surveyedAt: (row.surveyed_at as string | null) ?? null,
+    quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
+    quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
+    quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
     finalAmount: (row.final_amount as number | null) ?? null,
     finalAmountReason: (row.final_amount_reason as string | null) ?? null,
     finalAmountApprovedAt:
@@ -249,7 +269,15 @@ export async function createBooking(
    * `bookings_sync_quote_floor`, because a job can change hands four different
    * ways and writing the recompute at each is four chances to forget.
    */
-  let floor = category.basePriceMin;
+  /*
+   * A SURVEY TRADE CARRIES NO BAND AT ALL, not even the numbers sitting in its
+   * category row. Movers still has a stored 5,000-20,000 from before the
+   * research found that nobody in the market quotes one — writing it here would
+   * put the invented figure straight back on the booking, where the 2x ceiling
+   * and the commission floor would both then be built from it.
+   */
+  const survey = isSurveyPriced(category);
+  let floor: number | null = survey ? null : category.basePriceMin;
 
   if (parsed.data.provider) {
     const provider = await getProvider(parsed.data.provider);
@@ -293,10 +321,15 @@ export async function createBooking(
       };
     }
 
-    floor = quoteFloor({
-      providerRate: provider.baseRate,
-      band: { low: category.basePriceMin, high: category.basePriceMax },
-    });
+    // Their dashboard rate is a starting price for a trade that HAS a band. A
+    // surveyed job's floor comes from the survey, not from a number set before
+    // anybody saw how much furniture there is.
+    if (!survey) {
+      floor = quoteFloor({
+        providerRate: provider.baseRate,
+        band: { low: category.basePriceMin, high: category.basePriceMax },
+      });
+    }
   }
 
   if (!hasSupabaseConfig()) {
@@ -346,8 +379,11 @@ export async function createBooking(
           urgency: parsed.data.urgency,
           scheduled_for: scheduledFor,
           // Frozen here, on purpose. See the note at the top of the file.
+          // Both null on a survey trade, which `bookings_band_only_null_for_survey`
+          // is what makes impossible anywhere else.
           quoted_min: floor,
-          quoted_max: category.basePriceMax,
+          quoted_max: survey ? null : category.basePriceMax,
+          quote_model: survey ? "survey" : "band",
           payment_method: parsed.data.paymentMethod,
           // The customer's actual choice, kept separately so it survives the
           // job being widened to other professionals. See lib/booking/dispatch.

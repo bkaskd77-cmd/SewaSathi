@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/session";
 import { type BookingStatus } from "@/lib/booking";
 import { openCommissionAppeal, recordFinalAmount } from "@/lib/data/payments";
-import { advanceJob, claimJob, declineJob } from "@/lib/data/provider-jobs";
+import {
+  advanceJob,
+  claimJob,
+  declineJob,
+  getMyProvider,
+} from "@/lib/data/provider-jobs";
+import { recordSurveyQuote } from "@/lib/data/survey";
 
 /**
  * The professional's actions.
@@ -199,4 +205,42 @@ export async function claimNoShowAction(input: {
 
   revalidatePath("/[locale]/(work)/provider/jobs", "page");
   return { ok: true };
+}
+
+/**
+ * Record what the survey found.
+ *
+ * A RANGE, NOT A FIGURE. Every other trade publishes a band and
+ * `judgeFinalAmount` measures the 2x customer protection off its maximum; a
+ * single number here would put that ceiling at exactly twice the quote, with no
+ * room for the ordinary overrun the approval flow exists to allow.
+ *
+ * Nothing about whether this is legal is decided here. `recordSurveyQuote`
+ * proves the job is this professional's with an RLS read, and
+ * `enforce_survey_quote` in Postgres is the rule that cannot be bypassed.
+ */
+export async function recordSurveyQuoteAction(
+  bookingId: string,
+  min: number,
+  max: number,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const me = await getMyProvider(profile.id);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const result = await recordSurveyQuote({
+    bookingId,
+    providerId: me.providerId,
+    min,
+    max,
+  });
+
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
 }

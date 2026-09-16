@@ -69,10 +69,23 @@ export type Split = {
  */
 export function commissionBasis(
   finalAmount: number,
-  quotedMin: number,
+  quotedMin: number | null,
   floorWaived = false,
 ): number {
   if (floorWaived) return finalAmount;
+  /*
+   * NO FLOOR MEANS NO FLOOR, and it charges the amount rather than refusing.
+   *
+   * A survey-priced job's floor is the surveyed one, written onto the booking
+   * before work could start — so by the time anything settles, `quotedMin` is a
+   * real number. Null here means something upstream went wrong, and the two
+   * wrong answers are worse than this one: `Math.max(amount, null)` is NaN,
+   * which makes the fee NaN and the professional's earning NaN; treating null
+   * as a floor of zero is what this already does, only implicitly. Charging the
+   * fee on what was actually collected is the option that cannot invent money
+   * in either direction.
+   */
+  if (quotedMin == null) return finalAmount;
   return Math.max(finalAmount, quotedMin);
 }
 
@@ -108,7 +121,7 @@ export function settleSplit(input: {
   /** What the customer actually paid. */
   amount: number;
   /** The booking's frozen lower band. */
-  quotedMin: number;
+  quotedMin: number | null;
   commissionBps?: number;
   /** Set by support when an appeal is upheld. */
   floorWaived?: boolean;

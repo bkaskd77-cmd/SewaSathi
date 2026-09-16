@@ -6,7 +6,7 @@ import { BookingFlow } from "@/components/booking/booking-flow";
 import type { SavedAddress } from "@/components/booking/step-address";
 import type { Locale } from "@/i18n/routing";
 import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
-import { categoryCopy } from "@/lib/config/services";
+import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
 import { getCategories } from "@/lib/data/categories";
@@ -151,16 +151,28 @@ export default async function BookPage({
             description: q,
             triageLogId,
           }}
-          categories={categories.map((category) => ({
-            slug: category.slug,
-            label: categoryCopy(category, locale).name,
-            priceMin: category.basePriceMin,
-            priceMax: category.basePriceMax,
-            // Formatted here rather than passed as a formatter: a function
-            // cannot cross the server/client boundary, and the locale-aware
-            // currency rules belong on the server anyway.
-            quoteLabel: `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
-          }))}
+          categories={categories.map((category) => {
+            /*
+             * A SURVEY TRADE CARRIES NO NUMBERS INTO THE FLOW AT ALL, not even
+             * as a value the screen then chooses to hide. Passing them down and
+             * trusting five components to remember is how the invented movers
+             * range survived on five screens after the data said otherwise.
+             */
+            const survey = isSurveyPriced(category);
+            return {
+              slug: category.slug,
+              label: categoryCopy(category, locale).name,
+              priceMin: survey ? null : category.basePriceMin,
+              priceMax: survey ? null : category.basePriceMax,
+              surveyPriced: survey,
+              // Formatted here rather than passed as a formatter: a function
+              // cannot cross the server/client boundary, and the locale-aware
+              // currency rules belong on the server anyway.
+              quoteLabel: survey
+                ? tServices("surveyPriced")
+                : `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
+            };
+          })}
           savedAddresses={savedAddresses}
           areas={areas}
           preselectedProvider={

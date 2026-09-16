@@ -49,7 +49,22 @@ export type PriceVerdict =
   | { outcome: "within-band" }
   | { outcome: "needs-approval"; overBy: number }
   | { outcome: "blocked"; ceiling: number }
-  | { outcome: "invalid"; reason: "too-low" | "not-a-number" };
+  | { outcome: "invalid"; reason: "too-low" | "not-a-number" }
+  /**
+   * There is no band to judge against yet.
+   *
+   * A SURVEY-PRICED JOB THAT NOBODY HAS PRICED. `enforce_survey_quote` in
+   * Postgres refuses to let such a booking reach `in_progress` at all, so this
+   * should be unreachable — and it exists precisely because "should be
+   * unreachable" is not a guarantee on the money path. Two independent guards,
+   * and this is the second: no amount is judgeable against a null.
+   *
+   * It is its OWN outcome rather than folded into `invalid`, because the fault
+   * is ours and not the professional's. "That amount is invalid" tells somebody
+   * standing in a customer's kitchen to retype a number that was never the
+   * problem.
+   */
+  | { outcome: "not-surveyed" };
 
 /**
  * Judge a final amount against the band that was quoted.
@@ -60,8 +75,16 @@ export type PriceVerdict =
  */
 export function judgeFinalAmount(
   finalAmount: number,
-  quote: { min: number; max: number },
+  quote: { min: number | null; max: number | null },
 ): PriceVerdict {
+  /*
+   * BEFORE ANYTHING ELSE, because every line below measures against `max` and
+   * `null * 2` is NaN — which compares false against every amount, so the
+   * blocked branch would silently stop blocking and the approval branch would
+   * accept anything. A missing band is not a lenient band.
+   */
+  if (quote.max == null || quote.min == null) return { outcome: "not-surveyed" };
+
   if (!Number.isInteger(finalAmount) || Number.isNaN(finalAmount)) {
     return { outcome: "invalid", reason: "not-a-number" };
   }
@@ -106,6 +129,10 @@ export function canSettle(
       return { ok: false, reason: "aboveCeiling" };
     case "invalid":
       return { ok: false, reason: "invalidAmount" };
+    case "not-surveyed":
+      // Named for what actually happened, so the screen can say "the survey
+      // has not been approved yet" rather than blaming the amount.
+      return { ok: false, reason: "quoteNotApproved" };
   }
 }
 
@@ -131,9 +158,18 @@ export function canSettle(
 export function blindCashEntry(input: {
   method: string;
   finalAmount: number | null;
-  quotedMax: number;
+  quotedMax: number | null;
 }): boolean {
   if (input.method !== "cash") return false;
   if (input.finalAmount === null) return false;
+  /*
+   * NO BAND MEANS BLIND, which is the safe direction and not merely the
+   * cautious one. Blind entry exists so the customer's independent figure is
+   * real evidence; falling through to `finalAmount <= null` would be false and
+   * would SHOW them the professional's number — turning the one honest check on
+   * a cash handover into a rubber stamp on the one trade where the amounts are
+   * largest.
+   */
+  if (input.quotedMax === null) return true;
   return input.finalAmount <= input.quotedMax;
 }

@@ -1,2 +1,2 @@
 export { cn } from "./cn";
-export { formatNpr } from "./format";
+export { formatBand, formatNpr } from "./format";

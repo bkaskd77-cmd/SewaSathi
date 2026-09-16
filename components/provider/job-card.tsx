@@ -8,7 +8,11 @@ import { ArrivalPanel } from "@/components/provider/arrival-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BOOKING_TRANSITIONS, type BookingStatus } from "@/lib/booking";
+import {
+  BOOKING_TRANSITIONS,
+  type BookingStatus,
+  type QuoteState,
+} from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
 /**
@@ -79,9 +83,16 @@ export type JobCardProps = {
   customerPhone: string | null;
   addressLine: string | null;
   landmark: string | null;
-  /** Twice the quoted max — nothing above it can be approved in-app at all. */
-  ceiling: number;
-  quotedMax: number;
+  /**
+   * Twice the quoted max — nothing above it can be approved in-app at all.
+   *
+   * Null on a survey job nobody has priced yet, and the amount form below is
+   * simply absent then: there is no ceiling to enforce and no band to be over,
+   * which is exactly why `enforce_survey_quote` will not let such a job reach
+   * `in_progress` in the first place.
+   */
+  ceiling: number | null;
+  quotedMax: number | null;
   /** "paid" once the money has actually settled. */
   paymentStatus: string;
   paymentMethodLabel: string;
@@ -109,10 +120,25 @@ export type JobCardProps = {
   arrivedAt?: string | null;
   /** True once a wasted-trip claim exists, so the panel stops offering one. */
   noShowClaimed?: boolean;
+  /**
+   * A survey-priced job, and whether it has been priced yet.
+   *
+   * THE FORM IS THE JOB on a movers booking. Nothing can start until the
+   * professional has been, looked, and sent a range the customer accepts — so
+   * this is not an extra field on a normal card, it is the step between
+   * arriving and working.
+   */
+  survey?: {
+    /** Where the quote has got to. Only `awaiting-survey` shows the form. */
+    state: QuoteState;
+    /** How long the price they send will hold, in hours. */
+    validHours: number;
+  } | null;
 };
 
 export function JobCard(props: JobCardProps) {
   const t = useTranslations("provider.jobs");
+  const tSurvey = useTranslations("provider.jobs.survey");
 
   const [busy, setBusy] = React.useState(false);
   // The server's own reason, not a boolean. It already distinguishes "the job
@@ -124,6 +150,8 @@ export function JobCard(props: JobCardProps) {
   const [declineReason, setDeclineReason] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [amountReason, setAmountReason] = React.useState("");
+  const [quoteMin, setQuoteMin] = React.useState("");
+  const [quoteMax, setQuoteMax] = React.useState("");
   const [appealing, setAppealing] = React.useState(false);
   const [appealReason, setAppealReason] = React.useState("");
 
@@ -138,7 +166,7 @@ export function JobCard(props: JobCardProps) {
   const next = props.open ? undefined : NEXT[props.status];
   const canDecline =
     !props.open && BOOKING_TRANSITIONS[props.status].includes("cancelled");
-  const overBand = Number(amount) > props.quotedMax;
+  const overBand = props.quotedMax !== null && Number(amount) > props.quotedMax;
 
   async function run(work: () => Promise<{ ok: boolean; reason?: string }>) {
     if (busy) return;
@@ -385,8 +413,87 @@ export function JobCard(props: JobCardProps) {
         </div>
       ) : null}
 
+      {/*
+          THE SURVEY, BEFORE ANY OF THIS. On a movers job the professional goes,
+          looks, and sends a range; nothing else on this card can happen until
+          the customer has accepted it, and `enforce_survey_quote` in Postgres
+          is what makes that true rather than this screen.
+       */}
+      {props.survey && props.survey.state === "awaiting-survey" ? (
+        <div className="animate-pop-in mt-4 space-y-2 border-t border-border pt-4">
+          <Label htmlFor={`quote-min-${props.id}`}>{tSurvey("label")}</Label>
+          <p className="text-caption text-muted-foreground">{tSurvey("help")}</p>
+          <div className="flex items-end gap-2">
+            <span className="min-w-0 flex-1">
+              <Label
+                htmlFor={`quote-min-${props.id}`}
+                className="text-caption text-muted-foreground"
+              >
+                {tSurvey("min")}
+              </Label>
+              <Input
+                id={`quote-min-${props.id}`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={quoteMin}
+                onChange={(event) => setQuoteMin(event.target.value)}
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <Label
+                htmlFor={`quote-max-${props.id}`}
+                className="text-caption text-muted-foreground"
+              >
+                {tSurvey("max")}
+              </Label>
+              <Input
+                id={`quote-max-${props.id}`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={quoteMax}
+                onChange={(event) => setQuoteMax(event.target.value)}
+              />
+            </span>
+          </div>
+          <p className="text-caption text-muted-foreground">
+            {tSurvey("holds", { hours: String(props.survey.validHours) })}
+          </p>
+          <Button
+            className="btn-tactile w-full"
+            disabled={busy || !quoteMin || !quoteMax}
+            onClick={() =>
+              void run(async () => {
+                const { recordSurveyQuoteAction } = await import(
+                  "@/app/[locale]/(work)/provider/jobs/actions"
+                );
+                return recordSurveyQuoteAction(
+                  props.id,
+                  Number(quoteMin),
+                  Number(quoteMax),
+                );
+              })
+            }
+          >
+            {busy ? tSurvey("sending") : tSurvey("submit")}
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Priced, and waiting on the customer. No action here — the next move is
+          theirs, and a button that did nothing would imply otherwise. */}
+      {props.survey && props.survey.state === "awaiting-approval" ? (
+        <p className="animate-pop-in mt-4 border-t border-border pt-4 text-body-sm text-muted-foreground">
+          {tSurvey("sent")}
+        </p>
+      ) : null}
+
       {/* The amount, once the work is done. */}
-      {props.status === "completed" && props.finalLabel === null ? (
+      {props.status === "completed" &&
+      props.finalLabel === null &&
+      props.quotedMax !== null &&
+      props.ceiling !== null ? (
         <div className="animate-pop-in mt-4 space-y-2 border-t border-border pt-4">
           <Label htmlFor={`amount-${props.id}`}>{t("amount.label")}</Label>
           <Input

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { CATEGORY_SEED } from "@/lib/config/services";
+import { FALLBACK_PRICE_BANDS } from "@/lib/ai/price-bands";
+import {
+  CATEGORY_SEED,
+  SUB_BAND_SEED,
+  isSurveyPriced,
+} from "@/lib/config/services";
 import { bandForTrades, clampRate, quoteFloor } from "@/lib/provider";
 
 /**
@@ -178,5 +183,52 @@ describe("the researched floors err low on purpose", () => {
       // future reader can re-derive the figure rather than inherit it.
       expect(category.pricingNote).toMatch(/bottom of the researched range/);
     }
+  });
+});
+
+describe("a survey trade's numbers never reach a screen", () => {
+  /*
+   * THE FAILURE THIS EXISTS FOR. `pricing_model = 'survey'` was set, the triage
+   * prompt dropped the range, and `check:blockers` named the right remedy —
+   * and five screens went on rendering an invented Rs 5,000–20,000 anyway. The
+   * data was honest and the product was not, which is the worse half to leave.
+   *
+   * It happened because each screen re-derived "should I show a range" as
+   * "does this row have numbers", and the row does: movers still carries
+   * leftovers from before the research found that nobody quotes one. So the
+   * question is asked in ONE place and this pins that every surface asks it.
+   */
+
+  it("still has stored numbers, which is exactly why the flag is needed", () => {
+    const movers = CATEGORY_SEED.find((c) => c.slug === "movers-packers")!;
+    expect(movers.basePriceMin).toBeGreaterThan(0);
+    expect(movers.basePriceMax).toBeGreaterThan(0);
+    expect(isSurveyPriced(movers)).toBe(true);
+  });
+
+  it("is the only thing that decides, on every category", () => {
+    for (const category of CATEGORY_SEED) {
+      expect(isSurveyPriced(category)).toBe(category.pricingModel === "survey");
+    }
+  });
+
+  it("carries no sub-bands, because a sub-band is a published price too", () => {
+    // The sub-band table is the narrowed promise a customer actually reads.
+    // One row for a survey trade would put a figure back on the category page
+    // through the side door.
+    const survey = CATEGORY_SEED.filter(isSurveyPriced).map((c) => c.slug);
+    for (const band of SUB_BAND_SEED) {
+      expect(survey).not.toContain(band.categorySlug);
+    }
+  });
+
+  it("tells the model not to state a figure", () => {
+    // `lib/ai/prompt.ts` is generated from this, so a triage answer cannot
+    // quote a range the rest of the product has stopped publishing.
+    const movers = FALLBACK_PRICE_BANDS.find(
+      (band) => band.slug === "movers-packers",
+    );
+    expect(movers?.model).toBe("survey");
+    expect(movers?.note).toMatch(/survey/i);
   });
 });

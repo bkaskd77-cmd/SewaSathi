@@ -10,7 +10,12 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
-import { formatInstant, formatSlotInstant } from "@/lib/booking";
+import {
+  QUOTE_VALID_HOURS,
+  formatInstant,
+  formatSlotInstant,
+  quoteState,
+} from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategory } from "@/lib/data/categories";
 import {
@@ -19,7 +24,7 @@ import {
   listProviderJobs,
 } from "@/lib/data/provider-jobs";
 import { PRICE_RULES } from "@/lib/payments/client";
-import { formatNpr } from "@/lib/utils";
+import { formatBand, formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -51,6 +56,7 @@ export const dynamic = "force-dynamic";
 export default async function ProviderJobsPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("provider.jobs");
+  const tServices = await getTranslations("services");
 
   const profile = await getSessionProfile();
   if (!profile) {
@@ -150,14 +156,31 @@ export default async function ProviderJobsPage() {
                         ? formatSlotInstant(job.scheduledFor)
                         : t("asap")
                     }
-                    quoteLabel={`${formatNpr(job.quotedMin, { locale })}–${formatNpr(job.quotedMax, { locale })}`}
+                    quoteLabel={
+                      formatBand(
+                        { min: job.quotedMin, max: job.quotedMax },
+                        { locale },
+                      ) ?? tServices("surveyPriced")
+                    }
                     finalLabel={null}
                     customerName={null}
                     customerPhone={null}
                     addressLine={job.addressLine}
                     landmark={null}
                     quotedMax={job.quotedMax}
-                    ceiling={job.quotedMax * PRICE_RULES.hardCeilingMultiple}
+                    ceiling={
+                      job.quotedMax === null
+                        ? null
+                        : job.quotedMax * PRICE_RULES.hardCeilingMultiple
+                    }
+                    survey={
+                      job.quoteModel === "survey"
+                        ? {
+                            state: quoteState(job),
+                            validHours: QUOTE_VALID_HOURS,
+                          }
+                        : null
+                    }
                     paymentStatus="pending"
                     paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                     earningLabel={null}
@@ -197,7 +220,12 @@ export default async function ProviderJobsPage() {
                       ? formatSlotInstant(job.scheduledFor)
                       : t("asap")
                   }
-                  quoteLabel={`${formatNpr(job.quotedMin, { locale })}–${formatNpr(job.quotedMax, { locale })}`}
+                  quoteLabel={
+                    formatBand(
+                      { min: job.quotedMin, max: job.quotedMax },
+                      { locale },
+                    ) ?? tServices("surveyPriced")
+                  }
                   finalLabel={
                     job.finalAmount !== null
                       ? formatNpr(job.finalAmount, { locale })
@@ -208,7 +236,16 @@ export default async function ProviderJobsPage() {
                   addressLine={job.addressLine}
                   landmark={job.landmark}
                   quotedMax={job.quotedMax}
-                  ceiling={job.quotedMax * PRICE_RULES.hardCeilingMultiple}
+                  ceiling={
+                    job.quotedMax === null
+                      ? null
+                      : job.quotedMax * PRICE_RULES.hardCeilingMultiple
+                  }
+                  survey={
+                    job.quoteModel === "survey"
+                      ? { state: quoteState(job), validHours: QUOTE_VALID_HOURS }
+                      : null
+                  }
                   paymentStatus={job.paymentStatus}
                   paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                   earningLabel={

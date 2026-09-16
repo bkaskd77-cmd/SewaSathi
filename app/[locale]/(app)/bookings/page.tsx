@@ -21,7 +21,7 @@ import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
 import { unreadByBooking } from "@/lib/data/notifications";
 import { getProvider } from "@/lib/data/providers";
-import { formatNpr } from "@/lib/utils";
+import { formatBand, formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -67,6 +67,7 @@ export default async function BookingsPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.bookings");
   const tNote = await getTranslations("booking");
+  const tServices = await getTranslations("services");
 
   // The middleware already guards this route. Repeated here because a page
   // that reads a session should not depend on something else having checked.
@@ -131,10 +132,17 @@ export default async function BookingsPage() {
     return tNote(`notifications.${event.kind.replace("booking.", "")}`);
   };
 
-  const amountLabel = (booking: (typeof bookings)[number]) =>
-    booking.finalAmount !== null
-      ? formatNpr(booking.finalAmount, { locale })
-      : `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`;
+  const amountLabel = (booking: (typeof bookings)[number]) => {
+    if (booking.finalAmount !== null) {
+      return formatNpr(booking.finalAmount, { locale });
+    }
+    // A survey booking nobody has priced yet has no band to show. "Rs 0–Rs 0"
+    // beside a real price is worse than saying what is actually true.
+    return (
+      formatBand({ min: booking.quotedMin, max: booking.quotedMax }, { locale }) ??
+      tServices("surveyPriced")
+    );
+  };
 
   return (
     <div className="mx-auto w-full max-w-3xl">

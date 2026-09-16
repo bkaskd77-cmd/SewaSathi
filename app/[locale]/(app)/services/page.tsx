@@ -12,7 +12,11 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { categoryCopy, categoryIcon } from "@/lib/config/services";
+import {
+  categoryCopy,
+  categoryIcon,
+  isSurveyPriced,
+} from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories } from "@/lib/data/categories";
 import { getCategoryCounts } from "@/lib/data/providers";
@@ -218,9 +222,14 @@ export default async function ServicesPage({
                     </p>
 
                     <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      {/* A TRADE WITH NO PUBLISHED PRICE SAYS SO. Printing
+                          the stored numbers here would fabricate the one
+                          figure the market refuses to state before somebody
+                          has looked — see `isSurveyPriced`. */}
                       <span className="font-display text-body-md font-bold tabular-nums">
-                        {formatNpr(category.basePriceMin, { locale })} –{" "}
-                        {formatNpr(category.basePriceMax, { locale })}
+                        {isSurveyPriced(category)
+                          ? t("surveyPriced")
+                          : `${formatNpr(category.basePriceMin, { locale })} – ${formatNpr(category.basePriceMax, { locale })}`}
                       </span>
                       <span className="text-caption text-muted-foreground">
                         {t("available", { count, n: String(count) })}

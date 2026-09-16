@@ -18,6 +18,7 @@ import {
   PaymentPanel,
   type PaymentStage,
 } from "@/components/booking/payment-panel";
+import { QuotePanel } from "@/components/booking/quote-panel";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
@@ -38,6 +39,7 @@ import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider, listAlternatives } from "@/lib/data/providers";
+import { surveyStateOf } from "@/lib/data/survey";
 import { needsReplacement } from "@/lib/data/recommendations";
 import { hasRating } from "@/lib/provider";
 import {
@@ -45,7 +47,7 @@ import {
   blindCashEntry,
   judgeFinalAmount,
 } from "@/lib/payments";
-import { formatNpr } from "@/lib/utils";
+import { formatBand, formatNpr } from "@/lib/utils";
 
 import { confirmTripAction } from "./actions";
 
@@ -298,7 +300,15 @@ export default async function BookingDetailPage({
         })
       : null;
 
-  const quoteLabel = `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`;
+  /*
+   * Null until somebody has surveyed a survey-priced job. Every panel below
+   * asks rather than formatting a null into "Rs 0" beside a real figure.
+   */
+  const bandLabel = formatBand(
+    { min: booking.quotedMin, max: booking.quotedMax },
+    { locale },
+  );
+  const quoteLabel = bandLabel ?? tServices("surveyPriced");
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -355,6 +365,29 @@ export default async function BookingDetailPage({
           />
         ) : null}
       </NextIntlClientProvider>
+
+      {/* THE GATE, AND IT SITS ABOVE EVERYTHING ELSE ON A SURVEY JOB. Nothing
+          can start until the customer answers this, so it goes where their eye
+          lands rather than below the status card and the alternatives. A band
+          booking never renders it at all. */}
+      {booking.quoteModel === "survey" ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <QuotePanel
+            bookingId={booking.id}
+            state={surveyStateOf(booking)}
+            bandLabel={bandLabel}
+            holdsUntil={
+              booking.quoteExpiresAt
+                ? formatInstant(booking.quoteExpiresAt, locale)
+                : null
+            }
+            onAskAgain={`/services/${booking.categorySlug}`}
+          />
+        </NextIntlClientProvider>
+      ) : null}
 
       {/* Somebody said no. This is the answer to it, and it sits directly
           under the banner that delivered the news rather than at the bottom of
@@ -461,7 +494,7 @@ export default async function BookingDetailPage({
           value={
             booking.finalAmount !== null
               ? formatNpr(booking.finalAmount, { locale })
-              : `${formatNpr(booking.quotedMin, { locale })}–${formatNpr(booking.quotedMax, { locale })}`
+              : quoteLabel
           }
           hint={booking.finalAmount === null ? t("priceEstimate") : t("priceFinal")}
         />

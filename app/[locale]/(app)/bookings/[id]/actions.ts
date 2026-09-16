@@ -17,6 +17,7 @@ import {
   verifyAndSettle,
   type Handoff,
 } from "@/lib/data/payments";
+import { respondToQuote } from "@/lib/data/survey";
 import { isPaymentMethod } from "@/lib/payments";
 
 /**
@@ -337,4 +338,39 @@ export async function widenBookingAction(
 
   if (result.ok) revalidatePath(`/bookings/${bookingId}`);
   return { ok: result.ok };
+}
+
+/**
+ * The customer answering a surveyed price.
+ *
+ * THE APPROVAL IS WHAT MAKES THE CEILING MEAN ANYTHING. `judgeFinalAmount`
+ * measures the 2x overcharge protection off `quoted_max`, and measuring it off
+ * a number the customer never agreed to would be a protection in name only. So
+ * this is a gate, not a courtesy: `enforce_survey_quote` will not let the job
+ * reach `in_progress` until it has been through here.
+ *
+ * Declining is free and ends the booking. It is recorded against nobody — a
+ * customer turning down a price is not a professional failing, and counting it
+ * would teach surveyors to quote low enough to be accepted rather than high
+ * enough to be true.
+ */
+export async function respondToQuoteAction(
+  bookingId: string,
+  decision: "approve" | "decline",
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await respondToQuote({
+    bookingId,
+    customerId: profile.id,
+    decision,
+  });
+
+  if (result.ok) {
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath("/bookings");
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
 }

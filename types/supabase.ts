@@ -195,8 +195,8 @@ export type Database = {
           urgency: string;
           scheduled_for: string | null;
           status: string;
-          quoted_min: number;
-          quoted_max: number;
+          quoted_min: number | null;
+          quoted_max: number | null;
           /** The category band's floor as published when this was booked. */
           band_min: number;
           final_amount: number | null;
@@ -226,6 +226,11 @@ export type Database = {
           cancelled_by_role: string | null;
           cancellation_fee: number;
           first_choice_provider_id: string | null;
+          quote_model: string;
+          surveyed_at: string | null;
+          quote_expires_at: string | null;
+          quote_approved_at: string | null;
+          quote_declined_at: string | null;
           overbook_offered_by: string | null;
           overbook_offered_at: string | null;
           opened_at: string | null;
@@ -254,8 +259,13 @@ export type Database = {
           urgency?: string;
           scheduled_for?: string | null;
           status?: string;
-          quoted_min: number;
-          quoted_max: number;
+          /**
+           * Null only on a `quote_model = 'survey'` booking, which has no band
+           * until somebody has been to look — and `bookings_band_only_null_for_survey`
+           * is what makes that impossible anywhere else.
+           */
+          quoted_min?: number | null;
+          quoted_max?: number | null;
           /** Filled by `freeze_booking_band` when omitted, so never required. */
           band_min?: number;
           final_amount?: number | null;
@@ -284,6 +294,11 @@ export type Database = {
           cancelled_by_role?: string | null;
           cancellation_fee?: number;
           first_choice_provider_id?: string | null;
+          quote_model?: string;
+          surveyed_at?: string | null;
+          quote_expires_at?: string | null;
+          quote_approved_at?: string | null;
+          quote_declined_at?: string | null;
           overbook_offered_by?: string | null;
           overbook_offered_at?: string | null;
           opened_at?: string | null;

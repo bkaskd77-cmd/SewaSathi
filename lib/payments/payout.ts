@@ -88,6 +88,43 @@ export const PAYOUT_RULES = {
    */
   instantPayoutFeeBps: 0,
   /**
+   * What WE PAY a surveyor when the move does not go ahead. Rupees, not basis
+   * points, because there is no job to take a percentage of.
+   *
+   * WHO CARRIES THE TRIP. A movers job starts with somebody travelling across
+   * the Valley to look at a flat, and that happens whether or not the customer
+   * accepts the price. When they do, the survey is folded into the job the
+   * professional is about to be paid for and nothing is due here. When they do
+   * not — or when nobody answers in time — the trip still happened, and a
+   * professional out of pocket for a stranger's change of mind learns to stop
+   * taking survey jobs. Movers is the one trade where EVERY job starts with
+   * one, so that is the whole supply.
+   *
+   * THE CUSTOMER NEVER PAYS IT AND IS NEVER TOLD OF IT. "Free survey" has to
+   * mean free, or it is a booking fee with a friendlier name.
+   *
+   * A FEE WITH A PAYOFF IS FARMABLE — quote absurdly high, get declined,
+   * collect — the same class of thing as under-reporting a cash job. Two
+   * guards, and neither is automatic punishment: `surveyVisitFeeMonthlyCap`
+   * below, and an outlier decline rate reviewed by a person. Never a ranking
+   * input, for the same reason `category_pricing_signals` is never grouped by
+   * person: read the other way it becomes a list of people to punish for our
+   * own pricing model.
+   *
+   * THE FIGURE IS A BUSINESS DECISION AND 500 IS A PROPOSAL, not a measurement
+   * — roughly a Valley-crossing fare plus the half hour of looking, and well
+   * under the commission on a move it would otherwise have earned. Set it.
+   */
+  surveyVisitFeeNpr: 500,
+  /**
+   * The most we pay one professional in survey visit fees in a month.
+   *
+   * Four trips. Enough that nobody is out of pocket for an ordinary run of
+   * customers changing their minds, low enough that quoting to be declined is
+   * not a living. It bounds the farmable payoff without accusing anybody.
+   */
+  surveyVisitFeeMonthlyCap: 4,
+  /**
    * The most of ONE payout that may go to clearing a redo the professional
    * already owes. 2500 = a quarter.
    *

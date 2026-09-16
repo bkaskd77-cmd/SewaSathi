@@ -37,12 +37,14 @@ subject and decides.
 | `confirmCashAction` | the booking's customer | settlement of their own cash payment | `confirmCashPayment` compares `customer_id`; blind entry; mismatch stops settlement |
 | `recheckPaymentAction` | the booking's customer | re-verification of their own payment | the reference is checked against payments RLS-visible to the caller |
 | `abandonPaymentAction` | the booking's customer | an in-flight payment of theirs | `abandonPayment` re-reads and asks the gateway first |
+| `respondToQuoteAction` | the booking's customer | approving or declining a surveyed price on their own booking | `respondToQuote` reads through RLS (the ownership check) and compares `customer_id`; the stamp is a service-role write because `enforce_booking_immutability` refuses `quote_approved_at` to every browser caller — RLS is row-level, so the cancel policy would otherwise let a customer approve a price nobody surveyed |
 
 ### Provider surfaces
 
 | Endpoint | Who may call it | What it may act on | Enforced by |
 | --- | --- | --- | --- |
 | `advanceJobAction` | the assigned professional | one booking assigned to them | `getMyProvider` from session; RLS read; `canTransition`; status trigger |
+| `recordSurveyQuoteAction` | the assigned professional | the surveyed range on one survey-priced booking of theirs | `getMyProvider` from session; RLS read proves the job is theirs; `enforce_survey_quote` refuses a rewrite after the customer has answered and refuses `in_progress` without an approval |
 | `declineJobAction` | the assigned professional | releasing that one booking | RLS read proves ownership, then a server write (an UPDATE may not make a row invisible to its writer) |
 | `claimJobAction` | any professional who covers it | one open, unassigned booking | the claim policy's `using` clause settles the race; refusals excluded |
 | `recordAmountAction` | the assigned professional | the final amount on their job | `recordFinalAmount` re-reads; band clamp; ceiling; `security_events` |

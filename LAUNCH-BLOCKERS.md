@@ -69,10 +69,10 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Replaced by: a rolling 7-day count per category over the `bookings` table, cached. Phase 9.
 
 ### BLOCKER: category-price-bands
-- Status: unresolved
-- Claims: a price range for every service. Nine of the ten are now researched against named Kathmandu competitors (2026-09-15) with sources and a confidence level recorded per trade, floors deliberately at the bottom of each researched range. **Movers and packers is the one still open**: no Nepali operator publishes a price, every one of them quotes after a survey, and the category page still shows an invented Rs 5,000–20,000 band that nobody quoted.
-- Lives in: `lib/data/seed/categories.json` (`pricingModel: "survey"` on movers), the `categories` table, and the category page and card that still render a band for it
-- Replaced by: the request-a-survey flow — movers shows no band, and the booking path for it asks for a free survey instead of quoting. `npm run check:blockers` reads the seed directly and names the remedy, so this entry cannot be marked resolved by researching a number that does not exist. The other nine are researched; their next step is `observed`, which is a revision rather than a blocker.
+- Status: resolved
+- Claims: a price range for every service. Nine of the ten are researched against named Kathmandu competitors (2026-09-15) with sources and a confidence level per trade, floors deliberately at the bottom of each researched range. Movers and packers was the one still open — no Nepali operator publishes a price, every one quotes after a survey, and five screens went on showing an invented Rs 5,000–20,000 that nobody quoted.
+- Lives in: `lib/data/seed/categories.json` (`pricingModel: "survey"` on movers), the `categories` table, and `isSurveyPriced` in `lib/config/services.ts`, which every surface now asks.
+- Replaced by: movers publishes **no band anywhere**, and the booking path asks for a free survey instead of quoting. `quote_model = 'survey'` carries a null band until somebody has looked, and `enforce_survey_quote` will not let such a job reach `in_progress` until the customer has approved a surveyed figure — so the 2× overcharge ceiling is never measured off a number nobody agreed to. The failure was five surfaces each re-deriving "should I show a range" as "does this row have numbers"; one function decides now and `tests/unit/quote-floor.test.ts` pins it. The movers row keeps its old numbers on purpose — nothing reads them, and deleting them would hide whether the flag is working. The other nine are researched; their next step is `observed`, which is a revision rather than a blocker.
 
 ### BLOCKER: seed-providers-and-reviews
 - Status: unresolved

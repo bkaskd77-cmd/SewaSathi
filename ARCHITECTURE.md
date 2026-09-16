@@ -291,6 +291,23 @@ Where a change on one side cannot reach the other.
   second job", never a considered model of their capacity. The next phase takes
   `typical_duration_hours`, per-job durations on the sub-bands, and a scheduler
   that can reason in days.
+- **A trade whose price does not exist until somebody has looked.** Movers and
+  packers carries `quote_model = 'survey'` and a **null band**, and the survey
+  visit is a booking — a real professional at a real door — rather than a second
+  record with its own dispatch, tracking and cancellation to reconcile. The
+  surveyed range is what the customer approves, and `enforce_survey_quote`
+  refuses `in_progress` until they have, so the 2× overcharge ceiling in
+  `judgeFinalAmount` is never measured off a figure nobody agreed to. **Two
+  independent guards, because this is the money path**: that trigger, and every
+  money function refusing a null band on its own (`not-surveyed`, never
+  coerced to zero — `null * 2` is NaN and NaN compares false against every
+  amount, so a missing ceiling would silently stop being a ceiling).
+  `bookings_band_only_null_for_survey` makes a null band impossible anywhere
+  else — a nullable money column is the thing that leaks into another code path
+  three phases later. **A declined or lapsed quote is free to the customer, paid
+  to the surveyor (`surveyVisitFeeNpr`, capped monthly), and recorded against
+  nobody**: counting it would teach surveyors to quote low enough to be accepted
+  rather than high enough to be true.
 - **The narrowed figure is the promise, so the sub-bands are data.**
   `category_price_bands` holds one row per product inside a trade — AC servicing
   is a routine service, a gas refill and an installation, not one 500-12,000

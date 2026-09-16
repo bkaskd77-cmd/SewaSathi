@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { sweepDispatch } from "@/lib/data/dispatch";
+import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
 
 /**
@@ -37,8 +38,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "notConfigured" }, { status: 503 });
   }
 
-  const result = await sweepDispatch();
-  return NextResponse.json(result, {
+  /*
+   * The quote sweep rides along rather than getting a cron of its own. Both
+   * answer the same question — "is this booking still waiting on something
+   * that has already run out?" — both are idempotent, and a second scheduled
+   * endpoint is a second thing that can silently stop running.
+   */
+  const [result, quotes] = await Promise.all([
+    sweepDispatch(),
+    expireStaleQuotes(),
+  ]);
+  return NextResponse.json({ ...result, quotesExpired: quotes.expired }, {
     headers: { "cache-control": "no-store" },
   });
 }

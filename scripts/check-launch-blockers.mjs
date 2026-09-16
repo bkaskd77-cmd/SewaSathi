@@ -42,18 +42,21 @@ const CATEGORY_SEED = "lib/data/seed/categories.json";
 function inventedCategories() {
   try {
     const raw = readFileSync(path.join(process.cwd(), CATEGORY_SEED), "utf8");
-    return JSON.parse(raw)
-      .filter((c) => (c.pricingSource ?? "invented") === "invented")
-      .map((c) =>
+    return (
+      JSON.parse(raw)
         /*
-         * A `survey` category cannot be resolved by researching a band, and
-         * saying "still invented" about it would send somebody looking for a
-         * number that does not exist. Name the real remedy instead.
+         * A SURVEY CATEGORY IS NOT AN UNPUBLISHED BAND, it is a trade that has
+         * no band and says so. `pricingSource` stays `invented` there on
+         * purpose — the research found no price, and stamping `researched`
+         * would be exactly the dishonesty this column exists to prevent — but
+         * counting it here would go on demanding a number that does not exist.
+         * What has to be true instead is that nothing renders a range for it,
+         * and `tests/unit/quote-floor.test.ts` is what holds that.
          */
-        c.pricingModel === "survey"
-          ? `${c.slug} (survey model — needs the request-a-survey flow, not a band)`
-          : c.slug,
-      );
+        .filter((c) => c.pricingModel !== "survey")
+        .filter((c) => (c.pricingSource ?? "invented") === "invented")
+        .map((c) => c.slug)
+    );
   } catch {
     // A seed that cannot be read is not evidence that the bands are researched.
     return ["<could not read the category seed>"];

@@ -103,8 +103,11 @@ async function readBooking(bookingId: string) {
     customer_id: string;
     provider_id: string | null;
     status: string;
-    quoted_min: number;
-    quoted_max: number;
+    // Null only on a survey booking nobody has priced yet. Typed that way so
+    // every judgement below has to say what it does about it, rather than
+    // coercing a missing band into zero.
+    quoted_min: number | null;
+    quoted_max: number | null;
     final_amount: number | null;
     final_amount_approved_at: string | null;
     payment_method: string;
@@ -181,6 +184,16 @@ export async function recordFinalAmount(input: {
     max: booking.quoted_max,
   });
 
+  if (verdict.outcome === "not-surveyed") {
+    /*
+     * GUARD TWO. `enforce_survey_quote` refuses to let this booking reach
+     * `in_progress` at all, so reaching here means the trigger was bypassed or
+     * dropped — which is exactly why a second guard exists on the money path.
+     * Named for the real fault: the professional's amount was never the
+     * problem, so telling them to retype it would send them round a loop.
+     */
+    return { ok: false, reason: "quoteNotApproved" };
+  }
   if (verdict.outcome === "invalid") {
     return { ok: false, reason: "invalidAmount" };
   }
@@ -271,7 +284,11 @@ export async function approveFinalAmount(input: {
     min: booking.quoted_min,
     max: booking.quoted_max,
   });
-  if (verdict.outcome === "blocked" || verdict.outcome === "invalid") {
+  if (
+    verdict.outcome === "blocked" ||
+    verdict.outcome === "invalid" ||
+    verdict.outcome === "not-surveyed"
+  ) {
     return { ok: false, reason: "aboveCeiling" };
   }
 

@@ -32,3 +32,20 @@ export function formatNpr(
   // "Rs 1,200" — the separator is a non-breaking space, and it has to survive.
   return formatted.replace(NPR_SYMBOL.en, NPR_SYMBOL.ne);
 }
+
+/**
+ * A quoted band as one string, or null when there is not one yet.
+ *
+ * NULL IS THE POINT. A survey-priced booking has no band until somebody has
+ * been to look, and four screens were each about to render
+ * `formatNpr(null)` — which is "Rs 0" — beside a real price. One helper, so
+ * "is there a band" is asked in one place and every caller is forced to say
+ * what it shows when the answer is no.
+ */
+export function formatBand(
+  band: { min: number | null; max: number | null },
+  options: { locale?: "en" | "ne" } = {},
+): string | null {
+  if (band.min == null || band.max == null) return null;
+  return `${formatNpr(band.min, options)}–${formatNpr(band.max, options)}`;
+}

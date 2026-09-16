@@ -40,6 +40,25 @@ export type NotificationKind =
   /** Nobody took it. The booking has ended rather than waiting for ever. */
   | "booking.noProviderFound"
   /**
+   * A surveyed price is ready and the customer has to answer it.
+   *
+   * THE ONE NOTIFICATION THAT IS ALSO A GATE. Nothing can start on a
+   * survey-priced job until the customer approves the figure, so this is not a
+   * progress update somebody can ignore — it is the step. One tap from here to
+   * the button, because the approval is the drop-off point on the highest-value
+   * trade we sell.
+   */
+  | "booking.quoteReady"
+  /** Nobody answered in time. The price is no longer one anybody can honour. */
+  | "booking.quoteExpired"
+  | "booking.quoteApproved"
+  /**
+   * The customer said no. Sent so the professional knows the job is over, and
+   * deliberately NOT counted anywhere: a customer turning down a price is not
+   * a professional failing.
+   */
+  | "booking.quoteDeclined"
+  /**
    * A job has come back. Sent to the professional whose work it was, because
    * the common path — and the cheap one — is that they go round themselves.
    */
