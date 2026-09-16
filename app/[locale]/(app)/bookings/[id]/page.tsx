@@ -429,6 +429,23 @@ export default async function BookingDetailPage({
         />
       ) : null}
 
+      {/*
+          SAID PLAINLY, BECAUSE IT CHANGES WHAT THE CUSTOMER SHOULD EXPECT.
+          Somebody deliberately took this job beside one they already had — the
+          only reason this slot was available at all. It is a quieter promise
+          than an ordinary booking and pretending otherwise would be the
+          product hiding a risk it chose to take on their behalf, so the line
+          also says what happens if it does not work out.
+
+          No warning colour: this is a professional going out of their way, not
+          a fault.
+       */}
+      {provider && showsProvider && booking.overbookOfferedBy === provider.id ? (
+        <p className="animate-pop-in mt-3 rounded-lg border border-border bg-muted/30 p-3 text-body-sm text-muted-foreground">
+          {t("overbookOffered", { name: provider.displayName })}
+        </p>
+      ) : null}
+
       <dl className="assemble mt-6 divide-y divide-border rounded-xl border border-border">
         <Row i={0} label={t("problem")} value={booking.description} />
 

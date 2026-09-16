@@ -1,11 +1,13 @@
 import "server-only";
 
 import {
+  hasRoom,
   judgeCancellation,
   type BookingStatus,
   type QuoteModel,
 } from "@/lib/booking";
 import { canTransition } from "@/lib/booking";
+import { providerCapacity } from "@/lib/data/capacity";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify, type NotificationKind } from "@/lib/notify";
@@ -72,6 +74,8 @@ export type ProviderJob = {
   quoteExpiresAt: string | null;
   quoteApprovedAt: string | null;
   quoteDeclinedAt: string | null;
+  /** The listing that offered to squeeze this job in, if anybody did. */
+  overbookOfferedBy: string | null;
   finalAmount: number | null;
   /** pending | paid — the booking's own payment state, not a payment row. */
   paymentStatus: string;
@@ -132,7 +136,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -255,6 +259,7 @@ export async function listProviderJobs(
       quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+      overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
       finalAmount: (row.final_amount as number | null) ?? null,
       paymentStatus: (row.payment_status as string) ?? "pending",
       paymentMethod: (row.payment_method as string) ?? "cash",
@@ -565,7 +570,7 @@ export async function listOpenJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
       )
       .is("provider_id", null)
       .eq("status", "pending")
@@ -608,6 +613,7 @@ export async function listOpenJobs(
       quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+      overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
         finalAmount: null,
         paymentStatus: "pending",
         paymentMethod: (row.payment_method as string) ?? "cash",
@@ -670,6 +676,189 @@ export async function claimJob(input: {
       reference: data![0].reference as string,
       provider: me.displayName,
     },
+    bookingId: input.bookingId,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Take an open job that will not fit, by offering to fit it in anyway.
+ *
+ * WHY THIS EXISTS. `enforce_slot_capacity` refuses a second job in a window,
+ * full stop — which is right by default and wrong sometimes. A professional
+ * genuinely can occasionally take somebody on beside a job they already hold,
+ * and refusing it sends that customer away for nothing.
+ *
+ * SO IT IS BOUNDED THREE WAYS AND EACH ONE IS LOAD-BEARING:
+ *
+ *   * PER BOOKING, never a standing setting. A setting is made once, in an
+ *     optimistic mood, and then applies to every job for ever.
+ *   * NEVER CUSTOMER-INITIATED. `enforce_booking_immutability` refuses these
+ *     columns to every browser caller, so a customer cannot buy the extra seat.
+ *   * WORTH EXACTLY ONE SEAT — `capacityFor` adds 1 and no more, or offers
+ *     stack until the cap is decorative.
+ *
+ * ONLY WHEN THE WINDOW IS ACTUALLY FULL. A professional who could take the job
+ * ordinarily gets the ordinary claim: stamping an offer there would inflate
+ * `overbook_offers`, which is the denominator of the miss rate, and diluting
+ * that denominator is how a real pattern stops showing up.
+ */
+export async function offerOverbookAndClaim(input: {
+  bookingId: string;
+  actorId: string;
+}): Promise<AdvanceResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const me = await getMyProvider(input.actorId);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  // The RLS read is the eligibility check: an open job this professional
+  // cannot see is one they cannot take.
+  const { data: open, error: readError } = await createClient()
+    .from("bookings")
+    .select("id, category_slug, scheduled_for, created_at")
+    .eq("id", input.bookingId)
+    .is("provider_id", null)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (readError || !open) return { ok: false, reason: "alreadyTaken" };
+
+  const seat = (
+    await providerCapacity([me.providerId], open.category_slug as string)
+  )[me.providerId];
+
+  if (
+    seat &&
+    hasRoom({
+      jobs: seat.held,
+      scheduledFor:
+        (open.scheduled_for as string | null) ?? (open.created_at as string),
+      capacity: seat.capacity,
+    })
+  ) {
+    // There was room all along. An offer here would be a counter moving for
+    // nothing, so send them down the ordinary path instead.
+    return claimJob(input);
+  }
+
+  const admin = createAdminClient();
+  const { error: offerError } = await admin
+    .from("bookings")
+    .update({
+      overbook_offered_by: me.providerId,
+      overbook_offered_at: new Date().toISOString(),
+    })
+    .eq("id", input.bookingId)
+    .is("provider_id", null)
+    .is("overbook_offered_at", null);
+
+  if (offerError) {
+    console.error(`[provider-jobs] offer failed — ${describeError(offerError)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  /*
+   * THE CLAIM STILL GOES THROUGH RLS, so the race is settled by the policy
+   * exactly as it is for an ordinary claim — checking "is it taken?" and then
+   * writing is the gap that sends two professionals to one house.
+   *
+   * If somebody else wins it, the offer is cleared below. A failed clear would
+   * leave an offer stamped on a booking that went elsewhere: a counter one too
+   * high, not a safety problem, and preferable to holding the row while a
+   * second professional waits.
+   */
+  const claimed = await claimJob(input);
+  if (!claimed.ok) {
+    await admin
+      .from("bookings")
+      .update({ overbook_offered_by: null, overbook_offered_at: null })
+      .eq("id", input.bookingId)
+      .eq("overbook_offered_by", me.providerId)
+      .is("provider_id", null);
+  }
+  return claimed;
+}
+
+/**
+ * "I offered to fit you in and I am still on the other job."
+ *
+ * THE ONE-TAP OUT, AND IT RECORDS NO REFUSAL. `record_provider_release` writes
+ * a `booking_refusals` row on every other release, which keeps the professional
+ * out of that customer's replacement list and stops the job being offered back
+ * to them. Both are right for somebody who turned a job down and wrong for
+ * somebody who tried to take an extra one and ran out of day: barring them from
+ * a job they never refused would punish exactly the behaviour the offer exists
+ * to encourage.
+ *
+ * It is counted — `overbook_misses` over `overbook_offers`, floored at ten
+ * offers so a thin record cannot swing it — because an offer nobody can rely on
+ * is worse for the customer than no offer at all. Ranking only, never money,
+ * and capped at half what a withdrawal costs.
+ *
+ * SERVICE ROLE, and this is the shape `declineJob` already uses for the same
+ * reason: the instant `provider_id` is null the booking stops matching
+ * "Providers read their assigned bookings", so a professional cannot write
+ * their own release through RLS at all. Prove ownership with a read, then write
+ * under the key.
+ */
+export async function recordOverbookMiss(input: {
+  bookingId: string;
+  actorId: string;
+}): Promise<AdvanceResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const me = await getMyProvider(input.actorId);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const { data: booking, error: readError } = await createClient()
+    .from("bookings")
+    .select("id, reference, status, provider_id, customer_id, overbook_offered_by")
+    .eq("id", input.bookingId)
+    .maybeSingle();
+
+  if (readError || !booking) return { ok: false, reason: "notFound" };
+  if (booking.provider_id !== me.providerId) {
+    return { ok: false, reason: "notYours" };
+  }
+  /*
+   * ONLY ON A JOB THEY OFFERED FOR. Every other release is a withdrawal and
+   * must stay one — otherwise this becomes a way to hand any job back without
+   * it counting, which is the whole thing `booking_refusals` exists to stop.
+   */
+  if (booking.overbook_offered_by !== me.providerId) {
+    return { ok: false, reason: "notAnOverbook" };
+  }
+  /*
+   * `in_progress` is excluded here for the same reason it is excluded from
+   * every other release: somebody is in the customer's house with the floor
+   * up, and walking out of that is a support call, not a button.
+   */
+  if (booking.status !== "accepted" && booking.status !== "en_route") {
+    return { ok: false, reason: "tooLate" };
+  }
+
+  const { error } = await createAdminClient()
+    .from("bookings")
+    .update({
+      status: "pending",
+      provider_id: null,
+      opened_at: new Date().toISOString(),
+      overbook_missed_at: new Date().toISOString(),
+    })
+    .eq("id", input.bookingId)
+    .eq("provider_id", me.providerId);
+
+  if (error) {
+    console.error(`[provider-jobs] overbook miss failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  await notify({
+    recipientId: booking.customer_id as string,
+    kind: "booking.mayRunLate",
+    params: { reference: booking.reference as string },
     bookingId: input.bookingId,
   });
 

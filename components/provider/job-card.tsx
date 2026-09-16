@@ -121,6 +121,24 @@ export type JobCardProps = {
   /** True once a wasted-trip claim exists, so the panel stops offering one. */
   noShowClaimed?: boolean;
   /**
+   * This professional already has a job in this window.
+   *
+   * Only ever set on an OPEN job, and it turns the ordinary claim into a
+   * deliberate offer. Never a standing setting and never something the customer
+   * can ask for: the seat exists because one person decided, on one booking,
+   * that they could genuinely fit it in.
+   */
+  windowFull?: boolean;
+  /**
+   * They offered on this job and are still holding it.
+   *
+   * Shows the one-tap out. Handing back a job you offered to squeeze in is not
+   * refusing work and is recorded as a refusal nowhere — it is counted, for
+   * ranking only, because an offer nobody can rely on is worse for the customer
+   * than no offer at all.
+   */
+  offeredByMe?: boolean;
+  /**
    * A survey-priced job, and whether it has been priced yet.
    *
    * THE FORM IS THE JOB on a movers booking. Nothing can start until the
@@ -139,6 +157,7 @@ export type JobCardProps = {
 export function JobCard(props: JobCardProps) {
   const t = useTranslations("provider.jobs");
   const tSurvey = useTranslations("provider.jobs.survey");
+  const tOverbook = useTranslations("provider.jobs.overbook");
 
   const [busy, setBusy] = React.useState(false);
   // The server's own reason, not a boolean. It already distinguishes "the job
@@ -538,16 +557,79 @@ export function JobCard(props: JobCardProps) {
 
       {props.open ? (
         <div className="mt-4 border-t border-border pt-4">
+          {props.windowFull ? (
+            /*
+                NO WARNING COLOUR. Nothing has gone wrong and nobody has been
+                careless — they are simply already working then. The sentence
+                below says what the offer costs them, which is the honest way
+                to ask somebody to take on more than they planned.
+             */
+            <>
+              <p className="text-body-sm font-semibold">
+                {tOverbook("full")}
+              </p>
+              <p className="mt-1 text-caption text-muted-foreground">
+                {tOverbook("note")}
+              </p>
+              <Button
+                variant="outline"
+                className="btn-tactile mt-3"
+                onClick={() =>
+                  void run(async () => {
+                    const { offerOverbookAction } = await import(
+                      "@/app/[locale]/(work)/provider/jobs/actions"
+                    );
+                    return offerOverbookAction(props.id);
+                  })
+                }
+                disabled={busy}
+              >
+                {busy ? (
+                  <Loader2 aria-hidden="true" className="animate-spin" />
+                ) : null}
+                {busy ? tOverbook("offering") : tOverbook("offer")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              className="btn-tactile btn-beacon"
+              onClick={claim}
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader2 aria-hidden="true" className="animate-spin" />
+              ) : null}
+              {t("claim")}
+            </Button>
+          )}
+        </div>
+      ) : null}
+
+      {/* The one-tap out, on a job they offered to squeeze in. Separate from
+          the ordinary decline below because it is a different thing: that one
+          is refusing work and is counted as such; this one is running out of
+          day on work they volunteered for. */}
+      {props.offeredByMe &&
+      (props.status === "accepted" || props.status === "en_route") ? (
+        <div className="mt-4 border-t border-border pt-4">
           <Button
-            className="btn-tactile btn-beacon"
-            onClick={claim}
+            variant="ghost"
+            className="btn-tactile"
+            onClick={() =>
+              void run(async () => {
+                const { overbookMissAction } = await import(
+                  "@/app/[locale]/(work)/provider/jobs/actions"
+                );
+                return overbookMissAction(props.id);
+              })
+            }
             disabled={busy}
           >
-            {busy ? (
-              <Loader2 aria-hidden="true" className="animate-spin" />
-            ) : null}
-            {t("claim")}
+            {busy ? tOverbook("missing") : tOverbook("miss")}
           </Button>
+          <p className="mt-1 text-caption text-muted-foreground">
+            {tOverbook("missNote")}
+          </p>
         </div>
       ) : null}
 

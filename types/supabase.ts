@@ -232,6 +232,7 @@ export type Database = {
           quote_approved_at: string | null;
           quote_declined_at: string | null;
           overbook_offered_by: string | null;
+          overbook_missed_at: string | null;
           overbook_offered_at: string | null;
           opened_at: string | null;
           reassigned_at: string | null;
@@ -300,6 +301,7 @@ export type Database = {
           quote_approved_at?: string | null;
           quote_declined_at?: string | null;
           overbook_offered_by?: string | null;
+          overbook_missed_at?: string | null;
           overbook_offered_at?: string | null;
           opened_at?: string | null;
           reassigned_at?: string | null;

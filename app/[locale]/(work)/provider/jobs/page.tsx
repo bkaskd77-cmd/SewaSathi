@@ -14,10 +14,12 @@ import {
   QUOTE_VALID_HOURS,
   formatInstant,
   formatSlotInstant,
+  hasRoom,
   quoteState,
 } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategory } from "@/lib/data/categories";
+import { providerCapacity } from "@/lib/data/capacity";
 import {
   getMyProvider,
   listOpenJobs,
@@ -100,6 +102,39 @@ export default async function ProviderJobsPage() {
     listOpenJobs(profile!.id),
   ]);
 
+  /*
+   * WHICH OPEN JOBS WOULD NOT FIT.
+   *
+   * Capacity is per category — a cleaner holds one job at a time and an
+   * electrician three — so this asks once per TRADE in the open list rather
+   * than once per card. Same professional, a handful of windows; a per-card
+   * read would be one round trip each on a screen somebody opens standing
+   * between two jobs.
+   *
+   * A row that would not fit does NOT disappear. It offers the deliberate
+   * overbook instead: hiding it would mean a professional who genuinely could
+   * squeeze somebody in never learns there is anybody to squeeze in.
+   */
+  const trades = Array.from(new Set(openJobs.map((job) => job.categorySlug)));
+  const seats = Object.fromEntries(
+    await Promise.all(
+      trades.map(async (slug) => [
+        slug,
+        (await providerCapacity([me.providerId], slug))[me.providerId],
+      ]),
+    ),
+  );
+
+  const fullFor = (job: (typeof openJobs)[number]) => {
+    const seat = seats[job.categorySlug];
+    if (!seat) return false;
+    return !hasRoom({
+      jobs: seat.held,
+      scheduledFor: job.scheduledFor ?? job.createdAt,
+      capacity: seat.capacity,
+    });
+  };
+
   // Category names are data, not interface copy, so they are resolved here
   // rather than in the card — and a function cannot cross to a Client
   // Component anyway.
@@ -181,6 +216,7 @@ export default async function ProviderJobsPage() {
                           }
                         : null
                     }
+                    windowFull={fullFor(job)}
                     paymentStatus="pending"
                     paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                     earningLabel={null}
@@ -246,6 +282,7 @@ export default async function ProviderJobsPage() {
                       ? { state: quoteState(job), validHours: QUOTE_VALID_HOURS }
                       : null
                   }
+                  offeredByMe={job.overbookOfferedBy === me.providerId}
                   paymentStatus={job.paymentStatus}
                   paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                   earningLabel={

@@ -152,6 +152,20 @@ Where a change on one side cannot reach the other.
   same row, so no policy `using` clause can settle that race, and under read
   committed both would otherwise count zero and both commit.
   `tests/db/slot-capacity.test.ts` fails without the lock.
+- **Past the cap there is exactly one door, and a professional opens it.**
+  `overbook_offered_by` is per booking, never a standing setting and never
+  something a customer can ask for — `enforce_booking_immutability` refuses the
+  column to every browser caller — and `capacityFor` adds exactly one seat, or
+  offers stack until the cap is decorative. An offer is only stamped when the
+  window is genuinely full; a professional who could take the job ordinarily
+  gets the ordinary claim, because `overbook_offers` is the denominator of the
+  miss rate and diluting it is how a real pattern stops showing up.
+  **A miss is counted and is never a refusal**: `record_provider_release` skips
+  the `booking_refusals` row when `overbook_missed_at` is set, the same shape as
+  `widened_by_customer_at`. Somebody who offered to squeeze a job in and ran out
+  of day did not turn it down, and barring them from that customer's
+  replacement list would punish exactly the behaviour the offer exists to
+  encourage. `/providers/standards` says so under *What is never a signal*.
 - **A full window is the one refusal that stops a booking at every urgency.**
   Every other `canServeAt` refusal is a note the product says and carries on
   past, because the booking would still work. This one would not — the trigger

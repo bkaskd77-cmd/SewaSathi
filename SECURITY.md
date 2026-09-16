@@ -44,6 +44,8 @@ subject and decides.
 | Endpoint | Who may call it | What it may act on | Enforced by |
 | --- | --- | --- | --- |
 | `advanceJobAction` | the assigned professional | one booking assigned to them | `getMyProvider` from session; RLS read; `canTransition`; status trigger |
+| `offerOverbookAction` | any professional the open job is visible to | claiming one open job, with an offer stamped on it | `getMyProvider` from session; the RLS read is the eligibility check; the offer is a service-role write because `enforce_booking_immutability` refuses it to browsers; the claim itself still goes through RLS so the race is settled by the policy |
+| `overbookMissAction` | the assigned professional who made the offer | handing back one job of theirs that they offered on | `getMyProvider` from session; RLS read; refuses unless `overbook_offered_by` is their own listing and the status is `accepted` or `en_route`; the release is service-role because a professional cannot write their own release through RLS |
 | `recordSurveyQuoteAction` | the assigned professional | the surveyed range on one survey-priced booking of theirs | `getMyProvider` from session; RLS read proves the job is theirs; `enforce_survey_quote` refuses a rewrite after the customer has answered and refuses `in_progress` without an approval |
 | `declineJobAction` | the assigned professional | releasing that one booking | RLS read proves ownership, then a server write (an UPDATE may not make a row invisible to its writer) |
 | `claimJobAction` | any professional who covers it | one open, unassigned booking | the claim policy's `using` clause settles the race; refusals excluded |

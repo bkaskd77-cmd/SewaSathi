@@ -384,3 +384,124 @@ describe("who may hold how many", () => {
     expect(caps["painting"]).toBe(3);
   });
 });
+
+describe("an offer is counted, and a miss is not a refusal", () => {
+  /*
+   * `overbookRankingPenalty` is a rate with a floor at ten offers, and the
+   * floor is only meaningful if the denominator is counted everywhere. These
+   * counters are written by triggers for the same reason `booking_refusals` is:
+   * a counter today's button increments is a counter tomorrow's path forgets.
+   */
+
+  async function statsFor(): Promise<{ offers: number; misses: number; withdrawals: number }> {
+    const { rows } = await pg.admin.query(
+      "select overbook_offers, overbook_misses, withdrawals from public.provider_stats where provider_id = $1",
+      [krishna],
+    );
+    return {
+      offers: Number(rows[0]?.overbook_offers ?? 0),
+      misses: Number(rows[0]?.overbook_misses ?? 0),
+      withdrawals: Number(rows[0]?.withdrawals ?? 0),
+    };
+  }
+
+  it("counts the moment an offer appears, and only then", async () => {
+    await clear();
+    await setCap(1);
+    const before = await statsFor();
+
+    const id = await book({ provider: null, at: TWO_PM });
+    await pg.admin.query(
+      "update public.bookings set overbook_offered_by = $1, overbook_offered_at = now() where id = $2",
+      [krishna, id],
+    );
+    expect((await statsFor()).offers).toBe(before.offers + 1);
+
+    // Clearing one — a claim that lost its race — must not count backwards.
+    await pg.admin.query(
+      "update public.bookings set overbook_offered_by = null, overbook_offered_at = null where id = $1",
+      [id],
+    );
+    expect((await statsFor()).offers).toBe(before.offers + 1);
+  });
+
+  it("counts a miss and writes NO refusal", async () => {
+    /*
+     * THE POINT OF THE WHOLE DESIGN. A refusal row keeps somebody out of that
+     * customer's replacement list and stops the job coming back to them. Right
+     * for a professional who said no; wrong for one who tried to take an extra
+     * job and ran out of day, and applying it here would teach everybody never
+     * to offer.
+     */
+    await clear();
+    await setCap(1);
+    const before = await statsFor();
+
+    const id = await book({ provider: null, at: TWO_PM });
+    await pg.admin.query(
+      `update public.bookings
+          set overbook_offered_by = $1, overbook_offered_at = now(),
+              provider_id = $1, status = 'accepted'
+        where id = $2`,
+      [krishna, id],
+    );
+    await pg.admin.query(
+      `update public.bookings
+          set status = 'pending', provider_id = null,
+              overbook_missed_at = now(), opened_at = now()
+        where id = $1`,
+      [id],
+    );
+
+    const after = await statsFor();
+    expect(after.misses).toBe(before.misses + 1);
+    // Not a withdrawal, and not a refusal.
+    expect(after.withdrawals).toBe(before.withdrawals);
+
+    const { rows } = await pg.admin.query(
+      "select count(*)::int as n from public.booking_refusals where booking_id = $1",
+      [id],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it("still records an ordinary withdrawal as one", async () => {
+    // The suppression is narrow on purpose: without this test it could widen
+    // into "no release is ever counted" and nobody would notice.
+    await clear();
+    await setCap(1);
+    const before = await statsFor();
+
+    const id = await book({ provider: krishna, at: TWO_PM });
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [id],
+    );
+    await pg.admin.query(
+      "update public.bookings set status = 'pending', provider_id = null where id = $1",
+      [id],
+    );
+
+    expect((await statsFor()).withdrawals).toBe(before.withdrawals + 1);
+    const { rows } = await pg.admin.query(
+      "select count(*)::int as n from public.booking_refusals where booking_id = $1",
+      [id],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it("refuses a customer stamping a miss from their own session", async () => {
+    // A counter a caller can move is a counter that measures nothing.
+    await clear();
+    await setCap(1);
+    const id = await book({ provider: null, at: TWO_PM });
+    const anita = await pg.asUser(ANITA);
+    await expect(
+      anita.query(
+        "update public.bookings set overbook_missed_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/professional's to make/);
+    await anita.end();
+  });
+});

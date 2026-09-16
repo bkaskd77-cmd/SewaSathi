@@ -666,7 +666,8 @@
         "widen": "Let anyone take it",
         "widenNote": "{name} can still take it. This only means you stop waiting for them alone.",
         "failed": "That did not work. Try again."
-      }
+      },
+      "overbookOffered": "{name} offered to fit you in alongside another job. If they cannot make it they will tell you straight away and we will find somebody else."
     },
     "payment": {
       "methods": {
@@ -771,7 +772,8 @@
       "quoteReady": "Your price is ready",
       "quoteExpired": "That price has expired",
       "quoteApproved": "Price accepted",
-      "quoteDeclined": "Price turned down"
+      "quoteDeclined": "Price turned down",
+      "mayRunLate": "Your professional may not make it"
     },
     "alternatives": {
       "heading": "Choose someone else",
@@ -1235,6 +1237,15 @@
         "sending": "Sending…",
         "sent": "Sent. Nothing starts until the customer accepts it.",
         "holds": "The price you send holds for {hours} hours."
+      },
+      "overbook": {
+        "full": "You already have a job at this time",
+        "offer": "Offer to fit this in anyway",
+        "offering": "Offering…",
+        "note": "Only do this if you really can. The customer is told you offered, and if you cannot reach them you can hand the job straight back — it is never counted as turning work down.",
+        "miss": "I cannot make this one",
+        "missing": "Handing it back…",
+        "missNote": "The job reopens straight away and the customer is told. This is not counted as refusing work."
       }
     },
     "arrival": {

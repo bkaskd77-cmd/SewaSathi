@@ -10,6 +10,8 @@ import {
   claimJob,
   declineJob,
   getMyProvider,
+  offerOverbookAndClaim,
+  recordOverbookMiss,
 } from "@/lib/data/provider-jobs";
 import { recordSurveyQuote } from "@/lib/data/survey";
 
@@ -243,4 +245,49 @@ export async function recordSurveyQuoteAction(
     return { ok: true };
   }
   return { ok: false, reason: result.reason };
+}
+
+/**
+ * Take an open job that will not fit, by offering to fit it in anyway.
+ *
+ * Never a standing setting and never something the customer can ask for — see
+ * `offerOverbookAndClaim`. If the window turns out to have room after all it
+ * falls through to an ordinary claim, so the offer counter only ever moves for
+ * a real offer.
+ */
+export async function offerOverbookAction(
+  bookingId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await offerOverbookAndClaim({
+    bookingId,
+    actorId: profile.id,
+  });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  return result;
+}
+
+/**
+ * "I offered to squeeze you in and I am still on the other job."
+ *
+ * The job reopens immediately and the customer is told. Counted as a miss for
+ * ranking, recorded as a refusal NOWHERE — they were working, not refusing.
+ */
+export async function overbookMissAction(
+  bookingId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await recordOverbookMiss({ bookingId, actorId: profile.id });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  return result;
 }

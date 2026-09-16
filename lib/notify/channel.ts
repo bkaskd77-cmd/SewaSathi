@@ -59,6 +59,16 @@ export type NotificationKind =
    */
   | "booking.quoteDeclined"
   /**
+   * The professional who offered to squeeze this job in has run out of day.
+   *
+   * SENT TO THE CUSTOMER, and it is the point of counting misses at all: an
+   * offer nobody can rely on is worse than no offer. The job reopens
+   * immediately and the customer is told, rather than finding out on the day
+   * from somebody who does not arrive — which is the failure slot capacity
+   * exists to prevent and which an unchecked offer would reintroduce.
+   */
+  | "booking.mayRunLate"
+  /**
    * A job has come back. Sent to the professional whose work it was, because
    * the common path — and the cheap one — is that they go round themselves.
    */

@@ -77,6 +77,8 @@ export type Booking = {
   quoteExpiresAt: string | null;
   quoteApprovedAt: string | null;
   quoteDeclinedAt: string | null;
+  /** The listing that offered to fit this job in beside one they already held. */
+  overbookOfferedBy: string | null;
   finalAmount: number | null;
   /** Why the professional went over the band, in their own words. */
   finalAmountReason: string | null;
@@ -164,7 +166,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
+  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -188,6 +190,7 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
     quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
     quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+    overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
     finalAmount: (row.final_amount as number | null) ?? null,
     finalAmountReason: (row.final_amount_reason as string | null) ?? null,
     finalAmountApprovedAt:
