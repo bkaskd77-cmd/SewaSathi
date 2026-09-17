@@ -156,6 +156,105 @@ describe("the keyword matcher names a product only when it cannot be wrong", () 
   });
 });
 
+/**
+ * The corpus check, and it is here because it caught three real defects.
+ *
+ * Three rules were given a band by reading the rule's NAME and its ENGLISH
+ * keywords. Every one was wrong once the Romanized and Devanagari terms
+ * underneath were read too. Nothing in the type system or the unit tests above
+ * would have found them — each band was individually plausible and pointed at a
+ * product its own trade really sells.
+ *
+ * What finds them is running sentences a person would actually type. Each case
+ * below is the exact phrase that exposed one, kept permanently so a band bolted
+ * onto a coarse rule later fails the suite rather than quietly mis-filing
+ * bookings.
+ */
+describe("the sentences that caught three wrong bands", () => {
+  /*
+   * "bathroom ko dhara chuhiyo" — a dripping tap. It matched the no-water rule,
+   * because the bare "dhara" is in that rule's keywords and just means TAP. It
+   * was filed as "No water, pump or airlock": twice the length, wrong product,
+   * and confident about it.
+   */
+  it("does not call a dripping tap a no-water job", () => {
+    expect(triageProblem("bathroom ko dhara chuhiyo", COPY).band).toBeNull();
+    expect(triageProblem("भान्साको धारा चुहिरहेको छ", COPY).band).toBeNull();
+  });
+
+  /*
+   * The plumbing emergency rule is half gas leak — "ग्यास चुहि",
+   * "सिलिन्डर चुहि", "gas smell" — and was banded `burst`. A gas leak is not a
+   * burst pipe, and every gas report would have landed in that product.
+   */
+  it("does not call a gas leak a burst pipe", () => {
+    expect(triageProblem("gas cylinder is leaking", COPY).band).toBeNull();
+    expect(triageProblem("सिलिन्डरबाट ग्यास चुहिरहेको छ", COPY).band).toBeNull();
+  });
+
+  /*
+   * The appliance rule was banded `repair`, but "not working", "बिग्रियो" and
+   * "चलेको छैन" say nothing about a diagnosis, a labour-only repair or a
+   * compressor — 500 to 5,000 apart. "geyser" is in it too, and that is a
+   * PLUMBING product as well as an appliance one.
+   */
+  it("does not decide which appliance job it is from 'not working'", () => {
+    expect(triageProblem("washing machine is not spinning", COPY).band).toBeNull();
+    expect(triageProblem("fridge chaleko chaina", COPY).band).toBeNull();
+    expect(triageProblem("geyser is not working", COPY).band).toBeNull();
+  });
+
+  /*
+   * THE GENERAL RULE, ASSERTED RATHER THAN TRUSTED. A rule may only name a
+   * product if every keyword it owns points at that product. This is the check
+   * that would have caught all three at once, and it is what makes adding a
+   * band to a coarse rule fail rather than ship.
+   *
+   * Deliberately phrased as a floor, not a whitelist: it does not care WHICH
+   * two rules carry a band, only that nothing that carries one is the kind of
+   * rule that cannot know.
+   */
+  it("lets no rule name a product while holding a keyword that contradicts it", () => {
+    /*
+     * A keyword is "generic" when it names a symptom or a trade rather than a
+     * job — it could be any product in the trade, so a rule holding one cannot
+     * know which product it is.
+     */
+    const GENERIC = [
+      "not working", "not starting", "चलेको छैन", "बिग्रियो",
+      "dhara", "धारा", "tap", "pipe", "पाइप",
+      "gas leak", "gas smell", "ग्यास चुहि", "सिलिन्डर चुहि",
+      "geyser", "appliance",
+    ];
+
+    for (const rule of KEYWORD_RULES) {
+      if (!rule.band) continue;
+      const offending = rule.keywords.filter((k) => GENERIC.includes(k));
+      expect(
+        offending,
+        `${rule.category}/${rule.band} claims one product but matches ${offending.join(", ")}`,
+      ).toEqual([]);
+    }
+  });
+
+  /*
+   * AND THE HONEST HEADLINE. Two of fourteen rules can name a product. This is
+   * asserted so nobody reads the keyword matcher as the path duration comes
+   * from — it is the fallback, it answers when the key is missing or the call
+   * failed, and the model is what actually reads the sentence.
+   */
+  it("names a product for two rules out of fourteen, and says so", () => {
+    const problemRules = KEYWORD_RULES.filter(
+      (rule, i, all) => all.findIndex((r) => r.explanationKey === rule.explanationKey) === i,
+    );
+    const banded = problemRules.filter((rule) => rule.band);
+    expect(banded.map((r) => `${r.category}/${r.band}`).sort()).toEqual([
+      "electrical/fault",
+      "plumbing/blockage",
+    ]);
+  });
+});
+
 describe("the prompt hands the model the keys it is asked to choose from", () => {
   /*
    * A model cannot return a slug it was never shown. The note is generated

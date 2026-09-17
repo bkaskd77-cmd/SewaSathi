@@ -20,6 +20,12 @@
  * scheduler is a Postgres trigger, and both have to agree with this file.
  */
 
+// Through the module's public entry, never into its internals — the boundary
+// `no-restricted-imports` enforces for lib/booking and lib/auth already, and
+// which the rest of the modules are being moved onto. Type-only, so it is
+// erased at compile time and cannot create a runtime cycle.
+import type { DurationEvidence } from "@/lib/provider";
+
 /**
  * What the scheduler reserves when nothing is known.
  *
@@ -82,11 +88,60 @@ export function workingMinutes(duration: BookingDuration): number {
   );
 }
 
-/** How many days the home is a building site. One unless somebody said more. */
-export function elapsedDays(duration: BookingDuration): number {
+/**
+ * How many days the home is a building site.
+ *
+ * ONE UNLESS SOMEBODY WITH EVIDENCE SAID MORE, and the evidence test is
+ * `spansDays` below. Pass the provenance; leaving it out means "no evidence",
+ * which collapses to a single day.
+ */
+export function elapsedDays(
+  duration: BookingDuration,
+  provenance?: DurationEvidence,
+): number {
+  if (!spansDays(duration, provenance)) return 1;
   return (
     duration.providerEstimatedElapsedDays ?? duration.estimatedElapsedDays ?? 1
   );
+}
+
+/**
+ * May this booking hold more than one day?
+ *
+ * THE TWO NUMBERS ARE GATED DIFFERENTLY AND THAT IS DELIBERATE, because a
+ * wrong one costs wildly different amounts.
+ *
+ * A wrong `working_minutes` reserves 90 where 120 was right. Bounded, the same
+ * order as the flat two-hour window every booking held before duration
+ * existed, and strictly better than reserving the same two hours for a tap
+ * washer and a whole-flat repaint. So an invented figure is allowed to do it:
+ * a reservation nobody reads makes no claim about anything.
+ *
+ * A wrong `elapsed_days` holds FOUR DAYS of a painter's week and four days of
+ * a customer's home. That removes real bookable capacity, it is invisible to
+ * everybody it affects, and nothing distinguishes it from a measurement. All
+ * 36 sub-band durations are `invented` today — nobody in Nepal publishes how
+ * long a room takes between coats — so until somebody does the research, a
+ * span is refused and the job holds its minutes on one day. Which is exactly
+ * what every booking did before this phase.
+ *
+ * SO THE RULE, AND IT EXTENDS `hasPublishableDuration` RATHER THAN COMPETING
+ * WITH IT: an invented number may reserve, it may not claim, and it may not
+ * reserve more than a day.
+ *
+ * A PROFESSIONAL'S OWN FIGURE IS EVIDENCE. They have been to the site. Their
+ * correction spans days whatever the sub-band's provenance says, because the
+ * thing being gated is OUR guess, not their judgement.
+ */
+export function spansDays(
+  duration: BookingDuration,
+  provenance?: DurationEvidence,
+): boolean {
+  if (duration.providerEstimatedElapsedDays != null) {
+    return duration.providerEstimatedElapsedDays > 1;
+  }
+  if (!provenance || provenance.source === "invented") return false;
+  return (duration.estimatedElapsedDays ?? 1) > 1;
 }
 
 /**
@@ -106,8 +161,11 @@ export function isEstimated(duration: BookingDuration): boolean {
 }
 
 /** Is this a job that occupies a home past today? */
-export function isMultiDay(duration: BookingDuration): boolean {
-  return elapsedDays(duration) > 1;
+export function isMultiDay(
+  duration: BookingDuration,
+  provenance?: DurationEvidence,
+): boolean {
+  return elapsedDays(duration, provenance) > 1;
 }
 
 /**

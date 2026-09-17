@@ -94,6 +94,7 @@ export {
   isEstimated,
   isMultiDay,
   plausibleWorkedMinutes,
+  spansDays,
   workingMinutes,
   type BookingDuration,
 } from "./duration";

@@ -44,11 +44,14 @@ const CATEGORY_SEED = "lib/data/seed/categories.json";
  * provenance.
  *
  * A sub-band's `durationSource` says where "about 4 days" came from. All 36 are
- * `invented` today, so nothing in the product prints a duration — the scheduler
- * uses them, which is fine because a reservation nobody reads is not a claim,
- * and `hasPublishableDuration` keeps them off every screen. This entry is what
- * stops that being quietly forgotten: the day somebody deletes the gate, the
- * register still says the numbers are guesses.
+ * `invented` today, and two gates follow from that. Nothing in the product
+ * PRINTS a duration (`hasPublishableDuration`), and nothing HOLDS more than a
+ * day on one (`spansDays`) — a reservation nobody reads is not a claim, but
+ * four days of somebody's week is not a reservation, it is capacity taken.
+ * `multi-day-scheduling` is the entry for that second gate and it is chained to
+ * this one below. Together they stop the whole thing being quietly forgotten:
+ * the day somebody deletes either gate, the register still says the numbers
+ * are guesses.
  */
 const DURATIONS_ENTRY = "sub-band-durations";
 const SUB_BAND_SEED = "lib/data/seed/price-bands.json";
@@ -146,7 +149,18 @@ function main() {
    * green check on the strip hiding the reason the strip has to stay empty, and
    * whoever later deleted the filter would find both checks already passing.
    */
-  const DEPENDS_ON = { "trust-strip-counts": "seed-providers-and-reviews" };
+  const DEPENDS_ON = {
+    "trust-strip-counts": "seed-providers-and-reviews",
+    /*
+     * A HIDDEN INVENTED NUMBER THAT MOVES A CALENDAR IS THE SAME RISK AS AN
+     * INVENTED ONE ON THE LANDING PAGE, and less visible. A sub-band's span
+     * holds days of a professional's week and days of a customer's home, and
+     * all 36 spans are guesses — so opening that gate while the numbers behind
+     * it are still `invented` would be exactly the trade the trust strip was
+     * not allowed to make: a smaller lie, arrived at carefully.
+     */
+    "multi-day-scheduling": "sub-band-durations",
+  };
   const brokenDeps = Object.entries(DEPENDS_ON).filter(([id, needs]) => {
     const entry = entries.find((e) => e.id === id);
     const dependency = entries.find((e) => e.id === needs);
@@ -165,11 +179,24 @@ function main() {
     console.log(`  ${mark}  ${entry.id}`);
   }
 
+  /*
+   * Why each pair is chained, so the failure explains itself. This was one
+   * hardcoded sentence about the trust strip until a second dependency
+   * existed, at which point it started telling whoever broke the duration
+   * chain about seeded providers.
+   */
+  const WHY = {
+    "trust-strip-counts":
+      "Those counts are only honest because they exclude the seeded providers.",
+    "multi-day-scheduling":
+      "A span holds days of a professional's week and days of a customer's home, and every one of them is currently a guess.",
+  };
+
   for (const [id, needs] of brokenDeps) {
     console.log(
       `\n  ${id} is marked resolved, but it rests on ${needs}, which is not.` +
-        `\n  The counts on that strip are only honest because they exclude the` +
-        `\n  seeded providers. Resolve ${needs} first.`,
+        (WHY[id] ? `\n  ${WHY[id]}` : "") +
+        `\n  Resolve ${needs} first.`,
     );
   }
 

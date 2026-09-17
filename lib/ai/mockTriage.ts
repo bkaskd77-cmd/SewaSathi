@@ -47,8 +47,10 @@ export type TriageResult = {
    * NULL IS A REAL ANSWER AND THE COMMON ONE HERE. "I need a painter" does not
    * say whether that is a touch-up or a whole flat, and guessing would file the
    * booking under the wrong product in every signal that later reads it. The
-   * matcher below names a band only where its own keywords cannot mean
-   * anything else; the model, which is handed the labelled list, does better.
+   * matcher below manages it for two rules out of fourteen; the model, which
+   * is handed the labelled list and reads the whole sentence, is the path this
+   * is actually expected to come from — and `triage_logs` records which, so
+   * whether that is true stops being an assumption.
    */
   band: string | null;
 };
@@ -69,12 +71,23 @@ export type KeywordRule = {
   /**
    * The one product this rule can only mean, or null.
    *
-   * SET ONLY WHERE THE KEYWORDS ARE UNAMBIGUOUS. "blocked drain" is the
-   * blockage product and nothing else; "leak, tap, pipe, dripping" spans a tap
-   * washer and a pipe run, which are different products at different lengths.
-   * Nine of the fourteen rules below are null for that reason, and that is the
-   * honest shape of a keyword matcher: it recognises a trade reliably and a
-   * product only sometimes.
+   * TWELVE OF THE FOURTEEN RULES BELOW ARE NULL, and that is the honest shape
+   * of a keyword matcher: it recognises a TRADE from one word reliably, and a
+   * PRODUCT hardly ever. Naming the product needs the sentence, which is what
+   * the model reads and this file cannot.
+   *
+   * IT STARTED AT NINE AND AN AUDIT MOVED IT TO TWELVE. Three bands were set
+   * by reading a rule's name and its English keywords, and every one was wrong
+   * once the Romanized and Devanagari terms underneath were read too — see the
+   * comments on each. The lesson is in `tests/unit/triage-band.test.ts`, which
+   * now runs real phrasings through this matcher and fails if any rule names a
+   * product its own keywords could contradict.
+   *
+   * A WRONG PRODUCT IS WORSE THAN NONE, in both directions that matter: it
+   * books the wrong span out of somebody's week, and it files the booking
+   * under the wrong product in `category_pricing_signals` — the signal that
+   * exists to find our own mispricing. Null is recoverable. A confident wrong
+   * answer is a measurement nobody knows is false.
    */
   band: string | null;
 };
@@ -111,8 +124,14 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "emergency",
     priceRangeNPR: [1500, 4500],
     explanationKey: "plumbing-emergency",
-    // Burst pipe or flooding, and nothing else these words can mean.
-    band: "burst",
+    /*
+     * NO BAND, AND THE FIRST VERSION OF THIS FILE SAID `burst`. Read the
+     * keyword list above rather than the rule's name: half of it is a GAS
+     * LEAK — "ग्यास चुहि", "सिलिन्डर चुहि", "gas smell". A gas leak is not
+     * "Burst pipe or flooding", and filing it as one would put every gas
+     * report into the wrong product in `category_pricing_signals`.
+     */
+    band: null,
   },
   {
     category: "plumbing",
@@ -181,8 +200,13 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1000, 2800],
     explanationKey: "plumbing-water",
-    // No water, pump or airlock. One product.
-    band: "no-water",
+    /*
+     * NO BAND, AND THIS ONE WAS CAUGHT BY A REAL SENTENCE. The list above
+     * contains the bare "dhara", which just means TAP — so "bathroom ko
+     * dhara chuhiyo", a dripping tap, matched here and was filed as "No
+     * water, pump or airlock". Confidently wrong, and twice the length.
+     */
+    band: null,
   },
   {
     category: "electrical",
@@ -301,8 +325,13 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1200, 4000],
     explanationKey: "appliance",
-    // Labour-only repair; the rule's own range was written from this product.
-    band: "repair",
+    /*
+     * NO BAND. "not working", "बिग्रियो" and "चलेको छैन" are in this list
+     * and say nothing about whether it is a diagnosis, a labour-only repair
+     * or a compressor — 500 to 5,000 apart. "geyser" is in it too, and that
+     * is a PLUMBING product as well as an appliance one.
+     */
+    band: null,
   },
   {
     category: "pest-control",
