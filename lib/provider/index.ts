@@ -21,7 +21,13 @@ export {
 } from "./rates";
 
 export {
+  OFFER_MIN_SAMPLE,
   OVERBOOK_MIN_OFFERS,
+  RATING_PRIOR_COUNT,
+  RATING_PRIOR_MEAN,
+  bayesianRating,
+  displayRating,
+  hasAnsweredRecord,
   hasCompletion,
   hasOverbookRecord,
   hasRating,

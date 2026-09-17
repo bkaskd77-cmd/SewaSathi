@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import type { Provider } from "@/lib/data/providers";
+import providerSeed from "@/lib/data/seed/providers.json";
+import reviewSeed from "@/lib/data/seed/reviews.json";
 import {
   OVERBOOK_RANKING_PENALTY_MAX,
   overbookRankingPenalty,
   scoreParts,
 } from "@/lib/data/ranking";
 import {
+  OFFER_MIN_SAMPLE,
   OVERBOOK_MIN_OFFERS,
+  bayesianRating,
+  displayRating,
+  hasAnsweredRecord,
   hasCompletion,
   hasOverbookRecord,
   hasRating,
   hasResponse,
+  type StatEvidence,
 } from "@/lib/provider";
 
 /**
@@ -58,6 +65,8 @@ function provider(stats: Partial<Provider["stats"]> = {}): Provider {
       withdrawals: 0,
       overbookOffers: 0,
       overbookMisses: 0,
+      offersMade: 0,
+      offersAnswered: 0,
       ...stats,
     },
   };
@@ -244,5 +253,109 @@ describe("an unmeasured overbooking record is not a measurement either", () => {
     // that is how a default becomes a fact. The dashboard reads the counts.
     expect(hasOverbookRecord(untested.stats)).toBe(false);
     expect(hasOverbookRecord(clean.stats)).toBe(true);
+  });
+});
+
+describe("the card and the ranking read the same rating", () => {
+  /*
+   * A REGRESSION TEST FOR THE SPLIT THIS FILE EXISTS TO END, found again in
+   * the place it started. Every card printed the raw `rating_avg` while
+   * `scoreParts` ranked on the Bayesian one — so the two disagreed about the
+   * same person in BOTH directions at once, and nobody could see it because
+   * each surface was internally consistent.
+   */
+
+  it("does not destroy a short record with one bad job", () => {
+    // Three jobs, one 1-star. Raw 3.67 reads as "avoid this person".
+    const shown = displayRating({ ratingAvg: 11 / 3, ratingCount: 3 })!;
+    expect(shown).toBeGreaterThan(4.3);
+    expect(shown).toBeCloseTo(bayesianRating(11 / 3, 3), 10);
+  });
+
+  it("does not flatter a short record either", () => {
+    // The prior pulls both ways, which is what makes it fair rather than kind.
+    expect(displayRating({ ratingAvg: 5, ratingCount: 3 })!).toBeLessThan(4.7);
+  });
+
+  it("leaves a long record almost alone", () => {
+    expect(displayRating({ ratingAvg: 4.88, ratingCount: 201 })!).toBeCloseTo(
+      4.84,
+      1,
+    );
+  });
+
+  it("is exactly what scoreParts uses, on the same provider", () => {
+    // The assertion that would have caught the original defect: one function,
+    // asked by both, never two answers about one person.
+    const p = provider({ ratingAvg: 4.9, ratingCount: 40 });
+    expect(displayRating(p.stats)).toBe(
+      bayesianRating(p.stats.ratingAvg, p.stats.ratingCount),
+    );
+  });
+
+  it("says nothing at all when nobody has rated them", () => {
+    // Not a prior printed as though it were earned — `hasRating` is the gate
+    // and a screen with no evidence says so.
+    expect(displayRating({ ratingAvg: 0, ratingCount: 0 })).toBeNull();
+  });
+});
+
+describe("whether they answer an offer is measured, with a floor", () => {
+  it("is not a record below the floor", () => {
+    expect(hasAnsweredRecord({ offersMade: OFFER_MIN_SAMPLE - 1 })).toBe(false);
+    expect(hasAnsweredRecord({ offersMade: OFFER_MIN_SAMPLE })).toBe(true);
+  });
+
+  it("has a floor because an offer is not something they generate", () => {
+    /*
+     * Unlike a withdrawal or an overbooking offer, a first-choice offer HAPPENS
+     * TO a professional. In a thin market it happens rarely, and a rate over
+     * two offers would take work away from somebody who has barely been
+     * offered any — which would then reduce their offers further.
+     */
+    expect(OFFER_MIN_SAMPLE).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe("the fallback carries no authored statistics", () => {
+  /*
+   * THE SEED IS ALSO THE FALLBACK. `lib/data/providers.ts` renders these rows
+   * whenever Supabase is unconfigured or unreachable, which is what makes a
+   * fresh clone work — and it is why deleting the 94 reviews from the database
+   * was only half the job. Leaving the JSON alone would have meant an outage
+   * serving every invented 4.8 and 231-jobs-completed straight back.
+   *
+   * The 28 provider rows themselves are still fiction and still an open
+   * blocker (`seed-providers-and-reviews`). What this pins is that they carry
+   * no MEASUREMENTS: every denominator is zero, so `hasRating`, `hasResponse`
+   * and `hasCompletion` all answer no and every surface says so.
+   */
+
+  it("has no reviews at all", () => {
+    expect(reviewSeed).toHaveLength(0);
+  });
+
+  it("gives every seeded provider an empty record rather than a good one", () => {
+    for (const seeded of providerSeed as Array<{
+      displayName: string;
+      stats: Record<string, number>;
+    }>) {
+      expect(seeded.stats.ratingCount).toBe(0);
+      expect(seeded.stats.ratingAvg).toBe(0);
+      expect(seeded.stats.jobsCompleted).toBe(0);
+      expect(seeded.stats.responseSamples).toBe(0);
+    }
+  });
+
+  it("reads as unmeasured through the same gates every screen asks", () => {
+    // Not a separate assertion about the JSON — the same functions the cards
+    // call, so this cannot pass while a surface still prints something.
+    for (const seeded of providerSeed as Array<{ stats: StatEvidence }>) {
+      const stats = { ...seeded.stats, jobsAccepted: 0, responseSamples: 0 };
+      expect(hasRating(stats)).toBe(false);
+      expect(hasResponse(stats)).toBe(false);
+      expect(hasCompletion(stats)).toBe(false);
+      expect(displayRating({ ...stats, ratingAvg: 0 })).toBeNull();
+    }
   });
 });

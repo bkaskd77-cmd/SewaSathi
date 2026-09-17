@@ -13,7 +13,7 @@ import { areaShortLabel } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
 import { isNewProvider } from "@/lib/data/ranking";
 import { bookingHref } from "@/lib/routes/booking";
-import { hasRating, hasResponse } from "@/lib/provider";
+import { displayRating, hasRating, hasResponse } from "@/lib/provider";
 import { cn, formatNpr } from "@/lib/utils";
 
 /**
@@ -192,7 +192,11 @@ export function ProviderCard({
           {rated ? (
             <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
               <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
-              {stats.ratingAvg.toFixed(1)}
+              {/* The SAME figure the ranking uses. The raw average was
+                  printed here while `scoreParts` ranked on the Bayesian one,
+                  so a thin record was flattered or destroyed on the card while
+                  ranking correctly — see `displayRating`. */}
+              {displayRating(stats)?.toFixed(1)}
               <span className="text-caption font-normal text-muted-foreground">
                 ({stats.ratingCount})
               </span>

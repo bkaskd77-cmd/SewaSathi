@@ -38,6 +38,14 @@ export type StatEvidence = {
    * purpose — see `OVERBOOK_MIN_OFFERS`.
    */
   overbookOffers: number;
+  /**
+   * First-choice offers made to them — the denominator for whether they answer.
+   *
+   * Only first-choice offers, because an open job broadcast to everybody is not
+   * an offer to anybody in particular. Counting those would make a busy week
+   * look like ignoring people.
+   */
+  offersMade: number;
 };
 
 /** Has anybody actually rated them? */
@@ -97,4 +105,84 @@ export function hasOverbookRecord(
   stats: Pick<StatEvidence, "overbookOffers">,
 ): boolean {
   return stats.overbookOffers >= OVERBOOK_MIN_OFFERS;
+}
+
+/**
+ * How many offers before an answer rate means anything.
+ *
+ * TEN, the same floor as overbooking and for a related reason: a first-choice
+ * offer is not something a professional generates, it is something that happens
+ * to them, and in a thin market it happens rarely. One unanswered offer out of
+ * two is not a pattern, and a rate computed over it would take work away from
+ * somebody who has barely been offered any.
+ */
+export const OFFER_MIN_SAMPLE = 10;
+
+/**
+ * Is there a record of whether they answer?
+ *
+ * The standards publish exactly one thing measured about availability: saying
+ * you are free and then not answering. That only means something with a
+ * denominator — and turning work DOWN counts as answering, because the same
+ * page publishes turning work down as never-a-signal, and a rate that punished
+ * a decline would make that a lie.
+ */
+export function hasAnsweredRecord(
+  stats: Pick<StatEvidence, "offersMade">,
+): boolean {
+  return stats.offersMade >= OFFER_MIN_SAMPLE;
+}
+
+/*
+ * The rating a customer should actually read.
+ *
+ * MOVED HERE FROM `lib/data/ranking.ts`, because this is the file that decides
+ * whether a number has evidence behind it and the Bayesian average is the same
+ * idea with arithmetic attached — CLAUDE.md already names it as the shape every
+ * other rule in here copied. It also has to be isomorphic: the catalogue card
+ * and the booking flow both render it, and one of those is a Client Component.
+ */
+
+/** Prior strength: a provider needs ~20 ratings before their own average wins. */
+export const RATING_PRIOR_COUNT = 20;
+/** The mean a thin rating is pulled toward. */
+export const RATING_PRIOR_MEAN = 4.5;
+
+/**
+ * A rating you can compare across providers with different amounts of evidence.
+ *
+ * A 5.0 from 3 jobs lands near 4.57; a 4.8 from 200 stays at 4.77. That single
+ * line is what stops the newest provider with three reviews from their cousin
+ * sitting at the top of every list.
+ */
+export function bayesianRating(average: number, count: number): number {
+  return (
+    (count * average + RATING_PRIOR_COUNT * RATING_PRIOR_MEAN) /
+    (count + RATING_PRIOR_COUNT)
+  );
+}
+
+/**
+ * The one figure to print, and it is the same one the ranking uses.
+ *
+ * WHAT WENT WRONG. Every card rendered the RAW `rating_avg` while `scoreParts`
+ * ranked on the Bayesian one, so the two disagreed about the same person in
+ * both directions at once: three jobs with one 1-star displayed 3.7 — which
+ * reads as "avoid" — while ranking 4.4, and three perfect jobs displayed a 5.0
+ * they had not earned while ranking 4.57. The prior was protecting their
+ * position and not the number a customer actually reads.
+ *
+ * That is precisely the card-versus-ranking split this file was created to
+ * end, found again in the place it started. One function now answers it, and
+ * the count travels beside the figure so 4.85-from-201 never looks like
+ * 4.85-from-3.
+ *
+ * Null when nobody has rated them: `hasRating` is the gate, and a screen with
+ * no evidence says so rather than printing a prior as though it were earned.
+ */
+export function displayRating(
+  stats: Pick<StatEvidence, "ratingCount"> & { ratingAvg: number },
+): number | null {
+  if (!hasRating(stats)) return null;
+  return bayesianRating(stats.ratingAvg, stats.ratingCount);
 }

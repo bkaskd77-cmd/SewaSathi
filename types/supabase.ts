@@ -1178,6 +1178,8 @@ export type Database = {
           withdrawals: number;
           overbook_offers: number;
           overbook_misses: number;
+          offers_made: number;
+          offers_answered: number;
           declines: number;
           last_withdrawal_at: string | null;
           last_active_at: string | null;
@@ -1195,6 +1197,8 @@ export type Database = {
           withdrawals?: number;
           overbook_offers?: number;
           overbook_misses?: number;
+          offers_made?: number;
+          offers_answered?: number;
           declines?: number;
           last_withdrawal_at?: string | null;
           last_active_at?: string | null;

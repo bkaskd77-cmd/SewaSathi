@@ -16,6 +16,7 @@ import {
 } from "@/lib/booking";
 import {
   canServeAt,
+  displayRating,
   hasRating,
   hasResponse,
   quoteFloor,
@@ -356,7 +357,9 @@ export function StepProvider({
                                 aria-hidden="true"
                                 className="size-3 fill-gold text-gold"
                               />
-                              {provider.ratingAvg.toFixed(1)} (
+                              {/* Same figure as the ranking and the catalogue
+                                  card — see `displayRating`. */}
+                              {displayRating(provider)?.toFixed(1)} (
                               {provider.ratingCount})
                             </span>
                           ) : (

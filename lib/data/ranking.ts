@@ -1,5 +1,17 @@
 import type { Provider } from "@/lib/data/providers";
-import { hasCompletion, hasOverbookRecord, hasResponse } from "@/lib/provider";
+import {
+  bayesianRating,
+  hasCompletion,
+  hasOverbookRecord,
+  hasResponse,
+} from "@/lib/provider";
+
+/*
+ * `bayesianRating` moved to `lib/provider/measured.ts` — it is the archetype
+ * every other rule in that file copied, and the cards need it too. Re-exported
+ * here so the ranking's own callers and tests keep one import.
+ */
+export { bayesianRating } from "@/lib/provider";
 
 /**
  * Which professional to show first.
@@ -141,10 +153,6 @@ const OVERBOOK_RATE_CEILING = 0.3;
 
 /** Ratings below this are treated as the floor of the useful range. */
 const RATING_FLOOR = 3.5;
-/** Prior strength: a provider needs ~20 ratings before their own average wins. */
-const RATING_PRIOR_COUNT = 20;
-/** The mean a thin rating is pulled toward. */
-const RATING_PRIOR_MEAN = 4.5;
 /** Above this many jobs, more jobs stop counting. */
 const VOLUME_CEILING = 300;
 /** A reply slower than this scores zero, not negative. */
@@ -198,19 +206,6 @@ const AVAILABILITY_SCORE: Record<Provider["availability"], number> = {
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
-/**
- * A rating you can compare across providers with different amounts of evidence.
- *
- * Standard Bayesian average: a 5.0 from 3 jobs lands near 4.57, a 4.8 from 200
- * stays at 4.77. That single line is what stops the newest provider with three
- * reviews from their cousin sitting at the top of every list.
- */
-export function bayesianRating(average: number, count: number): number {
-  return (
-    (count * average + RATING_PRIOR_COUNT * RATING_PRIOR_MEAN) /
-    (count + RATING_PRIOR_COUNT)
-  );
-}
 
 /**
  * How much this professional's record of pulling out costs them, 0 to

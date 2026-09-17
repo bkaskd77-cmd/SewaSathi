@@ -96,6 +96,17 @@ export type ProviderStats = {
   overbookOffers: number;
   /** Offers that then ran past the second customer's window. */
   overbookMisses: number;
+  /**
+   * Jobs where this professional was the customer's FIRST CHOICE.
+   *
+   * The denominator for whether they answer — the one thing the standards
+   * publish as measured about availability. Only first-choice offers: an open
+   * job broadcast to everybody is not an offer to anybody in particular, and
+   * counting those would make a busy week look like ignoring people.
+   */
+  offersMade: number;
+  /** Of those, the ones they accepted or declined before the hold lapsed. */
+  offersAnswered: number;
 };
 
 export type Provider = {
@@ -140,7 +151,12 @@ const SEED_PROVIDERS = providerSeed as Array<
     // product that has taken no bookings.
     stats: Omit<
       Provider["stats"],
-      "jobsAccepted" | "withdrawals" | "overbookOffers" | "overbookMisses"
+      | "jobsAccepted"
+      | "withdrawals"
+      | "overbookOffers"
+      | "overbookMisses"
+      | "offersMade"
+      | "offersAnswered"
     >;
   }
 >;
@@ -167,6 +183,8 @@ function seedProviders(): Provider[] {
       withdrawals: 0,
       overbookOffers: 0,
       overbookMisses: 0,
+      offersMade: 0,
+      offersAnswered: 0,
     },
   }));
 }
@@ -237,6 +255,8 @@ type ProviderRow = {
     withdrawals: number | null;
     overbook_offers: number | null;
     overbook_misses: number | null;
+    offers_made: number | null;
+    offers_answered: number | null;
   } | null;
 };
 
@@ -292,12 +312,14 @@ function fromRow(row: ProviderRow): Provider {
       withdrawals: stats?.withdrawals ?? 0,
       overbookOffers: stats?.overbook_offers ?? 0,
       overbookMisses: stats?.overbook_misses ?? 0,
+      offersMade: stats?.offers_made ?? 0,
+      offersAnswered: stats?.offers_answered ?? 0,
     },
   };
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals, overbook_offers, overbook_misses)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals, overbook_offers, overbook_misses, offers_made, offers_answered)";
 
 /**
  * Providers in one category, filtered but not yet ranked.

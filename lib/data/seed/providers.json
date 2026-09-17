@@ -22,12 +22,13 @@
     "availability": "today",
     "baseRate": 900,
     "stats": {
-      "ratingAvg": 4.8,
-      "ratingCount": 212,
-      "jobsCompleted": 231,
-      "completionRate": 98,
-      "avgResponseMinutes": 12,
-      "lastActiveMinutesAgo": 4
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 4,
+      "responseSamples": 0
     }
   },
   {
@@ -53,12 +54,13 @@
     "availability": "today",
     "baseRate": 1600,
     "stats": {
-      "ratingAvg": 4.9,
-      "ratingCount": 168,
-      "jobsCompleted": 187,
-      "completionRate": 99,
-      "avgResponseMinutes": 9,
-      "lastActiveMinutesAgo": 11
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 11,
+      "responseSamples": 0
     }
   },
   {
@@ -84,12 +86,13 @@
     "availability": "today",
     "baseRate": 850,
     "stats": {
-      "ratingAvg": 4.7,
-      "ratingCount": 304,
-      "jobsCompleted": 342,
-      "completionRate": 97,
-      "avgResponseMinutes": 15,
-      "lastActiveMinutesAgo": 2
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 2,
+      "responseSamples": 0
     }
   },
   {
@@ -114,12 +117,13 @@
     "availability": "today",
     "baseRate": 1100,
     "stats": {
-      "ratingAvg": 4.6,
-      "ratingCount": 141,
-      "jobsCompleted": 166,
-      "completionRate": 95,
-      "avgResponseMinutes": 42,
-      "lastActiveMinutesAgo": 180
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 180,
+      "responseSamples": 0
     }
   },
   {
@@ -146,12 +150,13 @@
     "availability": "today",
     "baseRate": 1800,
     "stats": {
-      "ratingAvg": 4.8,
-      "ratingCount": 97,
-      "jobsCompleted": 108,
-      "completionRate": 98,
-      "avgResponseMinutes": 18,
-      "lastActiveMinutesAgo": 7
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 7,
+      "responseSamples": 0
     }
   },
   {
@@ -177,12 +182,13 @@
     "availability": "today",
     "baseRate": 950,
     "stats": {
-      "ratingAvg": 4.5,
-      "ratingCount": 88,
-      "jobsCompleted": 102,
-      "completionRate": 94,
-      "avgResponseMinutes": 35,
-      "lastActiveMinutesAgo": 95
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 95,
+      "responseSamples": 0
     }
   },
   {
@@ -209,12 +215,13 @@
     "availability": "today",
     "baseRate": 1700,
     "stats": {
-      "ratingAvg": 4.7,
-      "ratingCount": 124,
-      "jobsCompleted": 139,
-      "completionRate": 96,
-      "avgResponseMinutes": 14,
-      "lastActiveMinutesAgo": 20
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 20,
+      "responseSamples": 0
     }
   },
   {
@@ -240,12 +247,13 @@
     "availability": "today",
     "baseRate": 900,
     "stats": {
-      "ratingAvg": 4.6,
-      "ratingCount": 176,
-      "jobsCompleted": 203,
-      "completionRate": 95,
-      "avgResponseMinutes": 22,
-      "lastActiveMinutesAgo": 35
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 35,
+      "responseSamples": 0
     }
   },
   {
@@ -270,12 +278,13 @@
     "availability": "today",
     "baseRate": 6000,
     "stats": {
-      "ratingAvg": 4.4,
-      "ratingCount": 73,
-      "jobsCompleted": 91,
-      "completionRate": 92,
-      "avgResponseMinutes": 55,
-      "lastActiveMinutesAgo": 240
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 240,
+      "responseSamples": 0
     }
   },
   {
@@ -301,12 +310,13 @@
     "availability": "today",
     "baseRate": 1500,
     "stats": {
-      "ratingAvg": 4.9,
-      "ratingCount": 96,
-      "jobsCompleted": 104,
-      "completionRate": 99,
-      "avgResponseMinutes": 11,
-      "lastActiveMinutesAgo": 6
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 6,
+      "responseSamples": 0
     }
   },
   {
@@ -331,12 +341,13 @@
     "availability": "scheduled",
     "baseRate": 5000,
     "stats": {
-      "ratingAvg": 4.7,
-      "ratingCount": 112,
-      "jobsCompleted": 128,
-      "completionRate": 96,
-      "avgResponseMinutes": 90,
-      "lastActiveMinutesAgo": 600
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 600,
+      "responseSamples": 0
     }
   },
   {
@@ -362,12 +373,13 @@
     "availability": "today",
     "baseRate": 1900,
     "stats": {
-      "ratingAvg": 4.6,
-      "ratingCount": 84,
-      "jobsCompleted": 97,
-      "completionRate": 95,
-      "avgResponseMinutes": 17,
-      "lastActiveMinutesAgo": 15
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 15,
+      "responseSamples": 0
     }
   },
   {
@@ -392,12 +404,13 @@
     "availability": "today",
     "baseRate": 1300,
     "stats": {
-      "ratingAvg": 4.5,
-      "ratingCount": 131,
-      "jobsCompleted": 152,
-      "completionRate": 93,
-      "avgResponseMinutes": 40,
-      "lastActiveMinutesAgo": 120
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 120,
+      "responseSamples": 0
     }
   },
   {
@@ -422,12 +435,13 @@
     "availability": "today",
     "baseRate": 1500,
     "stats": {
-      "ratingAvg": 4.4,
-      "ratingCount": 41,
-      "jobsCompleted": 47,
-      "completionRate": 93,
-      "avgResponseMinutes": 25,
-      "lastActiveMinutesAgo": 40
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 40,
+      "responseSamples": 0
     }
   },
   {
@@ -453,12 +467,13 @@
     "availability": "today",
     "baseRate": 1000,
     "stats": {
-      "ratingAvg": 4.7,
-      "ratingCount": 198,
-      "jobsCompleted": 224,
-      "completionRate": 96,
-      "avgResponseMinutes": 16,
-      "lastActiveMinutesAgo": 9
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 9,
+      "responseSamples": 0
     }
   },
   {
@@ -484,12 +499,13 @@
     "availability": "today",
     "baseRate": 2200,
     "stats": {
-      "ratingAvg": 4.8,
-      "ratingCount": 67,
-      "jobsCompleted": 74,
-      "completionRate": 97,
-      "avgResponseMinutes": 30,
-      "lastActiveMinutesAgo": 60
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 60,
+      "responseSamples": 0
     }
   },
   {
@@ -514,12 +530,13 @@
     "availability": "today",
     "baseRate": 5500,
     "stats": {
-      "ratingAvg": 4.3,
-      "ratingCount": 58,
-      "jobsCompleted": 72,
-      "completionRate": 90,
-      "avgResponseMinutes": 65,
-      "lastActiveMinutesAgo": 300
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 300,
+      "responseSamples": 0
     }
   },
   {
@@ -544,12 +561,13 @@
     "availability": "today",
     "baseRate": 800,
     "stats": {
-      "ratingAvg": 4.5,
-      "ratingCount": 52,
-      "jobsCompleted": 61,
-      "completionRate": 94,
-      "avgResponseMinutes": 20,
-      "lastActiveMinutesAgo": 25
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 25,
+      "responseSamples": 0
     }
   },
   {
@@ -574,12 +592,13 @@
     "availability": "scheduled",
     "baseRate": 1200,
     "stats": {
-      "ratingAvg": 4.6,
-      "ratingCount": 103,
-      "jobsCompleted": 119,
-      "completionRate": 95,
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
       "avgResponseMinutes": 120,
-      "lastActiveMinutesAgo": 720
+      "lastActiveMinutesAgo": 720,
+      "responseSamples": 0
     }
   },
   {
@@ -602,12 +621,13 @@
     "availability": "today",
     "baseRate": 1500,
     "stats": {
-      "ratingAvg": 4.2,
-      "ratingCount": 18,
-      "jobsCompleted": 21,
-      "completionRate": 90,
-      "avgResponseMinutes": 28,
-      "lastActiveMinutesAgo": 18
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 18,
+      "responseSamples": 0
     }
   },
   {
@@ -632,12 +652,13 @@
     "availability": "today",
     "baseRate": 900,
     "stats": {
-      "ratingAvg": 4.1,
-      "ratingCount": 34,
-      "jobsCompleted": 44,
-      "completionRate": 88,
-      "avgResponseMinutes": 45,
-      "lastActiveMinutesAgo": 30
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 30,
+      "responseSamples": 0
     }
   },
   {
@@ -663,12 +684,13 @@
     "availability": "today",
     "baseRate": 1600,
     "stats": {
-      "ratingAvg": 4.7,
-      "ratingCount": 79,
-      "jobsCompleted": 88,
-      "completionRate": 97,
-      "avgResponseMinutes": 38,
-      "lastActiveMinutesAgo": 110
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 110,
+      "responseSamples": 0
     }
   },
   {
@@ -694,12 +716,13 @@
     "availability": "scheduled",
     "baseRate": 2100,
     "stats": {
-      "ratingAvg": 4.6,
-      "ratingCount": 71,
-      "jobsCompleted": 82,
-      "completionRate": 95,
-      "avgResponseMinutes": 80,
-      "lastActiveMinutesAgo": 420
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 420,
+      "responseSamples": 0
     }
   },
   {
@@ -725,12 +748,13 @@
     "availability": "today",
     "baseRate": 4500,
     "stats": {
-      "ratingAvg": 4.5,
-      "ratingCount": 94,
-      "jobsCompleted": 111,
-      "completionRate": 93,
-      "avgResponseMinutes": 50,
-      "lastActiveMinutesAgo": 200
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 200,
+      "responseSamples": 0
     }
   },
   {
@@ -752,12 +776,13 @@
     "availability": "today",
     "baseRate": 1800,
     "stats": {
-      "ratingAvg": 4.3,
-      "ratingCount": 12,
-      "jobsCompleted": 15,
-      "completionRate": 87,
-      "avgResponseMinutes": 33,
-      "lastActiveMinutesAgo": 50
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 50,
+      "responseSamples": 0
     }
   },
   {
@@ -778,12 +803,13 @@
     "availability": "today",
     "baseRate": 1500,
     "stats": {
-      "ratingAvg": 4.5,
-      "ratingCount": 7,
-      "jobsCompleted": 8,
-      "completionRate": 88,
-      "avgResponseMinutes": 60,
-      "lastActiveMinutesAgo": 240
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 240,
+      "responseSamples": 0
     }
   },
   {
@@ -808,12 +834,13 @@
     "availability": "scheduled",
     "baseRate": 5200,
     "stats": {
-      "ratingAvg": 4.2,
-      "ratingCount": 44,
-      "jobsCompleted": 58,
-      "completionRate": 89,
-      "avgResponseMinutes": 95,
-      "lastActiveMinutesAgo": 480
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
+      "completionRate": 100,
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 480,
+      "responseSamples": 0
     }
   },
   {
@@ -839,12 +866,13 @@
     "availability": "today",
     "baseRate": 1250,
     "stats": {
-      "ratingAvg": 5.0,
-      "ratingCount": 9,
-      "jobsCompleted": 11,
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "jobsCompleted": 0,
       "completionRate": 100,
-      "avgResponseMinutes": 13,
-      "lastActiveMinutesAgo": 12
+      "avgResponseMinutes": 120,
+      "lastActiveMinutesAgo": 12,
+      "responseSamples": 0
     }
   }
 ]

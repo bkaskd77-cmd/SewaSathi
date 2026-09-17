@@ -44,6 +44,8 @@ function provider(overrides: Partial<Provider> = {}): Provider {
       withdrawals: 0,
       overbookOffers: 0,
       overbookMisses: 0,
+      offersMade: 0,
+      offersAnswered: 0,
     },
     ...overrides,
   };
