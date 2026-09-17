@@ -186,3 +186,40 @@ export function displayRating(
   if (!hasRating(stats)) return null;
   return bayesianRating(stats.ratingAvg, stats.ratingCount);
 }
+
+/*
+ * And the same question about a duration.
+ *
+ * Duration arrived with its own provenance — `duration_source` on
+ * `category_price_bands` — precisely so this file could ask about it. Every
+ * sub-band's duration is `invented` today, because nobody in Nepal publishes
+ * how long a tap leak takes.
+ */
+
+/** Only the provenance. The number is irrelevant to whether it may be shown. */
+export type DurationEvidence = {
+  source: "invented" | "researched" | "observed";
+};
+
+/**
+ * May a customer be told how long this will take?
+ *
+ * THE SPLIT THAT MAKES THIS WORK: a scheduler may use an invented duration and
+ * a screen may not. The scheduler is reserving time — a reservation nobody
+ * reads is not a claim about anything, and the alternative is reserving the
+ * same two hours for a tap washer and a whole-flat repaint, which is the
+ * workaround this replaced. A sentence on a screen IS a claim, and "about 4
+ * days" read off a guess is exactly the shape rule 6 names: a default
+ * presented as a measurement.
+ *
+ * So there is no `hasDuration`. Every booking has one; the question is only
+ * ever whether it is ours to publish, and the function is named for that.
+ *
+ * Today this returns false for all 36 sub-bands, so the whole product is
+ * silent about duration while scheduling correctly with it — which is the
+ * honest state and is held open by an entry in `check:blockers` rather than
+ * being quietly forgotten.
+ */
+export function hasPublishableDuration(duration: DurationEvidence): boolean {
+  return duration.source !== "invented";
+}

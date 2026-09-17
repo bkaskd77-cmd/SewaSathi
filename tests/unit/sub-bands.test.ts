@@ -128,3 +128,111 @@ describe("a sub-band carries its own provenance", () => {
     }
   });
 });
+
+/**
+ * And how long it takes, which arrived with the job-duration phase.
+ *
+ * TWO NUMBERS, BECAUSE FOR PAINTING THEY DIVERGE. A room takes four days and a
+ * painter a few hours of each — putty dries, primer cures, coats need hours
+ * between them. `categories.max_concurrent_jobs` was a single number pretending
+ * to model that, which is why painting's was 3.
+ */
+describe("a sub-band says how long the work takes", () => {
+  it("gives every product a working time and a span", () => {
+    for (const band of SUB_BAND_SEED) {
+      const id = `${band.categorySlug}/${band.slug}`;
+      expect(band.typicalWorkingMinutes, `${id} has no working time`).toBeGreaterThan(0);
+      expect(band.typicalElapsedDays, `${id} has no span`).toBeGreaterThanOrEqual(1);
+      expect(band.typicalElapsedDays, `${id} spans more than a month`).toBeLessThanOrEqual(30);
+    }
+  });
+
+  /*
+   * A SPAN THAT DOES NOT FIT ITS OWN WORKING TIME IS A TYPO, and it is the one
+   * error in this data a reader would not spot: 480 minutes over 1 day is
+   * eight hours and fine, 480 minutes over 10 days is 48 minutes a day and
+   * means somebody moved one number without the other.
+   */
+  it("never claims more work in a day than a day holds", () => {
+    const MINUTES_IN_A_WORKING_DAY = 12 * 60;
+    for (const band of SUB_BAND_SEED) {
+      expect(
+        band.typicalWorkingMinutes / band.typicalElapsedDays,
+        `${band.categorySlug}/${band.slug} works more hours a day than exist`,
+      ).toBeLessThanOrEqual(MINUTES_IN_A_WORKING_DAY);
+    }
+  });
+
+  /*
+   * DURATION PROVENANCE IS SEPARATE FROM PRICE PROVENANCE, and this is the
+   * test that keeps it separate. Merging them would let a researched price
+   * carry a guessed duration under its confidence, which is rule 6's failure
+   * with an extra step.
+   */
+  it("records its own source, never borrowing the price's", () => {
+    for (const band of SUB_BAND_SEED) {
+      const id = `${band.categorySlug}/${band.slug}`;
+      expect(["invented", "researched", "observed"]).toContain(band.durationSource);
+      expect(["high", "medium", "low"]).toContain(band.durationConfidence);
+      expect(band.durationNote, `${id} says nothing about where its duration came from`)
+        .toBeTruthy();
+
+      if (band.durationSource === "invented") {
+        expect(band.durationCheckedAt, `${id} is invented but claims a checked date`).toBeNull();
+        expect(band.durationConfidence, `${id} is invented but claims confidence`).toBe("low");
+      } else {
+        expect(band.durationCheckedAt, `${id} claims research with no date`).toBeTruthy();
+      }
+    }
+  });
+
+  /*
+   * THE STATE OF THE WORLD TODAY, asserted rather than assumed. Nobody in
+   * Nepal publishes how long a tap leak takes, so all 36 are guesses and the
+   * product prints none of them. When this test fails it is good news — it
+   * means somebody did the research — and the failure points at the launch
+   * blocker that has to be updated with it.
+   */
+  it("has nothing researched yet, which is why no screen shows a duration", () => {
+    const publishable = SUB_BAND_SEED.filter((b) => b.durationSource !== "invented");
+    expect(
+      publishable,
+      "a duration became publishable — update the sub-band-durations launch blocker",
+    ).toEqual([]);
+  });
+
+  /*
+   * PAINTING IS THE CASE THE MODEL EXISTS FOR, so it is pinned rather than
+   * left to the general rules. A one-room supplied job occupies the room for
+   * days and the painter for hours, and if those two ever collapse back into
+   * one number the whole phase has been undone.
+   */
+  it("separates the painter's hours from the room's days", () => {
+    const supplied = byCategory("painting").find((b) => b.slug === "room-supplied");
+    expect(supplied).toBeDefined();
+    expect(supplied!.typicalElapsedDays).toBeGreaterThan(1);
+    expect(
+      supplied!.typicalWorkingMinutes / supplied!.typicalElapsedDays,
+      "a painter is not on the tools all day for the whole span — that is what drying is",
+    ).toBeLessThan(8 * 60);
+
+    const touchUp = byCategory("painting").find((b) => b.slug === "touch-up");
+    expect(touchUp!.typicalElapsedDays, "one wall, one coat, one day").toBe(1);
+  });
+
+  /*
+   * A cleaner cleans one flat and leaves; a plumber fixes the tap and leaves.
+   * If one of these ever grows a span it is a data error, not a trade change —
+   * and a spurious span would hold a customer's home for days for nothing.
+   */
+  it("keeps the same-day trades same-day", () => {
+    for (const slug of ["home-cleaning", "plumbing", "ac-servicing", "water-tank-cleaning"]) {
+      for (const band of byCategory(slug)) {
+        expect(
+          band.typicalElapsedDays,
+          `${slug}/${band.slug} claims to occupy a home for more than a day`,
+        ).toBe(1);
+      }
+    }
+  });
+});

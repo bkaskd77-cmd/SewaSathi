@@ -30,8 +30,10 @@ export {
   hasAnsweredRecord,
   hasCompletion,
   hasOverbookRecord,
+  hasPublishableDuration,
   hasRating,
   hasResponse,
+  type DurationEvidence,
   type StatEvidence,
 } from "./measured";
 

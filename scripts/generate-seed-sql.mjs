@@ -115,6 +115,21 @@ create table if not exists public.category_price_bands (
     check (pricing_confidence in ('high', 'medium', 'low')),
   pricing_note text,
   sort_order integer not null default 0,
+  -- HOW LONG THE PROFESSIONAL IS ON THE TOOLS, and how long the customer's
+  -- home is a building site. Two numbers because for painting they diverge:
+  -- a room takes four days and a painter a few hours of each, and modelling
+  -- that with one number is what categories.max_concurrent_jobs was doing.
+  typical_working_minutes integer not null check (typical_working_minutes > 0),
+  typical_elapsed_days integer not null check (typical_elapsed_days between 1 and 30),
+  -- ITS OWN PROVENANCE, SEPARATE FROM THE PRICE'S, because researching what a
+  -- job costs is not researching how long it takes. Every row is invented
+  -- today, which is exactly why no customer is shown a duration yet.
+  duration_source text not null default 'invented'
+    check (duration_source in ('invented', 'researched', 'observed')),
+  duration_checked_at date,
+  duration_confidence text not null default 'low'
+    check (duration_confidence in ('high', 'medium', 'low')),
+  duration_note text,
   primary key (category_slug, slug)
 );
 
@@ -136,8 +151,8 @@ delete from public.category_price_bands;
 
 for (const b of subBands) {
   lines.push(
-    `insert into public.category_price_bands (category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order)
-values (${q(b.categorySlug)}, ${q(b.slug)}, ${q(b.labelEn)}, ${q(b.labelNe)}, ${b.low}, ${b.high}, ${q(b.pricingSource)}, ${b.pricingCheckedAt ? q(b.pricingCheckedAt) : "null"}, ${q(b.pricingConfidence)}, ${b.pricingNote ? q(b.pricingNote) : "null"}, ${b.sortOrder});\n`,
+    `insert into public.category_price_bands (category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note)
+values (${q(b.categorySlug)}, ${q(b.slug)}, ${q(b.labelEn)}, ${q(b.labelNe)}, ${b.low}, ${b.high}, ${q(b.pricingSource)}, ${b.pricingCheckedAt ? q(b.pricingCheckedAt) : "null"}, ${q(b.pricingConfidence)}, ${b.pricingNote ? q(b.pricingNote) : "null"}, ${b.sortOrder}, ${b.typicalWorkingMinutes}, ${b.typicalElapsedDays}, ${q(b.durationSource)}, ${b.durationCheckedAt ? q(b.durationCheckedAt) : "null"}, ${q(b.durationConfidence)}, ${b.durationNote ? q(b.durationNote) : "null"});\n`,
   );
 }
 

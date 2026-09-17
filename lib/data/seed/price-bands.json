@@ -10,7 +10,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Consultation 300-600 across two sources; floored at the category minimum.",
-    "sortOrder": 1
+    "sortOrder": 1,
+    "typicalWorkingMinutes": 30,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "A look and a verdict. No published figure; the fee itself implies a short visit."
   },
   {
     "categorySlug": "plumbing",
@@ -23,7 +29,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Published directly: fixing a leak 500-1200.",
-    "sortOrder": 2
+    "sortOrder": 2,
+    "typicalWorkingMinutes": 45,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "A washer or a joint. Guessed from the job, not from a source."
   },
   {
     "categorySlug": "plumbing",
@@ -36,7 +48,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Published directly as blocked-drain clearing.",
-    "sortOrder": 3
+    "sortOrder": 3,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Rodding and clearing. Guessed."
   },
   {
     "categorySlug": "plumbing",
@@ -49,7 +67,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Changing pipes 1500-3000; kitchen sink install the same.",
-    "sortOrder": 4
+    "sortOrder": 4,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Cutting, fitting and testing one run. Guessed."
   },
   {
     "categorySlug": "plumbing",
@@ -62,7 +86,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Geyser installation 1000-2000.",
-    "sortOrder": 5
+    "sortOrder": 5,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Mounting or stripping one unit. Guessed."
   },
   {
     "categorySlug": "plumbing",
@@ -75,7 +105,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Inferred from pump and pipe work rates; not separately published.",
-    "sortOrder": 6
+    "sortOrder": 6,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Tracing the fault is most of it. Guessed."
   },
   {
     "categorySlug": "plumbing",
@@ -88,7 +124,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Emergency work is not separately published; anchored to pipe work plus urgency.",
-    "sortOrder": 7
+    "sortOrder": 7,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Stopping it, then making good. Guessed, and the spread is real."
   },
   {
     "categorySlug": "electrical",
@@ -101,7 +143,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Rate card: socket 350, light point 550, decorative 650.",
-    "sortOrder": 8
+    "sortOrder": 8,
+    "typicalWorkingMinutes": 30,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "One point. Guessed."
   },
   {
     "categorySlug": "electrical",
@@ -114,7 +162,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "MCB replacement 500; the upper end allows for a board with several ways.",
-    "sortOrder": 9
+    "sortOrder": 9,
+    "typicalWorkingMinutes": 45,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "electrical",
@@ -127,7 +181,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Decorative light 650 per unit including 3m of wiring; several units reach the top.",
-    "sortOrder": 10
+    "sortOrder": 10,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Depends entirely on how many points. Guessed."
   },
   {
     "categorySlug": "electrical",
@@ -140,7 +200,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Fault-finding is not published as a line item; anchored to the trade's day rate.",
-    "sortOrder": 11
+    "sortOrder": 11,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Finding it is the work. Guessed."
   },
   {
     "categorySlug": "electrical",
@@ -153,7 +219,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Quoted after a visit everywhere. A judgement, not a citation.",
-    "sortOrder": 12
+    "sortOrder": 12,
+    "typicalWorkingMinutes": 480,
+    "typicalElapsedDays": 2,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Chasing, running and making good does not finish in a day. Guessed, and the second day is the least certain number here."
   },
   {
     "categorySlug": "home-cleaning",
@@ -166,7 +238,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Basic housekeeping visit 800-1500 for 1-2 hours.",
-    "sortOrder": 13
+    "sortOrder": 13,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "home-cleaning",
@@ -179,7 +257,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Standard 2BHK from 2500; larger flats reach the top.",
-    "sortOrder": 14
+    "sortOrder": 14,
+    "typicalWorkingMinutes": 240,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Two people for half a day, or one for a full one. Guessed."
   },
   {
     "categorySlug": "home-cleaning",
@@ -192,7 +276,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Deep clean 2BHK from 5000; general cleaning from 5500. Post-construction (to 60000) is a different product.",
-    "sortOrder": 15
+    "sortOrder": 15,
+    "typicalWorkingMinutes": 480,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "A full day. Guessed."
   },
   {
     "categorySlug": "appliance-repair",
@@ -205,7 +295,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Published 'starting at 500'; the call-out is the floor of this trade.",
-    "sortOrder": 16
+    "sortOrder": 16,
+    "typicalWorkingMinutes": 45,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "appliance-repair",
@@ -218,7 +314,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Labour only. Parts are quoted separately everywhere, so they are not in the band.",
-    "sortOrder": 17
+    "sortOrder": 17,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed; excludes waiting for a part, which is not our time."
   },
   {
     "categorySlug": "appliance-repair",
@@ -231,7 +333,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Labour for a major strip-down. The part itself is a separate quote and is often the larger figure.",
-    "sortOrder": 18
+    "sortOrder": 18,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "carpentry",
@@ -244,7 +352,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "No call-out rate is published for this trade; anchored to the skilled day rate 900-1200.",
-    "sortOrder": 19
+    "sortOrder": 19,
+    "typicalWorkingMinutes": 45,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "carpentry",
@@ -257,7 +371,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Half a day of skilled labour plus fittings. Inferred.",
-    "sortOrder": 20
+    "sortOrder": 20,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "carpentry",
@@ -270,7 +390,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Inferred. Published carpentry rates are for fabrication per sq ft, which is a different product.",
-    "sortOrder": 21
+    "sortOrder": 21,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "carpentry",
@@ -283,7 +409,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Approaches fabrication, where 550/sq ft and up is published. New furniture is quoted separately.",
-    "sortOrder": 22
+    "sortOrder": 22,
+    "typicalWorkingMinutes": 600,
+    "typicalElapsedDays": 2,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Building in place. Guessed, and the second day is a guess on top of a guess."
   },
   {
     "categorySlug": "pest-control",
@@ -296,7 +428,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Residential prices are quote-after-inspection everywhere. Inferred from the commercial 4-15 per sq ft against a flat.",
-    "sortOrder": 23
+    "sortOrder": 23,
+    "typicalWorkingMinutes": 60,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "The spray is quick; the hours the customer must stay out are not our time and are not counted here."
   },
   {
     "categorySlug": "pest-control",
@@ -309,7 +447,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "Sits at the top of the residential range and needs a follow-up visit. Inferred.",
-    "sortOrder": 24
+    "sortOrder": 24,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "pest-control",
@@ -322,7 +466,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "low",
     "pricingNote": "The most expensive residential treatment and the one most often quoted per sq ft. Inferred.",
-    "sortOrder": 25
+    "sortOrder": 25,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Drilling and injecting. Guessed."
   },
   {
     "categorySlug": "painting",
@@ -335,7 +485,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Labour 8-15 per sq ft; a small area is under a day of a 900-1200 day rate.",
-    "sortOrder": 26
+    "sortOrder": 26,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "One wall, one coat. Guessed."
   },
   {
     "categorySlug": "painting",
@@ -348,7 +504,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "About 400 sq ft of wall at 8-15 per sq ft.",
-    "sortOrder": 27
+    "sortOrder": 27,
+    "typicalWorkingMinutes": 480,
+    "typicalElapsedDays": 2,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Two coats with drying between them, so it does not fit in one day even though the hands-on time would. THIS IS THE CASE THE WHOLE MODEL EXISTS FOR."
   },
   {
     "categorySlug": "painting",
@@ -361,7 +523,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "45-90 per sq ft for primer and two coats over roughly 400 sq ft.",
-    "sortOrder": 28
+    "sortOrder": 28,
+    "typicalWorkingMinutes": 960,
+    "typicalElapsedDays": 4,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Putty, primer and two coats, each needing the last to cure. Four days of the room being unusable for roughly two days of work."
   },
   {
     "categorySlug": "painting",
@@ -374,7 +542,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "medium",
     "pricingNote": "Several rooms at 45-90 per sq ft. The reason this category cannot be one band.",
-    "sortOrder": 29
+    "sortOrder": 29,
+    "typicalWorkingMinutes": 3600,
+    "typicalElapsedDays": 7,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Same sequence, more rooms, and they overlap. The span is the number a customer plans around."
   },
   {
     "categorySlug": "ac-servicing",
@@ -387,7 +561,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Repairs published as starting at 500.",
-    "sortOrder": 30
+    "sortOrder": 30,
+    "typicalWorkingMinutes": 60,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "ac-servicing",
@@ -400,7 +580,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Published directly by two sources: 1200-2000.",
-    "sortOrder": 31
+    "sortOrder": 31,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "ac-servicing",
@@ -413,7 +599,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "3500-6000 after a leak fix; 4500-7500 for a full recharge by gas type and tonnage.",
-    "sortOrder": 32
+    "sortOrder": 32,
+    "typicalWorkingMinutes": 120,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "ac-servicing",
@@ -426,7 +618,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "5000-12000 by copper run, drilling and whether a stabiliser is included.",
-    "sortOrder": 33
+    "sortOrder": 33,
+    "typicalWorkingMinutes": 240,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Drilling, mounting, bracket and vacuum. Guessed."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -439,7 +637,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Steel or plastic 1500 for 1000 L, then 1 per extra litre.",
-    "sortOrder": 34
+    "sortOrder": 34,
+    "typicalWorkingMinutes": 90,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -452,7 +656,13 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Cemented or plastic 2400 up to 6000 L; 30 paisa per litre beyond 8000.",
-    "sortOrder": 35
+    "sortOrder": 35,
+    "typicalWorkingMinutes": 180,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Draining is most of it. Guessed."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -465,6 +675,12 @@
     "pricingCheckedAt": "2026-09-15",
     "pricingConfidence": "high",
     "pricingNote": "Combined cement plus plastic at 70 paisa per litre, plus 100-200 transport outside the Ring Road.",
-    "sortOrder": 36
+    "sortOrder": 36,
+    "typicalWorkingMinutes": 300,
+    "typicalElapsedDays": 1,
+    "durationSource": "invented",
+    "durationCheckedAt": null,
+    "durationConfidence": "low",
+    "durationNote": "Guessed."
   }
 ]

@@ -163,7 +163,7 @@ export const getSubBands = cache(async (): Promise<SubBand[]> => {
     const { data, error } = await createPublicClient()
       .from("category_price_bands")
       .select(
-        "category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order",
+        "category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note",
       )
       .order("sort_order");
 
@@ -196,6 +196,24 @@ export const getSubBands = cache(async (): Promise<SubBand[]> => {
           : "low",
       pricingNote: (row.pricing_note as string | null) ?? null,
       sortOrder: Number(row.sort_order),
+      typicalWorkingMinutes: Number(row.typical_working_minutes),
+      typicalElapsedDays: Number(row.typical_elapsed_days),
+      /*
+       * Fails closed to `invented`, which for duration means "do not print
+       * this". An unreadable provenance must make the product quieter, never
+       * more confident — the opposite default would publish a guess the first
+       * time this column was misspelt.
+       */
+      durationSource:
+        row.duration_source === "researched" || row.duration_source === "observed"
+          ? row.duration_source
+          : "invented",
+      durationCheckedAt: (row.duration_checked_at as string | null) ?? null,
+      durationConfidence:
+        row.duration_confidence === "high" || row.duration_confidence === "medium"
+          ? row.duration_confidence
+          : "low",
+      durationNote: (row.duration_note as string | null) ?? null,
     }));
   } catch (thrown) {
     rethrowFrameworkSignal(thrown);

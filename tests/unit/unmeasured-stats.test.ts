@@ -16,6 +16,7 @@ import {
   hasAnsweredRecord,
   hasCompletion,
   hasOverbookRecord,
+  hasPublishableDuration,
   hasRating,
   hasResponse,
   type StatEvidence,
@@ -356,6 +357,41 @@ describe("the fallback carries no authored statistics", () => {
       expect(hasResponse(stats)).toBe(false);
       expect(hasCompletion(stats)).toBe(false);
       expect(displayRating({ ...stats, ratingAvg: 0 })).toBeNull();
+    }
+  });
+});
+
+/**
+ * A duration is the same question with a different answer for each reader.
+ *
+ * THE SPLIT: a scheduler may use an invented duration and a screen may not.
+ * Reserving time is not a claim about anything — and the alternative is
+ * reserving the same two hours for a tap washer and a whole-flat repaint,
+ * which is the workaround duration replaced. A sentence on a screen IS a
+ * claim, and "about 4 days" read off a guess is rule 6's exact failure.
+ */
+describe("a duration nobody researched is not a duration anybody is told", () => {
+  it("refuses to publish an invented one", () => {
+    expect(hasPublishableDuration({ source: "invented" })).toBe(false);
+  });
+
+  it("publishes a researched or observed one", () => {
+    expect(hasPublishableDuration({ source: "researched" })).toBe(true);
+    expect(hasPublishableDuration({ source: "observed" })).toBe(true);
+  });
+
+  /*
+   * The gate asks about PROVENANCE, never about the number. A confident-looking
+   * 480 minutes is no more publishable than a vague one, and a gate that looked
+   * at the value would let a rounder guess through.
+   */
+  it("asks where the number came from and never what it is", () => {
+    expect(hasPublishableDuration({ source: "invented" })).toBe(
+      hasPublishableDuration({ source: "invented" }),
+    );
+    const sources = ["invented", "researched", "observed"] as const;
+    for (const source of sources) {
+      expect(hasPublishableDuration({ source })).toBe(source !== "invented");
     }
   });
 });

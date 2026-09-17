@@ -58,6 +58,36 @@ export type SubBand = {
   pricingConfidence: "high" | "medium" | "low";
   pricingNote: string | null;
   sortOrder: number;
+  /**
+   * HOW LONG THE PROFESSIONAL IS ON THE TOOLS. Fills their calendar.
+   *
+   * Minutes rather than hours because the slot maths is already in minutes and
+   * hours force a false rounding — a tap leak is neither one hour nor two.
+   */
+  typicalWorkingMinutes: number;
+  /**
+   * HOW LONG THE CUSTOMER'S HOME IS A BUILDING SITE. What they plan around.
+   *
+   * For nine trades this is 1 and only the minutes matter. Painting is why it
+   * exists: a room takes four days and a painter a few hours of each, because
+   * putty dries, primer cures and coats need hours between them. The two
+   * numbers are what `categories.max_concurrent_jobs` was faking with a 3.
+   */
+  typicalElapsedDays: number;
+  /**
+   * ITS OWN PROVENANCE, DELIBERATELY SEPARATE FROM THE PRICE'S.
+   *
+   * Researching what a job costs is not researching how long it takes, and one
+   * provenance covering both would launder a guessed duration under a
+   * researched price's confidence. Today every one of these is `invented` —
+   * nobody in Nepal publishes how long a tap leak takes — which is why nothing
+   * here reaches a customer. See `hasPublishableDuration` in
+   * `lib/provider/measured.ts`.
+   */
+  durationSource: "invented" | "researched" | "observed";
+  durationCheckedAt: string | null;
+  durationConfidence: "high" | "medium" | "low";
+  durationNote: string | null;
 };
 
 export type Category = {

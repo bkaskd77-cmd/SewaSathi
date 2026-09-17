@@ -39,6 +39,32 @@ const VALID_STATUS = new Set(["unresolved", "resolved"]);
 const BANDS_ENTRY = "category-price-bands";
 const CATEGORY_SEED = "lib/data/seed/categories.json";
 
+/**
+ * And the same check for durations, which are a separate fact with a separate
+ * provenance.
+ *
+ * A sub-band's `durationSource` says where "about 4 days" came from. All 36 are
+ * `invented` today, so nothing in the product prints a duration — the scheduler
+ * uses them, which is fine because a reservation nobody reads is not a claim,
+ * and `hasPublishableDuration` keeps them off every screen. This entry is what
+ * stops that being quietly forgotten: the day somebody deletes the gate, the
+ * register still says the numbers are guesses.
+ */
+const DURATIONS_ENTRY = "sub-band-durations";
+const SUB_BAND_SEED = "lib/data/seed/price-bands.json";
+
+function inventedDurations() {
+  try {
+    const raw = readFileSync(path.join(process.cwd(), SUB_BAND_SEED), "utf8");
+    return JSON.parse(raw)
+      .filter((b) => (b.durationSource ?? "invented") === "invented")
+      .map((b) => `${b.categorySlug}/${b.slug}`);
+  } catch {
+    // Unreadable is not evidence that anything was researched.
+    return ["<could not read the sub-band seed>"];
+  }
+}
+
 function inventedCategories() {
   try {
     const raw = readFileSync(path.join(process.cwd(), CATEGORY_SEED), "utf8");
@@ -108,6 +134,8 @@ function main() {
 
   const invented = inventedCategories();
   const bands = entries.find((e) => e.id === BANDS_ENTRY);
+  const guessedDurations = inventedDurations();
+  const durations = entries.find((e) => e.id === DURATIONS_ENTRY);
 
   /*
    * ONE BLOCKER CANNOT RESOLVE WHILE THE ONE IT RESTS ON IS OPEN.
@@ -149,6 +177,26 @@ function main() {
     console.log(
       `  ${invented.length} of the service price bands are still unpublishable: ${invented.join(", ")}`,
     );
+  }
+
+  if (guessedDurations.length > 0) {
+    console.log(
+      `  ${guessedDurations.length} of the sub-band durations are still guesses, so no customer is told how long a job takes`,
+    );
+  }
+
+  if (durations?.status === "resolved" && guessedDurations.length > 0) {
+    console.error(
+      `\n${FILE} marks ${DURATIONS_ENTRY} resolved, but ${SUB_BAND_SEED} still carries invented durations:\n`,
+    );
+    for (const id of guessedDurations) console.error(`  - ${id}`);
+    console.error(
+      `\nResolving that entry means finding out how long the work actually takes —\n` +
+        `durationSource "researched" or "observed", with durationCheckedAt and a\n` +
+        `durationNote naming what was checked. Until then the numbers schedule but\n` +
+        `do not publish, which is the honest state, not a bug to route around.\n`,
+    );
+    process.exit(1);
   }
 
   if (bands?.status === "resolved" && invented.length > 0) {
