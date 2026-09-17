@@ -176,9 +176,25 @@ export type SurveyOutcome = {
   countsAgainstProvider: false;
 };
 
-export function surveyOutcome(state: QuoteState): SurveyOutcome {
+export function surveyOutcome(
+  state: QuoteState,
+  /**
+   * Did anybody actually go?
+   *
+   * NO TRIP, NO FEE — the cheapest guard against farming the visit fee and the
+   * one that reuses machinery already here. `booking_arrivals` is written when
+   * a professional records turning up, for the wasted-trip flow. A fee is
+   * reimbursement for a journey, so without a recorded journey there is nothing
+   * to reimburse, and quoting high from the sofa stops being a route at all.
+   * Travelling there first is most of the cost the fee exists to cover.
+   *
+   * Defaults to false, which errs toward NOT paying. `enforce_survey_visit_fee`
+   * in Postgres refuses the row outright either way; this is the sentence.
+   */
+  arrived = false,
+): SurveyOutcome {
   return {
-    payVisitFee: state === "declined" || state === "expired",
+    payVisitFee: arrived && (state === "declined" || state === "expired"),
     countsAgainstProvider: false,
   };
 }

@@ -1560,15 +1560,81 @@ describe("the settlement figures cannot be typed from a browser", () => {
     liveBooking = rows[0].id as string;
   });
 
-  const columns = [
-    ["commission_basis", "400"],
-    ["commission_floor_waived", "true"],
-    ["customer_reported_amount", "100"],
-    ["amount_mismatch_at", "now()"],
-    ["payout_due_at", "now()"],
-  ] as const;
+  /*
+   * EVERY COLUMN THE TRIGGER GUARDS, and the list is the point of this block.
+   *
+   * WHAT HAPPENED WITHOUT IT. `enforce_booking_immutability` lost every
+   * settlement check when the function was rebuilt in a migration from a stale
+   * copy — `create or replace` takes the version you paste, not the version
+   * that is there. No code changed. Nothing failed. Five of the dropped
+   * columns happened to have cases here already and that is the only reason
+   * anybody found out; the other nineteen had nothing, and a rebuild that
+   * dropped only those would have gone green all the way to production.
+   *
+   * `provider_id` is deliberately absent: it is guarded CONDITIONALLY (a
+   * reassignment, a professional who does not cover the job, one who already
+   * refused it) rather than refused outright, and each of those has its own
+   * test above. It is named in `CONDITIONAL_COLUMNS` below so the structural
+   * check can still account for it.
+   */
+  const GUARDED_COLUMNS: ReadonlyArray<readonly [string, string, RegExp]> = [
+    // Identity. A booking cannot become a different booking.
+    /*
+     * TWO LOCKS, AND THE OTHER ONE IS ALPHABETICALLY FIRST.
+     * `bookings_enforce_address_ownership` sorts before
+     * `bookings_enforce_immutability`, so handing the booking to Bob is
+     * refused for his not owning the address before it is refused for
+     * re-identification. Either refusal is the right answer and pinning one
+     * sentence would fail the next time a lock is added — which is good news,
+     * not a regression.
+     */
+    [
+      "customer_id",
+      `'${BOB}'`,
+      /cannot be re-identified|somebody else's address/i,
+    ],
+    ["reference", "'SK-ZZZZZ'", /cannot be re-identified/i],
+    ["category_slug", "'electrical'", /cannot be re-identified/i],
 
-  for (const [column, value] of columns) {
+    // The money. The band was published before the job and the final amount is
+    // the professional's to enter; neither is the customer's to type.
+    ["quoted_min", "1", /not editable from a browser/i],
+    ["quoted_max", "999999", /not editable from a browser/i],
+    ["final_amount", "1234", /not editable from a browser/i],
+    ["final_amount_approved_at", "now()", /not editable from a browser/i],
+    ["platform_fee", "1", /not editable from a browser/i],
+    ["provider_earning", "1", /not editable from a browser/i],
+    ["commission_bps", "1", /not editable from a browser/i],
+    ["commission_basis", "400", /not editable from a browser/i],
+    ["commission_floor_waived", "true", /not editable from a browser/i],
+    ["customer_reported_amount", "100", /not editable from a browser/i],
+    ["amount_mismatch_at", "now()", /not editable from a browser/i],
+    ["payout_due_at", "now()", /not editable from a browser/i],
+    ["payment_status", "'paid'", /not editable from a browser/i],
+
+    // The surveyed price and its approval — the 2x overcharge ceiling hangs
+    // off these, so a browser writing one would be setting its own ceiling.
+    ["quote_model", "'survey'", /recorded by the server, not a browser/i],
+    ["surveyed_at", "now()", /recorded by the server, not a browser/i],
+    ["quote_expires_at", "now()", /recorded by the server, not a browser/i],
+    ["quote_approved_at", "now()", /recorded by the server, not a browser/i],
+    ["quote_declined_at", "now()", /recorded by the server, not a browser/i],
+
+    // The overbooking offer. Never customer-initiated means never writable by
+    // a customer, and a counter a caller can move measures nothing.
+    [
+      "overbook_offered_by",
+      "(select id from public.providers limit 1)",
+      /professional's to make/i,
+    ],
+    ["overbook_offered_at", "now()", /professional's to make/i],
+    ["overbook_missed_at", "now()", /professional's to make/i],
+  ];
+
+  /** Guarded, but on a condition rather than outright. Tested separately. */
+  const CONDITIONAL_COLUMNS = ["provider_id"];
+
+  for (const [column, value, message] of GUARDED_COLUMNS) {
     it(`refuses a customer writing ${column}`, async () => {
       const alice = await pg.asUser(ALICE);
       await expect(
@@ -1576,9 +1642,55 @@ describe("the settlement figures cannot be typed from a browser", () => {
           `update public.bookings set ${column} = ${value} where id = $1`,
           [liveBooking],
         ),
-      ).rejects.toThrow(/not editable from a browser/i);
+      ).rejects.toThrow(message);
+      await alice.end();
     });
   }
+
+  it("guards nothing this file does not name", async () => {
+    /*
+     * THE ONLY IMPLEMENTATION-COUPLED ASSERTION HERE, and it earns the
+     * exception. Every test above is behavioural and would catch a column
+     * being dropped from the guard — but only for a column the list already
+     * names. This is what stops the list going stale: a guard added without a
+     * case fails here, and the pair together mean the function and this file
+     * cannot drift apart in either direction.
+     */
+    const { rows } = await pg.admin.query(
+      `select prosrc from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname = 'enforce_booking_immutability'`,
+    );
+    expect(rows).toHaveLength(1);
+
+    const guarded = new Set(
+      Array.from(
+        (rows[0].prosrc as string).matchAll(/new\.([a-z_]+) is distinct from/g),
+        (match) => match[1],
+      ),
+    );
+    const named = new Set(
+      GUARDED_COLUMNS.map(([column]) => column).concat(CONDITIONAL_COLUMNS),
+    );
+
+    expect(Array.from(guarded).sort()).toEqual(Array.from(named).sort());
+  });
+
+  it("is still attached to the table", async () => {
+    // A rebuild can drop the trigger as easily as it can drop a line from the
+    // body, and every behavioural test above would then pass for the wrong
+    // reason — an update that raises nothing looks identical to one the guard
+    // never saw.
+    const { rows } = await pg.admin.query(
+      `select tgenabled from pg_trigger
+        where tgrelid = 'public.bookings'::regclass
+          and tgname = 'bookings_enforce_immutability'`,
+    );
+    expect(rows).toHaveLength(1);
+    // 'D' is disabled. A trigger that exists and never fires is not a guard.
+    expect(rows[0].tgenabled).not.toBe("D");
+  });
 
   it("still lets the server write them", async () => {
     // auth.uid() is null for the service role, which is how every legitimate

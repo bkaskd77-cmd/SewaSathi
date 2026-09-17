@@ -9,6 +9,7 @@ import {
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
+import { PAYOUT_RULES } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -87,6 +88,53 @@ async function readQuote(bookingId: string): Promise<QuoteRow | null> {
   } catch (thrown) {
     console.error(`[survey] read threw — ${describeError(thrown)}`);
     return null;
+  }
+}
+
+
+/**
+ * What we owe a surveyor when the move does not go ahead.
+ *
+ * WRITTEN PENDING, NEVER PAID. The row is the record that somebody travelled;
+ * the money moves only when a person approves it. That is what stops the fee
+ * being farmed — quote high, get declined, collect only becomes a living if
+ * collecting is automatic, and here it never is. Same shape as
+ * `commission_appeals` and the guarantee refund: money that turns on a
+ * judgement does not move without somebody making it.
+ *
+ * NEVER THROWS. The customer's decline has already happened and the booking has
+ * already moved; a fee row that cannot be written must not roll that back. The
+ * database refuses it outright when no arrival was recorded — no trip, no fee —
+ * and that refusal is a normal outcome here, not an error worth alarming
+ * anybody about.
+ */
+async function recordVisitFee(input: {
+  bookingId: string;
+  providerId: string | null;
+  outcome: "declined" | "expired";
+}): Promise<void> {
+  if (!input.providerId) return;
+
+  try {
+    const { error } = await createAdminClient()
+      .from("survey_visit_fees")
+      .insert({
+        booking_id: input.bookingId,
+        provider_id: input.providerId,
+        outcome: input.outcome,
+        amount: PAYOUT_RULES.surveyVisitFeeNpr,
+      });
+
+    // A duplicate is one booking surveyed once and answered once — the unique
+    // constraint doing its job, not a failure.
+    if (error && error.code !== "23505") {
+      // warn rather than error: a refusal here is usually the trigger doing
+      // its job (nobody recorded an arrival), which is a normal outcome and
+      // not something that went wrong.
+      console.warn(`[survey] no visit fee recorded — ${describeError(error)}`);
+    }
+  } catch (thrown) {
+    console.warn(`[survey] visit fee write threw — ${describeError(thrown)}`);
   }
 }
 
@@ -226,6 +274,14 @@ export async function respondToQuote(input: {
     return { ok: false, reason: "failed" };
   }
 
+  if (input.decision === "decline") {
+    await recordVisitFee({
+      bookingId: input.bookingId,
+      providerId: booking.providerId,
+      outcome: "declined",
+    });
+  }
+
   if (booking.providerId) {
     await notify({
       recipientId: booking.providerId,
@@ -316,6 +372,12 @@ export async function expireStaleQuotes(
       continue;
     }
     expired += 1;
+
+    await recordVisitFee({
+      bookingId: row.id,
+      providerId: row.provider_id,
+      outcome: "expired",
+    });
 
     await notify({
       recipientId: row.customer_id,

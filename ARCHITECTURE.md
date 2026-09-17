@@ -112,6 +112,16 @@ interface. Swapping a provider is then one file, not a hunt.
 
 Where a change on one side cannot reach the other.
 
+- **The money guards are tested by name, because they once vanished without a
+  line of code changing.** `enforce_booking_immutability` lost every settlement
+  check to a migration rebuilt from a stale copy — `create or replace` takes the
+  version you paste, not the version that is there. Five of the twenty-five
+  guarded columns happened to have tests; nineteen had none, and a rebuild that
+  dropped only those would have gone green to production.
+  `tests/db/booking-rls.test.ts` now names every guarded column, refuses each
+  one from a customer session, asserts the trigger is still **attached**, and
+  asserts that the function guards **nothing the list does not name** — so the
+  list and the function cannot drift apart in either direction.
 - **The database is the authority on who may read what and which status may
   follow which.** RLS policies and the transition trigger are enforced in
   Postgres, so no code path — including one nobody has written yet — can go
@@ -305,6 +315,18 @@ Where a change on one side cannot reach the other.
   second job", never a considered model of their capacity. The next phase takes
   `typical_duration_hours`, per-job durations on the sub-bands, and a scheduler
   that can reason in days.
+- **The surveyor's fee is never paid automatically, and that is the whole
+  anti-farming design.** A fee that pays itself is farmable — quote high, get
+  declined, collect — so `survey_visit_fees` rows are born `pending` and move
+  only when a person decides, the same shape as `commission_appeals` and the
+  guarantee refund. Two more guards live in `enforce_survey_visit_fee`: **no
+  trip, no fee** (a row is refused without a `booking_arrivals` record, so the
+  journey — most of the real cost — is mandatory), and the monthly cap counts
+  **approved** rows only, so a queue of honest declines never blocks a real
+  claim. The decline-rate signal is `survey_decline_signals` and it is **per
+  trade, never per professional**: a trade where most quotes are declined is our
+  pricing, not a list of people, which is the same rule
+  `category_pricing_signals` follows and the same reason.
 - **A trade whose price does not exist until somebody has looked.** Movers and
   packers carries `quote_model = 'survey'` and a **null band**, and the survey
   visit is a booking — a real professional at a real door — rather than a second

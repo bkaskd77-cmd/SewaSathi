@@ -95,33 +95,40 @@ export const PAYOUT_RULES = {
    * the Valley to look at a flat, and that happens whether or not the customer
    * accepts the price. When they do, the survey is folded into the job the
    * professional is about to be paid for and nothing is due here. When they do
-   * not — or when nobody answers in time — the trip still happened, and a
-   * professional out of pocket for a stranger's change of mind learns to stop
-   * taking survey jobs. Movers is the one trade where EVERY job starts with
-   * one, so that is the whole supply.
+   * not, the trip still happened, and a professional out of pocket for a
+   * stranger's change of mind learns to stop taking survey jobs. Movers is the
+   * one trade where EVERY job starts with one, so that is the whole supply.
    *
    * THE CUSTOMER NEVER PAYS IT AND IS NEVER TOLD OF IT. "Free survey" has to
    * mean free, or it is a booking fee with a friendlier name.
    *
-   * A FEE WITH A PAYOFF IS FARMABLE — quote absurdly high, get declined,
-   * collect — the same class of thing as under-reporting a cash job. Two
-   * guards, and neither is automatic punishment: `surveyVisitFeeMonthlyCap`
-   * below, and an outlier decline rate reviewed by a person. Never a ranking
-   * input, for the same reason `category_pricing_signals` is never grouped by
-   * person: read the other way it becomes a list of people to punish for our
-   * own pricing model.
+   * WHAT STOPS IT BEING FARMED — quote absurdly high, get declined, collect —
+   * is NOT this number, and for a while it was written here as though it were.
+   * Three mechanisms, and they live where they can bite:
    *
-   * THE FIGURE IS A BUSINESS DECISION AND 500 IS A PROPOSAL, not a measurement
-   * — roughly a Valley-crossing fare plus the half hour of looking, and well
-   * under the commission on a move it would otherwise have earned. Set it.
+   *   1. `survey_visit_fees` rows are born `pending` and pay only when a PERSON
+   *      approves them. The default is not paid. A payoff you have to persuade
+   *      a human for is not a farm, and this is the same shape
+   *      `commission_appeals` and the guarantee refund already use.
+   *   2. `enforce_survey_visit_fee` refuses a row with no recorded arrival, so
+   *      the trip is mandatory — and the trip is most of the real cost.
+   *   3. The cap below is enforced by that same trigger, not by this comment.
+   *
+   * The economics are the background: a Valley survey is two to three hours
+   * door to door, so this is about Rs 200/hour, while ONE accepted move leaves
+   * the professional more than six months of the monthly ceiling. Farming is a
+   * bad trade before any of the guards above — but a bad trade is not a guard.
    */
   surveyVisitFeeNpr: 500,
   /**
-   * The most we pay one professional in survey visit fees in a month.
+   * The most APPROVED survey visit fees one professional may draw in a month.
    *
    * Four trips. Enough that nobody is out of pocket for an ordinary run of
    * customers changing their minds, low enough that quoting to be declined is
-   * not a living. It bounds the farmable payoff without accusing anybody.
+   * not a living. Enforced in `enforce_survey_visit_fee`, which counts approved
+   * rows only: counting pending ones would let a run of honest declines block a
+   * real claim while somebody waits for a person to look, which would punish
+   * the surveyor for the length of our queue.
    */
   surveyVisitFeeMonthlyCap: 4,
   /**

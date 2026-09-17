@@ -140,17 +140,34 @@ describe("work cannot start on a price nobody agreed to", () => {
 
 describe("a decline costs the surveyor nothing and scores against nobody", () => {
   it("pays the visit fee when the customer says no", () => {
-    expect(surveyOutcome("declined").payVisitFee).toBe(true);
+    expect(surveyOutcome("declined", true).payVisitFee).toBe(true);
   });
 
   it("pays it when nobody answers in time, for the same reason", () => {
     // The trip happened either way. Paying for one and not the other would
     // make a professional's earnings depend on how fast a stranger replies.
-    expect(surveyOutcome("expired").payVisitFee).toBe(true);
+    expect(surveyOutcome("expired", true).payVisitFee).toBe(true);
   });
 
   it("pays nothing when the move goes ahead, because the survey is part of it", () => {
-    expect(surveyOutcome("approved").payVisitFee).toBe(false);
+    expect(surveyOutcome("approved", true).payVisitFee).toBe(false);
+  });
+
+  it("pays nothing when nobody went", () => {
+    /*
+     * NO TRIP, NO FEE — the cheapest guard against farming this, and the one
+     * that reuses machinery already here. A fee reimburses a journey, so
+     * quoting high from the sofa has to earn nothing or the whole thing is a
+     * payment for typing a number.
+     */
+    expect(surveyOutcome("declined", false).payVisitFee).toBe(false);
+    expect(surveyOutcome("expired", false).payVisitFee).toBe(false);
+  });
+
+  it("errs toward not paying when nobody said", () => {
+    // The default is the safe direction. `enforce_survey_visit_fee` refuses the
+    // row outright anyway; this is what the screen says.
+    expect(surveyOutcome("declined").payVisitFee).toBe(false);
   });
 
   it("never counts against the professional, whatever happened", () => {
@@ -167,7 +184,7 @@ describe("a decline costs the surveyor nothing and scores against nobody", () =>
       "declined",
       "expired",
     ] as const) {
-      expect(surveyOutcome(state).countsAgainstProvider).toBe(false);
+      expect(surveyOutcome(state, true).countsAgainstProvider).toBe(false);
     }
   });
 });

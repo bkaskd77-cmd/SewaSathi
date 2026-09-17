@@ -356,3 +356,173 @@ describe("our own floor is the surveyed one", () => {
     expect(rows[0].quoted_min).toBeNull();
   });
 });
+
+describe("the visit fee cannot be farmed", () => {
+  /*
+   * Quote absurdly high, get declined, collect — four trips a month for
+   * Rs 2,000. The economics already make that a bad trade, but a bad trade is
+   * not a guard. Three mechanisms, and these are the two that live in Postgres.
+   */
+
+  async function fee(input: {
+    bookingId: string;
+    arrived: boolean;
+    status?: string;
+    decidedBy?: string | null;
+  }) {
+    if (input.arrived) {
+      await pg.admin.query(
+        "insert into public.booking_arrivals (booking_id, provider_id) values ($1, $2) on conflict do nothing",
+        [input.bookingId, krishna],
+      );
+    }
+    return pg.admin.query(
+      `insert into public.survey_visit_fees
+         (booking_id, provider_id, outcome, amount, status, decided_by)
+       values ($1, $2, 'declined', 500, $3, $4) returning id`,
+      [input.bookingId, krishna, input.status ?? "pending", input.decidedBy ?? null],
+    );
+  }
+
+  it("refuses a fee for a survey nobody went to", async () => {
+    /*
+     * NO TRIP, NO FEE. The fee reimburses a journey across the Valley, which is
+     * most of what it costs to farm — take that away and quoting high from the
+     * sofa earns nothing at all.
+     */
+    const id = await book({ survey: true, provider: krishna });
+    await expect(fee({ bookingId: id, arrived: false })).rejects.toThrow(
+      /No arrival was recorded/,
+    );
+  });
+
+  it("allows one where somebody actually turned up", async () => {
+    const id = await book({ survey: true, provider: krishna });
+    await expect(fee({ bookingId: id, arrived: true })).resolves.toBeTruthy();
+  });
+
+  it("is born pending, so nothing pays itself", async () => {
+    /*
+     * THE LOAD-BEARING GUARD. A payoff you have to persuade a person for, four
+     * times a month, is not a farm — and the default being `pending` is what
+     * makes that true rather than a policy somebody remembers.
+     */
+    const id = await book({ survey: true, provider: krishna });
+    const { rows } = await fee({ bookingId: id, arrived: true });
+    const { rows: stored } = await pg.admin.query(
+      "select status, decided_by, decided_at from public.survey_visit_fees where id = $1",
+      [rows[0].id],
+    );
+    expect(stored[0].status).toBe("pending");
+    expect(stored[0].decided_by).toBeNull();
+    expect(stored[0].decided_at).toBeNull();
+  });
+
+  it("refuses an approval with nobody's name on it", async () => {
+    // An approved row decided by nobody is the automatic payout this table
+    // exists to prevent, wearing a status.
+    const id = await book({ survey: true, provider: krishna });
+    await expect(
+      fee({ bookingId: id, arrived: true, status: "approved" }),
+    ).rejects.toThrow(/needs a person/);
+  });
+
+  it("counts one trip per booking, however many times it is answered", async () => {
+    const id = await book({ survey: true, provider: krishna });
+    await fee({ bookingId: id, arrived: true });
+    await expect(fee({ bookingId: id, arrived: true })).rejects.toThrow(
+      /duplicate key|unique/i,
+    );
+  });
+
+  it("caps approved fees at four in a month", async () => {
+    /*
+     * THE CAP IS A DATABASE RULE NOW. It was a number in a comment, which is
+     * not a cap — and the whole question was what four trips a month costs us.
+     */
+    await pg.admin.query("delete from public.survey_visit_fees where provider_id = $1", [
+      krishna,
+    ]);
+
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      const booking = await book({ survey: true, provider: krishna });
+      const { rows } = await fee({ bookingId: booking, arrived: true });
+      ids.push(rows[0].id as string);
+    }
+
+    for (const id of ids.slice(0, 4)) {
+      await expect(
+        pg.admin.query(
+          "update public.survey_visit_fees set status = 'approved', decided_by = $1, decided_at = now() where id = $2",
+          [ANITA, id],
+        ),
+      ).resolves.toBeTruthy();
+    }
+
+    await expect(
+      pg.admin.query(
+        "update public.survey_visit_fees set status = 'approved', decided_by = $1, decided_at = now() where id = $2",
+        [ANITA, ids[4]],
+      ),
+    ).rejects.toThrow(/more survey visits than we pay for/);
+  });
+
+  it("counts approved rows only, so a queue never blocks a real claim", async () => {
+    // Counting pending ones would punish the surveyor for how long a person
+    // takes to look.
+    await pg.admin.query("delete from public.survey_visit_fees where provider_id = $1", [
+      krishna,
+    ]);
+    for (let i = 0; i < 5; i += 1) {
+      const booking = await book({ survey: true, provider: krishna });
+      await fee({ bookingId: booking, arrived: true });
+    }
+    const { rows } = await pg.admin.query(
+      "select id from public.survey_visit_fees where provider_id = $1 limit 1",
+      [krishna],
+    );
+    await expect(
+      pg.admin.query(
+        "update public.survey_visit_fees set status = 'approved', decided_by = $1, decided_at = now() where id = $2",
+        [ANITA, rows[0].id],
+      ),
+    ).resolves.toBeTruthy();
+  });
+
+  it("grants nobody an insert or an approval through RLS", async () => {
+    /*
+     * Same posture as `commission_appeals` and `payments`: this decides money,
+     * so no policy grants a write to anybody. A professional who could approve
+     * their own fee is the farm with an extra step.
+     */
+    const { rows } = await pg.admin.query(
+      `select cmd, count(*)::int as n from pg_policies
+        where schemaname = 'public' and tablename = 'survey_visit_fees'
+        group by cmd`,
+    );
+    const byCmd = Object.fromEntries(
+      rows.map((r: { cmd: string; n: number }) => [r.cmd, r.n]),
+    );
+    expect(byCmd["INSERT"]).toBeUndefined();
+    expect(byCmd["UPDATE"]).toBeUndefined();
+    expect(byCmd["DELETE"]).toBeUndefined();
+    expect(byCmd["SELECT"]).toBeGreaterThan(0);
+  });
+
+  it("reads the decline rate per TRADE, never per professional", async () => {
+    /*
+     * A high decline rate most likely means OUR pricing is wrong, not that
+     * somebody is quoting high — which is exactly why
+     * `category_pricing_signals` is never grouped by person. Read the other way
+     * round this view would be a list of people to punish for a price we set.
+     */
+    const { rows } = await pg.admin.query(
+      `select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'survey_decline_signals'`,
+    );
+    const columns = rows.map((r: { column_name: string }) => r.column_name);
+    expect(columns).toContain("category_slug");
+    expect(columns).not.toContain("provider_id");
+  });
+});

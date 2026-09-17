@@ -315,6 +315,39 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
       };
+      survey_visit_fees: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          outcome: string;
+          amount: number;
+          status: string;
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_note: string | null;
+          counts_for_month: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          outcome: string;
+          amount: number;
+          status?: string;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+          /** Set from `created_at` by `enforce_survey_visit_fee`. */
+          counts_for_month?: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["survey_visit_fees"]["Insert"]
+        >;
+        Relationships: [];
+      };
       commission_appeals: {
         Row: {
           id: string;
