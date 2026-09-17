@@ -33,6 +33,16 @@ export type ListParams = {
   sort?: SortOption;
   urgency?: string | null;
   q?: string | null;
+  /**
+   * The product the triage named, passing straight through to the Book link.
+   *
+   * NOT A FILTER AND NOT A RANKING INPUT — it never reaches `listProviders`.
+   * It is triage context being carried to the booking, the same way `q` and
+   * `urgency` already are, so a customer who came from "paint my living room,
+   * you supply the paint" does not arrive at /book having lost the one fact
+   * that says the job is four days rather than two hours.
+   */
+  band?: string | null;
 };
 
 export async function ProviderList({
@@ -120,6 +130,7 @@ export async function ProviderList({
               provider={provider}
               categorySlug={params.category}
               urgency={params.urgency}
+              band={params.band}
               q={params.q}
               index={index}
             />

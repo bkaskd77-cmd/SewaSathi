@@ -50,6 +50,20 @@ export type FlowState = {
   autoAssign: boolean;
   paymentMethod: "cash" | "esewa" | "khalti";
   triageLogId: string | null;
+  /**
+   * Which product the triage identified, or null when it could not tell.
+   *
+   * Carried through the flow rather than re-derived at the end, because the
+   * only thing that knows it is the triage card the customer came from — by
+   * the confirm button the description has been edited, the category may have
+   * been changed, and re-running the match would answer about different text.
+   *
+   * NOT TRUSTED ON ARRIVAL. It comes off a query string, so the server checks
+   * it against the chosen trade's own products and the composite foreign key
+   * refuses anything else. A tampered value buys somebody a wrong-length hold
+   * on their own booking and nothing more.
+   */
+  band: string | null;
 };
 
 export const STORAGE_KEY = "sajilokaam-booking-draft";
@@ -71,6 +85,7 @@ export function initialState(seed: {
   urgency?: string | null;
   description?: string | null;
   triageLogId?: string | null;
+  band?: string | null;
 }): FlowState {
   return {
     step: "problem",
@@ -88,6 +103,7 @@ export function initialState(seed: {
     autoAssign: !seed.provider,
     paymentMethod: "cash",
     triageLogId: seed.triageLogId ?? null,
+    band: seed.band ?? null,
   };
 }
 

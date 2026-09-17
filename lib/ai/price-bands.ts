@@ -46,12 +46,24 @@ export type PriceBand = {
   model: Category["pricingModel"];
 };
 
-/** "Routine service and deep clean 1200-2000; Gas refill 3500-7500; ..." */
+/** "service=Routine service and deep clean 1200-2000; gas=Gas refill 3500-7500" */
 function noteFrom(subBands: readonly SubBand[]): string {
-  // Case is left alone: lowercasing turned "MCB" into "mcb" and "1,000 L" into
-  // "1,000 l", which is the kind of small wrongness a model happily copies.
+  /*
+   * THE SLUG IS IN FRONT NOW, and it is what lets the model name the product
+   * rather than only price it. The slug is the key into
+   * `category_price_bands`, where the researched price and the researched
+   * DURATION both live — so "which product" and "how long" are the same
+   * lookup, and nobody has to invent a length.
+   *
+   * `slug=Label low-high` rather than a second list: this is prompt budget on
+   * a path that must stay byte-identical to prefix-cache, and repeating 36
+   * labels to carry 36 slugs would roughly double this section.
+   *
+   * Case is left alone: lowercasing turned "MCB" into "mcb" and "1,000 L" into
+   * "1,000 l", which is the kind of small wrongness a model happily copies.
+   */
   return subBands
-    .map((band) => `${band.labelEn} ${band.low}-${band.high}`)
+    .map((band) => `${band.slug}=${band.labelEn} ${band.low}-${band.high}`)
     .join("; ");
 }
 

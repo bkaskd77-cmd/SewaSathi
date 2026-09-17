@@ -16,10 +16,21 @@ export function bookingHref(options: {
   urgency?: string | null;
   /** What they typed into the hero, if they came that way. */
   q?: string | null;
+  /**
+   * Which product the triage identified, if it could tell.
+   *
+   * TRAVELS IN THE URL WITH EVERYTHING ELSE, for the same reason the rest of
+   * the intent does: a signed-out customer goes through /login and comes back
+   * here, and anything held in memory instead would be gone by then — leaving
+   * the booking with no length for no reason other than that they had to sign
+   * in.
+   */
+  band?: string | null;
 }): string {
   const params = new URLSearchParams({ category: options.category });
   if (options.providerId) params.set("provider", options.providerId);
   if (options.urgency) params.set("urgency", options.urgency);
   if (options.q) params.set("q", options.q);
+  if (options.band) params.set("band", options.band);
   return `/book?${params.toString()}`;
 }

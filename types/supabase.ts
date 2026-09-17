@@ -234,6 +234,20 @@ export type Database = {
           overbook_offered_by: string | null;
           overbook_missed_at: string | null;
           provider_visit_reviewed_at: string | null;
+          /*
+           * How long the job takes, and which of three answers to that.
+           * `band_slug` names the product; the estimate is copied from it by
+           * a trigger; the provider's own figure sits BESIDE ours rather than
+           * over it, because estimate-against-actual per product is the only
+           * thing that ever makes the researched durations better.
+           */
+          band_slug: string | null;
+          estimated_working_minutes: number | null;
+          estimated_elapsed_days: number | null;
+          provider_estimated_working_minutes: number | null;
+          provider_estimated_elapsed_days: number | null;
+          actual_working_minutes: number | null;
+          duration_implausible_at: string | null;
           overbook_offered_at: string | null;
           opened_at: string | null;
           reassigned_at: string | null;
@@ -304,6 +318,13 @@ export type Database = {
           overbook_offered_by?: string | null;
           overbook_missed_at?: string | null;
           provider_visit_reviewed_at?: string | null;
+          band_slug?: string | null;
+          estimated_working_minutes?: number | null;
+          estimated_elapsed_days?: number | null;
+          provider_estimated_working_minutes?: number | null;
+          provider_estimated_elapsed_days?: number | null;
+          actual_working_minutes?: number | null;
+          duration_implausible_at?: string | null;
           overbook_offered_at?: string | null;
           opened_at?: string | null;
           reassigned_at?: string | null;

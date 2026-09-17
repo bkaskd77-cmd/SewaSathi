@@ -36,6 +36,21 @@ export type TriageResult = {
   urgency: Urgency;
   priceRangeNPR: [number, number];
   explanation: string;
+  /**
+   * WHICH PRODUCT INSIDE THE TRADE, when that can be told. Null when it cannot.
+   *
+   * The fifth key, and the first widening of this contract since Phase 2. It
+   * carries a `category_price_bands` slug, which is where the researched price
+   * AND the researched duration both live — so naming the product is what lets
+   * a booking know how long it will take without anybody inventing a number.
+   *
+   * NULL IS A REAL ANSWER AND THE COMMON ONE HERE. "I need a painter" does not
+   * say whether that is a touch-up or a whole flat, and guessing would file the
+   * booking under the wrong product in every signal that later reads it. The
+   * matcher below names a band only where its own keywords cannot mean
+   * anything else; the model, which is handed the labelled list, does better.
+   */
+  band: string | null;
 };
 
 export type KeywordRule = {
@@ -51,6 +66,17 @@ export type KeywordRule = {
    * fallback for a Nepali reader, it is a second failure.
    */
   explanationKey: string;
+  /**
+   * The one product this rule can only mean, or null.
+   *
+   * SET ONLY WHERE THE KEYWORDS ARE UNAMBIGUOUS. "blocked drain" is the
+   * blockage product and nothing else; "leak, tap, pipe, dripping" spans a tap
+   * washer and a pipe run, which are different products at different lengths.
+   * Nine of the fourteen rules below are null for that reason, and that is the
+   * honest shape of a keyword matcher: it recognises a trade reliably and a
+   * product only sometimes.
+   */
+  band: string | null;
 };
 
 const PROBLEM_RULES: KeywordRule[] = [
@@ -85,6 +111,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "emergency",
     priceRangeNPR: [1500, 4500],
     explanationKey: "plumbing-emergency",
+    // Burst pipe or flooding, and nothing else these words can mean.
+    band: "burst",
   },
   {
     category: "plumbing",
@@ -106,6 +134,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [900, 2200],
     explanationKey: "plumbing-leak",
+    // Spans a tap washer and a pipe run — `leak` and `pipe-work` are different products.
+    band: null,
   },
   {
     category: "plumbing",
@@ -130,6 +160,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1200, 3000],
     explanationKey: "plumbing-blockage",
+    // Blocked drain or commode. One product.
+    band: "blockage",
   },
   {
     category: "plumbing",
@@ -149,6 +181,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1000, 2800],
     explanationKey: "plumbing-water",
+    // No water, pump or airlock. One product.
+    band: "no-water",
   },
   {
     category: "electrical",
@@ -181,6 +215,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "emergency",
     priceRangeNPR: [1500, 4000],
     explanationKey: "electrical-emergency",
+    // Short circuit, sparking or burning smell. One product.
+    band: "fault",
   },
   {
     category: "electrical",
@@ -214,6 +250,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [800, 2500],
     explanationKey: "electrical-fault",
+    // A dead light could be a switch, an MCB, a new point or a rewire.
+    band: null,
   },
   {
     category: "ac-servicing",
@@ -234,6 +272,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1800, 5500],
     explanationKey: "ac-cooling",
+    // "Not cooling" is a service, a gas refill or a repair — 1,200 to 7,500 apart.
+    band: null,
   },
   {
     category: "appliance-repair",
@@ -261,6 +301,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [1200, 4000],
     explanationKey: "appliance",
+    // Labour-only repair; the rule's own range was written from this product.
+    band: "repair",
   },
   {
     category: "pest-control",
@@ -289,6 +331,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "soon",
     priceRangeNPR: [2000, 6000],
     explanationKey: "pest",
+    // Cockroaches, bed bugs and termites are three treatments.
+    band: null,
   },
   {
     category: "home-cleaning",
@@ -313,6 +357,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "routine",
     priceRangeNPR: [1500, 5000],
     explanationKey: "cleaning",
+    // One room and a whole-flat deep clean differ by six hours.
+    band: null,
   },
   {
     category: "carpentry",
@@ -340,6 +386,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "routine",
     priceRangeNPR: [1000, 3500],
     explanationKey: "carpentry",
+    // A hinge and a built-in cupboard are two days apart.
+    band: null,
   },
   {
     category: "painting",
@@ -362,6 +410,11 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "routine",
     priceRangeNPR: [4000, 25000],
     explanationKey: "painting",
+    // THE CASE THAT MATTERS AND THE MATCHER CANNOT CALL IT. Touch-up to
+    // whole flat is one day to seven, and the word "painting" says nothing
+    // about which. This is exactly why the model names the band and this
+    // file does not guess.
+    band: null,
   },
   {
     category: "water-tank-cleaning",
@@ -381,6 +434,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "routine",
     priceRangeNPR: [1500, 4000],
     explanationKey: "tank",
+    // Overhead, underground and combined are different tanks.
+    band: null,
   },
   {
     category: "movers-packers",
@@ -402,6 +457,8 @@ const PROBLEM_RULES: KeywordRule[] = [
     urgency: "routine",
     priceRangeNPR: [5000, 20000],
     explanationKey: "movers",
+    // A survey trade has no sub-bands at all.
+    band: null,
   },
 ];
 
@@ -438,6 +495,8 @@ export const GENERIC_RULE = {
   urgency: "soon" as Urgency,
   priceRangeNPR: [900, 4000] as [number, number],
   explanationKey: "generic",
+  // Nothing matched, so nothing is known about which product this is.
+  band: null,
 };
 
 /**
@@ -465,7 +524,22 @@ function defaultRuleFor(category: string): KeywordRule | undefined {
  */
 const ALIAS_RULES: KeywordRule[] = CATEGORY_ALIASES.flatMap((alias) => {
   const base = defaultRuleFor(alias.categories[0]);
-  return base ? [{ ...base, keywords: [alias.term.toLowerCase()] }] : [];
+  return base
+    ? [
+        {
+          ...base,
+          keywords: [alias.term.toLowerCase()],
+          /*
+           * AND IT DROPS THE BAND, for the same reason it borrows the ordinary
+           * rule rather than the emergency one. "मिस्त्री" says who you want,
+           * not what broke — so it cannot name a product, and inheriting the
+           * base rule's would file every alias booking under whichever product
+           * that rule happened to mean.
+           */
+          band: null,
+        },
+      ]
+    : [];
 });
 
 export const KEYWORD_RULES: KeywordRule[] = [...PROBLEM_RULES, ...ALIAS_RULES];
@@ -477,6 +551,7 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
     urgency,
     priceRangeNPR: GENERIC_RULE.priceRangeNPR,
     explanation: copy.explanations[GENERIC_RULE.explanationKey],
+    band: GENERIC_RULE.band,
   });
 
   if (!text) return generic();
@@ -505,6 +580,7 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
       isUrgent && rule.urgency !== "emergency" ? "emergency" : rule.urgency,
     priceRangeNPR: rule.priceRangeNPR,
     explanation: copy.explanations[rule.explanationKey],
+    band: rule.band,
   };
 }
 

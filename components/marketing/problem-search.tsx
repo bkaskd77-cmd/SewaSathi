@@ -457,7 +457,15 @@ function TriageCard({
 
       <div className="animate-rise" style={{ animationDelay: "240ms" }}>
         <Button variant="gold" className={cn("btn-tactile mt-4")} asChild>
-          <Link href={`/services/${result.category}?urgency=${result.urgency}`}>
+          {/* The product travels with the urgency. Without it the one thing
+              the triage worked out about how long this job takes — a touch-up
+              or a whole flat — is lost at the first link, and the booking
+              falls back to reserving two hours for everything. */}
+          <Link
+            href={`/services/${result.category}?urgency=${result.urgency}${
+              result.band ? `&band=${encodeURIComponent(result.band)}` : ""
+            }`}
+          >
             {t("findProfessionals", { category: ctaLabel })}
             <ArrowRight aria-hidden="true" />
           </Link>

@@ -88,6 +88,17 @@ export {
 } from "./attention";
 
 export {
+  DURATION_PLAUSIBLE_MIN_MINUTES,
+  UNESTIMATED_HOLD_MINUTES,
+  elapsedDays,
+  isEstimated,
+  isMultiDay,
+  plausibleWorkedMinutes,
+  workingMinutes,
+  type BookingDuration,
+} from "./duration";
+
+export {
   SLOT_MINUTES,
   capacityFor,
   countOverlapping,

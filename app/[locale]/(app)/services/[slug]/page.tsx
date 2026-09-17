@@ -104,6 +104,8 @@ export default async function CategoryPage({
   const verified = first(searchParams.verified) === "1";
   const urgency = first(searchParams.urgency);
   const q = first(searchParams.q);
+  // Triage context, like `q` and `urgency` beside it — never a filter.
+  const band = first(searchParams.band);
 
   const listParams = {
     category: category.slug,
@@ -115,6 +117,7 @@ export default async function CategoryPage({
     sort,
     urgency,
     q,
+    band,
   };
 
   // Keep the triage context when filters are cleared — it is not a filter.

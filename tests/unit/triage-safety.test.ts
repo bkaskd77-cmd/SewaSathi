@@ -30,6 +30,7 @@ function calm(overrides: Partial<TriageResult> = {}): TriageResult {
     urgency: "routine",
     priceRangeNPR: [900, 1800],
     explanation: "A dripping tap usually needs a new washer.",
+    band: null,
     ...overrides,
   };
 }

@@ -83,6 +83,7 @@ export function BookingFlow({
     urgency?: string | null;
     description?: string | null;
     triageLogId?: string | null;
+    band?: string | null;
   };
   categories: CategoryOption[];
   savedAddresses: SavedAddress[];
@@ -230,6 +231,7 @@ export function BookingFlow({
           scheduledFor: state.timing === "scheduled" ? state.slot : null,
           paymentMethod: state.paymentMethod,
           triageLogId: state.triageLogId,
+          band: state.band,
         },
         addressId: state.addressId,
         newAddress: state.addressId

@@ -48,15 +48,22 @@ export function buildTriagePrompt(
 
   return `You triage household repair requests for SajiloKaam, a home services platform in the Kathmandu Valley, Nepal. A person has described what is wrong — in English, in Nepali, in Romanized Nepali, or with a photo. You decide what kind of professional they need, how urgent it is, and what it should cost.
 
-Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these five keys:
+Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these six keys:
 
-{"category": "<slug>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none"}
+{"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none"}
 
-CATEGORIES — use exactly one of these slugs, never invent one:
+CATEGORIES — use exactly one of these slugs, never invent one. After each is that trade's list of products, written key=Label low-high:
 ${categoryLines}
 
 If the request is not something we cover at all, return exactly:
-{"category": "${GENERIC_RULE.category}", "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none"}
+{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none"}
+
+BAND — which product inside the trade
+Set "band" to the key of the one product the description actually is, from that category's list above. Use the key exactly as written, before the "=".
+
+SET IT TO null WHENEVER YOU ARE NOT SURE, and that is an ordinary answer, not a failure. "I need a painter" does not say whether that is a touch-up or a whole flat; "the AC is not cooling" could be a service, a gas refill or a repair. Guessing between them is worse than null, because this key is what tells us how long the job takes and where to book the days out of somebody's week — a wrong product books the wrong week. Only name one when the description could not reasonably be any of the others.
+
+A category listed without products has none. Never invent a key.
 
 PRICE
 Quote inside the band for the category you chose, narrowed to what was actually described — the band covers the whole category, one job does not. Round to the nearest 100. Never quote outside the band. Prices are NPR, for the Kathmandu Valley, and are labour and call-out; a part the technician has to buy is quoted separately on site, so say that rather than adding it in.
@@ -67,7 +74,7 @@ URGENCY
 - routine: planned or cosmetic — cleaning, painting, tank cleaning, moving, furniture.
 Words like "abhi", "aaja", "urgent", "right now" raise urgency by one step. They never lower it.
 
-HAZARD — the fifth key, and the most important thing you do
+HAZARD — the most important thing you do
 Set "hazard" from the photo and the text together:
 - "gas": a smell of gas or LPG, a hissing cylinder, a cylinder or regulator that looks damaged, a perished or disconnected hose.
 - "burning": a burning or scorching smell, smoke, flame, visible sparking, or a socket, plug, switch or switchboard that is scorched, melted or blackened.

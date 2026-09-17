@@ -1629,6 +1629,19 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ],
     ["overbook_offered_at", "now()", /professional's to make/i],
     ["overbook_missed_at", "now()", /professional's to make/i],
+
+    // How long the job takes. A SCHEDULING guard rather than a money one, and
+    // it needed its own block in the trigger for that reason: a customer
+    // shortening their own job takes somebody else's slot, and one lengthening
+    // it holds a professional's week. Neither moves a rupee, so a reader
+    // scanning for the money checks would not think to add these to them.
+    ["band_slug", "'blockage'", /not a browser's to set/i],
+    ["estimated_working_minutes", "20", /not a browser's to set/i],
+    ["estimated_elapsed_days", "9", /not a browser's to set/i],
+    ["provider_estimated_working_minutes", "20", /not a browser's to set/i],
+    ["provider_estimated_elapsed_days", "9", /not a browser's to set/i],
+    ["actual_working_minutes", "20", /not a browser's to set/i],
+    ["duration_implausible_at", "now()", /not a browser's to set/i],
   ];
 
   /** Guarded, but on a condition rather than outright. Tested separately. */

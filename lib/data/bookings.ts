@@ -11,7 +11,7 @@ import {
 } from "@/lib/booking";
 import { providerCapacity } from "@/lib/data/capacity";
 import { isSurveyPriced } from "@/lib/config/services";
-import { getCategory } from "@/lib/data/categories";
+import { getCategory, getSubBands } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -152,6 +152,12 @@ export type BookingInput = {
   scheduledFor?: string | null;
   paymentMethod?: string;
   triageLogId?: string | null;
+  /**
+   * Which product inside the trade, as the triage named it. Null when nobody
+   * could tell, which is the ordinary case for anything the customer typed
+   * freehand — and what the booking's duration then is, is nothing.
+   */
+  band?: string | null;
 };
 
 const schema = z.object({
@@ -163,6 +169,16 @@ const schema = z.object({
   photoUrl: z.string().url().max(2000).nullish(),
   paymentMethod: z.enum(["cash", "esewa", "khalti"]).default("cash"),
   triageLogId: z.string().uuid().nullish(),
+  /*
+   * Loosely shaped on purpose, and NOT trusted. A slug arriving from a browser
+   * could name any product in any trade, so the composite foreign key
+   * `bookings_band_slug_fkey` is what actually holds — it refuses a slug this
+   * category does not sell, and `checkBandSlug` below turns that refusal into
+   * a null rather than a failed booking. Somebody tampering with this field
+   * gains a wrong duration on their own job and nothing else; it moves no
+   * money and it is refused to browsers on every subsequent update.
+   */
+  band: z.string().trim().min(1).max(40).nullish(),
 });
 
 const COLUMNS =
@@ -242,6 +258,27 @@ export async function createBooking(
   // between the triage that suggested it and the confirm button.
   const category = await getCategory(parsed.data.category);
   if (!category) return { ok: false, errors: { category: "categoryUnavailable" } };
+
+  /*
+   * The product, verified against the ones this trade actually sells.
+   *
+   * A NULL RATHER THAN A REFUSAL, deliberately. The composite foreign key
+   * would reject the whole INSERT for a slug that does not belong to this
+   * category — and losing a booking somebody spent five screens on, over a
+   * hint that only affects how much of a calendar to reserve, is a much worse
+   * failure than scheduling it the way every booking was scheduled before
+   * duration existed. Null flows into `UNESTIMATED_HOLD_MINUTES` and the
+   * customer is told nothing about length, which is the honest answer when we
+   * do not know the product.
+   */
+  const bandSlug = parsed.data.band
+    ? ((await getSubBands()).some(
+        (band) =>
+          band.categorySlug === category.slug && band.slug === parsed.data.band,
+      )
+        ? parsed.data.band
+        : null)
+    : null;
 
   /*
    * Is the chosen professional still taking work?
@@ -392,6 +429,19 @@ export async function createBooking(
           // job being widened to other professionals. See lib/booking/dispatch.
           first_choice_provider_id: parsed.data.provider ?? null,
           triage_log_id: parsed.data.triageLogId || null,
+          /*
+           * The product, which is where the duration comes from — a trigger
+           * copies the sub-band's researched length onto the row rather than
+           * this call site doing it, so the three other paths that will create
+           * bookings cannot forget to.
+           *
+           * Verified against this category's own sub-bands first: the foreign
+           * key would otherwise refuse the INSERT outright, and losing a whole
+           * booking over a scheduling hint is a far worse outcome than
+           * scheduling it the way every booking was scheduled before duration
+           * existed.
+           */
+          band_slug: bandSlug,
           locale,
         })
         .select("id, reference")

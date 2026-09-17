@@ -47,12 +47,15 @@ export function ProviderCard({
   provider,
   categorySlug,
   urgency,
+  band,
   q,
   index = 0,
 }: {
   provider: Provider;
   categorySlug: string;
   urgency?: string | null;
+  /** The product the triage named, carried from /services so /book keeps it. */
+  band?: string | null;
   /** What they typed into the hero, carried through so the profile keeps it. */
   q?: string | null;
   index?: number;
@@ -245,6 +248,7 @@ export function ProviderCard({
               providerId: provider.id,
               urgency,
               q,
+              band,
             })}
           >
             {t("card.book", { name: provider.displayName.split(" ")[0] })}

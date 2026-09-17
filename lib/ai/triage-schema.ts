@@ -35,6 +35,29 @@ export const triageResponseSchema = z.object({
   // than dropping to the fallback — a missing hazard reads as "none", which is
   // the same thing the text guard would conclude on its own.
   hazard: z.enum(["gas", "burning", "live-wire", "none"]).optional(),
+  /*
+   * WHICH PRODUCT INSIDE THE TRADE. A `category_price_bands` slug.
+   *
+   * Deliberately a bare string here rather than an enum, and checked against
+   * the chosen category's own sub-bands below. An enum would have to be the
+   * union of all 36 slugs across all ten trades, which would happily accept
+   * painting's `flat` on a plumbing job — and the whole value of this key is
+   * that it says which product, so accepting the wrong one is worse than
+   * accepting none.
+   *
+   * Optional, like `hazard`, and for the same reason: a reply in the older
+   * shape must still validate rather than dropping a customer to the keyword
+   * matcher over a key that only affects scheduling.
+   */
+  /*
+   * `nullish`, NOT `optional`, and a test is what found that. The prompt tells
+   * the model to return null when it cannot tell which product this is — the
+   * "nothing fits" example in there literally contains `"band": null` — so
+   * `optional()` alone would have refused every reply that followed our own
+   * instructions and dropped that customer to the keyword matcher. A key added
+   * to make scheduling better would have made triage worse.
+   */
+  band: z.string().trim().min(1).max(40).nullish(),
 });
 
 /**
@@ -84,9 +107,31 @@ export function parseTriageResponse(
   const parsed = triageResponseSchema.safeParse(candidate);
   if (!parsed.success) return null;
 
-  const { category, urgency, priceRangeNPR, explanation, hazard } = parsed.data;
+  const {
+    category,
+    urgency,
+    priceRangeNPR,
+    explanation,
+    hazard,
+    band: chosenBand,
+  } = parsed.data;
   const band = bandBySlug.get(category) ?? FALLBACK_BAND_BY_SLUG.get(category);
   if (!band) return null;
+
+  /*
+   * THE PRODUCT, ONLY IF IT IS ONE THIS TRADE ACTUALLY SELLS.
+   *
+   * A slug the category does not have is dropped to null rather than
+   * rejecting the whole reply: the four keys that matter — category, urgency,
+   * price, explanation — are all still good, and refusing them over a
+   * scheduling hint would send a customer to the keyword matcher for nothing.
+   * Null then means what it means everywhere else: we do not know which
+   * product, so nobody is told how long it takes.
+   */
+  const subBand =
+    chosenBand && band.subBands.some((sub) => sub.slug === chosenBand)
+      ? chosenBand
+      : null;
 
   const [rawLow, rawHigh] = priceRangeNPR;
   const low = Math.min(rawLow, rawHigh);
@@ -104,6 +149,7 @@ export function parseTriageResponse(
         number,
       ],
       explanation: explanation.replace(/\s+/g, " ").trim(),
+      band: subBand,
     },
     // The urgency the model chose is not adjusted here. The hazard is passed
     // up as a signal and applySafetyFloor decides what it does — one place

@@ -54,6 +54,10 @@ export default async function BookPage({
   const urgency = first(searchParams.urgency);
   const q = first(searchParams.q);
   const triageLogId = first(searchParams.triage);
+  // Which product the triage narrowed to, so the booking can know its own
+  // length. Absent for anybody who reached /book without going through the
+  // hero, which is an ordinary case and not a failure.
+  const band = first(searchParams.band);
 
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.flow");
@@ -150,6 +154,7 @@ export default async function BookPage({
             urgency,
             description: q,
             triageLogId,
+            band,
           }}
           categories={categories.map((category) => {
             /*
