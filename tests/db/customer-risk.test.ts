@@ -316,3 +316,249 @@ describe("an upheld no-show marks the door, not just the account", () => {
     expect(rows[0].upheld_no_shows).toBe(1);
   });
 });
+
+describe("one incident counts once, however many ways it was recorded", () => {
+  /*
+   * THE DEFECT THIS CLOSES. `customer_risk.no_shows` was INCREMENTED, and the
+   * moment a second path writes to it the same visit is counted twice — a
+   * professional ticking `not_at_address` and then filing a formal no-show
+   * claim for the same booking. A counter cannot be reconciled after that: the
+   * number is of RECORDS, not of things that happened, and nobody can tell
+   * which by looking.
+   *
+   * It is also what makes decay real. A count recomputed over a window simply
+   * stops including what is old; an incremented one would need somebody to
+   * remember to decrement it, which is decay as decoration.
+   */
+
+  /*
+   * ITS OWN CUSTOMER, because the tests above leave Anita with an upheld
+   * no-show claim and a counter that starts at one. Sharing her would make
+   * every number here depend on what ran before it, which is the kind of test
+   * that passes until somebody reorders the file.
+   */
+  const RIA = "dddddddd-4444-4444-8444-dddddddddddd";
+  let riaAddress: string;
+  let counter = 0;
+
+  beforeAll(async () => {
+    await pg.admin.query("insert into auth.users (id) values ($1)", [RIA]);
+    await pg.admin.query(
+      `insert into public.profiles (id, full_name, phone, role)
+       values ($1, 'Ria Gurung', '+9779812222444', 'customer')
+       on conflict (id) do nothing`,
+      [RIA],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Sanepa', 'Red gate')
+       returning id`,
+      [RIA],
+    );
+    riaAddress = rows[0].id as string;
+  });
+
+  async function bookingFor(input: {
+    status?: string;
+    ageMonths?: number;
+  } = {}): Promise<string> {
+    counter += 1;
+    // Every booking starts pending — `enforce_booking_transition` says so, and
+    // a fixture that wrote a finished job directly would be testing a row the
+    // product cannot produce.
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, created_at, scheduled_for)
+       values ($1, $2, $3, 'plumbing', $4, 'Tap is dripping', 900, 4500,
+               now() - ($5 || ' months')::interval, $6)
+       returning id`,
+      [
+        `SK-RISK${counter}`,
+        RIA,
+        manojProvider,
+        riaAddress,
+        String(input.ageMonths ?? 0),
+        new Date(Date.UTC(2027, 0, counter, 8, 15)).toISOString(),
+      ],
+    );
+    const id = rows[0].id as string;
+
+    if (input.status === "completed") {
+      for (const step of ["accepted", "en_route", "in_progress", "completed"]) {
+        await pg.admin.query(
+          "update public.bookings set status = $1 where id = $2",
+          [step, id],
+        );
+      }
+    }
+    return id;
+  }
+
+  async function risk(): Promise<{ noShows: number; falseAddresses: number; completed: number }> {
+    await pg.admin.query("select public.refresh_customer_risk($1)", [RIA]);
+    const { rows } = await pg.admin.query(
+      "select no_shows, false_addresses, completed_jobs from public.customer_risk where profile_id = $1",
+      [RIA],
+    );
+    return {
+      noShows: Number(rows[0]?.no_shows ?? 0),
+      falseAddresses: Number(rows[0]?.false_addresses ?? 0),
+      completed: Number(rows[0]?.completed_jobs ?? 0),
+    };
+  }
+
+  async function clear(): Promise<void> {
+    await pg.admin.query("delete from public.customer_visit_flags");
+    await pg.admin.query(
+      "delete from public.bookings where reference like 'SK-RISK%'",
+    );
+  }
+
+  it("counts a flagged visit once", async () => {
+    await clear();
+    const id = await bookingFor();
+    await pg.admin.query(
+      `insert into public.customer_visit_flags
+         (booking_id, provider_id, customer_id, flag)
+       values ($1, $2, $3, 'not_at_address')`,
+      [id, manojProvider, RIA],
+    );
+    expect((await risk()).noShows).toBe(1);
+  });
+
+  it("STILL counts it once when the same visit is also claimed formally", async () => {
+    /*
+     * The whole point. Two paths, one booking, one incident — and the count
+     * comes from `count(distinct b.id)` rather than from two writes that each
+     * add one.
+     */
+    await clear();
+    const id = await bookingFor();
+    await pg.admin.query(
+      `insert into public.customer_visit_flags
+         (booking_id, provider_id, customer_id, flag)
+       values ($1, $2, $3, 'not_at_address')`,
+      [id, manojProvider, RIA],
+    );
+    await pg.admin.query(
+      `insert into public.no_show_claims
+         (booking_id, provider_id, customer_id, status)
+       values ($1, $2, $3, 'upheld')
+       on conflict (booking_id) do update set status = 'upheld'`,
+      [id, manojProvider, RIA],
+    );
+    expect((await risk()).noShows).toBe(1);
+  });
+
+  it("refuses the same flag twice on one booking", async () => {
+    await clear();
+    const id = await bookingFor();
+    const write = () =>
+      pg.admin.query(
+        `insert into public.customer_visit_flags
+           (booking_id, provider_id, customer_id, flag)
+         values ($1, $2, $3, 'abusive')`,
+        [id, manojProvider, RIA],
+      );
+    await write();
+    await expect(write()).rejects.toThrow(/duplicate key|unique/i);
+  });
+
+  it("counts two separate visits as two", async () => {
+    // The guard is against double-counting one incident, not against counting.
+    await clear();
+    for (const id of [await bookingFor(), await bookingFor()]) {
+      await pg.admin.query(
+        `insert into public.customer_visit_flags
+           (booking_id, provider_id, customer_id, flag)
+         values ($1, $2, $3, 'not_at_address')`,
+        [id, manojProvider, RIA],
+      );
+    }
+    expect((await risk()).noShows).toBe(2);
+  });
+
+  it("stops counting a flag older than the window", async () => {
+    /*
+     * DECAY IS REAL BECAUSE THE NUMBER IS RECOMPUTED. Nothing decrements and
+     * nothing has to be remembered — a booking outside the horizon is simply
+     * not in the query any more.
+     */
+    await clear();
+    const old = await bookingFor({ ageMonths: 18 });
+    await pg.admin.query(
+      `insert into public.customer_visit_flags
+         (booking_id, provider_id, customer_id, flag)
+       values ($1, $2, $3, 'not_at_address')`,
+      [old, manojProvider, RIA],
+    );
+    expect((await risk()).noShows).toBe(0);
+  });
+
+  it("ages the credit out with the strikes, not after them", async () => {
+    /*
+     * `completed_jobs` retires strikes — that is what stops the ladder being a
+     * ratchet. Ageing the strikes out on a 12-month window but keeping the
+     * credit for ever would quietly harden it in the customer's favour; the
+     * reverse would harden it against them. Both sides use the same horizon.
+     */
+    await clear();
+    await bookingFor({ status: "completed", ageMonths: 0 });
+    await bookingFor({ status: "completed", ageMonths: 18 });
+    expect((await risk()).completed).toBe(1);
+  });
+
+  it("is the same answer run twice", async () => {
+    // A recomputation that drifts is an increment wearing a different name.
+    await clear();
+    const id = await bookingFor();
+    await pg.admin.query(
+      `insert into public.customer_visit_flags
+         (booking_id, provider_id, customer_id, flag)
+       values ($1, $2, $3, 'address_unusable')`,
+      [id, manojProvider, RIA],
+    );
+    const first = await risk();
+    const second = await risk();
+    expect(second).toEqual(first);
+    expect(first.falseAddresses).toBe(1);
+  });
+
+  it("grants the customer no way to read what was recorded about them", async () => {
+    /*
+     * The uncomfortable half of the design, and deliberate. A record somebody
+     * can read is one they will argue about on the spot with the professional
+     * who wrote it, which is the retaliation channel the whole shape closes.
+     * What protects them instead is that it decides nothing on its own.
+     */
+    await clear();
+    const id = await bookingFor();
+    await pg.admin.query(
+      `insert into public.customer_visit_flags
+         (booking_id, provider_id, customer_id, flag)
+       values ($1, $2, $3, 'abusive')`,
+      [id, manojProvider, RIA],
+    );
+    const ria = await pg.asUser(RIA);
+    const { rows } = await ria.query(
+      "select id from public.customer_visit_flags",
+    );
+    expect(rows).toHaveLength(0);
+    await ria.end();
+  });
+
+  it("lets nobody write one through a browser", async () => {
+    const manoj = await pg.asUser(MANOJ);
+    await expect(
+      manoj.query(
+        `insert into public.customer_visit_flags
+           (booking_id, provider_id, customer_id, flag)
+         values ($1, $2, $3, 'abusive')`,
+        [await bookingFor(), manojProvider, RIA],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+    await manoj.end();
+  });
+});

@@ -62,6 +62,34 @@ export const RETENTION: Record<string, RetentionRule> = {
    * booking at the address rather than the row's own age, so an address in
    * live use is never swept out from under an open dispute.
    */
+  /*
+   * WHAT A STRANGER RECORDED ABOUT A PRIVATE INDIVIDUAL, never shown to them.
+   *
+   * That asymmetry is the whole reason this entry exists. The customer cannot
+   * read these flags, cannot answer them, and cannot ask for them to be
+   * corrected — so the only protections left are that the record decides
+   * nothing on its own, that every human read is logged, and that it does not
+   * accumulate for ever. This is the third.
+   *
+   * TWO CLOCKS, AND ONLY ONE IS HERE. A flag stops COUNTING at twelve months,
+   * inside `refresh_customer_risk`, because a count recomputed over a window
+   * needs nothing deleted to decay — that is what stops decay being
+   * decorative. Deletion at twenty-four is this: beyond a year the flag
+   * already influences nothing, so the remaining year is a grace period for
+   * anybody reconstructing a decision that was made while it still counted,
+   * and after that holding it is pure liability with no use left in it.
+   *
+   * Deleted rather than redacted, unlike an address: there is no aggregate
+   * that needs the husk. `customer_risk` is recomputed from what survives, so
+   * a swept flag simply stops existing and the counters already agree.
+   */
+  customer_visit_flags: {
+    from: "the visit",
+    days: 730,
+    action: "delete",
+    why: "A year after it stopped counting. Nothing reads it and nothing aggregates it, so there is no husk worth keeping.",
+  },
+
   addresses: {
     from: "the most recent booking at this address",
     days: 730,
