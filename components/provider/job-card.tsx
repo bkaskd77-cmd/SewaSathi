@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Loader2, MapPin, Phone } from "lucide-react";
 
 import { ArrivalPanel } from "@/components/provider/arrival-panel";
+import { VisitReview } from "@/components/provider/visit-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,6 +121,8 @@ export type JobCardProps = {
   arrivedAt?: string | null;
   /** True once a wasted-trip claim exists, so the panel stops offering one. */
   noShowClaimed?: boolean;
+  /** Has this professional already answered for the visit? */
+  visitReviewed?: boolean;
   /**
    * This professional already has a job in this window.
    *
@@ -430,6 +433,13 @@ export function JobCard(props: JobCardProps) {
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {/* The visit answer, once the job is done. Their half of the sealed
+          pair — the customer's review does not publish until this is in or the
+          fortnight passes. */}
+      {props.status === "completed" ? (
+        <VisitReview bookingId={props.id} done={props.visitReviewed ?? false} />
       ) : null}
 
       {/*

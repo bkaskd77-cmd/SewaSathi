@@ -14,9 +14,12 @@ import { getProviderReviews } from "@/lib/data/providers";
  */
 export async function ProviderReviews({
   providerId,
+  providerName,
   ratingCount,
 }: {
   providerId: string;
+  /** Attribution for the reply — "Krishna replied", not "the professional". */
+  providerName: string;
   ratingCount: number;
 }) {
   const [reviews, t] = await Promise.all([
@@ -60,6 +63,23 @@ export async function ProviderReviews({
             <p className="mt-1.5 text-pretty text-body-sm text-muted-foreground">
               {review.comment}
             </p>
+
+            {/*
+                THE REPLY, INDENTED AND ATTRIBUTED. Nested rather than
+                alongside, because it is an answer to this review and not a
+                second review — and it carries no rating of its own, because
+                there is no counter-score anywhere in this design.
+             */}
+            {review.reply ? (
+              <div className="mt-3 border-l-2 border-border pl-3">
+                <p className="text-caption font-semibold text-muted-foreground">
+                  {t("profile.reply", { name: providerName })}
+                </p>
+                <p className="mt-0.5 text-pretty text-body-sm text-muted-foreground">
+                  {review.reply}
+                </p>
+              </div>
+            ) : null}
             <p className="mt-2 text-caption text-muted-foreground">
               {review.daysAgo < 30
                 ? t("profile.daysAgo", {

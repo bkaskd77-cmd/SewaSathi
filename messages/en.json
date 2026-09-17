@@ -303,7 +303,8 @@
       "onJobNote": "On a job right now. Book a later time, or choose somebody who is free.",
       "busyNote": "Not taking work right now. Book a later time, or choose somebody who is free.",
       "notRated": "Not rated yet",
-      "notMeasured": "Not measured yet"
+      "notMeasured": "Not measured yet",
+      "reply": "{name} replied"
     },
     "ward": "Ward {n}",
     "searchLabel": "Search services",
@@ -773,7 +774,8 @@
       "quoteExpired": "That price has expired",
       "quoteApproved": "Price accepted",
       "quoteDeclined": "Price turned down",
-      "mayRunLate": "Your professional may not make it"
+      "mayRunLate": "Your professional may not make it",
+      "reviewPublished": "Your review is live"
     },
     "alternatives": {
       "heading": "Choose someone else",
@@ -894,6 +896,25 @@
       "errors": {
         "expired": "That price expired before it was accepted. Ask for a fresh survey.",
         "alreadyAnswered": "This price has already been answered.",
+        "failed": "That did not go through. Try again."
+      }
+    },
+    "review": {
+      "title": "How did it go?",
+      "lead": "Your professional will not see this until they have answered too, or in {days} days — whichever comes first.",
+      "ratingLabel": "How would you rate the work?",
+      "commentLabel": "Anything you want to add? (optional)",
+      "commentPlaceholder": "What went well, or what did not.",
+      "submit": "Send",
+      "sending": "Sending…",
+      "doneTitle": "Thank you",
+      "doneBody": "It goes live once your professional has answered too, or in {days} days.",
+      "liveTitle": "Your review is live",
+      "stars": "{n} out of 5",
+      "errors": {
+        "windowClosed": "The two weeks for reviewing this job have passed.",
+        "alreadyReviewed": "You have already reviewed this job.",
+        "badRating": "Pick a rating from one to five.",
         "failed": "That did not go through. Try again."
       }
     }
@@ -1246,6 +1267,31 @@
         "miss": "I cannot make this one",
         "missing": "Handing it back…",
         "missNote": "The job reopens straight away and the customer is told. This is not counted as refusing work."
+      },
+      "visit": {
+        "title": "How was this visit?",
+        "lead": "The customer does not see this. It is not a rating and it is never held against them on its own — it only matters if a pattern shows up, and a person reads it then.",
+        "fine": "Straightforward",
+        "problem": "Something to record",
+        "flags": {
+          "not_at_address": "Nobody was there at the agreed time",
+          "address_unusable": "The address did not lead anywhere",
+          "could_not_access": "I could not get in",
+          "job_not_as_described": "The job was not what was described",
+          "unsafe_site": "The site was unsafe to work in",
+          "asked_off_platform": "I was asked to do the job off SajiloKaam",
+          "abusive": "I was threatened or abused"
+        },
+        "submit": "Send",
+        "sending": "Sending…",
+        "done": "Recorded. Thank you."
+      },
+      "reply": {
+        "label": "Answer this review",
+        "help": "Once, and it cannot be edited afterwards. Add what happened — you cannot rate the customer back, and nothing you write here changes their account.",
+        "placeholder": "What happened, in your words.",
+        "submit": "Post answer",
+        "sending": "Posting…"
       }
     },
     "arrival": {
@@ -1328,6 +1374,16 @@
           "nothingWrong": "Nothing wrong",
           "customerCaused": "Damaged after the work was done"
         }
+      },
+      "record": {
+        "title": "What you have built here",
+        "rating": "Rating",
+        "reviews": "{count, plural, one {# review} other {# reviews}}",
+        "jobs": "{n}",
+        "since": "Working with us since {month}",
+        "empty": "Your record starts with your first job. Ratings, reviews and the number of jobs you have finished all show up here.",
+        "notRated": "No ratings yet",
+        "jobsLabel": "Jobs done"
       }
     },
     "chrome": {

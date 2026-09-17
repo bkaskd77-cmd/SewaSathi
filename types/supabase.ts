@@ -233,6 +233,7 @@ export type Database = {
           quote_declined_at: string | null;
           overbook_offered_by: string | null;
           overbook_missed_at: string | null;
+          provider_visit_reviewed_at: string | null;
           overbook_offered_at: string | null;
           opened_at: string | null;
           reassigned_at: string | null;
@@ -302,6 +303,7 @@ export type Database = {
           quote_declined_at?: string | null;
           overbook_offered_by?: string | null;
           overbook_missed_at?: string | null;
+          provider_visit_reviewed_at?: string | null;
           overbook_offered_at?: string | null;
           opened_at?: string | null;
           reassigned_at?: string | null;
@@ -345,6 +347,30 @@ export type Database = {
         };
         Update: Partial<
           Database["public"]["Tables"]["survey_visit_fees"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      customer_visit_flags: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          customer_id: string;
+          flag: string;
+          submitted_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          customer_id: string;
+          flag: string;
+          submitted_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["customer_visit_flags"]["Insert"]
         >;
         Relationships: [];
       };
@@ -1225,6 +1251,16 @@ export type Database = {
           rating: number;
           comment: string;
           created_at: string;
+          booking_id: string | null;
+          customer_id: string | null;
+          submitted_at: string | null;
+          published_at: string | null;
+          window_closes_at: string | null;
+          reply_text: string | null;
+          replied_at: string | null;
+          excluded_from_average_at: string | null;
+          excluded_by: string | null;
+          excluded_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -1233,6 +1269,16 @@ export type Database = {
           rating: number;
           comment: string;
           created_at?: string;
+          booking_id?: string | null;
+          customer_id?: string | null;
+          submitted_at?: string | null;
+          published_at?: string | null;
+          window_closes_at?: string | null;
+          reply_text?: string | null;
+          replied_at?: string | null;
+          excluded_from_average_at?: string | null;
+          excluded_by?: string | null;
+          excluded_reason?: string | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["provider_reviews"]["Insert"]

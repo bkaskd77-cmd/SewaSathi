@@ -19,6 +19,7 @@ import {
   type PaymentStage,
 } from "@/components/booking/payment-panel";
 import { QuotePanel } from "@/components/booking/quote-panel";
+import { ReviewForm } from "@/components/booking/review-form";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
@@ -39,6 +40,7 @@ import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
 import { getProvider, listAlternatives } from "@/lib/data/providers";
+import { myReviewState } from "@/lib/data/reviews";
 import { surveyStateOf } from "@/lib/data/survey";
 import { needsReplacement } from "@/lib/data/recommendations";
 import { hasRating } from "@/lib/provider";
@@ -111,7 +113,7 @@ export default async function BookingDetailPage({
    * The refusals are the only genuine dependency: the replacement list is
    * built from them, so it waits. Everything else goes now.
    */
-  const [category, address, provider, photoUrl, payments, providerPhone, refusalRows] =
+  const [category, address, provider, photoUrl, payments, providerPhone, review, refusalRows] =
     await Promise.all([
       getCategory(booking.categorySlug),
       getAddress(booking.addressId),
@@ -125,6 +127,9 @@ export default async function BookingDetailPage({
       booking.providerId
         ? getProviderPhone(booking.providerId)
         : Promise.resolve(null),
+      booking.status === "completed"
+        ? myReviewState(booking.id)
+        : Promise.resolve({ submitted: false, published: false }),
       booking.status === "pending"
         ? listRefusals(booking.id)
         : Promise.resolve([]),
@@ -365,6 +370,22 @@ export default async function BookingDetailPage({
           />
         ) : null}
       </NextIntlClientProvider>
+
+      {/* Once the work is done. Sits below the status card rather than above
+          it: the job is finished, so nothing here is waiting on them — this is
+          the one thing left to give rather than the one thing left to do. */}
+      {booking.status === "completed" ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <ReviewForm
+            bookingId={booking.id}
+            submitted={review.submitted}
+            published={review.published}
+          />
+        </NextIntlClientProvider>
+      ) : null}
 
       {/* THE GATE, AND IT SITS ABOVE EVERYTHING ELSE ON A SURVEY JOB. Nothing
           can start until the customer answers this, so it goes where their eye

@@ -283,6 +283,7 @@ export default async function ProviderJobsPage() {
                       : null
                   }
                   offeredByMe={job.overbookOfferedBy === me.providerId}
+                  visitReviewed={job.providerVisitReviewedAt !== null}
                   paymentStatus={job.paymentStatus}
                   paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
                   earningLabel={

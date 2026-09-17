@@ -219,3 +219,19 @@ export function formatInstant(iso: string, locale: "en" | "ne" = "en"): string {
 
   return `${parts.d} ${month} ${parts.y}, ${hour12}:${minute} ${suffix}`;
 }
+
+/**
+ * "Sep 2026" — a month, for a record that spans years.
+ *
+ * Its own function rather than `formatInstant` because the day is noise here:
+ * "working with us since 4 Sep 2026, 4:32 pm" reads as a timestamp on a log
+ * entry, and what it is actually saying is how long somebody has been doing
+ * this. Reuses the same month names, so the two never disagree about what
+ * September is called in Nepali.
+ */
+export function formatMonth(iso: string, locale: "en" | "ne" = "en"): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return "";
+  const parts = nptParts(when);
+  return `${MONTHS[locale][parts.m]} ${parts.y}`;
+}

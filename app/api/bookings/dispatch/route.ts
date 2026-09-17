@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { sweepDispatch } from "@/lib/data/dispatch";
+import { publishDueReviews } from "@/lib/data/reviews";
 import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
 
@@ -44,11 +45,19 @@ export async function GET(request: Request) {
    * that has already run out?" — both are idempotent, and a second scheduled
    * endpoint is a second thing that can silently stop running.
    */
-  const [result, quotes] = await Promise.all([
+  const [result, quotes, reviews] = await Promise.all([
     sweepDispatch(),
     expireStaleQuotes(),
+    publishDueReviews(),
   ]);
-  return NextResponse.json({ ...result, quotesExpired: quotes.expired }, {
-    headers: { "cache-control": "no-store" },
-  });
+  return NextResponse.json(
+    {
+      ...result,
+      quotesExpired: quotes.expired,
+      reviewsPublished: reviews.published,
+    },
+    {
+      headers: { "cache-control": "no-store" },
+    },
+  );
 }

@@ -69,6 +69,15 @@ export type NotificationKind =
    */
   | "booking.mayRunLate"
   /**
+   * A review has come out of its envelope.
+   *
+   * Sent to the professional when the pair publishes — not when the customer
+   * writes it. Telling them earlier would be the leak double-blind exists to
+   * stop, and telling them not at all would mean a public record about their
+   * work appearing with no notice at all.
+   */
+  | "review.published"
+  /**
    * A job has come back. Sent to the professional whose work it was, because
    * the common path — and the cheap one — is that they go round themselves.
    */

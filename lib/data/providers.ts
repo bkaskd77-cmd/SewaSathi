@@ -139,6 +139,8 @@ export type Review = {
   rating: number;
   comment: string;
   daysAgo: number;
+  /** The professional's one answer, once they have given it. */
+  reply: string | null;
 };
 
 /** DEVELOPMENT DATA. Replaced by real provider onboarding in Phase 10. */
@@ -449,9 +451,18 @@ export const getProviderReviews = cache(
     try {
       const { data, error } = await createPublicClient()
         .from("provider_reviews")
-        .select("id, provider_id, author_name, rating, comment, created_at")
+        .select(
+          "id, provider_id, author_name, rating, comment, created_at, reply_text, published_at",
+        )
         .eq("provider_id", providerId)
-        .order("created_at", { ascending: false })
+        /*
+         * PUBLISHED ONLY, and the RLS policy says the same thing — belt and
+         * braces on the one query where getting it wrong would break the seal
+         * in public. A sealed review is the author's alone until both sides are
+         * in or the fortnight passes.
+         */
+        .not("published_at", "is", null)
+        .order("published_at", { ascending: false })
         .limit(10);
 
       if (error || !data || data.length === 0) {
@@ -470,6 +481,7 @@ export const getProviderReviews = cache(
         author: row.author_name as string,
         rating: row.rating as number,
         comment: row.comment as string,
+        reply: (row.reply_text as string | null) ?? null,
         daysAgo: Math.max(
           0,
           Math.round(

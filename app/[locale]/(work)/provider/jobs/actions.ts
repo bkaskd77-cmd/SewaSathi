@@ -13,6 +13,7 @@ import {
   offerOverbookAndClaim,
   recordOverbookMiss,
 } from "@/lib/data/provider-jobs";
+import { replyToReview, submitVisitReview } from "@/lib/data/reviews";
 import { recordSurveyQuote } from "@/lib/data/survey";
 
 /**
@@ -290,4 +291,62 @@ export async function overbookMissAction(
     revalidatePath(`/bookings/${bookingId}`);
   }
   return result;
+}
+
+/**
+ * The professional answers for the visit.
+ *
+ * One question and some tick boxes. There is no free-text parameter here and
+ * that is the design rather than an omission — see `CUSTOMER_FLAGS`: a number
+ * or a paragraph about a private individual, held indefinitely and never shown
+ * to them, cannot be checked, answered or explained, and could not support the
+ * human review it exists to inform.
+ */
+export async function submitVisitReviewAction(
+  bookingId: string,
+  flags: string[],
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const me = await getMyProvider(profile.id);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const result = await submitVisitReview({
+    bookingId,
+    providerId: me.providerId,
+    flags,
+  });
+
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
+}
+
+/** The one reply. Never a rating back, and never while a dispute is open. */
+export async function replyToReviewAction(
+  bookingId: string,
+  text: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const me = await getMyProvider(profile.id);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const result = await replyToReview({
+    bookingId,
+    providerId: me.providerId,
+    text,
+  });
+
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/services`);
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
 }

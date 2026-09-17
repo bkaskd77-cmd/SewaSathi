@@ -344,3 +344,92 @@ describe("no authored fiction survives", () => {
     expect(rows[0].n).toBe(0);
   });
 });
+
+describe("a sealed review is nobody's to read but its author's", () => {
+  /*
+   * The seal is enforced in the database, not only in `lib/reviews`. The rule
+   * that matters: an author who could stamp their own `published_at` could read
+   * the other side's first, which is the one thing double-blind exists to stop.
+   * So nobody holds an insert or update policy on this table at all.
+   */
+
+  async function sealedReview(): Promise<string> {
+    const id = await booking({ provider, status: "completed" });
+    const { rows } = await pg.admin.query(
+      `insert into public.provider_reviews
+         (provider_id, booking_id, customer_id, author_name, rating, comment,
+          submitted_at, window_closes_at)
+       values ($1, $2, $3, 'Sita', 2, 'Late and rushed', now(),
+               now() + interval '14 days')
+       returning id`,
+      [provider, id, CUSTOMER],
+    );
+    return rows[0].id as string;
+  }
+
+  it("hides it from the public until it publishes", async () => {
+    await clear();
+    await sealedReview();
+    const anon = await pg.asAnon();
+    const { rows } = await anon.query("select id from public.provider_reviews");
+    expect(rows).toHaveLength(0);
+    await anon.end();
+  });
+
+  it("shows it to the customer who wrote it", async () => {
+    // Otherwise they cannot see what they submitted, which reads as the review
+    // having been lost.
+    await clear();
+    await sealedReview();
+    const sita = await pg.asUser(CUSTOMER);
+    const { rows } = await sita.query("select id from public.provider_reviews");
+    expect(rows).toHaveLength(1);
+    await sita.end();
+  });
+
+  it("shows it to the public once it has published", async () => {
+    await clear();
+    const id = await sealedReview();
+    await pg.admin.query(
+      "update public.provider_reviews set published_at = now() where id = $1",
+      [id],
+    );
+    const anon = await pg.asAnon();
+    const { rows } = await anon.query("select id from public.provider_reviews");
+    expect(rows).toHaveLength(1);
+    await anon.end();
+  });
+
+  it("lets nobody write one through a browser", async () => {
+    await clear();
+    const id = await booking({ provider, status: "completed" });
+    const sita = await pg.asUser(CUSTOMER);
+    await expect(
+      sita.query(
+        `insert into public.provider_reviews
+           (provider_id, booking_id, customer_id, author_name, rating, comment)
+         values ($1, $2, $3, 'Sita', 5, 'Great')`,
+        [provider, id, CUSTOMER],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+    await sita.end();
+  });
+
+  it("refuses a professional stamping their own side as answered", async () => {
+    /*
+     * The other half of the same rule. Somebody who could set
+     * `provider_visit_reviewed_at` from a browser could open the envelope and
+     * read the customer's review before writing their own.
+     */
+    await clear();
+    const id = await booking({ provider, status: "completed" });
+    const pro = await pg.asUser(PRO);
+    await expect(
+      pro.query(
+        "update public.bookings set provider_visit_reviewed_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/recorded by the server, not a browser/);
+    await pro.end();
+  });
+});

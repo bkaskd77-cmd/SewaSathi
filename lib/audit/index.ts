@@ -49,6 +49,8 @@ export type SecurityEventKind =
   /* Identity documents — Phase 10 */
   | "document.uploaded"
   | "document.viewed"
+  /* What a stranger recorded about a customer, and who read it */
+  | "customerRisk.viewed"
   | "document.reviewed"
   /* Anything an admin does at all */
   | "admin.action";
@@ -119,5 +121,38 @@ export async function recordDocumentAccess(input: {
     subjectType: "document",
     subjectId: input.documentId,
     detail: { ownerId: input.ownerId, reason: input.reason },
+  });
+}
+
+/**
+ * Somebody looked at what professionals recorded about a customer.
+ *
+ * THE SAME RULE AS `recordDocumentAccess` AND FOR A SHARPER REASON. The
+ * customer cannot read these flags, cannot answer them and cannot ask for them
+ * to be corrected — so the only protections left are that the record decides
+ * nothing on its own, that it ages out, and that every human read is on a log
+ * the application cannot edit. This is the third.
+ *
+ * `action` is what FOLLOWED, not just that a page was opened. A log of reads
+ * with no outcomes cannot answer the question worth asking — whether this is
+ * quietly driving decisions — and that question is the whole point of keeping
+ * it. "nothing" is a real and common answer; recording it is what makes the
+ * others mean something.
+ *
+ * Its own function rather than a call site, so it cannot be quietly skipped.
+ */
+export async function recordRiskAccess(input: {
+  adminId: string;
+  customerId: string;
+  reason: string;
+  action: string;
+}): Promise<void> {
+  await recordSecurityEvent({
+    kind: "customerRisk.viewed",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "profile",
+    subjectId: input.customerId,
+    detail: { reason: input.reason, action: input.action },
   });
 }

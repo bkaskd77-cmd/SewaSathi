@@ -17,6 +17,7 @@ import {
   verifyAndSettle,
   type Handoff,
 } from "@/lib/data/payments";
+import { submitReview } from "@/lib/data/reviews";
 import { respondToQuote } from "@/lib/data/survey";
 import { isPaymentMethod } from "@/lib/payments";
 
@@ -365,6 +366,36 @@ export async function respondToQuoteAction(
     bookingId,
     customerId: profile.id,
     decision,
+  });
+
+  if (result.ok) {
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath("/bookings");
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
+}
+
+/**
+ * The customer rates a finished job.
+ *
+ * Nothing here decides when anybody reads it. `submitReview` writes it sealed
+ * and the publication rule lives in `lib/reviews` — a screen that could publish
+ * its own review is a screen that could open the envelope early.
+ */
+export async function submitReviewAction(
+  bookingId: string,
+  rating: number,
+  comment: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await submitReview({
+    bookingId,
+    customerId: profile.id,
+    rating,
+    comment,
   });
 
   if (result.ok) {

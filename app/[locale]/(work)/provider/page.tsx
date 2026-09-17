@@ -6,12 +6,14 @@ import { ShieldAlert, Wallet } from "lucide-react";
 import { AvailabilityControls } from "@/components/provider/availability-toggle";
 import { ClaimCard } from "@/components/provider/claim-card";
 import { RateField } from "@/components/provider/rate-field";
+import { RecordPanel } from "@/components/provider/record-panel";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { claimsForProvider, openClaimsForTrade } from "@/lib/data/claims";
 import { getProviderDashboard } from "@/lib/data/provider-profile";
+import { formatMonth } from "@/lib/booking";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -97,6 +99,41 @@ export default async function ProviderDashboardPage() {
           {dashboard.displayName}
         </p>
       </header>
+
+      {/* WHAT THEY HAVE BUILT, above the controls. Everything below this is a
+          thing to adjust; this is the one thing on the page that is simply
+          theirs, and putting it under the switches would make it look like
+          another setting. */}
+      <div className="mt-6">
+        <RecordPanel
+          stats={{
+            ratingAvg: dashboard.ratingAvg,
+            ratingCount: dashboard.ratingCount,
+            jobsCompleted: dashboard.jobsCompleted,
+          }}
+          since={
+            dashboard.approvedAt
+              ? formatMonth(dashboard.approvedAt, locale)
+              : null
+          }
+          labels={{
+            title: t("record.title"),
+            rating: t("record.rating"),
+            reviews: t("record.reviews", { count: dashboard.ratingCount }),
+            jobsLabel: t("record.jobsLabel"),
+            // A string, not a number: `ne` renders 1234 as १,२३४ and a bare
+            // interpolated count would come out in Latin digits beside it.
+            jobs: t("record.jobs", { n: String(dashboard.jobsCompleted) }),
+            since: t("record.since", {
+              month: dashboard.approvedAt
+                ? formatMonth(dashboard.approvedAt, locale)
+                : "",
+            }),
+            empty: t("record.empty"),
+            notRated: t("record.notRated"),
+          }}
+        />
+      </div>
 
       {/* Availability first: it is the only thing on this page that is true
           for a few hours rather than for months. */}

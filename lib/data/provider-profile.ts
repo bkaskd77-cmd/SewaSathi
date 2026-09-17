@@ -54,6 +54,11 @@ export type ProviderDashboard = {
   /** Redo debt still outstanding. Netted forward, never chased. */
   outstandingRupees: number;
   jobsCompleted: number;
+  /** Their own record, so the dashboard can show what they have built. */
+  ratingAvg: number;
+  ratingCount: number;
+  /** When they were approved. Null on a listing that predates the flow. */
+  approvedAt: string | null;
 };
 
 /** The listing linked to this profile, with everything the dashboard shows. */
@@ -68,7 +73,7 @@ export async function getProviderDashboard(
     const { data: provider } = await admin
       .from("providers")
       .select(
-        "id, display_name, base_rate, base_rate_requested, availability, available_until, busy_until, on_job_since",
+        "id, display_name, base_rate, base_rate_requested, availability, available_until, busy_until, on_job_since, approved_at",
       )
       .eq("profile_id", profileId)
       .maybeSingle();
@@ -84,7 +89,7 @@ export async function getProviderDashboard(
           .eq("provider_id", providerId),
         admin
           .from("provider_stats")
-          .select("jobs_completed")
+          .select("jobs_completed, rating_avg, rating_count")
           .eq("provider_id", providerId)
           .maybeSingle(),
         // What is due but not yet released. `payout_due_at` is stamped at
@@ -143,6 +148,9 @@ export async function getProviderDashboard(
       owedRupees: earnings.reduce((total, n) => total + n, 0),
       outstandingRupees: Number(owing ?? 0),
       jobsCompleted: Number(stats?.jobs_completed ?? 0),
+      ratingAvg: Number(stats?.rating_avg ?? 0),
+      ratingCount: Number(stats?.rating_count ?? 0),
+      approvedAt: (provider.approved_at as string | null) ?? null,
     };
   } catch (thrown) {
     console.error(`[provider-profile] read threw — ${describeError(thrown)}`);

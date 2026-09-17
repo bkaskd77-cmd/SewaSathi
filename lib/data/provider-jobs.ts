@@ -76,6 +76,8 @@ export type ProviderJob = {
   quoteDeclinedAt: string | null;
   /** The listing that offered to squeeze this job in, if anybody did. */
   overbookOfferedBy: string | null;
+  /** When they answered for the visit — their half of the sealed review pair. */
+  providerVisitReviewedAt: string | null;
   finalAmount: number | null;
   /** pending | paid — the booking's own payment state, not a payment row. */
   paymentStatus: string;
@@ -136,7 +138,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -260,6 +262,8 @@ export async function listProviderJobs(
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
       overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
+      providerVisitReviewedAt:
+        (row.provider_visit_reviewed_at as string | null) ?? null,
       finalAmount: (row.final_amount as number | null) ?? null,
       paymentStatus: (row.payment_status as string) ?? "pending",
       paymentMethod: (row.payment_method as string) ?? "cash",
@@ -570,7 +574,7 @@ export async function listOpenJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
       )
       .is("provider_id", null)
       .eq("status", "pending")
@@ -614,6 +618,8 @@ export async function listOpenJobs(
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
       overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
+      providerVisitReviewedAt:
+        (row.provider_visit_reviewed_at as string | null) ?? null,
         finalAmount: null,
         paymentStatus: "pending",
         paymentMethod: (row.payment_method as string) ?? "cash",

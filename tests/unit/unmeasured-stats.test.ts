@@ -350,7 +350,7 @@ describe("the fallback carries no authored statistics", () => {
   it("reads as unmeasured through the same gates every screen asks", () => {
     // Not a separate assertion about the JSON — the same functions the cards
     // call, so this cannot pass while a surface still prints something.
-    for (const seeded of providerSeed as Array<{ stats: StatEvidence }>) {
+    for (const seeded of providerSeed as unknown as Array<{ stats: StatEvidence }>) {
       const stats = { ...seeded.stats, jobsAccepted: 0, responseSamples: 0 };
       expect(hasRating(stats)).toBe(false);
       expect(hasResponse(stats)).toBe(false);

@@ -383,6 +383,7 @@ export default async function ProviderProfilePage({
         <Suspense fallback={<ProviderReviewsSkeleton />}>
           <ProviderReviews
             providerId={provider.id}
+            providerName={provider.displayName}
             ratingCount={stats.ratingCount}
           />
         </Suspense>
