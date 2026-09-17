@@ -56,20 +56,22 @@
     "trust": {
       "verified": {
         "label": "ID-verified professionals",
-        "detail": "Every pro checked in person"
+        "detail": "Every one checked in person before they take a job"
       },
       "pricing": {
         "label": "Upfront pricing",
         "detail": "Agreed before work starts"
       },
-      "rating": {
-        "label": "Average rating",
-        "detail": "from 10,000+ households"
-      },
       "coverage": {
         "label": "Kathmandu Valley",
         "detail": "Ktm · Lalitpur · Bhaktapur"
-      }
+      },
+      "guarantee": {
+        "label": "Work guaranteed",
+        "detail": "Not right? Somebody comes back and redoes it, free"
+      },
+      "ratingWithCount": "Average rating {rating} from {households} households",
+      "professionalsCount": "{n} ID-verified professionals"
     },
     "servicesEyebrow": "Services",
     "servicesTitle": "Ten trades, one number to call",

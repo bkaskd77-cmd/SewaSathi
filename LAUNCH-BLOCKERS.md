@@ -52,9 +52,9 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: trust-strip-counts
 - Status: unresolved
-- Claims: "1,200+ ID-verified professionals", "Average rating 4.8 from 10,000+ households". There are 28 providers in the database, none of them real people, and no completed bookings at all. This is the most serious entry in the file: it is the first thing on the landing page, it is the specific claim the product asks to be trusted on, and it is false.
-- Lives in: `app/[locale]/page.tsx` (`TRUST_ITEMS`), `messages/en.json` and `messages/ne.json` (`home.trust.*`)
-- Replaced by: Phase 9 aggregates — a verified-provider count, a mean of real `provider_stats.rating_avg`, and a count of distinct customers with a completed booking. Until those exist, the honest version is to drop the numbers and keep the labels.
+- Claims: Claimed "1,200+ ID-verified professionals" and "Average rating 4.8 from 10,000+ households". **The invented figures are gone** — the strip now carries four statements that are true on day one and no numbers at all. It stays open because the rows a count would draw on are still fixtures: 28 of the 30 providers are seeded and 26 of them are marked verified.
+- Lives in: `app/[locale]/page.tsx` (`TRUST_ITEMS`), `lib/data/platform.ts`, `lib/config/platform.ts`, `home.trust.*` in both catalogues
+- Replaced by: `platformStats()` reads real counts and each one appears only above a floor — but **the filter matters more than the floor**, and that is why this entry survives its own fix. A floor of 25 would have PASSED on 26 seeded "verified" rows and put "28 ID-verified professionals" on the landing page: a smaller lie, arrived at carefully. So the count requires `application_id is not null` as well, and this blocker is now formally dependent on `seed-providers-and-reviews` — `npm run check:blockers` fails if this one is marked resolved while that one is open, so a green check here can never hide the reason the strip is empty.
 
 ### BLOCKER: activity-ticker
 - Status: unresolved

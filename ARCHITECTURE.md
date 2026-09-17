@@ -112,6 +112,25 @@ interface. Swapping a provider is then one file, not a hunt.
 
 Where a change on one side cannot reach the other.
 
+- **A number on the front page shows only when the rows behind it are real, and
+  the filter comes before the floor.** `platformStats` counts a professional
+  only when they are verified AND came through `provider_applications` — reading
+  the live database found 26 of 28 "verified" providers were seeded fixtures, so
+  a floor of 25 would have passed and put "28 ID-verified professionals" on the
+  landing page: a smaller lie, arrived at carefully. Below a floor the strip
+  shows **no number and no substitute number**; all four items are true on day
+  one. `STAT_FLOORS.ratedJobs` is `RATING_PRIOR_COUNT` rather than its own
+  constant — "is this evidence yet" is the same question about one listing and
+  about the platform. `check:blockers` enforces that `trust-strip-counts` cannot
+  resolve while `seed-providers-and-reviews` is open.
+- **Reviews are sealed by the database, not by the screen.** Nobody holds an
+  insert or update policy on `provider_reviews`: an author who could stamp their
+  own `published_at` could read the other side first, which is the one thing
+  double-blind exists to stop. `provider_visit_reviewed_at` is refused to
+  browsers for the same reason, and it is a column rather than a flag row
+  because most visits produce no flags — a seal keyed on "a flag exists" would
+  never open for an ordinary job. `lib/reviews` holds the rules; publication
+  rides the dispatch cron.
 - **The money guards are tested by name, because they once vanished without a
   line of code changing.** `enforce_booking_immutability` lost every settlement
   check to a migration rebuilt from a stale copy — `create or replace` takes the

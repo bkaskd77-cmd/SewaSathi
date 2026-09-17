@@ -5,7 +5,7 @@ import {
   HandCoins,
   MapPin,
   ReceiptText,
-  Star,
+  ShieldCheck,
   Timer,
 } from "lucide-react";
 
@@ -15,6 +15,7 @@ import { ProblemSearch } from "@/components/marketing/problem-search";
 import { Section, SectionHeading } from "@/components/marketing/section";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { CountUp } from "@/components/shared/count-up";
+import { platformStats } from "@/lib/data/platform";
 import { Reveal } from "@/components/shared/reveal";
 import {
   Accordion,
@@ -45,16 +46,27 @@ import { site } from "@/lib/config/site";
 // Phase 9 by live aggregates (verified-pro count, mean rating, review count).
 // Items with a `value` count up on scroll; the rest just reveal. The words are
 // keys into `home.trust`; only the numbers live here.
+/*
+ * FOUR THINGS WE DO, and numbers only once they are earned.
+ *
+ * This strip said "1,200+ ID-verified professionals" and "Average rating 4.8
+ * from 10,000+ households" against 28 fixtures and no completed bookings —
+ * the first thing on the page, and the specific claim the product asked to be
+ * trusted on.
+ *
+ * IT SHOWS NOTHING RATHER THAN SOMETHING SMALLER. A count of two is not a
+ * humbler version of a count of twelve hundred; it is an admission dressed as
+ * a statistic, and a reader does the arithmetic on what it implies. All four
+ * items are true on day one with no data at all, and two of them grow a figure
+ * when `platformStats` says there is one.
+ */
 const TRUST_ITEMS: {
   Icon: typeof BadgeCheck;
-  key: string;
-  value?: number;
-  decimals?: number;
-  suffix?: string;
+  key: "verified" | "pricing" | "guarantee" | "coverage";
 }[] = [
-  { Icon: BadgeCheck, key: "verified", value: 1200, suffix: "+" },
+  { Icon: BadgeCheck, key: "verified" },
   { Icon: ReceiptText, key: "pricing" },
-  { Icon: Star, key: "rating", value: 4.8, decimals: 1 },
+  { Icon: ShieldCheck, key: "guarantee" },
   { Icon: MapPin, key: "coverage" },
 ];
 
@@ -75,10 +87,13 @@ export async function generateMetadata({
 }
 
 export default async function Home() {
-  const [profile, locale, t] = await Promise.all([
+  const [profile, locale, t, stats] = await Promise.all([
     getSessionProfile(),
     getLocale() as Promise<Locale>,
     getTranslations("home"),
+    // Cached per request, and it returns nothing at all rather than a smaller
+    // number when the evidence is thin. See `platformStats`.
+    platformStats(),
   ]);
 
   return (
@@ -154,28 +169,37 @@ export default async function Home() {
         <div className="border-y border-border bg-card/60">
           <div className="container">
             <ul className="grid grid-cols-2 gap-x-6 gap-y-5 py-6 lg:grid-cols-4">
-              {TRUST_ITEMS.map(({ Icon, key, value, decimals, suffix }) => (
+              {TRUST_ITEMS.map(({ Icon, key }) => (
                 <li key={key} className="flex items-start gap-3">
                   <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                     <Icon aria-hidden="true" className="size-[18px]" />
                   </span>
                   <div className="min-w-0">
                     <p className="text-body-sm font-semibold leading-tight">
-                      {value !== undefined ? (
+                      {/*
+                          The count appears only when it has cleared its floor,
+                          and `CountUp` only then too — a number animating up to
+                          two would draw the eye to the one thing on the strip
+                          worth least attention.
+                       */}
+                      {key === "verified" && stats.professionals !== null ? (
                         <>
                           <span className="font-display text-lg font-bold">
-                            <CountUp
-                              value={value}
-                              decimals={decimals}
-                              suffix={suffix}
-                            />
+                            <CountUp value={stats.professionals} />
                           </span>{" "}
                         </>
                       ) : null}
                       {t(`trust.${key}.label`)}
                     </p>
                     <p className="mt-0.5 text-caption text-muted-foreground">
-                      {t(`trust.${key}.detail`)}
+                      {key === "guarantee" &&
+                      stats.rating !== null &&
+                      stats.households !== null
+                        ? t("trust.ratingWithCount", {
+                            rating: stats.rating.toFixed(1),
+                            households: String(stats.households),
+                          })
+                        : t(`trust.${key}.detail`)}
                     </p>
                   </div>
                 </li>

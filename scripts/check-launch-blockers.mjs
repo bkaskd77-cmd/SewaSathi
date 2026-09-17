@@ -109,6 +109,22 @@ function main() {
   const invented = inventedCategories();
   const bands = entries.find((e) => e.id === BANDS_ENTRY);
 
+  /*
+   * ONE BLOCKER CANNOT RESOLVE WHILE THE ONE IT RESTS ON IS OPEN.
+   *
+   * `trust-strip-counts` is only honest because the counts filter out seeded
+   * fixtures — 26 of the 28 "verified" providers in the database are invented.
+   * Marking it done while `seed-providers-and-reviews` is open would mean a
+   * green check on the strip hiding the reason the strip has to stay empty, and
+   * whoever later deleted the filter would find both checks already passing.
+   */
+  const DEPENDS_ON = { "trust-strip-counts": "seed-providers-and-reviews" };
+  const brokenDeps = Object.entries(DEPENDS_ON).filter(([id, needs]) => {
+    const entry = entries.find((e) => e.id === id);
+    const dependency = entries.find((e) => e.id === needs);
+    return entry?.status === "resolved" && dependency?.status !== "resolved";
+  });
+
   const launching =
     process.env.LAUNCH === "true" && process.env.NODE_ENV === "production";
 
@@ -119,6 +135,14 @@ function main() {
   for (const entry of entries) {
     const mark = entry.status === "resolved" ? "done" : "OPEN";
     console.log(`  ${mark}  ${entry.id}`);
+  }
+
+  for (const [id, needs] of brokenDeps) {
+    console.log(
+      `\n  ${id} is marked resolved, but it rests on ${needs}, which is not.` +
+        `\n  The counts on that strip are only honest because they exclude the` +
+        `\n  seeded providers. Resolve ${needs} first.`,
+    );
   }
 
   if (invented.length > 0) {
@@ -154,6 +178,18 @@ function main() {
       console.error(`  - ${entry.id}: missing ${missing.join(", ")}`);
     }
     console.error("");
+    process.exit(1);
+  }
+
+  /*
+   * A BROKEN DEPENDENCY FAILS ALWAYS, not only at launch. The other checks
+   * here are about whether we are ready to ship; this one is about the file
+   * describing itself incorrectly, and a wrong map is wrong today.
+   */
+  if (brokenDeps.length > 0) {
+    console.error(
+      "\nA resolved blocker rests on an unresolved one, so the file cannot be trusted.\n",
+    );
     process.exit(1);
   }
 
