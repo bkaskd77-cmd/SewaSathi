@@ -235,7 +235,29 @@ function leadsWithSafety(explanation: string, ours?: string): boolean {
 }
 
 /** How a hazard was spotted. Recorded so the two paths can be audited apart. */
-export type HazardVia = "text" | "vision";
+export type HazardVia = "text" | "vision" | "stated";
+
+/**
+ * Products a customer can only be choosing because something is dangerous.
+ *
+ * WHY THIS EXISTS. The sub-band ask only appears when the triage could not
+ * name a product, which means the description said too little. Somebody who
+ * then taps "Short circuit, sparking or burning smell" has told us something
+ * their words never did — and the text guard, which reads only their words,
+ * has nothing to go on.
+ *
+ * ONE BAND, AND THE LIST STAYS SHORT FOR THE SAME REASON THE STEM LISTS DO.
+ * A burst pipe is urgent and not dangerous; an AC gas refill is deliberately
+ * not a gas leak, which is a rule this file already keeps elsewhere. A product
+ * earns a place here only when there is no innocent reading of choosing it,
+ * because a detector that cries wolf is worth nothing when it is real.
+ *
+ * Keyed `category/slug`, which is what makes a sub-band unique — `repair` and
+ * `fault` both exist in more than one trade.
+ */
+export const HAZARD_BANDS: Record<string, Hazard> = {
+  "electrical/fault": "burning",
+};
 
 export type SafetyOutcome = {
   result: TriageResult;
@@ -266,16 +288,35 @@ export function applySafetyFloor(
     /** The safety lines in the reader's language. */
     copy: SafetyCopy;
     visionHazard?: Hazard | null;
+    /**
+     * The customer naming a product that can only mean a hazard.
+     *
+     * Third source, same one-way rule as the photo read. It arrives later than
+     * the other two — after the answer is on screen and the customer has
+     * tapped — so this is re-applied in the browser over a result the server
+     * already guarded. It is ADDITIVE: the server floor still runs on every
+     * path and nothing here can lower what it decided.
+     */
+    statedHazard?: Hazard | null;
     photoUnseen?: boolean;
   },
 ): SafetyOutcome {
   const textHazard = detectHazard(input);
-  const hazard = textHazard ?? options.visionHazard ?? null;
+  const hazard =
+    textHazard ?? options.visionHazard ?? options.statedHazard ?? null;
+  /*
+   * THE DETERMINISTIC ONE WINS. Text first because it is a fixed list of
+   * stems; then the model's read of a photo; then the customer's own
+   * statement, which is evidence but arrives through a tap that could be a
+   * mis-tap. All three raise and none lowers.
+   */
   const via: HazardVia | null = textHazard
     ? "text"
     : options.visionHazard
       ? "vision"
-      : null;
+      : options.statedHazard
+        ? "stated"
+        : null;
 
   if (hazard) {
     const explanation = leadsWithSafety(result.explanation, options.copy[hazard])

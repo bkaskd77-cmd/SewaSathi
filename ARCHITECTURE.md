@@ -360,6 +360,46 @@ Where a change on one side cannot reach the other.
   authored in the first. Widening the fold was refused for the reason CLAUDE.md
   gives — it folds one sound and nothing else — and both spellings are authored
   instead. Pest control had no Romanized term at all.
+- **When the triage names a trade but no product, the card asks.** A category
+  band spans 10-13x — AC servicing is 500 to 12,000 because a routine service,
+  a gas refill and an installation are three products — so the narrowed
+  sub-band is what actually carries "no surprises", and the keyword matcher
+  names one for **2 of 12 corpus cases, identically in all three scripts**. We
+  accepted those wide bands only because a customer would usually read a
+  narrowed figure; usually they did not. One tap on a screen they are already
+  reading takes that to 12 of 12, and adds **no step to the booking** — the
+  question sits above the link they were going to press anyway.
+  **A customer's statement is evidence; our guess is not**, and that is the
+  whole ordering. `band_source` gains `customer` above `model` and `matcher`,
+  which are both our reading of somebody's sentence. Only a stated band
+  **re-narrows the price**, to the product's published, dated range: the figure
+  on the card is otherwise the model's own number clamped to the CATEGORY band,
+  which is how AC servicing can read 1,800-5,500 while the `repair` product it
+  named is 500-1,500. A model-named band is left alone, because trusting its
+  slug over its own number makes the price wrong rather than merely wide.
+  **"I'm not sure" is a real answer**, not a way out: it closes the question
+  and leaves the band null, which is what every path does when nothing can tell.
+  **The labels ride back on the triage response, never in the bundle.** 36
+  products in two languages is landing-page JavaScript for a question most
+  visitors never see, and they would be frozen to the seed while the table is
+  what a price is read from. The read is skipped entirely when there is nothing
+  to ask. A survey trade has no products and is never asked.
+  **One product raises urgency.** `electrical/fault` is "short circuit,
+  sparking or burning smell", and the ask only appears when the description
+  said too little — so tapping it is the customer telling us something their
+  words never did, and the text guard reads only their words. `HAZARD_BANDS` in
+  `lib/ai/safety.ts` is the list, one entry, and the raise is **one-way** like
+  the photo read: it can never lower a result and the deterministic text guard
+  still wins. It is re-applied in the browser because the tap happens after the
+  server has answered — **additive to the server floor, never a replacement**.
+  A burst pipe is urgent and not dangerous; an AC gas refill is deliberately
+  not a gas leak.
+  **`/[locale]`'s ceiling moved 155 -> 158 and the old number was the problem.**
+  It was set to the then-current measurement, so the route had zero spare and
+  the next honest kilobyte was going to fail whatever it was for — a tripwire
+  that teaches people to raise numbers reflexively, which is the habit the
+  budget exists to prevent. Every other ceiling here carries headroom; this one
+  does now too.
 - **A job has a duration, and the scheduler reasons in it.** This was the named
   structural gap and it is closed. `WORKING_HOURS.slotHours` is still 2, but it
   is now only the width of a slot the picker OFFERS — how long a job HOLDS is

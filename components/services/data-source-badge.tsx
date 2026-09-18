@@ -21,7 +21,31 @@ export function DataSourceBadge({ enabled }: { enabled: boolean }) {
     (key) => sources[key].source !== "unread",
   );
 
-  if (rows.length === 0) return null;
+  /*
+   * NOTHING WAS READ, AND SAYING SO IS THE WHOLE JOB OF THIS COMPONENT.
+   *
+   * This returned null, which on a live deployment is indistinguishable from
+   * the badge not being deployed at all — precisely the blind spot it exists
+   * to close. Somebody checking whether a fix had landed opened a page that
+   * makes no catalogue read, saw nothing, and had no way to tell which of the
+   * two it was.
+   *
+   * The badge is only mounted on the catalogue screens, so this is what a
+   * reader sees if they take `?debug=data` somewhere else.
+   */
+  if (rows.length === 0) {
+    return (
+      <div
+        data-testid="data-source"
+        className="animate-pop-in mt-8 border-t border-dashed border-border pt-3 text-caption text-muted-foreground"
+      >
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold uppercase tracking-wide">dev</span>
+          <span>no catalogue read on this page</span>
+        </p>
+      </div>
+    );
+  }
 
   const anySeed = rows.some((key) => sources[key].source === "seed");
 

@@ -167,6 +167,11 @@
     },
     "reading": "Reading your description…",
     "resultLead": "Here’s what we think you need",
+    "ask": {
+      "question": "Which of these is it? The price gets more exact.",
+      "unsure": "I'm not sure",
+      "change": "Change"
+    },
     "findProfessionals": "Find {category} professionals",
     "urgency": {
       "emergency": "Emergency",

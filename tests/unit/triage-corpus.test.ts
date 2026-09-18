@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { triageProblem } from "@/lib/ai/mockTriage";
+import { SUB_BAND_SEED } from "@/lib/config/services";
 import type { TriageCopy } from "@/lib/ai/copy";
 
 /**
@@ -169,6 +170,16 @@ const CORPUS: Case[] = [
 ];
 
 const LANGUAGES = ["ne", "romanized", "en"] as const;
+
+/**
+ * Trades the card has products to offer for.
+ *
+ * Movers is priced by survey and has none — no Nepali operator publishes a
+ * figure — so it is never asked and must never appear here.
+ */
+const TRADES_WITH_PRODUCTS = new Set(
+  SUB_BAND_SEED.map((band) => band.categorySlug),
+);
 type Language = (typeof LANGUAGES)[number];
 
 function reaches(text: string): {
@@ -268,6 +279,30 @@ describe("what the corpus measures", () => {
       "sparking from a wire",
     ]);
     expect(bandRate(language)).toBeCloseTo(2 / CORPUS.length, 5);
+  });
+
+  /**
+   * WHAT THE ASK IS WORTH, AS A NUMBER RATHER THAN A HOPE.
+   *
+   * The card asks which product it is whenever the triage named a trade but no
+   * band and that trade has products. This measures the ceiling: how much of
+   * the corpus would carry a band if the customer answered. 2/12 becomes
+   * 12/12, identically in all three scripts, which is what justified spending
+   * a tap on it.
+   *
+   * It is a CEILING and the test says so — it assumes an answer. What it rules
+   * out is the ask being offered on a case where it could not help, which is
+   * the way this silently stops being worth its tap.
+   */
+  it.each(LANGUAGES)("could band every case in %s if answered", (language) => {
+    const banded = CORPUS.filter((c) => {
+      const reached = reaches(c[language]);
+      if (reached.band) return true;
+      // The ask needs the right trade and a trade with products. A misroute
+      // would offer the wrong list, which is worse than not asking.
+      return reached.category === c.trade && TRADES_WITH_PRODUCTS.has(c.trade);
+    });
+    expect(banded).toHaveLength(CORPUS.length);
   });
 
   it("agrees on the product across all three scripts", () => {

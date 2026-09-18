@@ -27,8 +27,24 @@
 export const BUDGET = {
   /** Per-route First Load JS ceilings, in kB. */
   routes: {
-    // Measured 148 after the migration (128 before it).
-    "/[locale]": 155,
+    /*
+     * Measured 148 after the next-intl migration (128 before it), then 155 —
+     * and 155 was also the ceiling, so this route had ZERO SPARE and the next
+     * honest kilobyte was going to fail whatever it was for. A ceiling set to
+     * the current measurement is not a budget; it is a tripwire that teaches
+     * whoever hits it to raise the number without thinking, which is the one
+     * habit this file exists to prevent.
+     *
+     * 158 is the sub-band ask — the question the triage card puts to a
+     * customer when it could not name a product — measured at 156.0, plus the
+     * ~2 kB of headroom every other ceiling here carries. The ask is worth it:
+     * a category band spans 10-13x and the matcher names a product for about a
+     * sixth of requests, so without it most customers read the wide band as the
+     * promise. The labels themselves are NOT in this number; they ride back on
+     * the triage response precisely so 36 products in two languages never
+     * become landing-page JavaScript.
+     */
+    "/[locale]": 158,
     /*
      * 205 kB until Phase 9, when moving the OTP send behind a server action
      * took supabase-js out of this bundle entirely: 197 kB -> 128 kB, on the

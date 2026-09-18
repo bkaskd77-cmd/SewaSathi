@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
+import { applySafetyFloor, HAZARD_BANDS } from "@/lib/ai/safety";
 import {
   categoryCtaLabel,
   categoryName,
@@ -29,6 +30,24 @@ import { cn, formatNpr } from "@/lib/utils";
  * carry a photo, and an in-flight run is aborted when a newer one starts. The
  * result shape did not change, so the card below is untouched.
  */
+
+/**
+ * The two controls this file repeats, defined once.
+ *
+ * The quick picks and the sub-band ask are the same object — a small round
+ * chip that puts a word into the triage — and they were two near-identical
+ * className strings, which is landing-page JavaScript spent on saying one
+ * thing twice and an invitation for them to drift apart visually. `/[locale]`
+ * sits on a 155 kB ceiling and the ask is what pushed it over; extracting
+ * these is what paid for it, which is a better answer than raising a number
+ * that exists to be hard to raise.
+ */
+const CHIP =
+  "rounded-full border border-border bg-card px-3 py-1.5 text-caption font-medium transition-all duration-200 hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
+/** A quiet text action: "I'm not sure", "Change". Never a primary path. */
+const QUIET_LINK =
+  "text-caption text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 /**
  * The chips. Keys rather than strings: the visible label is translated, and
@@ -352,7 +371,7 @@ export function ProblemSearch() {
                 setQuery(label);
                 void runTriage(label, photo);
               }}
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-caption font-medium transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className={CHIP}
             >
               {label}
             </button>
@@ -365,7 +384,7 @@ export function ProblemSearch() {
       <div aria-live="polite" aria-atomic="true">
         {thinking ? <TriageSkeleton /> : null}
         {!thinking && outcome ? (
-          <TriageCard outcome={outcome} locale={locale} />
+          <TriageCard outcome={outcome} locale={locale} copy={copy} />
         ) : null}
       </div>
     </div>
@@ -396,9 +415,12 @@ function TriageSkeleton() {
 function TriageCard({
   outcome,
   locale,
+  copy,
 }: {
   outcome: TriageOutcome;
   locale: Locale;
+  /** The safety lines, already in the reader's language. See the ask below. */
+  copy: TriageCopy;
 }) {
   const t = useTranslations("triage");
   const tc = useTranslations("common");
@@ -414,7 +436,66 @@ function TriageCard({
     locale,
     fallback("genericCtaLabel"),
   );
-  const [low, high] = result.priceRangeNPR;
+
+  /*
+   * WHICH PRODUCT, WHEN THE TRIAGE COULD NOT TELL.
+   *
+   * `null` means unanswered — no tap yet. The empty string is "I'm not sure",
+   * which is a real answer and not the same thing: it closes the question
+   * without naming a band, so the card stops asking and the link carries no
+   * band, exactly as it does today.
+   *
+   * Keyed on the result so a second search clears an answer to the first.
+   * Without the key somebody who triages a leaking tap, taps "Blocked drain",
+   * then searches for something else would carry that answer onto the new
+   * result.
+   */
+  const [stated, setStated] = React.useState<string | null>(null);
+  const answeredFor = React.useRef(outcome);
+  if (answeredFor.current !== outcome) {
+    answeredFor.current = outcome;
+    if (stated !== null) setStated(null);
+  }
+
+  const chosen = stated
+    ? (outcome.subBands.find((sub) => sub.slug === stated) ?? null)
+    : null;
+  const asking = !result.band && outcome.subBands.length > 0 && stated === null;
+
+  /*
+   * THE SAFETY FLOOR, RE-APPLIED OVER THE CUSTOMER'S OWN STATEMENT.
+   *
+   * The ask only appears when the description said too little to name a
+   * product, so somebody tapping "short circuit, sparking or burning smell"
+   * has told us something their words never did — and the text guard reads
+   * only their words. Same one-way rule as the photo read: it can raise this
+   * to an emergency and add the line about what to do right now, and there is
+   * no branch that lets it lower anything. The server floor still ran on this
+   * result and is not replaced; this is additive, on information the server
+   * never had.
+   */
+  const guarded = React.useMemo(() => {
+    if (!chosen) return result;
+    const hazard = HAZARD_BANDS[`${result.category}/${chosen.slug}`] ?? null;
+    if (!hazard) return result;
+    return applySafetyFloor("", result, {
+      copy: copy.safety,
+      statedHazard: hazard,
+    }).result;
+  }, [chosen, copy.safety, result]);
+
+  /*
+   * A CUSTOMER'S STATEMENT REPLACES OUR GUESS, and only theirs does. The
+   * figure on the card is the model's own number clamped to the CATEGORY band,
+   * which is how AC servicing can read 1,800-5,500 while the `repair` product
+   * it named is 500-1,500. Their answer swaps in the published, dated range
+   * for the product they named. A model- or matcher-named band is left alone:
+   * it is our guess about their words, and trusting its slug over its own
+   * number would make the price wrong rather than merely wide.
+   */
+  const [low, high] = chosen
+    ? [chosen.low, chosen.high]
+    : guarded.priceRangeNPR;
 
   return (
     <div className="animate-rise mt-4 rounded-xl border border-border bg-card p-5 shadow-md">
@@ -433,8 +514,8 @@ function TriageCard({
         style={{ animationDelay: "60ms" }}
       >
         <Badge variant="verified">{name}</Badge>
-        <Badge variant={URGENCY_VARIANT[result.urgency]}>
-          {t(`urgency.${result.urgency}`)}
+        <Badge variant={URGENCY_VARIANT[guarded.urgency]}>
+          {t(`urgency.${guarded.urgency}`)}
         </Badge>
       </div>
 
@@ -452,22 +533,96 @@ function TriageCard({
         className="animate-rise mt-2 text-pretty text-body-sm text-muted-foreground"
         style={{ animationDelay: "180ms" }}
       >
-        {result.explanation}
+        {guarded.explanation}
       </p>
 
-      <div className="animate-rise" style={{ animationDelay: "240ms" }}>
+      {/*
+        ONE QUESTION, AND ONLY WHEN THERE IS ONE WORTH ASKING.
+
+        A category band spans 10-13x, so the narrowed product is what carries
+        "no surprises" — and the matcher names one for about a sixth of
+        requests. Asking is one tap on a screen the customer is already
+        reading, before the link they were going to press anyway, so it adds no
+        step to the booking. Skipping it leaves the card exactly as it was.
+      */}
+      {asking ? (
+        <div
+          className="animate-rise mt-4 rounded-lg border border-dashed border-border p-3"
+          style={{ animationDelay: "240ms" }}
+        >
+          <p id="sub-band-ask" className="text-body-sm font-semibold">
+            {t("ask.question")}
+          </p>
+          <div
+            role="group"
+            aria-labelledby="sub-band-ask"
+            className="mt-2 flex flex-wrap gap-2"
+          >
+            {outcome.subBands.map((sub, index) => (
+              <button
+                key={sub.slug}
+                type="button"
+                onClick={() => setStated(sub.slug)}
+                // Staggered like every other list in the product, capped so a
+                // seven-product trade does not crawl.
+                style={{ animationDelay: `${Math.min(index * 0.04, 0.2)}s` }}
+                className={cn("animate-rise active:scale-[0.98]", CHIP)}
+              >
+                {sub.label}
+              </button>
+            ))}
+            {/*
+              NOT SURE IS A REAL ANSWER, not a way out of the question. It
+              closes the ask and leaves the band null, which is what every
+              other path does when nothing can tell — a guess filed under the
+              wrong product is worse than no product at all.
+            */}
+            <button
+              type="button"
+              onClick={() => setStated("")}
+              className={cn("animate-rise px-3 py-1.5", QUIET_LINK)}
+              style={{ animationDelay: "0.24s" }}
+            >
+              {t("ask.unsure")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* What they told us, and a way back. An answer that cannot be changed
+          is a trap on a screen where one tap decides the price shown. */}
+      {chosen ? (
+        <p className="animate-pop-in mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm">
+          <span className="font-semibold">{chosen.label}</span>
+          <button
+            type="button"
+            onClick={() => setStated(null)}
+            className={QUIET_LINK}
+          >
+            {t("ask.change")}
+          </button>
+        </p>
+      ) : null}
+
+      <div className="animate-rise" style={{ animationDelay: "300ms" }}>
         <Button variant="gold" className={cn("btn-tactile mt-4")} asChild>
           {/* The product travels with the urgency. Without it the one thing
               the triage worked out about how long this job takes — a touch-up
               or a whole flat — is lost at the first link, and the booking
-              falls back to reserving two hours for everything. */}
+              falls back to reserving two hours for everything.
+
+              `customer` outranks both of ours in the provenance: a statement
+              is evidence, a guess is not. It is still a browser-supplied hint
+              and the column's comment says so. */}
           <Link
-            href={`/services/${result.category}?urgency=${result.urgency}${
-              result.band
-                ? `&band=${encodeURIComponent(result.band)}&bandSource=${
-                    outcome.source === "fallback" ? "matcher" : "model"
-                  }`
-                : ""
+            href={`/services/${result.category}?urgency=${guarded.urgency}${
+              chosen
+                ? `&band=${encodeURIComponent(chosen.slug)}&bandSource=customer`
+                : result.band
+                  ? `&band=${encodeURIComponent(result.band)}&bandSource=${
+                      outcome.source === "fallback" ? "matcher" : "model"
+                    }`
+                  : ""
             }`}
           >
             {t("findProfessionals", { category: ctaLabel })}

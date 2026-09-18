@@ -305,6 +305,9 @@ export async function POST(request: NextRequest) {
       result: safeResult,
       source,
       latencyMs,
+      // The choices for the "which of these is it?" question, when there is
+      // one to ask. Empty on every other path, which is what the card reads.
+      subBands: await askableSubBands(safeResult, locale),
       // For the dev-only badge. Nothing here is secret and nothing here is
       // rendered to an ordinary visitor.
       reason,
@@ -312,4 +315,53 @@ export async function POST(request: NextRequest) {
     },
     { headers: { "cache-control": "no-store" } },
   );
+}
+
+/**
+ * The products to offer the customer, or nothing.
+ *
+ * WHY THE LABELS COME BACK ON THE RESPONSE RATHER THAN OUT OF THE BUNDLE.
+ * Thirty-six labels in two languages is a few kB of landing-page JavaScript
+ * for a question most visitors never see, and `/[locale]` sits on a 155 kB
+ * ceiling. They also go stale: the bundle would be frozen to the seed while
+ * the table is what a price is actually read from. So they ride back on a
+ * response we were already sending.
+ *
+ * The read is skipped entirely unless there is a question to ask — the common
+ * case is that the triage named a product, and a round trip to fetch choices
+ * nobody will see is latency spent on nothing.
+ */
+async function askableSubBands(
+  result: TriageResult,
+  locale: Locale,
+): Promise<Array<{ slug: string; label: string; low: number; high: number }>> {
+  // Already answered. Asking again would invite somebody to contradict a
+  // reading of their own sentence with a tap.
+  if (result.band) return [];
+
+  const bands = await getPriceBands();
+  const band = bands.find((entry) => entry.slug === result.category);
+  /*
+   * A SURVEY TRADE HAS NO PRODUCTS AND MUST NOT BE ASKED. Movers is the case:
+   * no Nepali operator publishes a price, so there is nothing to narrow to and
+   * the honest answer is the surveyor. `toBand` already returns an empty list
+   * for it, so this is belt and braces rather than the only guard.
+   */
+  if (!band || band.model === "survey") return [];
+
+  return band.subBands.map((sub) => ({
+    slug: sub.slug,
+    // One side picked here, not both shipped. `categoryCopy` is the same rule
+    // one level up: the language choice is made in one place.
+    label: locale === "ne" ? sub.labelNe : sub.labelEn,
+    /*
+     * THE PUBLISHED RANGE, WHICH IS THE POINT OF ASKING AT ALL. The figure on
+     * the card today is the model's own, clamped only to the category band —
+     * which is how AC servicing shows 1,800-5,500 while the `repair` product
+     * it named is 500-1,500. An answer from the customer replaces a guess with
+     * a researched, dated number.
+     */
+    low: sub.low,
+    high: sub.high,
+  }));
 }

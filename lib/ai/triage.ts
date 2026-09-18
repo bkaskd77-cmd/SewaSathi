@@ -49,10 +49,29 @@ export type TriageReason =
   | "unreachable"
   | "rejected";
 
+/** One product inside the trade, as a customer reads it. */
+export type SubBandChoice = {
+  slug: string;
+  /** Already in the reader's language. The server picked the side. */
+  label: string;
+  /** The published range for this product, researched and dated. */
+  low: number;
+  high: number;
+};
+
 export type TriageOutcome = {
   result: TriageResult;
   source: TriageSource;
   reason: TriageReason;
+  /**
+   * The choices for "which of these is it?", or empty when there is nothing
+   * to ask: the triage already named the product, the trade is priced by
+   * survey, or we never reached the server at all.
+   *
+   * Empty is the ordinary answer and the card renders no question for it —
+   * the ask must never appear as a row of nothing.
+   */
+  subBands: SubBandChoice[];
   /** Present only when Claude answered. For the dev badge. */
   model?: string | null;
 };
@@ -73,6 +92,15 @@ function localFallback(
     }).result,
     source: "fallback",
     reason,
+    /*
+     * NO ASK ON THIS PATH, and it is the honest answer rather than a gap.
+     * This runs when the browser could not reach us at all, so there are no
+     * live labels to offer. A server-side fallback — no API key, a timeout —
+     * still comes back through the response and still carries them, which is
+     * the case that actually matters: that is where the matcher names a
+     * product least often.
+     */
+    subBands: [],
   };
 }
 
@@ -111,6 +139,7 @@ export async function triageProblem(
       result?: TriageResult;
       source?: TriageSource;
       reason?: TriageReason;
+      subBands?: SubBandChoice[];
       model?: string | null;
     };
 
@@ -120,6 +149,7 @@ export async function triageProblem(
       result: payload.result,
       source: payload.source ?? "claude",
       reason: payload.reason ?? "ok",
+      subBands: payload.subBands ?? [],
       model: payload.model ?? null,
     };
   } catch (error) {
