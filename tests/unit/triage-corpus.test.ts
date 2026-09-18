@@ -156,14 +156,15 @@ const CORPUS: Case[] = [
     romanized: "pani tanki safa garnu paryo",
     en: "water tank needs cleaning",
     /*
-     * TWO SPELLINGS OF ONE WORD, AND THE RULE ONLY KNOWS ONE. The keyword is
-     * `ट्यांकी` with an anusvara; this is `ट्याङ्की` with a full ङ्. Both are
-     * ordinary Nepali spellings of "tank". With neither matching, the generic
-     * `सफा गर्न` ("to clean") wins and a tank clean is sent to a house
-     * cleaner. Devanagari turns out to have the same unstandardised-spelling
-     * problem the Romanized lists are deliberately loose about.
+     * FIXED BY `foldNepali`, AND IT WAS PINNED HERE AS A MISROUTE FIRST.
+     *
+     * The keyword is `ट्यांकी` with an anusvara; this is `ट्याङ्की` with a
+     * full ङ्. Both are ordinary Nepali spellings of "tank". With neither
+     * matching, the generic `सफा गर्न` ("to clean") won and a tank clean was
+     * sent to a house cleaner. That is the whole class the fold exists for,
+     * and the same class that left eighteen safety stems undetectable in
+     * their other spelling.
      */
-    misroutesTo: { ne: "home-cleaning" },
   },
 ];
 
@@ -224,11 +225,11 @@ describe("what the corpus measures", () => {
 
   /*
    * AND THE TALLY, SO THE ASYMMETRY IS A NUMBER RATHER THAN AN IMPRESSION.
-   * English and Romanized reach every trade in this corpus; Devanagari misses
-   * one, on a spelling variant. The moment a second language falls behind,
-   * this is what says so — a combined figure would let Nepali rot while
-   * English held it up, on a product where English is what the team reads and
-   * Nepali is what most customers type.
+   * All three scripts reach every trade in this corpus now — Devanagari was
+   * one behind until `foldNepali` landed. The moment one falls behind again,
+   * this is what says so: a combined figure would let Nepali rot while English
+   * held it up, on a product where English is what the team reads and Nepali
+   * is what most customers type.
    */
   it("keeps the scripts within one case of each other", () => {
     const counts = LANGUAGES.map((l) => misrouted(l).length);

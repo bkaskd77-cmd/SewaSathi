@@ -41,6 +41,20 @@ const GAS: Case[] = [
   ["gyas leak bhayo", "gas"],
   ["lpg gas ko basna aairacha", "gas"],
 
+  /*
+   * THE SAME SENTENCES IN THE OTHER SPELLING.
+   *
+   * Nepali writes a nasal before a consonant two ways — an anusvara (ं) or the
+   * nasal consonant plus virama (न् म् ङ् ञ् ण्) — and both are ordinary. Every
+   * stem in `lib/ai/safety.ts` was authored in the conjunct form, so somebody
+   * typing `गंध` rather than `गन्ध` or `सिलिंडर` rather than `सिलिन्डर` was not
+   * detected at all. `foldNepali` collapses the two before matching; these
+   * cases failed before it existed and are the reason it does.
+   */
+  ["भान्सामा ग्यास गंध आयो", "gas", "anusvara spelling of गन्ध"],
+  ["सिलिंडरबाट ग्यास चुहियो", "gas", "anusvara spelling of सिलिन्डर"],
+  ["ग्यास गंहायो डर लाग्यो", "gas", "anusvara spelling of गन्हा"],
+
   ["I can smell gas in the kitchen", "gas"],
   ["gas cylinder is leaking, what do I do", "gas"],
 ];
@@ -59,6 +73,8 @@ const BURNING: Case[] = [
   ["tar poleko gandha aayo", "burning"],
   ["board ma spark bhayo", "burning"],
 
+  ["तार पोलेको गंध आयो", "burning", "anusvara spelling of गन्ध"],
+
   ["burning smell from the socket", "burning"],
   ["the switchboard is sparking", "burning"],
   ["smoke coming out of the fuse box", "burning"],
@@ -75,6 +91,9 @@ const LIVE_WIRE: Case[] = [
   ["nango tar bahira niskeko cha", "live-wire"],
   ["dhara chudda current lagyo", "live-wire"],
   ["switch chuda jhatka lagyo", "live-wire"],
+
+  ["धारा छुँदा करेंट लाग्यो", "live-wire", "anusvara spelling of करेन्ट"],
+  ["छानाबाट तार झुंडिएको छ", "live-wire", "anusvara spelling of झुण्डि"],
 
   ["got an electric shock from the tap", "live-wire"],
   ["there is a bare wire hanging in the bathroom", "live-wire"],
@@ -107,6 +126,15 @@ const CALM: string[] = [
   "फर्निचर मर्मत गर्नुपर्ने छ",
   "washing machine is not spinning",
   "बत्ती फ्युज भयो नयाँ हाल्नुपर्‍यो",
+
+  /*
+   * AND THE ORDINARY ONES IN THE OTHER SPELLING TOO. A fold that widens the
+   * match is a fold that starts crying wolf, and a product that cries wolf is
+   * worth nothing when it is real. `करेंट आएको छैन` is the power being out,
+   * exactly as `करेन्ट आएको छैन` is.
+   */
+  "करेंट आएको छैन",
+  "एसीमा ग्यास भर्नुपर्‍यो सिलिंडर होइन",
 ];
 
 describe("gas, as people actually report it", () => {

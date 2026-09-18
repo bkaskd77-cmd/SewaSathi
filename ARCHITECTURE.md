@@ -82,6 +82,7 @@ it and what you checked**. Feature code is cheap to change; these are not.
 | `lib/seo.ts` | Every page's metadata | Next *replaces* `openGraph` rather than merging, so a per-page `og:url` silently dropped `og:locale` |
 | `lib/supabase/{client,server}.ts` | All data access | Importing the client one into anything the header renders puts ~70 kB of supabase-js on the landing page |
 | `lib/ai/safety.ts` | Triage on the server, the cache, and the browser fallback | Matched the noun `गन्ध` but not the verb `गन्हाउनु`, so a Nepali speaker describing a gas leak got the calm path. Bare `करेन्ट` also fired on "करेन्ट आएको छैन" — the power being out. Rebuilt around stems; corpus in `tests/unit/hazard-corpus.test.ts` |
+| `lib/text/nepali.ts` | `lib/ai/safety.ts`, `lib/ai/mockTriage.ts`, the `/services` catalogue search | Nepali writes a nasal before a consonant two ways and every safety stem was authored one way, so `गंध`, `सिलिंडर` and `करेंट` reached the gas and live-wire guards undetected. 18 stems in that state and one hand-patched variant beside them. Folded on both sides now; anusvara cases in `tests/unit/hazard-corpus.test.ts` |
 | `lib/auth/routes.ts` | Middleware and every auth page | `safeRedirect` accepted `/\evil.example`, which a browser reads as a jump to another origin |
 | `i18n/routing.ts`, `i18n/navigation.ts` | Every link and redirect | — |
 | Design tokens in `styles/globals.css` | Every component | — |

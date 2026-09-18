@@ -1,3 +1,5 @@
+import { foldNepali } from "@/lib/text";
+
 /**
  * The words people type, mapped to the categories we sell.
  *
@@ -139,11 +141,14 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
  * appliance repair.
  */
 export function matchCategories(query: string): string[] {
-  const text = query.toLowerCase().trim();
+  // Folded on both sides, so a search for `ट्याङ्की` finds the term authored
+  // as `ट्यांकी`. Nepali spells that sound two ways and neither is wrong; see
+  // lib/text/nepali.ts.
+  const text = foldNepali(query.toLowerCase().trim());
   if (!text) return [];
 
   const hits = CATEGORY_ALIASES.filter((alias) =>
-    text.includes(alias.term.toLowerCase()),
+    text.includes(foldNepali(alias.term.toLowerCase())),
   ).sort((a, b) => b.term.length - a.term.length);
 
   const ordered: string[] = [];

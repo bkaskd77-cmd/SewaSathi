@@ -1,5 +1,6 @@
 import type { SafetyCopy } from "@/lib/ai/copy";
 import type { TriageResult } from "@/lib/ai/mockTriage";
+import { foldNepali } from "@/lib/text";
 
 /**
  * The hazard guard.
@@ -53,8 +54,17 @@ export type Hazard = "gas" | "burning" | "live-wire";
  */
 
 /** Joins stems into an alternation. Nothing here needs escaping today. */
+/**
+ * ONE PLACE BUILDS EVERY STEM LIST, which is why the spelling fold goes here.
+ *
+ * Every Devanagari stem in this file was authored with conjunct nasals —
+ * `गन्ध`, `सिलिन्डर`, `करेन्ट` — and Nepali writes that sound the other way
+ * just as often. Somebody typing `गंध` was not detected at all. Folding at
+ * construction means no stem list has to be authored in a particular spelling,
+ * and `detectHazard` folds the input to match. See `lib/text/nepali.ts`.
+ */
 function anyOf(...stems: string[]): RegExp {
-  return new RegExp(`(${stems.join("|")})`, "i");
+  return new RegExp(`(${stems.map(foldNepali).join("|")})`, "i");
 }
 
 // Smelling something. Devanagari stems cover the whole conjugation:
@@ -166,7 +176,9 @@ const SHOCK_VERB = anyOf(
  * because the action it asks for is the more urgent one.
  */
 export function detectHazard(input: string): Hazard | null {
-  const text = input.toLowerCase();
+  // Folded as well as lowercased: the stems were folded when their regexes
+  // were built, so both sides meet in one spelling.
+  const text = foldNepali(input.toLowerCase());
   if (!text.trim()) return null;
 
   if (BARE_WIRE.test(text)) return "live-wire";

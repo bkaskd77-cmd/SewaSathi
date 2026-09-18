@@ -27,6 +27,7 @@ import type { Locale } from "@/i18n/routing";
 import type { TriageCopy } from "@/lib/ai/copy";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import { CATEGORY_ALIASES } from "@/lib/data/synonyms";
+import { foldNepali } from "@/lib/text";
 
 export type Urgency = "emergency" | "soon" | "routine";
 
@@ -574,7 +575,10 @@ const ALIAS_RULES: KeywordRule[] = CATEGORY_ALIASES.flatMap((alias) => {
 export const KEYWORD_RULES: KeywordRule[] = [...PROBLEM_RULES, ...ALIAS_RULES];
 
 export function triageProblem(input: string, copy: TriageCopy): TriageResult {
-  const text = input.toLowerCase().trim();
+  // Folded, like the safety guard and the catalogue search. The keywords are
+  // folded beside it below, so a list authored with `ट्याङ्की` still matches
+  // somebody who typed `ट्यांकी`. See lib/text/nepali.ts.
+  const text = foldNepali(input.toLowerCase().trim());
   const generic = (urgency: Urgency = GENERIC_RULE.urgency): TriageResult => ({
     category: GENERIC_RULE.category,
     urgency,
@@ -590,8 +594,11 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
 
   for (const rule of KEYWORD_RULES) {
     for (const keyword of rule.keywords) {
-      if (!text.includes(keyword)) continue;
-      const score = keyword.length;
+      const folded = foldNepali(keyword);
+      if (!text.includes(folded)) continue;
+      // Scored on the FOLDED length so two spellings of one keyword cannot
+      // outrank each other by a character.
+      const score = folded.length;
       if (!best || score > best.score) best = { rule, score };
     }
   }

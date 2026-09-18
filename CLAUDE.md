@@ -70,7 +70,19 @@ same commit as the change, never afterwards.
    `KEYWORD_RULES` in `lib/ai/mockTriage.ts` are both built that way and say so.
    Devanagari has no usable word boundary for a regex, which makes stems the
    natural approach as well as the correct one. Romanized Nepali has no
-   spelling standard, so those lists stay deliberately loose. Anything matching
+   spelling standard, so those lists stay deliberately loose.
+   **And Devanagari has no single spelling either**, which is the same lesson
+   one level down and cost eighteen safety stems before anybody noticed. A
+   nasal before a consonant is written as an anusvara (`गंध`, `सिलिंडर`,
+   `करेंट`) or as the nasal consonant plus virama (`गन्ध`, `सिलिन्डर`,
+   `करेन्ट`), and both are ordinary — so a stem authored one way missed
+   everybody who typed the other, on the gas and live-wire guards. `foldNepali`
+   in `lib/text/nepali.ts` collapses the two, on the input and the stems alike,
+   so no list has to be authored in a particular spelling. **It folds that one
+   sound and nothing else**: `श`/`ष`/`स`, `व`/`ब` and `ि`/`ी` vary just as
+   often and collapsing them merges words that genuinely differ, which is how a
+   hazard detector starts crying wolf. Normalising a spelling is not widening a
+   match, and the difference is the rule. Anything matching
    user text gets cases in `tests/unit/hazard-corpus.test.ts` phrased the way
    somebody in a hurry would actually type them — including the ordinary
    complaints that must NOT fire, because a product that cries wolf is worth
