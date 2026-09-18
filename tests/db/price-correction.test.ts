@@ -428,3 +428,73 @@ describe("a survey job has no product to correct", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("a declined correction is a trip made for nothing", () => {
+  /*
+   * Cancelling is free until work begins and that is not changing. So a
+   * professional who arrives, finds a burst pipe where "inspection only" was
+   * booked, and says so honestly can have the customer walk away with the trip
+   * already made. Unpaid, the lesson everybody learns is to START THE WORK
+   * FIRST and correct at settlement — the exact thing this mechanism prevents.
+   */
+  async function arrive(id: string) {
+    await pg.admin.query(
+      `insert into public.booking_arrivals (booking_id, provider_id, arrived_at)
+       values ($1, $2, now())
+       on conflict (booking_id) do nothing`,
+      [id, krishna],
+    );
+  }
+
+  it("earns a pending fee when somebody actually turned up", async () => {
+    const id = await book({ band: "leak", source: "customer" });
+    await correct(id, "pipe-work");
+    await arrive(id);
+
+    await pg.admin.query(
+      `insert into public.survey_visit_fees
+         (booking_id, provider_id, outcome, amount)
+       values ($1, $2, 'band-declined', 500)`,
+      [id, krishna],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select status, outcome from public.survey_visit_fees where booking_id = $1",
+      [id],
+    );
+    // Born pending: nothing pays itself, which is what stops a fee becoming a
+    // route to free money for anybody proposing a correction they know will be
+    // refused.
+    expect(rows[0]).toMatchObject({ status: "pending", outcome: "band-declined" });
+  });
+
+  it("refuses one for a trip nobody made", async () => {
+    // No trip, no fee — the same guard the surveyed path keeps, and the reason
+    // the journey (most of the real cost) is mandatory.
+    const id = await book({ band: "leak", source: "customer" });
+    await correct(id, "pipe-work");
+    await expect(
+      pg.admin.query(
+        `insert into public.survey_visit_fees
+           (booking_id, provider_id, outcome, amount)
+         values ($1, $2, 'band-declined', 500)`,
+        [id, krishna],
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("keeps a declined correction apart from a declined survey", async () => {
+    /*
+     * Three outcomes rather than reusing 'declined'. A surveyed quote turned
+     * down and a corrected product turned down are different events, and a
+     * report that cannot tell them apart is a report that will be read wrong.
+     */
+    const { rows } = await pg.admin.query(
+      `select pg_get_constraintdef(oid) as def from pg_constraint
+        where conname = 'survey_visit_fees_outcome_check'`,
+    );
+    for (const outcome of ["declined", "expired", "band-declined"]) {
+      expect(rows[0].def).toContain(outcome);
+    }
+  });
+});

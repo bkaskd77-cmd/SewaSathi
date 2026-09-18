@@ -17,6 +17,7 @@ import { getCategory, getSubBands } from "@/lib/data/categories";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { PAYOUT_RULES } from "@/lib/payments";
 import { notify } from "@/lib/notify";
 import {
   blocksBooking,
@@ -983,4 +984,151 @@ export async function rebandBookings(input: {
   });
 
   return { ok: true, cleared };
+}
+
+/**
+ * The customer answers the professional's correction.
+ *
+ * NOTHING STARTS UNTIL THEY DO — `enforce_price_correction` refuses
+ * `in_progress` while the question is open, so this is a gate rather than a
+ * notification somebody can ignore. That is what "the price is agreed before
+ * work starts" means once the product itself can turn out wrong.
+ *
+ * APPROVING MOVES THE MONEY NUMBERS, and not from here.
+ * `sync_booking_quote_floor` recomputes `quoted_min`, `quoted_max` and
+ * `band_min` from the band now in force, because a job changes hands four ways
+ * and a fifth writer is a fifth chance to forget. This function writes one
+ * timestamp and lets the database do the arithmetic.
+ *
+ * DECLINING EARNS THE PROFESSIONAL A TRIP FEE. Cancelling is free until work
+ * begins, so an honest correction would otherwise cost them the journey — and
+ * the lesson everybody would learn is to start the work first and correct at
+ * settlement, which is the exact thing this prevents. `survey_visit_fees` is
+ * already the right shape and the row is born `pending`: a person decides, and
+ * no trip means no fee whatever this function writes.
+ *
+ * The write is server-side and the read is not, the same shape `declineJob`
+ * uses: `enforce_booking_immutability` refuses these columns to any caller with
+ * a session, because a professional must not be able to stamp the customer's
+ * approval.
+ */
+export async function answerBandCorrection(input: {
+  bookingId: string;
+  agreed: boolean;
+  actorId: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  // Through RLS, so the policy is what proves this is their booking rather
+  // than the id they handed us.
+  const { data: booking, error: readError } = await createClient()
+    .from("bookings")
+    .select(
+      "id, reference, customer_id, provider_id, status, provider_band_at, band_change_approved_at, band_change_declined_at",
+    )
+    .eq("id", input.bookingId)
+    .maybeSingle();
+
+  if (readError || !booking) return { ok: false, reason: "notFound" };
+  if (booking.customer_id !== input.actorId) {
+    return { ok: false, reason: "notYours" };
+  }
+  // Nothing to answer. Not an error a customer caused, so it is its own reason
+  // rather than a generic failure.
+  if (!booking.provider_band_at) return { ok: false, reason: "noCorrection" };
+  if (booking.band_change_approved_at || booking.band_change_declined_at) {
+    return { ok: false, reason: "alreadyAnswered" };
+  }
+
+  const now = new Date().toISOString();
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("bookings")
+    .update(
+      input.agreed
+        ? { band_change_approved_at: now }
+        : { band_change_declined_at: now },
+    )
+    .eq("id", input.bookingId);
+
+  if (error) {
+    console.error(`[bookings] correction answer failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  if (!input.agreed) {
+    /*
+     * THE JOB IS OVER. A customer who will not pay for the product it turned
+     * out to be is not a customer with a booking — leaving it `accepted` would
+     * hold a professional's afternoon for work nobody is going to do. Written
+     * through the same path a customer cancellation takes, so the status
+     * machine and `cancelled_by_role` stay the one account of who ended it.
+     */
+    await admin
+      .from("bookings")
+      .update({
+        status: "cancelled",
+        cancelled_at: now,
+        cancelled_by_role: "customer",
+      })
+      .eq("id", input.bookingId);
+
+    await recordCorrectionVisitFee({
+      bookingId: input.bookingId,
+      providerId: (booking.provider_id as string | null) ?? null,
+    });
+  }
+
+  if (booking.provider_id) {
+    await notify({
+      recipientId: booking.provider_id as string,
+      kind: input.agreed
+        ? "booking.priceCorrectionApproved"
+        : "booking.priceCorrectionDeclined",
+      params: { reference: booking.reference as string },
+      bookingId: input.bookingId,
+    });
+  }
+
+  return { ok: true };
+}
+
+/**
+ * The trip the professional made before the customer said no.
+ *
+ * NEVER THROWS, the same rule `recordVisitFee` keeps in lib/data/survey.ts: the
+ * decline has already happened and the booking has already ended, so a fee row
+ * that cannot be written must not roll either back. The database refuses it
+ * outright when no arrival was recorded — no trip, no fee — and that refusal is
+ * a normal outcome here rather than an error worth alarming anybody about.
+ *
+ * Born `pending`. Nothing pays itself; a person decides, which is what stops a
+ * fee that pays automatically becoming a route to free money for anybody
+ * willing to propose a correction they know will be refused.
+ */
+async function recordCorrectionVisitFee(input: {
+  bookingId: string;
+  providerId: string | null;
+}): Promise<void> {
+  if (!input.providerId) return;
+
+  try {
+    const { error } = await createAdminClient()
+      .from("survey_visit_fees")
+      .insert({
+        booking_id: input.bookingId,
+        provider_id: input.providerId,
+        outcome: "band-declined",
+        amount: PAYOUT_RULES.surveyVisitFeeNpr,
+      });
+
+    // 23505 is one booking answered once — the unique constraint doing its
+    // job, not a failure.
+    if (error && error.code !== "23505") {
+      console.warn(`[bookings] no visit fee recorded — ${describeError(error)}`);
+    }
+  } catch (thrown) {
+    console.warn(`[bookings] visit fee write threw — ${describeError(thrown)}`);
+  }
 }

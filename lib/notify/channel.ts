@@ -59,6 +59,26 @@ export type NotificationKind =
    */
   | "booking.quoteDeclined"
   /**
+   * The professional says the job is a different product, and the customer has
+   * to answer before work starts.
+   *
+   * A GATE, LIKE `booking.quoteReady`, NOT A PROGRESS UPDATE. `in_progress` is
+   * refused until they answer, so ignoring it stops the job rather than
+   * delaying a screen. Separate from the survey keys on purpose: this is a
+   * banded job whose product turned out wrong, and telling somebody their
+   * "survey" is ready would be a sentence about a thing that never happened.
+   */
+  | "booking.priceCorrected"
+  /** They agreed. The professional can start. */
+  | "booking.priceCorrectionApproved"
+  /**
+   * They said no, so the job is ending. Deliberately NOT counted against
+   * anybody: a customer declining a price is not a professional failing, and a
+   * professional correcting an understated product is the honest move this
+   * whole mechanism exists to make safe.
+   */
+  | "booking.priceCorrectionDeclined"
+  /**
    * The professional who offered to squeeze this job in has run out of day.
    *
    * SENT TO THE CUSTOMER, and it is the point of counting misses at all: an

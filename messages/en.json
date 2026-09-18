@@ -783,6 +783,9 @@
       "quoteExpired": "That price has expired",
       "quoteApproved": "Price accepted",
       "quoteDeclined": "Price turned down",
+      "priceCorrected": "Check the price before work starts",
+      "priceCorrectionApproved": "Price agreed",
+      "priceCorrectionDeclined": "Price turned down",
       "mayRunLate": "Your professional may not make it",
       "reviewPublished": "Your review is live"
     },

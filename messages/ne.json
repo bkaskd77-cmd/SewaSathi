@@ -783,6 +783,9 @@
       "quoteExpired": "त्यो मूल्यको म्याद सकियो",
       "quoteApproved": "मूल्य स्वीकार भयो",
       "quoteDeclined": "मूल्य अस्वीकार भयो",
+      "priceCorrected": "काम सुरु हुनुअघि मूल्य हेर्नुहोस्",
+      "priceCorrectionApproved": "मूल्यमा सहमति भयो",
+      "priceCorrectionDeclined": "मूल्य अस्वीकार गरियो",
       "mayRunLate": "प्राविधिक नआउन पनि सक्नुहुन्छ",
       "reviewPublished": "तपाईंको समीक्षा सार्वजनिक भयो"
     },

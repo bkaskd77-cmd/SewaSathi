@@ -241,6 +241,16 @@ export type Database = {
            */
           band_slug: string | null;
           band_source: string | null;
+          /**
+           * The product the professional says it actually is, after seeing the
+           * job. Stored beside the customer's statement, never over it, and
+           * only in force once they have agreed to it.
+           */
+          provider_band_slug: string | null;
+          provider_band_at: string | null;
+          provider_band_reason: string | null;
+          band_change_approved_at: string | null;
+          band_change_declined_at: string | null;
           estimated_working_minutes: number | null;
           estimated_elapsed_days: number | null;
           provider_estimated_working_minutes: number | null;
@@ -319,6 +329,11 @@ export type Database = {
           provider_visit_reviewed_at?: string | null;
           band_slug?: string | null;
           band_source?: string | null;
+          provider_band_slug?: string | null;
+          provider_band_at?: string | null;
+          provider_band_reason?: string | null;
+          band_change_approved_at?: string | null;
+          band_change_declined_at?: string | null;
           estimated_working_minutes?: number | null;
           estimated_elapsed_days?: number | null;
           provider_estimated_working_minutes?: number | null;

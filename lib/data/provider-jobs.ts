@@ -877,3 +877,86 @@ export async function recordOverbookMiss(input: {
 
   return { ok: true };
 }
+
+/**
+ * The professional says this job is a different product than the customer named.
+ *
+ * WHY THIS EXISTS AT ALL. When the triage card could not name a product it asks
+ * the customer, and their answer now sets the price — which gives them a reason
+ * to name a cheaper product than the one they have. They are not the ones who
+ * will see the job. This is the other half: somebody who arrives and finds a
+ * burst pipe where "inspection only" was booked can say so, with a reason,
+ * BEFORE they start work.
+ *
+ * IT DOES NOT MOVE THE PRICE. It records what the professional says;
+ * `enforce_price_correction` in Postgres refuses `in_progress` until the
+ * customer has answered, and `sync_booking_quote_floor` only moves the quote
+ * once they have agreed. So the customer sees the re-narrowed figure before any
+ * work starts, never at settlement with somebody standing in their kitchen.
+ *
+ * THE WRITE IS SERVER-SIDE AND THE READ IS NOT — the same shape `declineJob`
+ * uses, and for the same reason. `enforce_booking_immutability` refuses these
+ * columns to any caller with a session, because a professional must not be able
+ * to stamp the customer's approval. So ownership is proven with an RLS read and
+ * the write goes under the service role.
+ */
+export async function proposeBandCorrection(input: {
+  bookingId: string;
+  bandSlug: string;
+  reason: string;
+  actorId: string;
+}): Promise<AdvanceResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const reason = input.reason.trim();
+  // The database refuses an empty one too; this is so the screen can say it
+  // without a round trip that ends in an exception.
+  if (!reason) return { ok: false, reason: "reasonRequired" };
+
+  const me = await getMyProvider(input.actorId);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const booking = await readAssignedBooking(input.bookingId);
+  if (!booking) return { ok: false, reason: "notFound" };
+  if (booking.provider_id !== me.providerId) {
+    return { ok: false, reason: "notYours" };
+  }
+
+  /*
+   * BEFORE WORK STARTS, WHICH IS THE WHOLE POINT. `accepted` and `en_route`
+   * are the windows: the professional has taken the job and may have arrived.
+   * From `in_progress` the floor is already up and a price correction is a
+   * support call, not a tap — the same line `lib/booking/cancellation.ts`
+   * draws, and for the same reason.
+   */
+  if (booking.status !== "accepted" && booking.status !== "en_route") {
+    return { ok: false, reason: "tooLate" };
+  }
+
+  const { error } = await createAdminClient()
+    .from("bookings")
+    .update({
+      provider_band_slug: input.bandSlug,
+      provider_band_reason: reason,
+      provider_band_at: new Date().toISOString(),
+      // A fresh correction is unanswered by definition. Clearing both is what
+      // makes a second one after a decline a real question again.
+      band_change_approved_at: null,
+      band_change_declined_at: null,
+    })
+    .eq("id", input.bookingId);
+
+  if (error) {
+    console.error(`[provider-jobs] correction failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  await notify({
+    recipientId: booking.customer_id as string,
+    kind: "booking.priceCorrected",
+    params: { reference: booking.reference as string, provider: me.displayName },
+    bookingId: input.bookingId,
+  });
+
+  return { ok: true };
+}

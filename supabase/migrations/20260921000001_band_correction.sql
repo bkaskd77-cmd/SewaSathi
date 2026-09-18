@@ -610,3 +610,35 @@ comment on function public.freeze_booking_band() is
   'Fills bookings.band_min from the band in force at insert — the customer''s stated product where they named one, else the trade, and null on a survey job because nothing has been surveyed yet — and pins it on update, letting a surveyed floor write through. The published floor at booking time, kept so the pricing signal can ask whether OUR band was right.';
 
 revoke execute on function public.freeze_booking_band() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A declined correction is a trip made for nothing
+-- ---------------------------------------------------------------------------
+--
+-- Cancelling is free until work begins — that is the policy and it is not
+-- changing. So a professional who arrives, finds a burst pipe where "inspection
+-- only" was booked, and says so honestly can have the customer walk away, with
+-- the trip already made. Left unpaid, the lesson everybody learns is to START
+-- THE WORK FIRST and correct at settlement, which is the exact thing this whole
+-- mechanism exists to prevent.
+--
+-- `survey_visit_fees` is already the right shape: born `pending`, refused
+-- without a `booking_arrivals` row (no trip, no fee), released only by a
+-- person, and the monthly cap counts approved rows only so a queue of honest
+-- declines never blocks a real claim. A third outcome rather than reusing
+-- 'declined': a surveyed quote turned down and a corrected product turned down
+-- are different events, and a report that cannot tell them apart is a report
+-- that will be read wrong.
+--
+-- The unique-per-booking constraint cannot collide: `enforce_price_correction`
+-- refuses a correction on a survey job outright, so no booking can generate
+-- both kinds.
+
+alter table public.survey_visit_fees
+  drop constraint if exists survey_visit_fees_outcome_check;
+alter table public.survey_visit_fees
+  add constraint survey_visit_fees_outcome_check
+  check (outcome in ('declined', 'expired', 'band-declined'));
+
+comment on column public.survey_visit_fees.outcome is
+  'What the trip ended in: the customer declined a surveyed quote, the quote expired unanswered, or the customer declined a corrected product on a banded job. Three events, kept apart because a report that conflates them will be read wrong.';
