@@ -318,6 +318,31 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
+- **The keyword matcher routes to the wrong trade, and the two causes are
+  mechanical rather than a question of which words are in the lists.** Found by
+  `tests/unit/triage-corpus.test.ts`, which runs twenty jobs through it in
+  Devanagari, Romanized Nepali and English. Five cases land wrong and each is
+  pinned there as current behaviour, so the fix arrives as a visible diff.
+  **First, substring matching on Latin text**: `tap` matches inside `tapai`
+  ("you"), so "pura ghar rangnu paryo rang tapai le lyaune" — a whole-flat
+  repaint — is sent to plumbing. Substring matching is *correct* for
+  Devanagari, which has no usable word boundary for a regex and is why the
+  lists are built on stems; it is wrong inside a Latin word.
+  **Second, longest-wins ranks a generic symptom above a named object**,
+  because length is not specificity: `बिग्रियो` ("broke", 8) outranks `स्विच`
+  ("switch", 5) so a switch goes to appliance repair, `ढोका बिग्रियो` the same,
+  and `cooling` (7) outranks `fridge` (6) so a fridge goes to an AC technician.
+  Three absences sit beside them: painting has no Nepali keyword in either
+  script, pest-control none in Romanized, and the tank rule spells tank
+  `ट्यांकी` while a customer may type `ट्याङ्की` — with neither matching, the
+  generic `सफा गर्न` wins and a tank clean becomes a house clean. **Devanagari
+  turns out to have the same unstandardised-spelling problem the Romanized
+  lists are deliberately loose about**, which the stem rule in CLAUDE.md does
+  not cover. The words belong in `lib/data/synonyms.ts`, the one table both
+  this matcher and the catalogue search read. It is the *fallback* path — it
+  answers when the key is missing, the call times out or validation fails — so
+  this is a quality gap rather than a live defect on the normal path, which is
+  why it is recorded rather than rushed.
 - **A job has a duration and nothing in the product models it. This is the gap,
   not concurrency.** `WORKING_HOURS.slotHours` is 2, and a multi-day job holds a
   *site*, not a slot: painting occupies a room for four days and a painter for a
