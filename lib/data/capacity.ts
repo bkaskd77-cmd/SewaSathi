@@ -56,14 +56,25 @@ type Row = {
  */
 export async function providerCapacity(
   providerIds: string[],
-  categorySlug: string,
+  /*
+   * UNUSED NOW, AND KEPT ON PURPOSE — the same reasoning as
+   * `p_category_slug` on `booking_slot_capacity`. Capacity stopped being a
+   * property of a trade when duration arrived, but every caller passes this
+   * and removing it is a change to five call sites for no behaviour. It comes
+   * back the moment a trade needs its own rule again.
+   */
+  _categorySlug: string,
 ): Promise<Record<string, ProviderCapacity>> {
   const empty: Record<string, ProviderCapacity> = {};
   if (providerIds.length === 0 || !hasSupabaseConfig()) return empty;
 
   const supabase = createAdminClient();
 
-  const [jobs, listings, category] = await Promise.all([
+  // TWO READS, NOT THREE. The category used to carry a concurrency number and
+  // no longer does — what it was expressing was job length, which the booking
+  // now carries itself. One fewer round trip on the booking path, which is the
+  // standing latency rule as well as the honest model.
+  const [jobs, listings] = await Promise.all([
     supabase
       .from("bookings")
       .select(
@@ -73,13 +84,8 @@ export async function providerCapacity(
       .in("status", HOLDS_TIME),
     supabase
       .from("providers")
-      .select("id, max_concurrent_jobs, standing")
+      .select("id, crew_count, standing")
       .in("id", providerIds),
-    supabase
-      .from("categories")
-      .select("max_concurrent_jobs")
-      .eq("slug", categorySlug)
-      .maybeSingle(),
   ]);
 
   /*
@@ -89,14 +95,6 @@ export async function providerCapacity(
    * capacity, is a customer told somebody is busy who is not.
    */
   if (jobs.error || listings.error) return empty;
-
-  /*
-   * Falls back to 1, the tightest useful number, rather than to the column
-   * default. An unreadable category should refuse a second booking, not wave
-   * it through; the trigger would refuse it anyway and the screen would have
-   * promised otherwise.
-   */
-  const categoryLimit = category.data?.max_concurrent_jobs ?? 1;
 
   const held = new Map<string, HeldJob[]>();
   for (const row of (jobs.data ?? []) as Row[]) {
@@ -127,14 +125,13 @@ export async function providerCapacity(
     out[listing.id] = {
       held: held.get(listing.id) ?? [],
       capacity: capacityFor({
-        categoryLimit,
-        providerLimit: listing.max_concurrent_jobs,
+        // Their verified crew. Null means one person, which is what every
+        // listing is until an admin has seen otherwise.
+        crewCount: listing.crew_count,
         // Probation caps whatever an admin set. A new listing has not shown it
         // can hold two jobs, let alone a firm's three.
         probationLimit:
-          listing.standing === "provisional"
-            ? PROBATION.maxConcurrentJobs
-            : null,
+          listing.standing === "provisional" ? PROBATION.maxCrew : null,
       }),
     };
   }

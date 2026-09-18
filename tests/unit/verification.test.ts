@@ -315,7 +315,7 @@ describe("probation is the real safety net", () => {
     // A limit that does not limit is the whole failure mode here.
     expect(canAcceptAnotherJob("provisional", 0)).toBe(true);
     expect(canAcceptAnotherJob("provisional", 1)).toBe(true);
-    expect(canAcceptAnotherJob("provisional", PROBATION.maxConcurrentJobs)).toBe(
+    expect(canAcceptAnotherJob("provisional", PROBATION.maxCrew)).toBe(
       false,
     );
     expect(canAcceptAnotherJob("established", 40)).toBe(true);

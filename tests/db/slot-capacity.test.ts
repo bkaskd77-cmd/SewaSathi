@@ -61,11 +61,17 @@ async function clear(): Promise<void> {
   await pg.admin.query("delete from public.bookings");
 }
 
-async function setCap(value: number): Promise<void> {
-  await pg.admin.query(
-    "update public.categories set max_concurrent_jobs = $1 where slug = 'plumbing'",
-    [value],
-  );
+/**
+ * The cap now comes from the listing, not the trade.
+ *
+ * `categories.max_concurrent_jobs` set this until the scheduler measured job
+ * length; every category value above 1 was a workaround for the missing
+ * duration model rather than a statement about crews. Written across every
+ * listing so a test that books through the open pool gets the same cap
+ * whoever claims it.
+ */
+async function setCrew(value: number | null): Promise<void> {
+  await pg.admin.query("update public.providers set crew_count = $1", [value]);
 }
 
 beforeAll(async () => {
@@ -124,7 +130,7 @@ afterAll(async () => {
 describe("one professional, one window", () => {
   it("refuses a second booking at a capacity of one", async () => {
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     await book({ provider: krishna, at: TWO_PM });
     await expect(book({ provider: krishna, at: TWO_PM })).rejects.toThrow(
@@ -139,7 +145,7 @@ describe("one professional, one window", () => {
      * that only exists in a policy would let every one of them through.
      */
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     const first = await book({ provider: null, at: TWO_PM });
     await pg.admin.query(
@@ -160,7 +166,7 @@ describe("one professional, one window", () => {
     // Half-open. A closed interval would read a full day of back-to-back work
     // as a day of conflicts and grey out a working schedule.
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     await book({ provider: krishna, at: TWO_PM });
     await expect(
@@ -170,7 +176,7 @@ describe("one professional, one window", () => {
 
   it("refuses one starting a minute before it ends", async () => {
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     await book({ provider: krishna, at: TWO_PM });
     await expect(book({ provider: krishna, at: NEARLY_FOUR })).rejects.toThrow(
@@ -180,7 +186,7 @@ describe("one professional, one window", () => {
 
   it("ignores a finished job, which holds nobody's time", async () => {
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     const done = await book({ provider: krishna, at: TWO_PM });
     for (const status of ["accepted", "en_route", "in_progress", "completed"]) {
@@ -198,7 +204,7 @@ describe("one professional, one window", () => {
     // Re-judging an accepted job on its way through the machine would make
     // settling a payment raise on a row somebody was legitimately given.
     await clear();
-    await setCap(2);
+    await setCrew(2);
 
     const a = await book({ provider: krishna, at: TWO_PM });
     await book({ provider: krishna, at: TWO_PM });
@@ -226,7 +232,7 @@ describe("two claims at the same moment", () => {
      * first.
      */
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     const a = await book({ provider: null, at: TWO_PM });
     const b = await book({ provider: null, at: TWO_PM });
@@ -272,7 +278,7 @@ describe("two claims at the same moment", () => {
 describe("the offer is the only way past the cap", () => {
   it("admits one more when the professional offered on that booking", async () => {
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     await book({ provider: krishna, at: TWO_PM });
     await expect(
@@ -283,7 +289,7 @@ describe("the offer is the only way past the cap", () => {
   it("is worth exactly one seat and no more", async () => {
     // Otherwise offers stack until the cap is decorative.
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     await book({ provider: krishna, at: TWO_PM });
     await book({ provider: krishna, at: TWO_PM, offered: true });
@@ -300,7 +306,7 @@ describe("the offer is the only way past the cap", () => {
      * booking and buys the extra seat — the rule becomes a checkbox.
      */
     await clear();
-    await setCap(1);
+    await setCrew(1);
 
     const id = await book({ provider: null, at: TWO_PM });
     const anita = await pg.asUser(ANITA);
@@ -315,36 +321,45 @@ describe("the offer is the only way past the cap", () => {
 });
 
 describe("who may hold how many", () => {
-  it("lets an admin-set override raise a listing above its category", async () => {
+  it("lets an admin-set crew raise a listing above one", async () => {
     // Movers is the case: a verified firm with three trucks is not one man
-    // with a pickup, and a category number cannot tell them apart.
+    // with a pickup. It used to be an override on top of a category number;
+    // the category has no opinion now, so the crew IS the number.
     await clear();
-    await setCap(1);
-    await pg.admin.query(
-      "update public.providers set max_concurrent_jobs = 3 where id = $1",
-      [krishna],
-    );
+    await setCrew(3);
 
     await book({ provider: krishna, at: TWO_PM });
     await book({ provider: krishna, at: TWO_PM });
     await expect(book({ provider: krishna, at: TWO_PM })).resolves.toBeTruthy();
 
-    await pg.admin.query(
-      "update public.providers set max_concurrent_jobs = null where id = $1",
-      [krishna],
+    await setCrew(null);
+  });
+
+  it("gives an unset crew exactly one seat", async () => {
+    /*
+     * NULL IS ONE, and this is the case the dropped column could have broken
+     * quietly. Plumbing's category default was 2 and painting's was 3, so a
+     * lone professional in either trade used to hold two or three overlapping
+     * jobs. With the trade's vote gone they hold one, and the length of the
+     * job decides the rest — which is the whole point of the split.
+     */
+    await clear();
+    await setCrew(null);
+
+    await book({ provider: krishna, at: TWO_PM });
+    await expect(book({ provider: krishna, at: TWO_PM })).rejects.toThrow(
+      /already booked for this time/,
     );
   });
 
-  it("caps that override at probation's two", async () => {
+  it("caps that crew at probation's two", async () => {
     // A new listing has not shown it can hold two jobs, let alone a firm's
-    // three. The override is what an admin believes; probation is what we have
+    // three. The crew is what an admin believes; probation is what we have
     // seen, and what we have seen wins.
     await clear();
-    await setCap(3);
+    await setCrew(3);
     await pg.admin.query(
-      `update public.providers
-          set max_concurrent_jobs = 3, standing = 'provisional'
-        where id = $1`,
+      "update public.providers set standing = 'provisional' where id = $1",
       [krishna],
     );
 
@@ -355,33 +370,42 @@ describe("who may hold how many", () => {
     );
 
     await pg.admin.query(
-      `update public.providers
-          set max_concurrent_jobs = null, standing = 'established'
-        where id = $1`,
+      "update public.providers set standing = 'established' where id = $1",
       [krishna],
     );
+    await setCrew(null);
   });
 
-  it("carries the ten category defaults the trades were agreed at", async () => {
-    const { rows } = await pg.admin.query(
-      "select slug, max_concurrent_jobs from public.categories order by slug",
-    );
-    const caps = Object.fromEntries(
-      rows.map((r: { slug: string; max_concurrent_jobs: number }) => [
-        r.slug,
-        Number(r.max_concurrent_jobs),
-      ]),
-    );
+  it("no longer lets a trade have an opinion about it", async () => {
     /*
-     * One means the professional is physically in one place for the whole job.
-     * Painting's 3 is the WORKAROUND — not three flats at once, but "do not
-     * block a painter from a second job while the first one's putty dries".
-     * The real answer is a duration field; see ARCHITECTURE.md.
+     * THE COLUMN IS GONE, asserted rather than assumed. It held two facts:
+     * job length, which `estimated_working_minutes` and the interval scheduler
+     * model directly now, and crew size, which moved to providers.crew_count.
+     * A column still sitting there would invite the next reader to set
+     * painting back to 3 because a painter is idle while putty dries.
      */
-    expect(caps["home-cleaning"]).toBe(1);
-    expect(caps["water-tank-cleaning"]).toBe(1);
-    expect(caps["movers-packers"]).toBe(1);
-    expect(caps["painting"]).toBe(3);
+    const { rows } = await pg.admin.query(
+      `select column_name
+         from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'categories'
+          and column_name = 'max_concurrent_jobs'`,
+    );
+    expect(rows).toHaveLength(0);
+
+    const { rows: crew } = await pg.admin.query(
+      `select column_name, is_nullable
+         from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'providers'
+          and column_name in ('crew_count', 'max_concurrent_jobs')`,
+    );
+    // Renamed, not added beside the old one — two columns would drift.
+    expect(crew).toHaveLength(1);
+    expect(crew[0].column_name).toBe("crew_count");
+    // Null has to stay reachable: it is what "nobody has verified a crew"
+    // means, and it is every listing until an admin says otherwise.
+    expect(crew[0].is_nullable).toBe("YES");
   });
 });
 
@@ -407,7 +431,7 @@ describe("an offer is counted, and a miss is not a refusal", () => {
 
   it("counts the moment an offer appears, and only then", async () => {
     await clear();
-    await setCap(1);
+    await setCrew(1);
     const before = await statsFor();
 
     const id = await book({ provider: null, at: TWO_PM });
@@ -434,7 +458,7 @@ describe("an offer is counted, and a miss is not a refusal", () => {
      * to offer.
      */
     await clear();
-    await setCap(1);
+    await setCrew(1);
     const before = await statsFor();
 
     const id = await book({ provider: null, at: TWO_PM });
@@ -469,7 +493,7 @@ describe("an offer is counted, and a miss is not a refusal", () => {
     // The suppression is narrow on purpose: without this test it could widen
     // into "no release is ever counted" and nobody would notice.
     await clear();
-    await setCap(1);
+    await setCrew(1);
     const before = await statsFor();
 
     const id = await book({ provider: krishna, at: TWO_PM });
@@ -493,7 +517,7 @@ describe("an offer is counted, and a miss is not a refusal", () => {
   it("refuses a customer stamping a miss from their own session", async () => {
     // A counter a caller can move is a counter that measures nothing.
     await clear();
-    await setCap(1);
+    await setCrew(1);
     const id = await book({ provider: null, at: TWO_PM });
     const anita = await pg.asUser(ANITA);
     await expect(

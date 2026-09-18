@@ -179,7 +179,8 @@ describe("the estimate follows the product", () => {
    * THE CASE THE WHOLE TWO-NUMBER MODEL EXISTS FOR. A painter is on the tools
    * for part of each day and the room is unusable for all of them, so the span
    * must exceed what the working minutes could fill. A single number could not
-   * say both, and `max_concurrent_jobs = 3` was a single number trying.
+   * say both, and `categories.max_concurrent_jobs = 3` was a single number
+   * trying — which is why that column is now gone.
    */
   it("gives a supplied repaint more days than its working hours fill", async () => {
     const row = await durationOf(await book("room-supplied"));
@@ -441,14 +442,16 @@ describe("a long job and a short one, in Postgres", () => {
 
   beforeEach(async () => {
     await pg.admin.query("delete from public.bookings");
+    /*
+     * One seat, so what is being measured is the INTERVAL and nothing else.
+     * This used to pin `categories.max_concurrent_jobs` to 1 and put it back
+     * to 3 afterwards — painting's 3 being the workaround these very tests
+     * exist to replace. The column is gone; a null crew is one person, which
+     * is the same floor arrived at honestly.
+     */
     await pg.admin.query(
-      "update public.categories set max_concurrent_jobs = 1 where slug = 'painting'",
-    );
-  });
-
-  afterAll(async () => {
-    await pg.admin.query(
-      "update public.categories set max_concurrent_jobs = 3 where slug = 'painting'",
+      "update public.providers set crew_count = null where id = $1",
+      [krishna],
     );
   });
 

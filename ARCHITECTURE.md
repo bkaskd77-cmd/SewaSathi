@@ -376,8 +376,21 @@ Where a change on one side cannot reach the other.
   `enforce_slot_capacity` carried `interval '120 minutes'` under a note asking
   the next reader to keep it in step by hand; `npm run check:duration` now fails
   if the constants or the precedence disagree, and is proven by breaking both.
-  `categories.max_concurrent_jobs` was the workaround for all of this and is
-  retired next, keeping only the crew-size meaning it also carried.
+  **`max_concurrent_jobs` was two facts under one name and is now neither.**
+  "Do not block a painter while the first coat dries" was never concurrency, it
+  was job length — which is why every category value above 1 existed — and the
+  interval scheduler models it directly, so the category column is **dropped**.
+  "A firm with three trucks does three moves" is crew size, which duration says
+  nothing about, and that half survives as `providers.crew_count`: admin-set
+  from verified crew at onboarding, null meaning one, probation capping it
+  whatever an admin wrote. **The rename is the point** — a column called
+  `max_concurrent_jobs` invites the next reader to set it to 3 because a painter
+  is idle on Wednesday, and that is now exactly wrong. Pinning the category
+  column at 1 was the alternative and is worse: a constant nobody may change is
+  a trap that keeps implying concurrency is a property of a trade.
+  `p_category_slug` stays on `booking_slot_capacity` unused, because dropping a
+  parameter forces a rewrite of `enforce_slot_capacity` and that rewrite has
+  taken a version nobody intended three times.
 - **The surveyor's fee is never paid automatically, and that is the whole
   anti-farming design.** A fee that pays itself is farmable — quote high, get
   declined, collect — so `survey_visit_fees` rows are born `pending` and move

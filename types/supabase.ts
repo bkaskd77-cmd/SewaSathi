@@ -106,7 +106,6 @@ export type Database = {
           pricing_note: string | null;
           pricing_confidence: string;
           pricing_model: string;
-          max_concurrent_jobs: number;
           icon: string;
           sort_order: number;
           is_active: boolean;
@@ -129,7 +128,6 @@ export type Database = {
           pricing_note?: string | null;
           pricing_confidence?: string;
           pricing_model?: string;
-          max_concurrent_jobs?: number;
           icon: string;
           sort_order: number;
           is_active?: boolean;
@@ -1061,7 +1059,13 @@ export type Database = {
           on_job_since: string | null;
           /** What they typed, before the band clamped it. Never read per person. */
           base_rate_requested: number | null;
-          max_concurrent_jobs: number | null;
+          /**
+           * How many people turn up. Null means one, which is every listing
+           * until an admin has seen a firm with more than one van. It is not
+           * "how many jobs they may juggle" — that is the job's own length,
+           * which the booking carries.
+           */
+          crew_count: number | null;
         };
         Insert: {
           id?: string;
@@ -1070,7 +1074,7 @@ export type Database = {
           busy_until?: string | null;
           on_job_since?: string | null;
           base_rate_requested?: number | null;
-          max_concurrent_jobs?: number | null;
+          crew_count?: number | null;
           display_name: string;
           bio?: string;
           photo_url?: string | null;

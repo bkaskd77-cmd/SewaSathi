@@ -71,7 +71,8 @@ export type SubBand = {
    * For nine trades this is 1 and only the minutes matter. Painting is why it
    * exists: a room takes four days and a painter a few hours of each, because
    * putty dries, primer cures and coats need hours between them. The two
-   * numbers are what `categories.max_concurrent_jobs` was faking with a 3.
+   * numbers are what `categories.max_concurrent_jobs` was faking with a 3,
+   * which is why that column is gone.
    */
   typicalElapsedDays: number;
   /**
@@ -133,7 +134,6 @@ export type Category = {
    * capacity it is simply wrong, and `typical_duration_hours` is what would
    * replace it.
    */
-  maxConcurrentJobs: number;
   pricingSource: "invented" | "researched" | "observed";
   /** ISO date the band was last checked against the world. Null while invented. */
   pricingCheckedAt: string | null;

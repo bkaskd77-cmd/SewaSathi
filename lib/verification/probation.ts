@@ -52,7 +52,7 @@ export const PROBATION = {
    * unlimited: enough to earn a living, few enough that a bad pattern surfaces
    * before it has been repeated in ten houses.
    */
-  maxConcurrentJobs: 2,
+  maxCrew: 2,
   /*
    * Not offered emergency work from the open pool.
    *
@@ -99,7 +99,7 @@ export function canAcceptAnotherJob(
   liveJobs: number,
 ): boolean {
   if (standing === "established") return true;
-  return liveJobs < PROBATION.maxConcurrentJobs;
+  return liveJobs < PROBATION.maxCrew;
 }
 
 /** May the open pool offer this professional an emergency? */

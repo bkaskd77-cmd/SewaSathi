@@ -95,7 +95,8 @@ export function overlaps(a: SlotWindow, b: SlotWindow): boolean {
 /**
  * How many jobs this listing may hold at once.
  *
- * THE OVERRIDE IS ADMIN-SET, NEVER SELF-SET, and that is the load-bearing half.
+ * ADMIN-SET FROM A VERIFIED CREW, NEVER SELF-SET, and that is the load-bearing
+ * half.
  * A `providers` row is sometimes one person and sometimes a firm with three
  * crews — movers is where a category number breaks hardest, since one man with
  * a pickup does one move and a company with three trucks does three. So a
@@ -110,17 +111,23 @@ export function overlaps(a: SlotWindow, b: SlotWindow): boolean {
  * over — otherwise offers stack until the limit is decorative.
  */
 export function capacityFor(input: {
-  categoryLimit: number;
-  /** Null when this listing has no admin-set override. */
-  providerLimit?: number | null;
+  /**
+   * Their verified crew size. Null means one person.
+   *
+   * THE TRADE NO LONGER HAS A VOTE. This took a `categoryLimit` until
+   * durations existed, and every category value above 1 was there to stop a
+   * painter being blocked while the first job dried — which was never
+   * concurrency, it was job length, and the scheduler models it directly now.
+   * What survives is the half a trade could never express: one man with a
+   * pickup does one move, a firm with three trucks does three.
+   */
+  crewCount?: number | null;
   probationLimit?: number | null;
   /** True when THIS booking carries an explicit offer from the professional. */
   overbookOffered?: boolean;
 }): number {
   const base =
-    input.providerLimit != null && input.providerLimit > 0
-      ? input.providerLimit
-      : input.categoryLimit;
+    input.crewCount != null && input.crewCount > 0 ? input.crewCount : 1;
 
   const capped =
     input.probationLimit != null && input.probationLimit > 0

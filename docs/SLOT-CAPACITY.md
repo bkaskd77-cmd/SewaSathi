@@ -1,6 +1,20 @@
 # Slot capacity — plan
 
-**Not built.** This is the write-up asked for before building.
+**Built, and since superseded in two places.** This is the write-up asked for
+before building, kept for the reasoning. Two things in it are no longer true and
+ARCHITECTURE.md is the current map:
+
+1. **A fixed two-hour window is gone.** Every booking carries its own length —
+   `estimated_working_minutes` from the sub-band, or the professional's own
+   figure after they have seen it — and overlap is measured per job, so a
+   four-hour deep clean no longer reserves the same block as a forty-minute
+   leak.
+2. **`categories.max_concurrent_jobs` is dropped and the provider column is
+   `crew_count`.** The column was two facts under one name: job length, which
+   the scheduler now models directly, and crew size, which it never did. Every
+   formula below that reads `max_concurrent_jobs` means `providers.crew_count`
+   with no category term, and `PROBATION.maxConcurrentJobs` is
+   `PROBATION.maxCrew`.
 
 Today nothing stops two customers booking the same professional at 2pm. The one
 who loses finds out on the day, from a person who does not arrive. The

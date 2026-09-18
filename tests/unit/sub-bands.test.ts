@@ -135,7 +135,7 @@ describe("a sub-band carries its own provenance", () => {
  * TWO NUMBERS, BECAUSE FOR PAINTING THEY DIVERGE. A room takes four days and a
  * painter a few hours of each — putty dries, primer cures, coats need hours
  * between them. `categories.max_concurrent_jobs` was a single number pretending
- * to model that, which is why painting's was 3.
+ * to model that, which is why painting's was 3 and why the column is gone.
  */
 describe("a sub-band says how long the work takes", () => {
   it("gives every product a working time and a span", () => {

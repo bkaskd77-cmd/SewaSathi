@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
 
@@ -79,9 +79,20 @@ beforeAll(async () => {
     );
   }
 
+  /*
+   * A TWO-PERSON CREW, and the reason is one test below.
+   *
+   * "Stays set while a second job is still live" needs this listing to hold
+   * two overlapping jobs at once, which is now a statement about the crew and
+   * nothing else. It used to come free from `categories.max_concurrent_jobs`
+   * being 2 for plumbing — a number that existed to stop a professional being
+   * blocked while a job dried, not because anybody thought plumbers work in
+   * pairs. That column is gone, a null crew is one person, so the fixture has
+   * to say what it means.
+   */
   const { rows: providerRows } = await pg.admin.query(
-    `insert into public.providers (profile_id, display_name, base_rate, availability)
-     values ($1, 'Krishna Tamang', 900, 'today') returning id`,
+    `insert into public.providers (profile_id, display_name, base_rate, availability, crew_count)
+     values ($1, 'Krishna Tamang', 900, 'today', 2) returning id`,
     [KRISHNA],
   );
   provider = providerRows[0].id as string;
@@ -95,6 +106,16 @@ beforeAll(async () => {
   );
   address = addressRows[0].id as string;
 }, 180_000);
+
+/*
+ * Every booking here is as-soon-as-possible, so they all overlap each other
+ * and a file that never cleared up was quietly leaning on a capacity of two.
+ * The counters these tests read are measured as deltas, so clearing the
+ * bookings between them changes nothing they assert.
+ */
+beforeEach(async () => {
+  await pg.admin.query("delete from public.bookings");
+});
 
 afterAll(async () => {
   await pg?.stop();

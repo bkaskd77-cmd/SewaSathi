@@ -103,33 +103,56 @@ describe("what counts against the window", () => {
   });
 });
 
+/**
+ * Capacity is now CREW SIZE and nothing else.
+ *
+ * It took a `categoryLimit` until the scheduler measured job length, and that
+ * argument was carrying the wrong fact: every category value above 1 existed
+ * so a painter would not be blocked while the first coat dried, which is
+ * duration, not concurrency. The trade has no vote here any more — a four-hour
+ * move is four hours whether you own one van or three; what the crew changes
+ * is how many can run at the same time.
+ */
 describe("how many a listing may hold", () => {
-  it("takes the category default when there is no override", () => {
-    expect(capacityFor({ categoryLimit: 2 })).toBe(2);
+  it("is one person when nobody has verified a crew", () => {
+    // Null is every listing until an admin has seen otherwise, and one is the
+    // safe floor — the reading that protects a customer.
+    expect(capacityFor({})).toBe(1);
+    expect(capacityFor({ crewCount: null })).toBe(1);
   });
 
-  it("takes an admin-set override above the category default", () => {
+  it("takes an admin-set crew above one", () => {
     // Movers is the case: one man with a pickup does one move, a verified firm
     // with three trucks does three. Admin-set at onboarding, never self-set.
-    expect(capacityFor({ categoryLimit: 1, providerLimit: 3 })).toBe(3);
+    expect(capacityFor({ crewCount: 3 })).toBe(3);
   });
 
-  it("lets probation cap a firm's override", () => {
+  it("lets probation cap a firm's crew", () => {
     // A new listing has not yet shown it can hold two jobs, let alone three.
-    expect(
-      capacityFor({ categoryLimit: 1, providerLimit: 3, probationLimit: 2 }),
-    ).toBe(2);
+    expect(capacityFor({ crewCount: 3, probationLimit: 2 })).toBe(2);
   });
 
   it("never falls below one, whatever the numbers say", () => {
-    expect(capacityFor({ categoryLimit: 0, providerLimit: 0 })).toBe(1);
+    expect(capacityFor({ crewCount: 0 })).toBe(1);
+    expect(capacityFor({ crewCount: 3, probationLimit: 0 })).toBe(3);
   });
 
   it("adds exactly one for an offer, and only for this booking", () => {
-    expect(capacityFor({ categoryLimit: 2, overbookOffered: true })).toBe(3);
+    expect(capacityFor({ crewCount: 2, overbookOffered: true })).toBe(3);
     // The offer lives on the booking, so a second booking asking the same
     // question without one gets the ordinary limit back.
-    expect(capacityFor({ categoryLimit: 2 })).toBe(2);
+    expect(capacityFor({ crewCount: 2 })).toBe(2);
+  });
+
+  it("gives a one-person listing exactly one seat, not two", () => {
+    /*
+     * THE REGRESSION THIS PHASE COULD HAVE SHIPPED. The category default was
+     * 2 for plumbing and 3 for painting and electrical, so a lone professional
+     * in those trades held two or three overlapping jobs — the paper over the
+     * missing duration model. With that gone they hold one, and the length of
+     * the job is what decides whether the next one collides.
+     */
+    expect(capacityFor({ crewCount: 1 })).toBe(1);
   });
 });
 
@@ -145,7 +168,7 @@ describe("room for one more", () => {
       hasRoom({
         jobs: [held(twoPm)],
         scheduledFor: twoPm,
-        capacity: capacityFor({ categoryLimit: 1, overbookOffered: true }),
+        capacity: capacityFor({ crewCount: 1, overbookOffered: true }),
         at,
       }),
     ).toBe(true);
@@ -156,7 +179,7 @@ describe("room for one more", () => {
       hasRoom({
         jobs: [held(twoPm), held(twoPm)],
         scheduledFor: twoPm,
-        capacity: capacityFor({ categoryLimit: 1, overbookOffered: true }),
+        capacity: capacityFor({ crewCount: 1, overbookOffered: true }),
         at,
       }),
     ).toBe(false);
@@ -197,7 +220,7 @@ describe("the next slot they could actually take", () => {
  * The old model gave a tap washer and a whole-flat repaint the same block. It
  * was roughly right for booking collisions and roughly meaningless as a model
  * of anybody's week, and `categories.max_concurrent_jobs` existed to paper
- * over the difference.
+ * over the difference. That column is gone now; this is what replaced it.
  */
 describe("a long job and a short one", () => {
   const tenAm = "2026-09-17T04:15:00.000Z";
