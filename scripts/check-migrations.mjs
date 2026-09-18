@@ -30,7 +30,8 @@
  * is nine declarations on twenty-two redefinitions — and both incidents above
  * appear in those nine.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -196,6 +197,51 @@ if (duplicated.length) {
   }
 }
 for (const note of notes) console.log(`  declared: ${note}`);
+
+/*
+ * THE FINGERPRINTS — what the tree says each function's body IS.
+ *
+ * The checks above police the tree against itself. This is the other axis: a
+ * function whose LIVE definition no longer matches the tree, because somebody
+ * applied something that was never committed, or edited it in a dashboard. The
+ * agent applies migrations through an MCP connection from a sandbox that cannot
+ * reach the database over HTTPS, so nothing local can compare the two —
+ * `/api/health` runs in production and can, which turns a silent drift into a
+ * URL anybody can read.
+ *
+ * Hashed on the MEANINGFUL lines only, the same normalisation the diff uses.
+ * A comment edited in the live copy is not a behaviour change and a check that
+ * fires on one gets ignored within a week.
+ */
+const fingerprints = {};
+for (const [name, def] of [...definitions].sort()) {
+  fingerprints[name] = {
+    sha: createHash("sha256").update(meaningful(def.body).join("\n")).digest("hex").slice(0, 16),
+    file: def.file,
+  };
+}
+
+const FINGERPRINT_FILE = path.join(process.cwd(), "supabase/function-fingerprints.json");
+const rendered = JSON.stringify(fingerprints, null, 2) + "\n";
+const existing = (() => {
+  try {
+    return readFileSync(FINGERPRINT_FILE, "utf8");
+  } catch {
+    return null;
+  }
+})();
+
+if (process.argv.includes("--write") || existing === null) {
+  writeFileSync(FINGERPRINT_FILE, rendered);
+  console.log(`  wrote ${Object.keys(fingerprints).length} function fingerprints`);
+} else if (existing !== rendered) {
+  failures.push(
+    `supabase/function-fingerprints.json is stale.\n` +
+      `    It is what /api/health compares production against, so a stale one means\n` +
+      `    the live check is measuring against a schema nobody ships any more.\n` +
+      `    Run: npm run check:migrations -- --write`,
+  );
+}
 
 if (failures.length) {
   console.error("\nMigration check failed:");

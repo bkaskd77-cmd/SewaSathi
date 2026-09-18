@@ -400,6 +400,43 @@ Where a change on one side cannot reach the other.
   that teaches people to raise numbers reflexively, which is the habit the
   budget exists to prevent. Every other ceiling here carries headroom; this one
   does now too.
+- **A migration cannot be applied ahead of its code, and a function cannot be
+  rebuilt from a stale copy, without something failing.** Two production
+  incidents in one phase, and the second happened *after* the guard manifest
+  existed. `crew_count` renamed a column while the deployed build still selected
+  it — both reads failed and the product did exactly what it is designed to do,
+  so every page rendered perfectly and a person found it by reading HTML.
+  `freeze_booking_band` was rebuilt from the oldest of three definitions in the
+  tree and lost both its survey guards.
+  **The manifest cannot catch the second and that is the point**: it asserts
+  clauses somebody CHOSE to pin, so a rebuild from the wrong version keeps every
+  pinned clause and reverts everything nobody thought of. Three checks, on three
+  different axes:
+  **`npm run check:migrations` polices the tree against itself.** A destructive
+  operation needs an `-- AFTER-DEPLOY:` header; every function redefinition is
+  diffed against the current authoritative body and removed lines need a
+  `-- REMOVES: <function> — <why>`. Adding stays free. Validated against history
+  rather than asserted — 22 redefinitions, 9 with removals, and both incidents
+  are among the nine. It also prints the authoritative file for each of the 9
+  duplicated functions, because "rebuild from the current one" needs one answer
+  to which that is, and it refuses a file that defines a function twice (three
+  did; `record_provider_release` was defined **three times** in one file, the
+  first two dead text that reads as live).
+  **`tests/db/column-manifest.test.ts` polices the code against the tree.** It
+  scans `.from().select()` out of the source — 27 tables, 235 columns — and
+  asserts every one against the schema the harness builds from the migrations,
+  so a drop the code still needs goes red in `verify` before it reaches any
+  database. The one select that genuinely cannot be read statically is declared
+  with a reason, because a scan that silently skips what it cannot parse is a
+  coverage figure of zero wearing a green tick.
+  **`/api/health`'s `db.functions` polices production against the tree.** That
+  axis has no local check and cannot have one: migrations are applied through an
+  MCP connection from a sandbox whose egress policy blocks the database over
+  HTTPS. `function_fingerprints()` hashes each live function's meaningful lines
+  and the route compares them against `supabase/function-fingerprints.json`,
+  which `check:migrations` regenerates and refuses to let go stale. Same
+  reasoning as `server.region`: a fault living in somebody else's dashboard
+  needs a URL, not a test. `unknown` is never `ok`.
 - **A job has a duration, and the scheduler reasons in it.** This was the named
   structural gap and it is closed. `WORKING_HOURS.slotHours` is still 2, but it
   is now only the width of a slot the picker OFFERS — how long a job HOLDS is

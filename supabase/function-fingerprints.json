@@ -1,0 +1,202 @@
+{
+  "booking_band_bounds": {
+    "sha": "9678fff35189dc0c",
+    "file": "20260921000001_band_correction.sql"
+  },
+  "booking_slot_capacity": {
+    "sha": "bfa967f473acbcfb",
+    "file": "20260920000004_crew_count.sql"
+  },
+  "booking_transition_allowed": {
+    "sha": "551fcb13dcb9d03f",
+    "file": "20260905000002_dispatch.sql"
+  },
+  "booking_working_minutes": {
+    "sha": "d587f074fe546cbc",
+    "file": "20260920000002_duration_capacity.sql"
+  },
+  "claim_transition_allowed": {
+    "sha": "ce0e28224bc0c0d2",
+    "file": "20260912000002_guarantee_claims.sql"
+  },
+  "enforce_application_immutability": {
+    "sha": "7c9e3921a253c6fe",
+    "file": "20260910000001_provider_applications.sql"
+  },
+  "enforce_booking_address_ownership": {
+    "sha": "9176855dd1057319",
+    "file": "20260906000001_address_ownership.sql"
+  },
+  "enforce_booking_immutability": {
+    "sha": "9ca68a3bf4cb1c28",
+    "file": "20260921000001_band_correction.sql"
+  },
+  "enforce_booking_transition": {
+    "sha": "14a4e17195bb7f3f",
+    "file": "20260905000002_dispatch.sql"
+  },
+  "enforce_claim_eligibility": {
+    "sha": "a4dab881c3c3f345",
+    "file": "20260912000002_guarantee_claims.sql"
+  },
+  "enforce_claim_transition": {
+    "sha": "c28647315e7d15f9",
+    "file": "20260912000002_guarantee_claims.sql"
+  },
+  "enforce_confirmation_integrity": {
+    "sha": "176915304a970b04",
+    "file": "20260910000002_customer_risk.sql"
+  },
+  "enforce_payment_transition": {
+    "sha": "6f667677f0171f51",
+    "file": "20260902000001_payments.sql"
+  },
+  "enforce_price_correction": {
+    "sha": "7bdf9e19644ff25e",
+    "file": "20260921000001_band_correction.sql"
+  },
+  "enforce_site_capacity": {
+    "sha": "f6c7afb8826d9745",
+    "file": "20260920000003_booking_days.sql"
+  },
+  "enforce_slot_capacity": {
+    "sha": "ccf0263232cd5b70",
+    "file": "20260920000002_duration_capacity.sql"
+  },
+  "enforce_survey_quote": {
+    "sha": "0c990fc741b95b3c",
+    "file": "20260916000001_survey_quotes.sql"
+  },
+  "enforce_survey_visit_fee": {
+    "sha": "50dcb3a192c3f41c",
+    "file": "20260917000001_survey_visit_fees.sql"
+  },
+  "enforce_visit_review_stamp": {
+    "sha": "480adb41293554f9",
+    "file": "20260918000003_review_surfaces.sql"
+  },
+  "freeze_booking_band": {
+    "sha": "28617b282080951d",
+    "file": "20260921000001_band_correction.sql"
+  },
+  "freeze_quote_after_work": {
+    "sha": "5882a0e677fb68f0",
+    "file": "20260913000002_quote_floor.sql"
+  },
+  "function_fingerprints": {
+    "sha": "ac85117d50b9eff5",
+    "file": "20260921000002_function_fingerprints.sql"
+  },
+  "handle_new_user": {
+    "sha": "437cfcda718ff98a",
+    "file": "20260910000004_provisioned_accounts.sql"
+  },
+  "is_admin": {
+    "sha": "c79ef77e6acefaef",
+    "file": "20260827000001_profiles.sql"
+  },
+  "payment_transition_allowed": {
+    "sha": "3f977d7ea1e0cb88",
+    "file": "20260902000001_payments.sql"
+  },
+  "provider_can_serve": {
+    "sha": "44c6b266ce54561d",
+    "file": "20260905000002_dispatch.sql"
+  },
+  "provider_outstanding": {
+    "sha": "03708889b9aaeafd",
+    "file": "20260912000002_guarantee_claims.sql"
+  },
+  "provider_refused": {
+    "sha": "3d1247cd3fff4323",
+    "file": "20260905000003_reliability.sql"
+  },
+  "provider_serves": {
+    "sha": "a79f29bf6613c1c6",
+    "file": "20260905000003_reliability.sql"
+  },
+  "provider_works_trade": {
+    "sha": "2381993c3fa64d4d",
+    "file": "20260913000004_claim_reassignment.sql"
+  },
+  "record_booking_duration": {
+    "sha": "f9c54a87b273e20c",
+    "file": "20260919000002_booking_duration.sql"
+  },
+  "record_booking_status": {
+    "sha": "c736b9cd00e23509",
+    "file": "20260901000001_bookings.sql"
+  },
+  "record_overbook_miss": {
+    "sha": "ee459e702ab505d0",
+    "file": "20260916000002_overbook_counters.sql"
+  },
+  "record_overbook_offer": {
+    "sha": "042b7eb913a08160",
+    "file": "20260916000002_overbook_counters.sql"
+  },
+  "record_provider_acceptance": {
+    "sha": "4d90ffe994230686",
+    "file": "20260905000003_reliability.sql"
+  },
+  "record_provider_release": {
+    "sha": "6bf8725609d56c0c",
+    "file": "20260916000002_overbook_counters.sql"
+  },
+  "recount_provider_on_job": {
+    "sha": "f7e7e7c35f78e2b9",
+    "file": "20260913000001_availability_states.sql"
+  },
+  "refresh_customer_risk": {
+    "sha": "ddd85141527465f8",
+    "file": "20260918000001_reviews.sql"
+  },
+  "refresh_provider_stats": {
+    "sha": "d2e475011be1742b",
+    "file": "20260918000002_stats_pipeline.sql"
+  },
+  "refuse_rewrite": {
+    "sha": "ca4e197b113452aa",
+    "file": "20260910000001_provider_applications.sql"
+  },
+  "security_events_are_append_only": {
+    "sha": "1258d9853e6b9cdb",
+    "file": "20260906000002_audit_and_documents.sql"
+  },
+  "session_is_verified": {
+    "sha": "8749624cce87057e",
+    "file": "20260911000001_unverified_session_guard.sql"
+  },
+  "sync_booking_days": {
+    "sha": "454d9a3a25b33c8d",
+    "file": "20260920000003_booking_days.sql"
+  },
+  "sync_booking_duration": {
+    "sha": "8bb1ea51074e6953",
+    "file": "20260919000002_booking_duration.sql"
+  },
+  "sync_booking_quote_floor": {
+    "sha": "da0ad41836f73470",
+    "file": "20260921000001_band_correction.sql"
+  },
+  "sync_customer_risk_from_flag": {
+    "sha": "cb513d02fb7a1f6b",
+    "file": "20260918000001_reviews.sql"
+  },
+  "sync_provider_on_job": {
+    "sha": "dbb416228828521e",
+    "file": "20260913000001_availability_states.sql"
+  },
+  "sync_provider_stats_from_booking": {
+    "sha": "7d50c5b73b263c86",
+    "file": "20260918000002_stats_pipeline.sql"
+  },
+  "sync_provider_stats_from_review": {
+    "sha": "2528615065f8e2a4",
+    "file": "20260918000002_stats_pipeline.sql"
+  },
+  "touch_updated_at": {
+    "sha": "d38f60e005d071e9",
+    "file": "20260901000001_bookings.sql"
+  }
+}

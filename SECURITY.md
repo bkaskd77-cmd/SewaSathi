@@ -75,7 +75,7 @@ every caller, service role included.
 | `joinAction` | anybody | inserts one provider lead | the only anon write in the product; `join` rate limit by IP |
 | `signOutAction` | anybody signed in | their own session | Supabase cookie; writes `auth.signedOut` |
 | `POST /api/triage` | anybody | nothing — it reads and answers | `triage` rate limit by user or IP; no writes but a log row. The reply now also carries the chosen trade's published sub-bands, for the card's one question — the same rows `category_price_bands` already releases to `anon` under "Price bands are public", so nothing new leaves the database |
-| `GET /api/health` | anybody | nothing; reports state, sends no data | `?deep=1` needs `CRON_SECRET` |
+| `GET /api/health` | anybody | nothing; reports state, sends no data | `?deep=1` needs `CRON_SECRET`. `db.functions` reads `function_fingerprints()` under the service role and reports hashes and names only — no function bodies leave the database, and the RPC is revoked from `anon` and `authenticated` |
 | `GET /api/version` | anybody | nothing | commit and build time only |
 | `GET/POST /api/payments/[gateway]/return` | the gateway, and the customer's browser | settles one payment by reference | the callback is a claim: `verify()` asks the gateway's servers and reconciles the figure |
 | `GET /api/payments/reconcile` | cron | in-flight payments | `CRON_SECRET`; refuses everything if unset |

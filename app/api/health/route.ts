@@ -5,6 +5,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 import { smsGateway } from "@/lib/sms";
+import FINGERPRINTS from "@/supabase/function-fingerprints.json";
 
 /**
  * Can this product actually serve a customer right now?
@@ -146,6 +147,103 @@ async function checkDatabase(): Promise<Check> {
       name: "database",
       state: "unknown",
       detail: `Could not reach the database: ${(error as Error).message}`,
+    };
+  }
+}
+
+/**
+ * Does production hold the functions this build shipped?
+ *
+ * THE AXIS NOTHING LOCAL CAN SEE. `check:migrations` polices the tree against
+ * itself and the column manifest polices the code against the tree, both in
+ * `npm run verify`. Neither can tell whether the LIVE database matches, because
+ * migrations are applied through an MCP connection from a sandbox whose egress
+ * policy blocks the database over HTTPS. A function applied but never
+ * committed, or edited in a dashboard, is invisible to every check that runs
+ * before a deploy.
+ *
+ * So it is checked from where it can be — the same reasoning as `server.region`
+ * and the SMS gateway. A fault that lives in somebody else's dashboard needs a
+ * URL, not a test.
+ *
+ * `unknown` when it cannot look, never `ok`. That confusion is what let a
+ * broken SMS gateway run for a day.
+ */
+async function checkFunctions(): Promise<Check> {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!hasSupabaseConfig() || !key) {
+    return {
+      name: "db.functions",
+      state: "unknown",
+      detail: "No service role key, so the live definitions cannot be read.",
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/function_fingerprints`,
+      {
+        method: "POST",
+        headers: {
+          apikey: key,
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json",
+        },
+        body: "{}",
+        signal: AbortSignal.timeout(8000),
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      return {
+        name: "db.functions",
+        state: "unknown",
+        detail: `function_fingerprints answered ${response.status}.`,
+      };
+    }
+
+    const live = (await response.json()) as Array<{ name: string; sha: string }>;
+    const expected = FINGERPRINTS as Record<string, { sha: string; file: string }>;
+    const liveBy = new Map(live.map((row) => [row.name, row.sha]));
+
+    const drifted: string[] = [];
+    const missing: string[] = [];
+    for (const [name, { sha }] of Object.entries(expected)) {
+      const actual = liveBy.get(name);
+      if (actual === undefined) missing.push(name);
+      else if (actual !== sha) drifted.push(name);
+    }
+
+    if (missing.length || drifted.length) {
+      return {
+        name: "db.functions",
+        state: "down",
+        detail:
+          [
+            drifted.length
+              ? `${drifted.length} differ from this build (${drifted.slice(0, 4).join(", ")})`
+              : null,
+            missing.length
+              ? `${missing.length} missing (${missing.slice(0, 4).join(", ")})`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("; ") +
+          ". Something was applied or edited outside supabase/migrations.",
+      };
+    }
+
+    return {
+      name: "db.functions",
+      state: "ok",
+      detail: `All ${Object.keys(expected).length} match supabase/migrations.`,
+    };
+  } catch (error) {
+    return {
+      name: "db.functions",
+      state: "unknown",
+      detail: `Could not read the live definitions: ${(error as Error).message}`,
     };
   }
 }
@@ -500,6 +598,7 @@ export async function GET(request: Request) {
       checkDatabase(),
       checkServiceRole(),
       checkRegion(),
+      checkFunctions(),
     ])),
     checkTriage(),
     checkSmsGateway(),
