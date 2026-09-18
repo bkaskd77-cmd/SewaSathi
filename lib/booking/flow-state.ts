@@ -66,6 +66,8 @@ export type FlowState = {
   band: string | null;
   /** Which path named it. A hint; the server validates and may ignore it. */
   bandSource: string | null;
+  /** The card put its product question to this customer, answered or not. */
+  asked: boolean;
 };
 
 export const STORAGE_KEY = "sajilokaam-booking-draft";
@@ -89,6 +91,7 @@ export function initialState(seed: {
   triageLogId?: string | null;
   band?: string | null;
   bandSource?: string | null;
+  asked?: boolean;
 }): FlowState {
   return {
     step: "problem",
@@ -108,6 +111,7 @@ export function initialState(seed: {
     triageLogId: seed.triageLogId ?? null,
     band: seed.band ?? null,
     bandSource: seed.bandSource ?? null,
+    asked: seed.asked ?? false,
   };
 }
 

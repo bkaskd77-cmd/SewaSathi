@@ -498,3 +498,98 @@ describe("a declined correction is a trip made for nothing", () => {
     }
   });
 });
+
+/**
+ * The ask, measured on real bookings rather than on written phrasings.
+ *
+ * The corpus measures the RULES — twelve phrasings through the keyword matcher,
+ * 2/12 banded and 12/12 if answered. That is a ceiling and it assumes an
+ * answer. This is the product: how often the question is actually put, and how
+ * often anybody bothers.
+ */
+describe("the ask is measurable on real bookings", () => {
+  async function askedBooking(input: {
+    asked: boolean;
+    band?: string | null;
+    source?: string | null;
+    createdAt?: string;
+  }): Promise<string> {
+    const id = await book({ band: input.band ?? null, source: input.source ?? null });
+    await pg.admin.query(
+      "update public.bookings set band_asked_at = $1, created_at = coalesce($2::timestamptz, created_at) where id = $3",
+      [input.asked ? new Date().toISOString() : null, input.createdAt ?? null, id],
+    );
+    return id;
+  }
+
+  async function signals(category = "plumbing") {
+    const { rows } = await pg.admin.query(
+      `select bookings, asked, answered, not_sure, banded
+         from public.band_ask_signals where category_slug = $1`,
+      [category],
+    );
+    return rows[0] ?? null;
+  }
+
+  it("tells never-asked, answered and not-sure apart", async () => {
+    /*
+     * All three leave band_slug and band_source null or set in ways that used
+     * to be indistinguishable. `band_asked_at` is the one fact that separates
+     * "we never put the question" from "they looked at it and could not say".
+     */
+    await askedBooking({ asked: false });
+    await askedBooking({ asked: true, band: "leak", source: "customer" });
+    await askedBooking({ asked: true });
+
+    const row = await signals();
+    expect(row).toMatchObject({
+      bookings: "3",
+      asked: "2",
+      answered: "1",
+      not_sure: "1",
+      banded: "1",
+    });
+  });
+
+  it("refuses to count a booking from before the column existed", async () => {
+    /*
+     * RULE 6, AND THE WHOLE REASON FOR THE CUTOFF. A row older than the column
+     * reads exactly like "we asked nobody" and is in fact "we were not
+     * recording". Averaging it in would understate the ask rate for ever, and
+     * the mistake would be invisible because the number would look plausible.
+     */
+    await askedBooking({ asked: true, band: "leak", source: "customer" });
+    await askedBooking({ asked: false, createdAt: "2026-08-01T00:00:00Z" });
+
+    const row = await signals();
+    expect(row.bookings).toBe("1");
+  });
+
+  it("is support's number, not a signed-in person's", async () => {
+    // A view runs with the caller's own policies, so a customer reading it
+    // would see their own rows and get an average of nothing — which is worse
+    // than no number, because it looks like one.
+    const anita = await pg.asUser(ANITA);
+    await expect(
+      anita.query("select * from public.band_ask_signals"),
+    ).rejects.toThrow();
+    await anita.end();
+  });
+
+  it("is never grouped by professional", async () => {
+    /*
+     * The CUSTOMER answers this question. A per-person cut would be a fact
+     * about whoever happens to serve the wards where people tap "I'm not
+     * sure" — the same reason payment_mix_signals and category_pricing_signals
+     * are shaped this way.
+     */
+    const { rows } = await pg.admin.query(
+      `select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'band_ask_signals'`,
+    );
+    const columns = rows.map((r: { column_name: string }) => r.column_name);
+    expect(columns).not.toContain("provider_id");
+    expect(columns).toContain("category_slug");
+    expect(columns).toContain("month");
+  });
+});

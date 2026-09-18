@@ -108,6 +108,9 @@ export default async function CategoryPage({
   // Triage context, like `q` and `urgency` beside it — never a filter.
   const band = first(searchParams.band);
   const bandSource = first(searchParams.bandSource);
+  // Whether the card put its product question, carried through so the booking
+  // can tell "never asked" from "I am not sure". See band_ask_signals.
+  const asked = first(searchParams.asked) === "1";
 
   const listParams = {
     category: category.slug,
@@ -121,6 +124,7 @@ export default async function CategoryPage({
     q,
     band,
     bandSource,
+    asked,
   };
 
   /*

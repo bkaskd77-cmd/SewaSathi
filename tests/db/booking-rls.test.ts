@@ -1637,6 +1637,12 @@ describe("the settlement figures cannot be typed from a browser", () => {
     // scanning for the money checks would not think to add these to them.
     ["band_slug", "'blockage'", /not a browser's to set/i],
     ["band_source", "'model'", /not a browser's to set/i],
+    /*
+     * A measurement about our own screen. A customer able to set it could
+     * quietly rewrite the denominator of the only number that says whether the
+     * question is worth its tap.
+     */
+    ["band_asked_at", "now()", /not a browser's to set/i],
     ["estimated_working_minutes", "20", /not a browser's to set/i],
     ["estimated_elapsed_days", "9", /not a browser's to set/i],
     ["provider_estimated_working_minutes", "20", /not a browser's to set/i],

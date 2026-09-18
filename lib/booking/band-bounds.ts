@@ -20,7 +20,20 @@
  * is the failure we already know how to live with.
  */
 
-export type BandSource = "model" | "matcher" | "customer";
+/**
+ * Who named the product, most trustworthy first.
+ *
+ * ONE DEFINITION, BECAUSE THE TWO ENDS DRIFTED. `customer` shipped into the
+ * booking query string when the ask landed, and `createBooking`'s schema
+ * accepted only `model` and `matcher` — so the parse failed and the booking
+ * came back as a validation error on the one path the ask exists to improve.
+ * Every guard around the band held; the list that decides whether the booking
+ * happens at all was the one nobody widened. It is exported so the schema, the
+ * card and the test all read the same array.
+ */
+export const BAND_SOURCES = ["model", "matcher", "customer"] as const;
+
+export type BandSource = (typeof BAND_SOURCES)[number];
 
 /** A sub-band's published range, as `category_price_bands` holds it. */
 export type BandRange = {

@@ -463,6 +463,15 @@ function TriageCard({
   const asking = !result.band && outcome.subBands.length > 0 && stated === null;
 
   /*
+   * WHETHER THE QUESTION WAS PUT, which is a different fact from whether it was
+   * answered and the one that is otherwise unrecoverable. "Never asked" and "I
+   * am not sure" both arrive at the booking as a null band; without this they
+   * are the same row, and the only number that says whether the ask is worth
+   * its tap has no denominator. True for "not sure" as much as for an answer.
+   */
+  const wasAsked = !result.band && outcome.subBands.length > 0;
+
+  /*
    * THE SAFETY FLOOR, RE-APPLIED OVER THE CUSTOMER'S OWN STATEMENT.
    *
    * The ask only appears when the description said too little to name a
@@ -623,7 +632,7 @@ function TriageCard({
                       outcome.source === "fallback" ? "matcher" : "model"
                     }`
                   : ""
-            }`}
+            }${wasAsked ? "&asked=1" : ""}`}
           >
             {t("findProfessionals", { category: ctaLabel })}
             <ArrowRight aria-hidden="true" />

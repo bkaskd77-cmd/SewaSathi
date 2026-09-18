@@ -400,6 +400,22 @@ Where a change on one side cannot reach the other.
   that teaches people to raise numbers reflexively, which is the habit the
   budget exists to prevent. Every other ceiling here carries headroom; this one
   does now too.
+- **Whether the ask is worth its tap is a number, on real bookings.** The corpus
+  measures the RULES — twelve written phrasings, 2/12 banded and 12/12 if
+  answered — which is a ceiling that assumes an answer. `band_ask_signals`
+  measures the product: how often the question is put and how often anybody
+  bothers. **"Never asked" and "I'm not sure" were the same row**, both arriving
+  with a null band, so `band_asked_at` is set **on asking, not on answering** —
+  how often we ask is the denominator. By category and month, **never by
+  professional**, because the customer answers this question; same rule
+  `payment_mix_signals` and `category_pricing_signals` follow.
+  **Rule 6 is the whole reason for the cutoff.** A booking older than the column
+  reads exactly like "we asked nobody" and is in fact "we were not recording",
+  so the view excludes those rows rather than averaging them in — the mistake
+  would be invisible because the number would look plausible. The cutoff is the
+  date the column was APPLIED, not the date in the migration's filename: the
+  names in this tree run ahead of the calendar, and the first version used the
+  filename, put the cutoff in the future and returned nothing at all.
 - **A migration cannot be applied ahead of its code, and a function cannot be
   rebuilt from a stale copy, without something failing.** Two production
   incidents in one phase, and the second happened *after* the guard manifest

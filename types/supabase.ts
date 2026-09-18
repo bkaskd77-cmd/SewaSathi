@@ -241,6 +241,8 @@ export type Database = {
            */
           band_slug: string | null;
           band_source: string | null;
+          /** When the card put its product question. Set on asking, not answering. */
+          band_asked_at: string | null;
           /**
            * The product the professional says it actually is, after seeing the
            * job. Stored beside the customer's statement, never over it, and
@@ -329,6 +331,7 @@ export type Database = {
           provider_visit_reviewed_at?: string | null;
           band_slug?: string | null;
           band_source?: string | null;
+          band_asked_at?: string | null;
           provider_band_slug?: string | null;
           provider_band_at?: string | null;
           provider_band_reason?: string | null;

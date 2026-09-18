@@ -44,6 +44,7 @@ export type ListParams = {
    */
   band?: string | null;
   bandSource?: string | null;
+  asked?: boolean;
 };
 
 export async function ProviderList({
@@ -133,6 +134,7 @@ export async function ProviderList({
               urgency={params.urgency}
               band={params.band}
               bandSource={params.bandSource}
+              asked={params.asked}
               q={params.q}
               index={index}
             />

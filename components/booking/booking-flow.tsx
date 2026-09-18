@@ -85,6 +85,7 @@ export function BookingFlow({
     triageLogId?: string | null;
     band?: string | null;
     bandSource?: string | null;
+    asked?: boolean;
   };
   categories: CategoryOption[];
   savedAddresses: SavedAddress[];
@@ -234,6 +235,7 @@ export function BookingFlow({
           triageLogId: state.triageLogId,
           band: state.band,
           bandSource: state.bandSource,
+          asked: state.asked ? "1" : "",
         },
         addressId: state.addressId,
         newAddress: state.addressId

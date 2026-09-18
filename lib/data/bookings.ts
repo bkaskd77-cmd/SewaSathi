@@ -25,7 +25,7 @@ import {
   quoteFloor,
   servingWhen,
 } from "@/lib/provider";
-import { bandBounds, type BandSource } from "@/lib/booking";
+import { bandBounds, BAND_SOURCES, type BandSource } from "@/lib/booking";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -188,9 +188,16 @@ export type BookingInput = {
    * anybody can write. See `rebandBookings`.
    */
   bandSource?: string | null;
+  asked?: string;
 };
 
-const schema = z.object({
+/**
+ * Exported so a test can assert the values the PRODUCT emits are values the
+ * BOOKING accepts. They live in different files and nothing else makes them
+ * agree — which is how `bandSource=customer` shipped into the query string
+ * while this refused it.
+ */
+export const bookingInputSchema = z.object({
   category: z.string().min(1),
   provider: z.string().uuid().nullish(),
   urgency: z.enum(["emergency", "soon", "routine"]).default("routine"),
@@ -219,7 +226,22 @@ const schema = z.object({
    * instead. `triage_logs` is the authoritative record of what each path
    * produced; this is the fast copy on the customer path.
    */
-  bandSource: z.enum(["model", "matcher"]).nullish(),
+  /*
+   * `customer` WAS MISSING AND THAT WAS A LIVE BUG. The sub-band ask shipped
+   * writing `bandSource=customer` into this query string, and this enum
+   * refused it — so the whole parse failed and the booking came back as a
+   * validation error on the one path the ask exists to improve. Every other
+   * guard around the band held; the schema that decides whether the booking
+   * happens at all did not know the value existed.
+   */
+  bandSource: z.enum(BAND_SOURCES).nullish(),
+  /*
+   * Whether the card PUT the question, which is not the same fact as whether
+   * anybody answered. "Never asked" and "I am not sure" both arrive here with
+   * no band; without this they are the same row and `band_ask_signals` has no
+   * denominator.
+   */
+  asked: z.string().optional(),
 });
 
 const COLUMNS =
@@ -283,7 +305,7 @@ export async function createBooking(
 ): Promise<CreateBookingResult> {
   const errors: BookingErrors = {};
 
-  const parsed = schema.safeParse(input);
+  const parsed = bookingInputSchema.safeParse(input);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const field = issue.path[0];
@@ -538,6 +560,9 @@ export async function createBooking(
           // Only meaningful when a product was actually named. Recording a
           // source for a null band would be a fact about nothing.
           band_source: bandSlug ? (parsed.data.bandSource ?? null) : null,
+          // Set on ASKING, not on answering. A customer who looked at the
+          // products and could not say is the measurement that matters most.
+          band_asked_at: parsed.data.asked === "1" ? new Date().toISOString() : null,
           locale,
         })
         .select("id, reference")

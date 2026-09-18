@@ -129,6 +129,7 @@ export {
 export {
   bandBounds,
   correctionFitsFloor,
+  BAND_SOURCES,
   type BandBounds,
   type BandRange,
   type BandSource,

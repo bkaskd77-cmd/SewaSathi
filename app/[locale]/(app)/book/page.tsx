@@ -59,6 +59,7 @@ export default async function BookPage({
   // hero, which is an ordinary case and not a failure.
   const band = first(searchParams.band);
   const bandSource = first(searchParams.bandSource);
+  const asked = first(searchParams.asked) === "1";
 
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.flow");
@@ -157,6 +158,7 @@ export default async function BookPage({
             triageLogId,
             band,
             bandSource,
+            asked,
           }}
           categories={categories.map((category) => {
             /*

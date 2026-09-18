@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { bandBounds, correctionFitsFloor } from "@/lib/booking";
+import { readFileSync } from "node:fs";
+
+import { bandBounds, BAND_SOURCES, correctionFitsFloor } from "@/lib/booking";
 import { judgeFinalAmount } from "@/lib/payments/pricing";
 
 /**
@@ -153,5 +155,40 @@ describe("a correction cannot price the job under the customer's statement", () 
     // the commission basis.
     expect(correctionFitsFloor(PIPE_WORK, LEAK.low)).toBe(true);
     expect(correctionFitsFloor(LEAK, LEAK.low)).toBe(true);
+  });
+});
+
+/**
+ * The value the ask actually sends has to be one the booking accepts.
+ *
+ * A LIVE BUG, FOUND WHILE INSTRUMENTING THE ASK. The sub-band ask shipped
+ * writing `bandSource=customer` into the booking query string, and
+ * `createBooking`'s schema accepted only `model` and `matcher` — so the parse
+ * failed and the booking came back as a validation error, on the one path the
+ * ask exists to improve. Every guard AROUND the band held: the check constraint
+ * admitted `customer`, the immutability trigger refused browser writes, the
+ * bounds function narrowed correctly. The schema that decides whether the
+ * booking happens at all was the one thing nobody widened.
+ *
+ * Pinned here because the two live in different files and nothing else makes
+ * them agree.
+ */
+describe("every band source the product emits is one a booking accepts", () => {
+  it("names all three, in one place", () => {
+    // `createBooking`'s zod enum is built from this array and the card writes
+    // one of its values, so they cannot disagree again.
+    expect([...BAND_SOURCES]).toEqual(["model", "matcher", "customer"]);
+  });
+
+  it("is what the booking schema validates against", () => {
+    /*
+     * `lib/data/bookings` cannot be imported here — it wraps reads in React's
+     * cache(), which only exists in a server runtime, the same constraint
+     * lib/ai/price-bands documents. So the agreement is asserted on the source:
+     * the schema must build its enum FROM the array rather than restating it.
+     */
+    const src = readFileSync("lib/data/bookings.ts", "utf8");
+    expect(src).toContain("z.enum(BAND_SOURCES)");
+    expect(src).not.toMatch(/z\.enum\(\s*\[\s*"model"/);
   });
 });
