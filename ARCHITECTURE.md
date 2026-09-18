@@ -320,31 +320,46 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
-- **The keyword matcher routes to the wrong trade, and the two causes are
-  mechanical rather than a question of which words are in the lists.** Found by
-  `tests/unit/triage-corpus.test.ts`, which runs twenty jobs through it in
-  Devanagari, Romanized Nepali and English. Five cases land wrong and each is
-  pinned there as current behaviour, so the fix arrives as a visible diff.
-  **First, substring matching on Latin text**: `tap` matches inside `tapai`
-  ("you"), so "pura ghar rangnu paryo rang tapai le lyaune" — a whole-flat
-  repaint — is sent to plumbing. Substring matching is *correct* for
-  Devanagari, which has no usable word boundary for a regex and is why the
-  lists are built on stems; it is wrong inside a Latin word.
-  **Second, longest-wins ranks a generic symptom above a named object**,
-  because length is not specificity: `बिग्रियो` ("broke", 8) outranks `स्विच`
-  ("switch", 5) so a switch goes to appliance repair, `ढोका बिग्रियो` the same,
-  and `cooling` (7) outranks `fridge` (6) so a fridge goes to an AC technician.
-  Three absences sit beside them: painting has no Nepali keyword in either
-  script, pest-control none in Romanized, and the tank rule spells tank
-  `ट्यांकी` while a customer may type `ट्याङ्की` — with neither matching, the
-  generic `सफा गर्न` wins and a tank clean becomes a house clean. **Devanagari
-  turns out to have the same unstandardised-spelling problem the Romanized
-  lists are deliberately loose about**, which the stem rule in CLAUDE.md does
-  not cover. The words belong in `lib/data/synonyms.ts`, the one table both
-  this matcher and the catalogue search read. It is the *fallback* path — it
-  answers when the key is missing, the call times out or validation fails — so
-  this is a quality gap rather than a live defect on the normal path, which is
-  why it is recorded rather than rushed.
+- **The keyword matcher's trade misroutes are fixed, and both causes were
+  mechanical rather than a question of which words were in the lists.** Found
+  by `tests/unit/triage-corpus.test.ts`, which runs twelve jobs through it in
+  Devanagari, Romanized Nepali and English; the cases that landed wrong were
+  pinned as current behaviour so the fix would arrive as a visible diff, and
+  that block now asserts them correct.
+  **First, substring matching on Latin text.** `tap` matched inside `tapai`
+  ("you"), so a whole-flat repaint reached a plumber. Substring is *correct*
+  for Devanagari, which has no usable word boundary for a regex and is why the
+  lists are stems, and wrong inside a Latin word. `containsKeyword` in
+  `lib/text/match.ts` is the rule: a Latin keyword must start a word and may
+  only be continued by a known suffix. It sits in `lib/text` beside
+  `foldNepali` because the matcher and the catalogue search read one alias
+  table and must agree about what a word is. **It is deliberately not used by
+  `lib/ai/safety.ts`** — it narrows what matches, and narrowing a hazard
+  detector is the opposite of what that file is for.
+  **LATIN SCRIPT HERE CARRIES TWO LANGUAGES, and the first version of the rule
+  got that wrong.** Allowing only English inflections after a Latin keyword
+  broke Romanized Nepali, which is the same alphabet and nothing like the same
+  morphology: "dharama" stopped matching `dhara` and "mistrile" stopped
+  matching `mistri`. Both suffix sets are closed, so both are carried. What is
+  accepted from neither is the fix itself — `tanki` is not `tank` plus
+  anything, it is how somebody spells ट्यांकी in Latin letters, so it is a word
+  and belongs in `lib/data/synonyms.ts` rather than in a suffix list that would
+  have to admit every romanization to catch it.
+  **Second, longest-wins ranked a generic symptom above a named object**,
+  because length is not specificity: `बिग्रियो` ("broke", 8) outranked `स्विच`
+  ("switch", 5), and `cooling` (7) outranked `fridge` (6). **An object beats a
+  symptom whatever the length** — the object says which trade, the symptom says
+  only that something is wrong and nearly every trade has a way of being wrong.
+  Within a kind longest still wins, so "ac not cooling" still beats a bare
+  "ac". `GENERIC_SYMPTOMS` is a deliberately short list and a test asserts every
+  entry is a keyword some rule actually uses, so it cannot drift away from them.
+  **And painting's Nepali gap was a spelling problem, not an absence**, which is
+  the more useful half. `foldNepali` collapses a nasal consonant plus virama
+  into an anusvara, so `ट्याङ्की` and `ट्यांकी` are one string to it; `रङ` is a
+  bare ङ with no virama, so `रङ` and `रंग` are two, and every painting term was
+  authored in the first. Widening the fold was refused for the reason CLAUDE.md
+  gives — it folds one sound and nothing else — and both spellings are authored
+  instead. Pest control had no Romanized term at all.
 - **A job has a duration, and the scheduler reasons in it.** This was the named
   structural gap and it is closed. `WORKING_HOURS.slotHours` is still 2, but it
   is now only the width of a slot the picker OFFERS — how long a job HOLDS is

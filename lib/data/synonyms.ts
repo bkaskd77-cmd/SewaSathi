@@ -1,4 +1,4 @@
-import { foldNepali } from "@/lib/text";
+import { containsKeyword, foldNepali } from "@/lib/text";
 
 /**
  * The words people type, mapped to the categories we sell.
@@ -58,6 +58,11 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
   { term: "पानीको काम", categories: ["plumbing"] },
   { term: "पाइपको काम", categories: ["plumbing"] },
   { term: "dhara", categories: ["plumbing"] },
+  // `tanki` is not `tank` with a suffix on it, it is how ट्यांकी is written in
+  // Latin letters — so it is a word, and words live here. See lib/text/match.ts.
+  { term: "tanki", categories: ["water-tank-cleaning"] },
+  { term: "taanki", categories: ["water-tank-cleaning"] },
+  { term: "pani tanki", categories: ["water-tank-cleaning"] },
 
   // --- electrical --------------------------------------------------------
   { term: "electrician", categories: ["electrical"] },
@@ -103,6 +108,20 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
   { term: "कीट नियन्त्रण", categories: ["pest-control"] },
   { term: "किरा मार्ने", categories: ["pest-control"] },
   { term: "औषधि छर्ने", categories: ["pest-control"] },
+  /*
+   * ROMANIZED WAS MISSING ENTIRELY. "sanglo dherai bhayo bhansa ma" reached
+   * nothing at all, while the same sentence in Devanagari and in English both
+   * reached pest control — an asymmetry nobody would have guessed at, found by
+   * writing the corpus in three scripts. Romanized Nepali has no spelling
+   * standard, so these stay deliberately loose.
+   */
+  { term: "sanglo", categories: ["pest-control"] },
+  { term: "saanglo", categories: ["pest-control"] },
+  { term: "dhamira", categories: ["pest-control"] },
+  { term: "udus", categories: ["pest-control"] },
+  { term: "lamkhutte", categories: ["pest-control"] },
+  { term: "kamila", categories: ["pest-control"] },
+  { term: "kira", categories: ["pest-control"] },
 
   // --- painting ----------------------------------------------------------
   { term: "painter", categories: ["painting"] },
@@ -112,6 +131,29 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
   { term: "पुताई", categories: ["painting"] },
   { term: "डिस्टेम्पर", categories: ["painting"] },
   { term: "पेन्टर", categories: ["painting"] },
+  /*
+   * BOTH DEVANAGARI SPELLINGS, AND `foldNepali` DOES NOT COVER THIS ONE.
+   *
+   * The fold collapses a nasal consonant plus virama into an anusvara —
+   * `ट्याङ्की` and `ट्यांकी`. `रङ` is a bare ङ with no virama and no consonant
+   * after it, so `रङ` and `रंग` are two different strings to it, and every
+   * painting term here was authored in the first. Somebody typing
+   * "रंग लगाउनुपर्‍यो" matched nothing.
+   *
+   * Widening the fold to bare ङ was the alternative and is refused for the
+   * reason CLAUDE.md gives: it folds one sound and nothing else, because every
+   * widening merges words that genuinely differ. Authoring both spellings of
+   * one word is the conservative half of that bargain.
+   */
+  { term: "रंगरोगन", categories: ["painting"] },
+  { term: "रंग लगाउने", categories: ["painting"] },
+  { term: "रंग लगाउन", categories: ["painting"] },
+  { term: "रङ लगाउन", categories: ["painting"] },
+  // Romanized, missing for the same reason pest control's was.
+  { term: "rang lagaunu", categories: ["painting"] },
+  { term: "rangnu", categories: ["painting"] },
+  { term: "rangroghan", categories: ["painting"] },
+  { term: "putai", categories: ["painting"] },
 
   // --- AC ----------------------------------------------------------------
   { term: "ac servicing", categories: ["ac-servicing"] },
@@ -147,8 +189,14 @@ export function matchCategories(query: string): string[] {
   const text = foldNepali(query.toLowerCase().trim());
   if (!text) return [];
 
+  /*
+   * A word, not a fragment. `includes` here surfaced plumbing for anybody who
+   * typed `tapai` — the same bug that sent a repaint to a plumber in the
+   * keyword matcher, which reads this very table. One rule, both surfaces; see
+   * lib/text/match.ts.
+   */
   const hits = CATEGORY_ALIASES.filter((alias) =>
-    text.includes(foldNepali(alias.term.toLowerCase())),
+    containsKeyword(text, foldNepali(alias.term.toLowerCase())),
   ).sort((a, b) => b.term.length - a.term.length);
 
   const ordered: string[] = [];

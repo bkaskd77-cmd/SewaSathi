@@ -171,9 +171,24 @@ const CORPUS: Case[] = [
 const LANGUAGES = ["ne", "romanized", "en"] as const;
 type Language = (typeof LANGUAGES)[number];
 
-function reaches(text: string): { category: string; band: string | null } {
+function reaches(text: string): {
+  category: string;
+  band: string | null;
+  /**
+   * Nothing matched at all.
+   *
+   * The generic rule answers `plumbing`, so a category on its own cannot tell
+   * "we read this as a plumbing job" from "we read nothing and fell back".
+   * COPY resolves an explanation key to its own name, so this is exact.
+   */
+  generic: boolean;
+} {
   const result = triageProblem(text, COPY);
-  return { category: result.category, band: result.band };
+  return {
+    category: result.category,
+    band: result.band,
+    generic: result.explanation === "explanation for generic",
+  };
 }
 
 describe("every trade is reachable in all three scripts", () => {
@@ -264,58 +279,117 @@ describe("what the corpus measures", () => {
 });
 
 /**
- * Four misroutes, pinned as CURRENT behaviour rather than as correct.
+ * The four misroutes, now asserted as FIXED rather than pinned as current.
  *
- * These are pre-existing and were found by the corpus above. They are recorded
- * here so the fix arrives as a visible diff rather than a silent change, and
- * so nobody re-derives the cause. `ARCHITECTURE.md` carries the full note.
+ * They were recorded here as current behaviour so the fix would arrive as a
+ * visible diff rather than a silent change. This is that diff. Each case keeps
+ * the cause written beside it, because the cause is the thing worth
+ * remembering — the misroute itself is now just an input.
  *
- * TWO MECHANICAL CAUSES:
+ * TWO MECHANICAL CAUSES, and one rule each:
  *
- *   1. SUBSTRING MATCHING ON LATIN TEXT. `tap` matches inside `tapai`, the
- *      Nepali for "you". Substring matching is CORRECT for Devanagari, which
- *      has no usable word boundary for a regex, and wrong inside Latin words.
- *   2. LONGEST-WINS RANKS A GENERIC SYMPTOM ABOVE A NAMED OBJECT. Length is
- *      not specificity: `बिग्रियो` ("broke", 8 characters) outranks `स्विच`
- *      ("switch", 5), and `cooling` (7) outranks `fridge` (6).
+ *   1. SUBSTRING MATCHING ON LATIN TEXT. `tap` matched inside `tapai`, the
+ *      Nepali for "you". Substring is CORRECT for Devanagari, which has no
+ *      usable word boundary for a regex, and wrong inside Latin words. A Latin
+ *      keyword now has to start a word and may only be continued by a known
+ *      suffix — `lib/text/match.ts`.
+ *   2. LONGEST-WINS RANKED A GENERIC SYMPTOM ABOVE A NAMED OBJECT. Length is
+ *      not specificity: `बिग्रियो` ("broke", 8) outranked `स्विच` ("switch",
+ *      5), and `cooling` (7) outranked `fridge` (6). An object now beats a
+ *      symptom whatever the length — `GENERIC_SYMPTOMS` in mockTriage.
  */
-describe("known misroutes, pinned until they are fixed", () => {
-  it("sends a whole-flat repaint to plumbing, because `tap` is inside `tapai`", () => {
+describe("the four misroutes, fixed", () => {
+  it("sends a whole-flat repaint to painting, not to a plumber", () => {
+    // `tap` is inside `tapai`. Nothing else in the sentence was plumbing's.
     expect(reaches("pura ghar rangnu paryo rang tapai le lyaune").category).toBe(
-      "plumbing",
+      "painting",
     );
   });
 
-  it("sends a broken switch to appliance repair, because `बिग्रियो` is longer", () => {
-    expect(reaches("स्विच बिग्रियो नयाँ चाहियो").category).toBe(
-      "appliance-repair",
-    );
+  it("sends a broken switch to an electrician, although `बिग्रियो` is longer", () => {
+    expect(reaches("स्विच बिग्रियो नयाँ चाहियो").category).toBe("electrical");
   });
 
-  it("sends a broken door to appliance repair, for the same reason", () => {
-    expect(reaches("ढोका बिग्रियो बन्द हुँदैन").category).toBe("appliance-repair");
+  it("sends a broken door to a carpenter, for the same reason", () => {
+    expect(reaches("ढोका बिग्रियो बन्द हुँदैन").category).toBe("carpentry");
   });
 
-  it("sends a fridge to an AC technician, because `cooling` beats `fridge`", () => {
-    expect(reaches("fridge is not cooling").category).toBe("ac-servicing");
+  it("sends a fridge to appliance repair, although `cooling` is longer", () => {
+    expect(reaches("fridge is not cooling").category).toBe("appliance-repair");
   });
 
   /*
-   * AND THE TWO GAPS THAT ARE ABSENCE RATHER THAN MISROUTE. Painting has no
-   * Nepali keyword at all, in either script, and pest-control has no Romanized
-   * one. Both belong in `lib/data/synonyms.ts`, which is the one table both
-   * the catalogue search and this matcher read.
+   * AND THE SYMPTOM STILL WINS WHEN IT IS ALL THERE IS. Demoting a symptom
+   * must not silence it — somebody who types only "बिग्रियो" has still told us
+   * something, and the object rule only decides between candidates.
    */
-  it("does not recognise painting in either Nepali script", () => {
-    expect(reaches("एउटा कोठा रंग लगाउनुपर्‍यो").category).toBe(NO_MATCH.category);
-    expect(reaches("euta kotha rang lagaunu paryo").category).toBe(NO_MATCH.category);
-    // It does in English, which is the asymmetry.
+  it("still answers when the sentence is nothing but a symptom", () => {
+    expect(reaches("बिग्रियो").category).toBe("appliance-repair");
+    expect(reaches("not working").category).toBe("appliance-repair");
+  });
+
+  /*
+   * AND A NAMED OBJECT STILL LOSES TO A LONGER NAMED OBJECT. The original
+   * rule is untouched inside a kind, which is what keeps "ac not cooling" on
+   * the AC technician rather than sending it to appliance repair.
+   */
+  it("keeps longest-wins between two objects", () => {
+    expect(reaches("ac not cooling").category).toBe("ac-servicing");
+    expect(reaches("washing machine not working").category).toBe(
+      "appliance-repair",
+    );
+  });
+});
+
+/**
+ * The two gaps that were absence rather than misroute.
+ *
+ * Both were filled in `lib/data/synonyms.ts`, the one table the catalogue
+ * search and this matcher both read, so both surfaces learnt them at once.
+ *
+ * PAINTING WAS A SPELLING PROBLEM, NOT AN ABSENCE, and that is the more
+ * useful half. `foldNepali` collapses a nasal consonant plus virama into an
+ * anusvara, so `ट्याङ्की` and `ट्यांकी` are one string to it. `रङ` is a bare ङ
+ * with no virama, so `रङ` and `रंग` are two — and every painting term was
+ * authored in the first. Widening the fold was refused for the reason
+ * CLAUDE.md gives; both spellings are authored instead.
+ */
+describe("the two coverage gaps, filled", () => {
+  it("recognises painting in both Nepali scripts", () => {
+    expect(reaches("एउटा कोठा रंग लगाउनुपर्‍यो").category).toBe("painting");
+    expect(reaches("euta kotha rang lagaunu paryo").category).toBe("painting");
     expect(reaches("want one room painted").category).toBe("painting");
   });
 
-  it("does not recognise pest control in Romanized Nepali", () => {
-    expect(reaches("sanglo dherai bhayo bhansa ma").category).toBe(NO_MATCH.category);
+  it("recognises pest control in Romanized Nepali", () => {
+    expect(reaches("sanglo dherai bhayo bhansa ma").category).toBe(
+      "pest-control",
+    );
     expect(reaches("साङ्लो धेरै भयो भान्सामा").category).toBe("pest-control");
     expect(reaches("cockroaches in the kitchen").category).toBe("pest-control");
+  });
+});
+
+/**
+ * A postposition written closed up still matches.
+ *
+ * THE REGRESSION THE FIRST VERSION OF THE BOUNDARY RULE SHIPPED, caught by the
+ * corpus. Allowing only English inflections after a Latin keyword broke
+ * Romanized Nepali, which is the same alphabet and nothing like the same
+ * morphology: "dharama" stopped matching `dhara` and "mistrile" stopped
+ * matching `mistri`. CLAUDE.md says a postposition takes a space after Latin
+ * text — that is how we write them, not how everybody types them.
+ */
+describe("romanized Nepali keeps its suffixes", () => {
+  it("matches a stem with a postposition stuck to it", () => {
+    expect(reaches("dharama pani aayena").category).toBe("plumbing");
+    expect(reaches("mistrile aayena").category).toBe("plumbing");
+  });
+
+  it("still refuses a Latin keyword buried in a longer word", () => {
+    // The whole point: `tapai` is `tap` + `ai`, and `ai` is a suffix in
+    // neither language.
+    expect(reaches("tapai le bhannu bhayo").category).toBe(NO_MATCH.category);
+    expect(reaches("tapai le bhannu bhayo").generic).toBe(true);
   });
 });

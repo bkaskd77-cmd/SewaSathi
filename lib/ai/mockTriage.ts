@@ -27,7 +27,7 @@ import type { Locale } from "@/i18n/routing";
 import type { TriageCopy } from "@/lib/ai/copy";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import { CATEGORY_ALIASES } from "@/lib/data/synonyms";
-import { foldNepali } from "@/lib/text";
+import { containsKeyword, foldNepali } from "@/lib/text";
 
 export type Urgency = "emergency" | "soon" | "routine";
 
@@ -574,6 +574,40 @@ const ALIAS_RULES: KeywordRule[] = CATEGORY_ALIASES.flatMap((alias) => {
 
 export const KEYWORD_RULES: KeywordRule[] = [...PROBLEM_RULES, ...ALIAS_RULES];
 
+/**
+ * Words that describe a STATE, not a thing.
+ *
+ * WHY THIS EXISTS. Ranking was `score = keyword.length`, and length is not
+ * specificity. `बिग्रियो` ("broke", 8 characters) outranked `स्विच` ("switch",
+ * 5), so a broken switch reached an appliance technician; `ढोका` ("door", 4)
+ * lost the same way; and `cooling` (7) outranked `fridge` (6), so a warm fridge
+ * reached an AC technician. Three misroutes, one cause.
+ *
+ * THE RULE IS THAT AN OBJECT BEATS A SYMPTOM, whatever the length. The object
+ * says which trade; the symptom says only that something is wrong, and nearly
+ * every trade has a way of being wrong. Within a kind, longest still wins, so
+ * "ac not cooling" still beats a bare "ac".
+ *
+ * It is a short list on purpose. A word goes in here only when it names no
+ * object and belongs to no trade on its own — `leak` stays out, because a leak
+ * is a symptom but it is unmistakably plumbing's. A test asserts every entry
+ * is a keyword some rule actually uses, so this cannot drift away from the
+ * lists above.
+ */
+export const GENERIC_SYMPTOMS = new Set(
+  [
+    "not working",
+    "not starting",
+    "बिग्रियो",
+    "चलेको छैन",
+    // Bare `cooling` says a thing is warm. `ac not cooling` names the object
+    // and is its own keyword, so demoting this costs nothing.
+    "cooling",
+    "चिसो भएन",
+    "चिसो दिएन",
+  ].map((word) => foldNepali(word)),
+);
+
 export function triageProblem(input: string, copy: TriageCopy): TriageResult {
   // Folded, like the safety guard and the catalogue search. The keywords are
   // folded beside it below, so a list authored with `ट्याङ्की` still matches
@@ -589,17 +623,33 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
 
   if (!text) return generic();
 
-  // Longest keyword wins, so "ac not cooling" beats a bare "not working".
-  let best: { rule: KeywordRule; score: number } | null = null;
+  /*
+   * AN OBJECT BEATS A SYMPTOM; WITHIN A KIND, LONGEST WINS.
+   *
+   * The second half is the original rule and still does the work — "ac not
+   * cooling" beats a bare "ac". The first half is what stops `बिग्रियो`
+   * outranking `स्विच`: length measures how much of the sentence a keyword
+   * accounts for, which is a decent proxy for confidence and a bad one for
+   * specificity. See GENERIC_SYMPTOMS.
+   */
+  let best: { rule: KeywordRule; specific: boolean; score: number } | null =
+    null;
 
   for (const rule of KEYWORD_RULES) {
     for (const keyword of rule.keywords) {
       const folded = foldNepali(keyword);
-      if (!text.includes(folded)) continue;
+      if (!containsKeyword(text, folded)) continue;
       // Scored on the FOLDED length so two spellings of one keyword cannot
       // outrank each other by a character.
       const score = folded.length;
-      if (!best || score > best.score) best = { rule, score };
+      const specific = !GENERIC_SYMPTOMS.has(folded);
+      if (
+        !best ||
+        (specific && !best.specific) ||
+        (specific === best.specific && score > best.score)
+      ) {
+        best = { rule, specific, score };
+      }
     }
   }
 

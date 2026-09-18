@@ -7,3 +7,4 @@
  * chances for them to disagree about what a word is.
  */
 export { foldNepali } from "./nepali";
+export { containsKeyword } from "./match";
