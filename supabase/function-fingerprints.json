@@ -84,8 +84,8 @@
     "file": "20260913000002_quote_floor.sql"
   },
   "function_fingerprints": {
-    "sha": "ac85117d50b9eff5",
-    "file": "20260921000002_function_fingerprints.sql"
+    "sha": "26edb1d69276ce5c",
+    "file": "20260921000004_fingerprint_crlf.sql"
   },
   "handle_new_user": {
     "sha": "437cfcda718ff98a",
