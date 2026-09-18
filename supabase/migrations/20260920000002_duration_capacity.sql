@@ -1,3 +1,9 @@
+-- REMOVES: enforce_slot_capacity — the fixed `interval '120 minutes'` and the
+--   overlap test built on it, replaced by per-job durations. THE ADVISORY LOCK
+--   WAS ALSO DROPPED IN A DRAFT OF THIS REWRITE and restored before it shipped,
+--   caught by a race test that happened to exist. That near-miss is why this
+--   check was written.
+
 -- The scheduler stops assuming every job is two hours.
 --
 -- `enforce_slot_capacity` carried `slot interval := interval '120 minutes'`

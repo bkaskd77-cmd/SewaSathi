@@ -1,3 +1,7 @@
+-- AFTER-DEPLOY: the `set not null` on band_min needs every row backfilled
+--   first, which the UPDATE above this does in the same file. Nothing deployed
+--   writes a booking without it.
+
 -- Where a published band came from, and measuring whether it is right.
 --
 -- THE BANDS ARE INVENTED AND NOTHING SAID SO. `categories.base_price_min/max`

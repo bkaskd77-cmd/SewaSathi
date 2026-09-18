@@ -1,3 +1,12 @@
+-- AFTER-DEPLOY: lib/data/capacity.ts and lib/data/categories.ts must stop
+--   selecting `max_concurrent_jobs` first. APPLIED AHEAD OF THAT DEPLOY BY
+--   MISTAKE — both reads failed for about an hour, the booking screen stopped
+--   greying full rows and the catalogue silently served the seed. This header
+--   is what would have stopped it.
+-- REMOVES: booking_slot_capacity — the category term. Capacity stopped being a
+--   property of a trade when job length was modelled directly; what is left is
+--   crew size.
+
 -- `max_concurrent_jobs` was two different facts wearing one name.
 --
 -- FACT ONE: "do not block a painter from a second job while the first one

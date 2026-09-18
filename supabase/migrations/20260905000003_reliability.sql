@@ -1,3 +1,7 @@
+-- REMOVES: record_provider_release — this file defines it three times, each
+--   refining the last, and only the third survives. Left as it was applied;
+--   the check refuses a new migration doing the same.
+
 -- A withdrawal is a fact about the professional, not just about the booking.
 --
 -- Declining is allowed — a van breaks down, a job overruns, and a product that

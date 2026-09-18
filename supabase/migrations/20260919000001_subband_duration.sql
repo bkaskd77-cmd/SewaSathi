@@ -1,3 +1,6 @@
+-- AFTER-DEPLOY: the `set not null` columns are filled by the seed insert in
+--   this same file before the constraint is added.
+
 -- How long a job takes, on the one table that already knows what a job is.
 --
 -- THIS IS THE FIELD `ARCHITECTURE.md` NAMES AS STRUCTURAL. Two systems have

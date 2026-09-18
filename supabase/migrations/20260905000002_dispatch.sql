@@ -1,3 +1,10 @@
+-- REMOVES: booking_transition_allowed — the `accepted` and `en_route` rows are
+--   rewritten, not deleted: both gain `pending` so a professional can hand a
+--   job back. See `isRelease` in lib/booking/status.ts.
+-- REMOVES: enforce_booking_immutability — this file defines it twice and only
+--   the second survives. Left as it was applied; the check refuses a new
+--   migration doing the same.
+
 -- A job nobody has accepted goes to somebody else, and eventually ends.
 --
 -- The booking page told the customer "we are alerting professionals now". That

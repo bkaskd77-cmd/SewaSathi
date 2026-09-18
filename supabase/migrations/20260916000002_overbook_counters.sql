@@ -1,3 +1,8 @@
+-- REMOVES: enforce_booking_immutability — one line MOVED, not lost.
+--   `overbook_offered_at` leaves the money block for its own block with its own
+--   sentence, and the diff sees it because the trailing `then` went with it. It
+--   is still guarded; the new block is three lines below.
+
 -- Counting the offers, so the miss rate has a denominator.
 --
 -- `overbookRankingPenalty` is a RATE with a floor: below OVERBOOK_MIN_OFFERS

@@ -1,3 +1,9 @@
+-- AFTER-DEPLOY: this file drops categories.max_concurrent_jobs and tightens
+--   three Nepali columns to not-null. Both are replayed harmlessly on a fresh
+--   project; on a live one they need the deploy that stopped reading the
+--   dropped column. The header lives in scripts/generate-seed-sql.mjs, not
+--   here — editing this file is pointless, it is rewritten on every seed run.
+--
 -- GENERATED FILE — do not edit.
 --
 -- Written by scripts/generate-seed-sql.mjs from lib/data/seed/*.json.

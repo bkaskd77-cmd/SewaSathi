@@ -1,3 +1,12 @@
+-- REMOVES: sync_booking_quote_floor — the two `categories` reads, replaced by
+--   `booking_band_bounds`. The survey and settled-booking early returns and the
+--   least/greatest clamp are all still there.
+-- REMOVES: freeze_booking_band — THIS ONE WAS THE ACCIDENT. Rebuilt from
+--   20260913000003 when 20260916000001 was authoritative, dropping the survey
+--   branch at insert and the surveyed-floor write-through on update. It shipped
+--   and was fixed within the hour, with zero rows affected. Restored here; the
+--   removals that remain are the two category reads only.
+
 -- The band the customer stated now sets the price, and the professional can
 -- correct it before work starts.
 --

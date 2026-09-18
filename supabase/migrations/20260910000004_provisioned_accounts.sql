@@ -1,3 +1,6 @@
+-- REMOVES: handle_new_user — the two-column insert is widened, not dropped: a
+--   provisioned account carries more than an id and a phone.
+
 -- Provisioned accounts: a role that is waiting before the person arrives.
 --
 -- WHY THIS EXISTS. Phone OTP is the only way into this product, and role is a
