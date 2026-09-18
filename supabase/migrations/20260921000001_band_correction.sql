@@ -526,3 +526,87 @@ end;
 $$;
 
 revoke execute on function public.enforce_booking_immutability() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- band_min is frozen from the band in force, not from the trade
+-- ---------------------------------------------------------------------------
+--
+-- REBUILT FROM THE LIVE DEFINITION, AT THE SECOND ATTEMPT. The first one was
+-- built from `20260913000003_band_provenance.sql` — and there are THREE
+-- definitions of this function in the tree. Filename order decides which is
+-- live, and the live one came from `20260916000001_survey_quotes.sql`. Reading
+-- the oldest dropped both of its survey guards, and it shipped:
+--
+--   * INSERT: a survey booking must get `band_min := null`. Nothing has been
+--     surveyed, so there is no floor of OURS to freeze. Without it the read
+--     below falls through to movers-packers' stale 5,000 category row — the
+--     exact invented figure the survey-pricing phase existed to keep off a
+--     booking.
+--   * UPDATE: the write-through that lets a surveyed floor land. Without it the
+--     frozen null outlives the survey that replaced it and a surveyed job never
+--     gets our floor at all.
+--
+-- `band_min` is OUR floor at booking time and `lib/data/pricing-signals.ts`
+-- measures settled amounts against it to find our own wrong prices. Filled from
+-- the category, a customer-stated `pipe-work` job would be compared against
+-- plumbing's 350 and a whole trade would look like it was bunching under a
+-- price nobody was ever quoted. Hence the bounds read — and ONLY on the insert
+-- path, which is the whole of what this migration changes here.
+--
+-- The UPDATE pin still means what it said: every ordinary status write would
+-- otherwise have to know this column exists. `sync_booking_quote_floor` sorts
+-- after this one ('s' after 'f') and is what moves it when a correction is
+-- agreed. That ordering is not asserted directly — the db suite asserts the
+-- BEHAVIOUR, that band_min narrows at insert and again on an approved
+-- correction, which is what must stay true however the triggers are named.
+
+create or replace function public.freeze_booking_band()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  floor_now integer;
+begin
+  if tg_op = 'UPDATE' then
+    if new.quote_model = 'survey'
+       and old.band_min is null
+       and new.quoted_min is not null then
+      new.band_min := new.quoted_min;
+    else
+      new.band_min := old.band_min;
+    end if;
+    return new;
+  end if;
+
+  -- Nothing has been surveyed yet, so there is no floor of ours to freeze.
+  if new.quote_model = 'survey' then
+    new.band_min := null;
+    return new;
+  end if;
+
+  if new.band_min is not null then
+    return new;
+  end if;
+
+  select b.low into floor_now
+    from public.booking_band_bounds(
+      new.category_slug,
+      new.band_slug,
+      new.band_source,
+      new.provider_band_slug,
+      new.band_change_approved_at
+    ) b;
+
+  -- quoted_min as the last resort rather than null: a category row missing
+  -- behind a foreign key should not be able to break a booking.
+  new.band_min := coalesce(floor_now, new.quoted_min);
+  return new;
+end;
+$$;
+
+comment on function public.freeze_booking_band() is
+  'Fills bookings.band_min from the band in force at insert — the customer''s stated product where they named one, else the trade, and null on a survey job because nothing has been surveyed yet — and pins it on update, letting a surveyed floor write through. The published floor at booking time, kept so the pricing signal can ask whether OUR band was right.';
+
+revoke execute on function public.freeze_booking_band() from public, anon, authenticated;

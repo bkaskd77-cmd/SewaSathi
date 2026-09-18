@@ -16,7 +16,8 @@ import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
-import { getCategory } from "@/lib/data/categories";
+import { getCategory, getSubBands } from "@/lib/data/categories";
+import { bandBounds, type BandSource } from "@/lib/booking";
 import type { SortOption } from "@/lib/data/ranking";
 import { formatNpr } from "@/lib/utils";
 
@@ -122,6 +123,33 @@ export default async function CategoryPage({
     bandSource,
   };
 
+  /*
+   * THE NUMBER THE CUSTOMER WAS SHOWN, CARRIED THROUGH.
+   *
+   * This rendered the CATEGORY band whatever `?band=` said, so the product the
+   * triage card asked about — and the published range it printed — were lost
+   * at the first link. A customer who answered "AC repair" read 500-1,500 and
+   * then 500-12,000 one tap later. `createBooking` freezes the same bounds, so
+   * the figure is the same on all three screens now.
+   *
+   * Only a customer-stated band narrows it, which is the rule `bandBounds`
+   * owns and `booking_band_bounds` enforces in Postgres.
+   */
+  const subBands = isSurveyPriced(category) ? [] : await getSubBands();
+  const statedBand =
+    band && bandSource === "customer"
+      ? (subBands.find(
+          (sub) => sub.categorySlug === category.slug && sub.slug === band,
+        ) ?? null)
+      : null;
+  const bounds = bandBounds({
+    category: { low: category.basePriceMin, high: category.basePriceMax },
+    stated: statedBand
+      ? { slug: statedBand.slug, low: statedBand.low, high: statedBand.high }
+      : null,
+    statedSource: (bandSource as BandSource | null) ?? null,
+  });
+
   // Keep the triage context when filters are cleared — it is not a filter.
   const contextParams = new URLSearchParams();
   if (q) contextParams.set("q", q);
@@ -205,8 +233,8 @@ export default async function CategoryPage({
           <p className="mt-3 text-body-sm text-muted-foreground">
             {t("typicalRangeLabel")}{" "}
             <span className="font-semibold tabular-nums text-foreground">
-              {formatNpr(category.basePriceMin, { locale })} –{" "}
-              {formatNpr(category.basePriceMax, { locale })}
+              {formatNpr(bounds.low, { locale })} –{" "}
+              {formatNpr(bounds.high, { locale })}
             </span>{" "}
             · {t("priceConfirmedAfter")}
           </p>
@@ -214,6 +242,10 @@ export default async function CategoryPage({
       </header>
 
       <div className="animate-rise mt-6" style={{ animationDelay: "120ms" }}>
+        {/* The rate filter still spans the trade. Narrowing it to the product
+            would hide professionals whose dashboard rate sits below the band
+            they are perfectly able to work in, which is a different question
+            from what this job costs. */}
         <ProviderFilters
           priceBand={{
             low: category.basePriceMin,

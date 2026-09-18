@@ -172,6 +172,29 @@ const GUARDS: Record<string, Guard[]> = {
     },
   ],
 
+  freeze_booking_band: [
+    {
+      protects:
+        "A survey booking gets no floor of ours invented at insert.",
+      ifMissing:
+        "movers-packers' stale 5,000 category row lands on the booking as band_min — the exact invented figure the survey-pricing phase existed to keep off one. THIS WAS LOST AND SHIPPED: the function was rebuilt from 20260913000003 when the live definition came from 20260916000001, because there are three definitions in the tree and filename order decides. Nothing pinned it, which is why it is pinned now.",
+      clauses: [
+        "if new.quote_model = 'survey'",
+        "new.band_min := null",
+      ],
+    },
+    {
+      protects:
+        "A surveyed floor writes through the UPDATE pin when the survey lands.",
+      ifMissing:
+        "The frozen null outlives the survey that replaced it, so a surveyed job never gets our floor at all and category_pricing_signals cannot ask whether the quote was right.",
+      clauses: [
+        "old.band_min is null",
+        "new.band_min := new.quoted_min",
+      ],
+    },
+  ],
+
   enforce_price_correction: [
     {
       protects:

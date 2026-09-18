@@ -41,10 +41,10 @@ async function book(input: {
   const { rows } = await pg.admin.query(
     `insert into public.bookings
        (reference, customer_id, provider_id, category_slug, address_id,
-        description, quoted_min, quoted_max, band_min, quote_model,
+        description, quoted_min, quoted_max, quote_model,
         scheduled_for, band_slug, band_source)
      values ($1, $2, $3, 'plumbing', $4, 'Something is wrong with the tap',
-             350, 6000, 350, 'band', $5, $6, $7)
+             350, 6000, 'band', $5, $6, $7)
      returning id`,
     [
       `SK-PC${counter}`,
@@ -168,6 +168,18 @@ describe("a stated product sets the price", () => {
      */
     const id = await book({ band: "pipe-work", source: "customer" });
     await reseat(id);
+    expect((await quote(id)).bandMin).toBe(1500);
+  });
+
+  it("freezes band_min from the stated product at insert, not on a hand-off", async () => {
+    /*
+     * BEHAVIOUR, NOT TRIGGER ORDER. `freeze_booking_band` fills band_min at
+     * insert and `sync_booking_quote_floor` moves it on a correction; the two
+     * only agree because 'f' sorts before 's', which is the kind of dependency
+     * that breaks silently when somebody renames a trigger — as one did in this
+     * very phase. So this asserts the number, on a booking nobody has touched.
+     */
+    const id = await book({ band: "pipe-work", source: "customer" });
     expect((await quote(id)).bandMin).toBe(1500);
   });
 

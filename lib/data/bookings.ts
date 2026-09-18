@@ -24,6 +24,7 @@ import {
   quoteFloor,
   servingWhen,
 } from "@/lib/provider";
+import { bandBounds, type BandSource } from "@/lib/booking";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -374,7 +375,28 @@ export async function createBooking(
    * and the commission floor would both then be built from it.
    */
   const survey = isSurveyPriced(category);
-  let floor: number | null = survey ? null : category.basePriceMin;
+
+  /*
+   * THE BAND THE CUSTOMER NAMED IS THE PRICE, not just the calendar entry.
+   *
+   * This froze `category.basePriceMax` until the sub-band ask shipped and made
+   * that wrong: the card shows the product's published range and the booking
+   * has to carry the same number, or "no surprises" is true on one screen and
+   * false on the next. `bandBounds` is the rule and `booking_band_bounds` in
+   * Postgres is the same rule where it actually holds — this is the copy the
+   * screens and the insert read.
+   */
+  const bounds = survey
+    ? null
+    : bandBounds({
+        category: { low: category.basePriceMin, high: category.basePriceMax },
+        stated: subBand
+          ? { slug: subBand.slug, low: subBand.low, high: subBand.high }
+          : null,
+        statedSource: (parsed.data.bandSource as BandSource | undefined) ?? null,
+      });
+
+  let floor: number | null = bounds ? bounds.low : null;
 
   if (parsed.data.provider) {
     const provider = await getProvider(parsed.data.provider);
@@ -423,11 +445,22 @@ export async function createBooking(
     // Their dashboard rate is a starting price for a trade that HAS a band. A
     // surveyed job's floor comes from the survey, not from a number set before
     // anybody saw how much furniture there is.
-    if (!survey) {
-      floor = quoteFloor({
-        providerRate: provider.baseRate,
-        band: { low: category.basePriceMin, high: category.basePriceMax },
-      });
+    if (!survey && bounds) {
+      /*
+       * Clamped into the band IN FORCE, not the trade's whole range. On a
+       * customer-stated product that is the product's own range, so a
+       * professional whose dashboard rate sits below it is floored at what the
+       * customer was actually quoted rather than at the cheapest thing the
+       * trade does. `statedLow` is the same number here — nothing has been
+       * corrected yet at insert — and the max is what keeps it true later.
+       */
+      floor = Math.max(
+        bounds.statedLow,
+        quoteFloor({
+          providerRate: provider.baseRate,
+          band: { low: bounds.low, high: bounds.high },
+        }),
+      );
     }
   }
 
@@ -481,7 +514,7 @@ export async function createBooking(
           // Both null on a survey trade, which `bookings_band_only_null_for_survey`
           // is what makes impossible anywhere else.
           quoted_min: floor,
-          quoted_max: survey ? null : category.basePriceMax,
+          quoted_max: bounds ? bounds.high : null,
           quote_model: survey ? "survey" : "band",
           payment_method: parsed.data.paymentMethod,
           // The customer's actual choice, kept separately so it survives the

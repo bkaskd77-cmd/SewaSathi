@@ -125,3 +125,11 @@ export {
   type QuoteState,
   type SurveyOutcome,
 } from "./survey";
+
+export {
+  bandBounds,
+  correctionFitsFloor,
+  type BandBounds,
+  type BandRange,
+  type BandSource,
+} from "./band-bounds";
