@@ -19,6 +19,12 @@ import { hasSupabaseConfig } from "@/lib/env";
  * `enforce_slot_capacity` in Postgres is the rule that actually holds. This is
  * so a full row can be greyed out before somebody taps it, rather than letting
  * them fill in four screens and meet a refusal at the end.
+ *
+ * EACH WINDOW CARRIES ITS OWN LENGTH NOW. It used to return a bare start and
+ * every job was assumed to be two hours, so a four-hour deep clean and a
+ * forty-five-minute leak reserved the same block and a customer could be given
+ * a slot inside a job already running. Still deliberately thin: a start and a
+ * duration, never whose job it is or where.
  */
 
 /** Statuses that still hold somebody's time — the same set the trigger uses. */
@@ -36,6 +42,8 @@ type Row = {
   scheduled_for: string | null;
   created_at: string;
   status: string;
+  estimated_working_minutes: number | null;
+  provider_estimated_working_minutes: number | null;
 };
 
 /**
@@ -58,7 +66,9 @@ export async function providerCapacity(
   const [jobs, listings, category] = await Promise.all([
     supabase
       .from("bookings")
-      .select("provider_id, scheduled_for, created_at, status")
+      .select(
+        "provider_id, scheduled_for, created_at, status, estimated_working_minutes, provider_estimated_working_minutes",
+      )
       .in("provider_id", providerIds)
       .in("status", HOLDS_TIME),
     supabase
@@ -97,6 +107,17 @@ export async function providerCapacity(
       // reading the trigger takes.
       scheduledFor: row.scheduled_for ?? row.created_at,
       status: row.status,
+      /*
+       * HOW LONG THIS ONE ACTUALLY HOLDS. The professional's own figure first
+       * — they have seen the job — then ours from the sub-band, then null,
+       * which the rule reads as the two-hour hold every booking took before
+       * durations existed. `workingMinutes` in lib/booking is the same
+       * precedence and the SQL mirror of it is `booking_working_minutes`.
+       */
+      workingMinutes:
+        row.provider_estimated_working_minutes ??
+        row.estimated_working_minutes ??
+        null,
     });
     held.set(row.provider_id, list);
   }

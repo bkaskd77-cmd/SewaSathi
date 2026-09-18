@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SLOT_MINUTES,
+  UNESTIMATED_HOLD_MINUTES,
   capacityFor,
   countOverlapping,
   hasRoom,
@@ -34,28 +35,42 @@ function held(scheduledFor: string | null, status = "accepted", id?: string) {
 }
 
 describe("a job occupies a window, not an instant", () => {
-  it("runs for the scheduler's own slot length", () => {
-    const window = slotWindow(twoPm, at);
+  it("holds the default when nobody knows how long the job is", () => {
+    // Null is not "zero minutes", it is "nobody named the product". The
+    // reservation is then exactly what every booking held before duration
+    // existed — see UNESTIMATED_HOLD_MINUTES.
+    const window = slotWindow(twoPm, null, at);
     expect(window.end.getTime() - window.start.getTime()).toBe(
-      SLOT_MINUTES * 60_000,
+      UNESTIMATED_HOLD_MINUTES * 60_000,
     );
+    expect(UNESTIMATED_HOLD_MINUTES).toBe(SLOT_MINUTES);
+  });
+
+  /*
+   * THE WHOLE POINT OF THE PHASE. A job runs for its own length now, so a
+   * four-hour deep clean and a forty-five-minute leak no longer reserve the
+   * same block.
+   */
+  it("runs for the job's own length when there is one", () => {
+    const window = slotWindow(twoPm, 480, at);
+    expect(window.end.getTime() - window.start.getTime()).toBe(480 * 60_000);
   });
 
   it("treats an as-soon-as-possible job as starting now", () => {
     // That is what the customer asked for and what the professional will
     // actually be doing, so it has to collide with anything else happening now.
-    expect(slotWindow(null, at).start.getTime()).toBe(at.getTime());
+    expect(slotWindow(null, null, at).start.getTime()).toBe(at.getTime());
   });
 
   it("does not overlap a job that starts exactly as this one ends", () => {
     // Half-open on purpose: closed intervals would read every back-to-back
     // pair in a full day as a conflict and grey out a working schedule.
-    expect(overlaps(slotWindow(twoPm, at), slotWindow(fourPm, at))).toBe(false);
+    expect(overlaps(slotWindow(twoPm, null, at), slotWindow(fourPm, null, at))).toBe(false);
   });
 
   it("overlaps a job starting one minute before this one ends", () => {
     const nearlyFour = "2026-09-17T10:14:00.000Z";
-    expect(overlaps(slotWindow(twoPm, at), slotWindow(nearlyFour, at))).toBe(
+    expect(overlaps(slotWindow(twoPm, null, at), slotWindow(nearlyFour, null, at))).toBe(
       true,
     );
   });
@@ -172,5 +187,107 @@ describe("the next slot they could actually take", () => {
       at,
     });
     expect(candidates).toContain(free);
+  });
+});
+
+/**
+ * Jobs of different lengths, which is what the fixed two-hour window could not
+ * express and what `ARCHITECTURE.md` named as the structural gap.
+ *
+ * The old model gave a tap washer and a whole-flat repaint the same block. It
+ * was roughly right for booking collisions and roughly meaningless as a model
+ * of anybody's week, and `categories.max_concurrent_jobs` existed to paper
+ * over the difference.
+ */
+describe("a long job and a short one", () => {
+  const tenAm = "2026-09-17T04:15:00.000Z";
+  const onePm = "2026-09-17T07:15:00.000Z";
+
+  /*
+   * THE COLLISION THE OLD MODEL MISSED. A four-hour deep clean from ten runs
+   * to two; a forty-five-minute leak at one lands inside it. Under a fixed
+   * two-hour window the clean ended at noon and the two never met — so the
+   * second customer was told somebody was coming and found out on the day
+   * that nobody was.
+   */
+  it("collides when the long job is still running", () => {
+    expect(
+      countOverlapping({
+        jobs: [{ scheduledFor: tenAm, status: "accepted", workingMinutes: 240 }],
+        scheduledFor: onePm,
+        workingMinutes: 45,
+        at,
+      }),
+    ).toBe(1);
+  });
+
+  it("does not collide once the long job has finished", () => {
+    const threePm = "2026-09-17T09:15:00.000Z";
+    expect(
+      countOverlapping({
+        jobs: [{ scheduledFor: tenAm, status: "accepted", workingMinutes: 240 }],
+        scheduledFor: threePm,
+        workingMinutes: 45,
+        at,
+      }),
+    ).toBe(0);
+  });
+
+  /*
+   * AND IT IS ASYMMETRIC, which is the half a single fixed number cannot have.
+   * Swap the lengths and the same two start times stop colliding: a
+   * forty-five-minute job at ten is done long before one o'clock.
+   */
+  it("stops colliding when the lengths are swapped", () => {
+    expect(
+      countOverlapping({
+        jobs: [{ scheduledFor: tenAm, status: "accepted", workingMinutes: 45 }],
+        scheduledFor: onePm,
+        workingMinutes: 240,
+        at,
+      }),
+    ).toBe(0);
+  });
+
+  /*
+   * A JOB NOBODY SIZED STILL BEHAVES AS IT ALWAYS DID. Null on either side
+   * holds the two-hour default, so nothing regresses for the rows that have no
+   * product — which today is all of them.
+   */
+  it("holds two hours on both sides when neither is estimated", () => {
+    const elevenAm = "2026-09-17T05:15:00.000Z";
+    expect(
+      countOverlapping({
+        jobs: [held(tenAm)],
+        scheduledFor: elevenAm,
+        at,
+      }),
+    ).toBe(1);
+
+    const oneAm = "2026-09-17T07:15:00.000Z";
+    expect(
+      countOverlapping({ jobs: [held(tenAm)], scheduledFor: oneAm, at }),
+    ).toBe(0);
+  });
+
+  /*
+   * The greyed row on the booking screen asks this, and it has to ask it about
+   * the job the customer is actually booking: a four-hour job needs a
+   * four-hour gap, so the first slot it can take is later than the first slot
+   * a short job could.
+   */
+  it("finds a later first-free slot for a longer job", () => {
+    const candidates = [tenAm, "2026-09-17T06:15:00.000Z", onePm];
+    const jobs = [
+      { scheduledFor: tenAm, status: "accepted", workingMinutes: 120 },
+    ];
+
+    expect(
+      nextFreeSlot({ candidates, jobs, workingMinutes: 45, capacity: 1, at }),
+    ).toBe("2026-09-17T06:15:00.000Z");
+
+    expect(
+      nextFreeSlot({ candidates, jobs, workingMinutes: 240, capacity: 1, at }),
+    ).toBe("2026-09-17T06:15:00.000Z");
   });
 });

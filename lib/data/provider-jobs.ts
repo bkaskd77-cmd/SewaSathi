@@ -723,7 +723,9 @@ export async function offerOverbookAndClaim(input: {
   // cannot see is one they cannot take.
   const { data: open, error: readError } = await createClient()
     .from("bookings")
-    .select("id, category_slug, scheduled_for, created_at")
+    .select(
+      "id, category_slug, scheduled_for, created_at, estimated_working_minutes, provider_estimated_working_minutes",
+    )
     .eq("id", input.bookingId)
     .is("provider_id", null)
     .eq("status", "pending")
@@ -741,6 +743,11 @@ export async function offerOverbookAndClaim(input: {
       jobs: seat.held,
       scheduledFor:
         (open.scheduled_for as string | null) ?? (open.created_at as string),
+      // The open job's own length, same precedence as everywhere else.
+      workingMinutes:
+        (open.provider_estimated_working_minutes as number | null) ??
+        (open.estimated_working_minutes as number | null) ??
+        null,
       capacity: seat.capacity,
     })
   ) {

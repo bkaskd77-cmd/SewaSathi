@@ -1,3 +1,4 @@
+import { UNESTIMATED_HOLD_MINUTES } from "./duration";
 import { WORKING_HOURS } from "./schedule";
 
 /**
@@ -24,7 +25,16 @@ import { WORKING_HOURS } from "./schedule";
  * to be testable without a database.
  */
 
-/** Minutes a booking occupies, from its start. */
+/**
+ * The width of a slot the picker offers. NOT how long a job takes.
+ *
+ * These were the same number until duration existed, which is why this file
+ * used to describe itself as a workaround. A slot is the granularity a
+ * customer picks a start time at; a job's length is its own fact and now lives
+ * on the booking. `UNESTIMATED_HOLD_MINUTES` — which happens to be the same
+ * 120 — is what an unestimated job reserves, and it is named separately
+ * because it means something different.
+ */
 export const SLOT_MINUTES = WORKING_HOURS.slotHours * 60;
 
 /** Statuses that still hold a professional's time. */
@@ -41,6 +51,15 @@ export type HeldJob = {
   status: string;
   /** Distinguishes a job from itself when re-checking an existing booking. */
   id?: string;
+  /**
+   * How long THIS job holds, in minutes.
+   *
+   * EVERY JOB USED TO BE TWO HOURS, which meant a tap washer and a whole-flat
+   * repaint reserved the same block — the workaround this file was built
+   * around and named in `ARCHITECTURE.md`. Null keeps that behaviour for a
+   * booking whose product nobody could name, via `UNESTIMATED_HOLD_MINUTES`.
+   */
+  workingMinutes?: number | null;
 };
 
 export type SlotWindow = { start: Date; end: Date };
@@ -59,10 +78,13 @@ function instant(value: Date | string | null | undefined): Date | null {
  */
 export function slotWindow(
   scheduledFor: Date | string | null,
+  minutes: number | null | undefined,
   at: Date = new Date(),
 ): SlotWindow {
   const start = instant(scheduledFor) ?? at;
-  return { start, end: new Date(start.getTime() + SLOT_MINUTES * 60_000) };
+  // A hold, not an estimate, when nobody knows — see lib/booking/duration.ts.
+  const held = minutes && minutes > 0 ? minutes : UNESTIMATED_HOLD_MINUTES;
+  return { start, end: new Date(start.getTime() + held * 60_000) };
 }
 
 /** Half-open: touching windows do not overlap. */
@@ -112,17 +134,29 @@ export function capacityFor(input: {
 export function countOverlapping(input: {
   jobs: readonly HeldJob[];
   scheduledFor: Date | string | null;
+  /** How long the job being checked would hold. Null holds the default. */
+  workingMinutes?: number | null;
   at?: Date;
   /** Re-checking an existing booking must not count it against itself. */
   excludeId?: string | null;
 }): number {
   const at = input.at ?? new Date();
-  const wanted = slotWindow(input.scheduledFor, at);
+  const wanted = slotWindow(input.scheduledFor, input.workingMinutes, at);
 
+  /*
+   * EACH JOB IS MEASURED BY ITS OWN LENGTH, on both sides. A four-hour job
+   * starting at ten collides with a two-hour one starting at one; the old
+   * fixed window said it did not, and the second customer found out on the
+   * day. The asymmetry matters too: a long held job collides with a short new
+   * one that a short held job would not.
+   */
   return input.jobs.filter((job) => {
     if (!HOLDS_TIME.has(job.status)) return false;
     if (input.excludeId && job.id === input.excludeId) return false;
-    return overlaps(wanted, slotWindow(job.scheduledFor, at));
+    return overlaps(
+      wanted,
+      slotWindow(job.scheduledFor, job.workingMinutes, at),
+    );
   }).length;
 }
 
@@ -130,6 +164,7 @@ export function countOverlapping(input: {
 export function hasRoom(input: {
   jobs: readonly HeldJob[];
   scheduledFor: Date | string | null;
+  workingMinutes?: number | null;
   capacity: number;
   at?: Date;
   excludeId?: string | null;
@@ -149,6 +184,8 @@ export function nextFreeSlot(input: {
   /** Slots the picker would offer, in order, as ISO strings. */
   candidates: readonly string[];
   jobs: readonly HeldJob[];
+  /** How long the job being placed would hold. */
+  workingMinutes?: number | null;
   capacity: number;
   at?: Date;
 }): string | null {
@@ -156,6 +193,7 @@ export function nextFreeSlot(input: {
     const free = hasRoom({
       jobs: input.jobs,
       scheduledFor: candidate,
+      workingMinutes: input.workingMinutes,
       capacity: input.capacity,
       at: input.at,
     });

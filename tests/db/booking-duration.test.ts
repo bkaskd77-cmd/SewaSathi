@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
 
@@ -382,5 +389,279 @@ describe("clearing a product a rule got wrong", () => {
     const other = await book("room-supplied", "matcher");
     await clear();
     expect((await durationOf(other)).band_slug).toBe("room-supplied");
+  });
+});
+
+/**
+ * The scheduler, through the trigger rather than through TypeScript.
+ *
+ * `lib/booking/capacity.ts` is what greys a row out before somebody taps it.
+ * THIS is the rule that actually holds, and it is a trigger because a booking
+ * gains a professional five ways. The two have to agree, which is what
+ * `npm run check:duration` asserts about their constants and what these
+ * assert about their behaviour.
+ */
+describe("a long job and a short one, in Postgres", () => {
+  const TEN_AM = "2026-10-01T04:15:00Z";
+  const ONE_PM = "2026-10-01T07:15:00Z";
+  const THREE_PM = "2026-10-01T09:15:00Z";
+
+  /**
+   * A booking with an explicit length, assigned, at a given time.
+   *
+   * THE LENGTH GOES IN THE PROFESSIONAL'S COLUMN, and it has to. Writing
+   * `estimated_working_minutes` directly does nothing: `sync_booking_duration`
+   * nulls it whenever `band_slug` is null, because our estimate is the
+   * sub-band's figure and a booking with no product has no estimate to carry.
+   * That is the rule working — and it means a test that wants a length without
+   * inventing a product uses the column that belongs to somebody who saw the
+   * job. It exercises the precedence at the same time.
+   */
+  async function scheduled(minutes: number | null, at: string): Promise<string> {
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, scheduled_for,
+          provider_estimated_working_minutes, status)
+       values ($1, $2, $3, 'painting', $4, 'Living room', $5, $6, $7, $8, 'pending')
+       returning id`,
+      [
+        `SK-INT${(counter += 1)}`,
+        ANITA,
+        krishna,
+        address,
+        band.low,
+        band.high,
+        at,
+        minutes,
+      ],
+    );
+    return rows[0].id as string;
+  }
+
+  beforeEach(async () => {
+    await pg.admin.query("delete from public.bookings");
+    await pg.admin.query(
+      "update public.categories set max_concurrent_jobs = 1 where slug = 'painting'",
+    );
+  });
+
+  afterAll(async () => {
+    await pg.admin.query(
+      "update public.categories set max_concurrent_jobs = 3 where slug = 'painting'",
+    );
+  });
+
+  /*
+   * THE COLLISION THE OLD RULE MISSED, and it missed it in the database as
+   * well as on the screen. A four-hour job from ten runs to two; a
+   * forty-five-minute job at one lands inside it. Under the hardcoded
+   * `interval '120 minutes'` the first ended at noon and the two never met, so
+   * the second customer was told somebody was coming.
+   */
+  it("refuses a short job inside a long one", async () => {
+    await scheduled(240, TEN_AM);
+    await expect(scheduled(45, ONE_PM)).rejects.toThrow(
+      /already booked for this time/,
+    );
+  });
+
+  it("allows it once the long job has finished", async () => {
+    await scheduled(240, TEN_AM);
+    await expect(scheduled(45, THREE_PM)).resolves.toBeTruthy();
+  });
+
+  /*
+   * AND IT IS ASYMMETRIC, which one constant cannot be. Swap the lengths and
+   * the same two start times stop colliding.
+   */
+  it("allows the same two times when the lengths are swapped", async () => {
+    await scheduled(45, TEN_AM);
+    await expect(scheduled(240, ONE_PM)).resolves.toBeTruthy();
+  });
+
+  /*
+   * A JOB NOBODY SIZED STILL HOLDS TWO HOURS, so nothing regresses for the
+   * rows that have no product — which today is all of them.
+   */
+  it("holds the default on both sides when neither is estimated", async () => {
+    await scheduled(null, TEN_AM);
+    await expect(scheduled(null, "2026-10-01T05:15:00Z")).rejects.toThrow(
+      /already booked for this time/,
+    );
+    await expect(scheduled(null, ONE_PM)).resolves.toBeTruthy();
+  });
+});
+
+/**
+ * A multi-day job holds a site, not a slot.
+ *
+ * `booking_days` is generated from the parent, and the gate on it is the same
+ * one `spansDays()` applies in TypeScript: an invented duration may reserve
+ * minutes but may not take days out of anybody's week.
+ */
+describe("the days a job runs", () => {
+  const researched = async (on: boolean) =>
+    pg.admin.query(
+      `update public.category_price_bands
+          set duration_source = $1, duration_checked_at = $2
+        where category_slug = 'painting' and slug = 'room-supplied'`,
+      on ? ["researched", "2026-09-20"] : ["invented", null],
+    );
+
+  const daysOf = async (id: string) =>
+    (
+      await pg.admin.query(
+        `select day, day_index, working_minutes, starts_at
+           from public.booking_days where booking_id = $1 order by day_index`,
+        [id],
+      )
+    ).rows;
+
+  beforeEach(async () => {
+    await pg.admin.query("delete from public.bookings");
+    await researched(false);
+  });
+
+  afterAll(async () => {
+    await researched(false);
+  });
+
+  /*
+   * THE GATE. `room-supplied` claims four days and every one of those days is
+   * a guess. Holding four days of a painter's week and four days of a
+   * customer's home off a guess takes real bookable capacity, invisibly, and
+   * nothing on any screen tells it apart from a measurement.
+   */
+  it("generates no days while the duration is invented", async () => {
+    const id = await book("room-supplied");
+    expect(await daysOf(id)).toEqual([]);
+  });
+
+  it("generates them once the duration is researched", async () => {
+    await researched(true);
+    const id = await book("room-supplied");
+    const days = await daysOf(id);
+
+    expect(days).toHaveLength(4);
+    expect(days.map((d) => Number(d.day_index))).toEqual([1, 2, 3, 4]);
+  });
+
+  /*
+   * LATER DAYS CARRY NO TIME. Day 1 is the slot the customer picked; nobody
+   * has said when on day 3 the painter arrives, and an invented 09:00 would be
+   * a default presented as a fact.
+   */
+  it("gives day one a time and the rest none", async () => {
+    await researched(true);
+    const days = await daysOf(await book("room-supplied"));
+
+    expect(days[0].starts_at).not.toBeNull();
+    for (const later of days.slice(1)) expect(later.starts_at).toBeNull();
+  });
+
+  /*
+   * THE PAINTER IS NOT ON THE TOOLS ALL FOUR DAYS — that is what the drying
+   * is. The daily figure is the total spread across the span, not the total
+   * repeated on each day.
+   */
+  it("spreads the working minutes across the days", async () => {
+    await researched(true);
+    const days = await daysOf(await book("room-supplied"));
+    const total = days.reduce((sum, d) => sum + Number(d.working_minutes), 0);
+
+    const { rows } = await pg.admin.query(
+      "select typical_working_minutes from public.category_price_bands where category_slug='painting' and slug='room-supplied'",
+    );
+    expect(total).toBeLessThanOrEqual(Number(rows[0].typical_working_minutes));
+    expect(Number(days[0].working_minutes)).toBeLessThan(8 * 60);
+  });
+
+  /*
+   * GENERATED, SO IT CANNOT DRIFT. Moving the booking moves its days with it,
+   * rather than leaving a week held at the old dates.
+   */
+  it("regenerates when the booking moves", async () => {
+    await researched(true);
+    const id = await book("room-supplied");
+    const before = (await daysOf(id)).map((d) => String(d.day));
+
+    await pg.admin.query(
+      "update public.bookings set scheduled_for = $2 where id = $1",
+      [id, "2026-11-05T04:15:00Z"],
+    );
+    const after = (await daysOf(id)).map((d) => String(d.day));
+
+    expect(after).toHaveLength(4);
+    expect(after).not.toEqual(before);
+  });
+
+  it("clears them when the job is over", async () => {
+    await researched(true);
+    const id = await book("room-supplied");
+    expect(await daysOf(id)).toHaveLength(4);
+
+    await pg.admin.query(
+      "update public.bookings set status = 'cancelled', cancelled_at = now() where id = $1",
+      [id],
+    );
+    expect(await daysOf(id)).toEqual([]);
+  });
+
+  /*
+   * THE PROFESSIONAL'S OWN SPAN IS EVIDENCE and passes the gate whatever our
+   * provenance says. They have been to the site; what is gated is our guess.
+   */
+  it("spans days on the professional's figure even while ours is invented", async () => {
+    const id = await book("room-supplied");
+    expect(await daysOf(id)).toEqual([]);
+
+    await pg.admin.query(
+      "update public.bookings set provider_estimated_elapsed_days = 3 where id = $1",
+      [id],
+    );
+    expect(await daysOf(id)).toHaveLength(3);
+  });
+
+  /*
+   * THE SITE'S OWN HOLD. Two painters in one living room on overlapping days
+   * is not a scheduling nicety — the second booking cannot physically happen.
+   */
+  it("refuses a second job of the same trade at the same address", async () => {
+    await researched(true);
+    await book("room-supplied");
+    await expect(book("room-supplied")).rejects.toThrow(
+      /already has this trade booked/,
+    );
+  });
+
+  /*
+   * A DIFFERENT TRADE IS FINE and deliberately allowed: an electrician can
+   * work around a painter.
+   */
+  it("allows a different trade at the same address on the same days", async () => {
+    await researched(true);
+    await book("room-supplied");
+
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, category_slug, address_id, description,
+          quoted_min, quoted_max)
+       values ($1, $2, 'electrical', $3, 'Socket needs moving', 500, 5000)
+       returning id`,
+      [`SK-ELE${(counter += 1)}`, ANITA, address],
+    );
+    expect(rows[0].id).toBeTruthy();
+  });
+
+  /*
+   * NOBODY MAY WRITE THESE ROWS. They are the trigger's: a caller who could
+   * insert one could hold a professional's week without booking anything.
+   */
+  it("grants no write policy to anybody", async () => {
+    const { rows } = await pg.admin.query(
+      "select cmd from pg_policies where tablename = 'booking_days'",
+    );
+    expect(rows.map((r) => r.cmd)).toEqual(["SELECT"]);
   });
 });

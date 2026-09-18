@@ -24,10 +24,11 @@
     "test:db": "vitest run tests/db",
     "test:watch": "vitest",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run test && npm run build && npm run check:paint && npm run check:flows",
+    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run check:duration && npm run test && npm run build && npm run check:paint && npm run check:flows",
     "ui:add": "shadcn add",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "check:contacts": "node scripts/check-contacts.mjs"
+    "check:contacts": "node scripts/check-contacts.mjs",
+    "check:duration": "node scripts/check-duration.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
@@ -70,7 +71,7 @@
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

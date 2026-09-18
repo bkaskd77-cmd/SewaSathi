@@ -344,22 +344,39 @@ Where a change on one side cannot reach the other.
   answers when the key is missing, the call times out or validation fails — so
   this is a quality gap rather than a live defect on the normal path, which is
   why it is recorded rather than rushed.
-- **A job has a duration and nothing in the product models it. This is the gap,
-  not concurrency.** `WORKING_HOURS.slotHours` is 2, and a multi-day job holds a
-  *site*, not a slot: painting occupies a room for four days and a painter for a
-  few hours of each, because putty dries, primer cures and coats need hours
-  between them. Two separate systems need duration to be honest about that.
-  **The scheduler** can only express "how many two-hour windows at once", which
-  is roughly right for booking collisions and roughly meaningless as a model of
-  anybody's week. **The pricing sub-bands** already split painting into
-  labour-only and paint-supplied, and the thing that actually separates them is
-  how long the work takes. One missing field, two systems working around it —
-  which is what makes it structural rather than a scheduling detail.
-  Until it exists, `categories.max_concurrent_jobs` is the workaround and every
-  copy of that number says so: painting's 3 is "do not block a painter from a
-  second job", never a considered model of their capacity. The next phase takes
-  `typical_duration_hours`, per-job durations on the sub-bands, and a scheduler
-  that can reason in days.
+- **A job has a duration, and the scheduler reasons in it.** This was the named
+  structural gap and it is closed. `WORKING_HOURS.slotHours` is still 2, but it
+  is now only the width of a slot the picker OFFERS — how long a job HOLDS is
+  its own fact, on the booking. The two were one number, which is why a tap
+  washer and a whole-flat repaint reserved the same block.
+  **Two numbers, because for painting they diverge.** `typical_working_minutes`
+  is how long the professional is on the tools and fills their calendar;
+  `typical_elapsed_days` is how long the customer's home is a building site and
+  is what they plan around. A room takes four days and a painter a few hours of
+  each, because putty dries and coats need hours between them. `booking_days`
+  is that split made real: the professional is held for the day's minutes on
+  each day of the run, the SITE is held for the whole span, and the gap between
+  them is the drying.
+  **The collision the old model missed**, and it missed it on the screen and in
+  the database alike: a four-hour job from ten runs to two, a forty-five-minute
+  job at one lands inside it, and a fixed two-hour window said the first ended
+  at noon so the two never met. It is asymmetric too — swap the lengths and the
+  same two start times stop colliding — which one constant cannot be.
+  **An invented number may reserve, it may not claim, and it may not reserve
+  more than a day.** All 36 sub-band durations are guesses, so minutes are used
+  (a wrong one costs 90 minutes where 120 was right, bounded and no worse than
+  the flat window it replaced) and spans are refused (a wrong one takes four
+  days of real capacity, invisibly, and nothing distinguishes it from a
+  measurement). `spansDays` in `lib/booking/duration.ts` and the matching gate
+  in `sync_booking_days` are the rule; `hasPublishableDuration` keeps every
+  figure off every screen; `multi-day-scheduling` in LAUNCH-BLOCKERS.md is
+  chained to `sub-band-durations` so neither gate can be opened quietly.
+  **The TypeScript and the SQL are held together by a check, not a comment.**
+  `enforce_slot_capacity` carried `interval '120 minutes'` under a note asking
+  the next reader to keep it in step by hand; `npm run check:duration` now fails
+  if the constants or the precedence disagree, and is proven by breaking both.
+  `categories.max_concurrent_jobs` was the workaround for all of this and is
+  retired next, keeping only the crew-size meaning it also carried.
 - **The surveyor's fee is never paid automatically, and that is the whole
   anti-farming design.** A fee that pays itself is farmable — quote high, get
   declined, collect — so `survey_visit_fees` rows are born `pending` and move

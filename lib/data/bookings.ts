@@ -55,6 +55,21 @@ export type Booking = {
   id: string;
   reference: string;
   categorySlug: string;
+  /**
+   * Which product inside the trade, and how long it is expected to take.
+   *
+   * Three figures and they never collapse into one: `estimated*` is ours from
+   * the sub-band, `providerEstimated*` is theirs after they saw the job, and
+   * `actualWorkingMinutes` is what happened. Keeping all three is the only
+   * path the researched durations have to getting better.
+   */
+  bandSlug: string | null;
+  bandSource: string | null;
+  estimatedWorkingMinutes: number | null;
+  estimatedElapsedDays: number | null;
+  providerEstimatedWorkingMinutes: number | null;
+  providerEstimatedElapsedDays: number | null;
+  actualWorkingMinutes: number | null;
   providerId: string | null;
   addressId: string;
   status: BookingStatus;
@@ -206,7 +221,7 @@ const schema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
+  "id, reference, category_slug, band_slug, band_source, estimated_working_minutes, estimated_elapsed_days, provider_estimated_working_minutes, provider_estimated_elapsed_days, actual_working_minutes, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -214,6 +229,18 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     id: row.id as string,
     reference: row.reference as string,
     categorySlug: row.category_slug as string,
+    bandSlug: (row.band_slug as string | null) ?? null,
+    bandSource: (row.band_source as string | null) ?? null,
+    estimatedWorkingMinutes:
+      (row.estimated_working_minutes as number | null) ?? null,
+    estimatedElapsedDays:
+      (row.estimated_elapsed_days as number | null) ?? null,
+    providerEstimatedWorkingMinutes:
+      (row.provider_estimated_working_minutes as number | null) ?? null,
+    providerEstimatedElapsedDays:
+      (row.provider_estimated_elapsed_days as number | null) ?? null,
+    actualWorkingMinutes:
+      (row.actual_working_minutes as number | null) ?? null,
     providerId: (row.provider_id as string | null) ?? null,
     addressId: row.address_id as string,
     status: isBookingStatus(status) ? status : "pending",
@@ -295,14 +322,20 @@ export async function createBooking(
    * customer is told nothing about length, which is the honest answer when we
    * do not know the product.
    */
-  const bandSlug = parsed.data.band
-    ? ((await getSubBands()).some(
+  const subBand = parsed.data.band
+    ? (await getSubBands()).find(
         (band) =>
           band.categorySlug === category.slug && band.slug === parsed.data.band,
-      )
-        ? parsed.data.band
-        : null)
+      ) ?? null
     : null;
+  const bandSlug = subBand?.slug ?? null;
+  /*
+   * How long this booking will hold, for the capacity check below. The trigger
+   * writes the same figure onto the row from the same sub-band — this is the
+   * screen's copy so a full window can be refused with a sentence rather than
+   * a raised exception.
+   */
+  const bandMinutes = subBand?.typicalWorkingMinutes ?? null;
 
   /*
    * Is the chosen professional still taking work?
@@ -368,6 +401,8 @@ export async function createBooking(
         ? !hasRoom({
             jobs: capacity.held,
             scheduledFor: when,
+            // The job being booked holds its own length, not everybody's.
+            workingMinutes: bandMinutes,
             capacity: capacity.capacity,
           })
         : false,
@@ -655,6 +690,11 @@ export async function chooseProvider(input: {
       ? !hasRoom({
           jobs: replacementCapacity.held,
           scheduledFor: replacementWhen,
+          // The booking's own length, the professional's figure first — the
+          // same precedence `workingMinutes` applies and the trigger mirrors.
+          workingMinutes:
+            booking.providerEstimatedWorkingMinutes ??
+            booking.estimatedWorkingMinutes,
           capacity: replacementCapacity.capacity,
           excludeId: booking.id,
         })
