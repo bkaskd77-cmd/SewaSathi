@@ -463,7 +463,11 @@ function TriageCard({
               falls back to reserving two hours for everything. */}
           <Link
             href={`/services/${result.category}?urgency=${result.urgency}${
-              result.band ? `&band=${encodeURIComponent(result.band)}` : ""
+              result.band
+                ? `&band=${encodeURIComponent(result.band)}&bandSource=${
+                    outcome.source === "fallback" ? "matcher" : "model"
+                  }`
+                : ""
             }`}
           >
             {t("findProfessionals", { category: ctaLabel })}
@@ -534,6 +538,16 @@ function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
         {outcome.model ? ` (${outcome.model})` : ""}
       </span>
       {reason ? <span>· {reason}</span> : null}
+      {/*
+        WHICH PRODUCT IT NAMED, or that it named none.
+        The band decides how much of a professional's week gets reserved, and
+        for most requests it is deliberately null — "I need a painter" does not
+        say whether that is a touch-up or a whole flat. Printing "no product"
+        rather than nothing is the point: a blank would be indistinguishable
+        from the badge not knowing, which is the confusion every other debug
+        line here exists to avoid.
+      */}
+      <span>· {outcome.result.band ? t("band", { band: outcome.result.band }) : t("noBand")}</span>
     </p>
   );
 }

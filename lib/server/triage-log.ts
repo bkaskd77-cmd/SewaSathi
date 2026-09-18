@@ -56,6 +56,14 @@ export async function logTriage(entry: TriageLogEntry): Promise<void> {
       input_text: entry.inputText.slice(0, 600) || null,
       had_photo: entry.hadPhoto,
       category: entry.result.category,
+      /*
+       * WHICH PRODUCT, OR NULL. This is the column that answers whether
+       * duration is the normal path or the exception, and it needs no
+       * `band_source` beside it: `source` below already says claude, cache or
+       * fallback, and a cache hit replays a model answer — so the derivation
+       * is exact and a second column would be a second thing to keep in step.
+       */
+      band: entry.result.band,
       urgency: entry.result.urgency,
       price_low: entry.result.priceRangeNPR[0],
       price_high: entry.result.priceRangeNPR[1],

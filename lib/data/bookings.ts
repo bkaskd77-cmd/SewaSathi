@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { recordSecurityEvent } from "@/lib/audit";
+
 import type { Locale } from "@/i18n/routing";
 import { hasRoom, isValidSlot, type QuoteModel } from "@/lib/booking";
 import {
@@ -158,6 +160,17 @@ export type BookingInput = {
    * freehand — and what the booking's duration then is, is nothing.
    */
   band?: string | null;
+  /**
+   * Which path named the product: the model, or the keyword matcher.
+   *
+   * A HINT, NOT A CLAIM, and it exists so a matcher rule found wrong later can
+   * be cleaned up at all. Three of the five band rules shipped in the matcher
+   * were wrong, and `no-water` from the defective `dhara` match is the same
+   * three bytes as `no-water` from the model reading a whole sentence — so
+   * without this, "clear the rows the bad rule touched" is not a query
+   * anybody can write. See `rebandBookings`.
+   */
+  bandSource?: string | null;
 };
 
 const schema = z.object({
@@ -179,6 +192,17 @@ const schema = z.object({
    * money and it is refused to browsers on every subsequent update.
    */
   band: z.string().trim().min(1).max(40).nullish(),
+  /*
+   * Deliberately not trusted, and worth being exact about why that is fine.
+   * It arrives in the same query string as the band, so somebody could set
+   * `model` on their own booking — and what that buys them is protection from
+   * a cleanup sweep on their own job's duration. It moves no money, every
+   * later update is refused by `enforce_booking_immutability`, and
+   * `rebandBookings` can ignore the column and clear by product and date
+   * instead. `triage_logs` is the authoritative record of what each path
+   * produced; this is the fast copy on the customer path.
+   */
+  bandSource: z.enum(["model", "matcher"]).nullish(),
 });
 
 const COLUMNS =
@@ -442,6 +466,9 @@ export async function createBooking(
            * existed.
            */
           band_slug: bandSlug,
+          // Only meaningful when a product was actually named. Recording a
+          // source for a null band would be a fact about nothing.
+          band_source: bandSlug ? (parsed.data.bandSource ?? null) : null,
           locale,
         })
         .select("id, reference")
@@ -801,4 +828,86 @@ export async function cancelBooking(
     console.error(`[bookings] cancel threw — ${describeError(thrown)}`);
     return { ok: false };
   }
+}
+
+/**
+ * Clear the product from bookings a band rule got wrong.
+ *
+ * WHY THIS EXISTS. Three of the five sub-band rules in the keyword matcher
+ * were wrong when they shipped: a gas leak filed as a burst pipe, a dripping
+ * tap filed as "no water" because the bare `dhara` just means TAP, and every
+ * appliance fault filed as a labour-only repair. They were caught before any
+ * real booking carried one, so nothing needed cleaning up — but the attempt to
+ * write that cleanup is what found the real gap. `no-water` from the defective
+ * match and `no-water` from the model reading a whole sentence are the same
+ * three bytes, so without `band_source` there was no query to write at all.
+ *
+ * IT CLEARS RATHER THAN RE-DERIVES, and that is the considered half. The
+ * original text is still on the booking, so re-running today's matcher over it
+ * is possible — and it would produce today's answer with no more evidence
+ * behind it than the wrong one had, while looking like a correction. A null is
+ * recoverable and says plainly that nobody knows; a second guess dressed as a
+ * fix is the thing rule 6 exists to stop. `sync_booking_duration` nulls the
+ * estimate along with the slug, so the booking falls back to the hold every
+ * unbanded booking already uses.
+ *
+ * `source` IS OPTIONAL BECAUSE THE STORED VALUE IS A HINT. It comes off a
+ * query string, so a sweep that has to be certain omits it and clears every
+ * booking of that product in the window instead. Over-clearing costs a
+ * scheduling estimate; under-clearing leaves a wrong one in the evidence.
+ *
+ * Service role, because no policy grants a customer or a professional the
+ * right to edit these columns and none should. Admin-only, and every run is
+ * written to `security_events` — see SECURITY.md.
+ */
+export async function rebandBookings(input: {
+  categorySlug: string;
+  bandSlug: string;
+  /** ISO instant. Only bookings created at or after this are touched. */
+  since: string;
+  /** Omit to clear regardless of which path named the product. */
+  source?: "model" | "matcher";
+  actorId: string;
+}): Promise<{ ok: true; cleared: number } | { ok: false; reason: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  let query = createAdminClient()
+    .from("bookings")
+    .update({ band_slug: null, band_source: null })
+    .eq("category_slug", input.categorySlug)
+    .eq("band_slug", input.bandSlug)
+    .gte("created_at", input.since);
+
+  if (input.source) query = query.eq("band_source", input.source);
+
+  const { data, error } = await query.select("id");
+
+  if (error) {
+    console.error(`[bookings] reband failed — ${describeError(error)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  const cleared = (data ?? []).length;
+
+  /*
+   * Logged even when it cleared nothing. "Somebody ran the sweep and it found
+   * none" and "nobody ran the sweep" are different facts, and only one of them
+   * means the wrong bands are still out there.
+   */
+  await recordSecurityEvent({
+    kind: "admin.action",
+    actorId: input.actorId,
+    actorRole: "admin",
+    subjectType: "booking",
+    detail: {
+      action: "rebandBookings",
+      categorySlug: input.categorySlug,
+      bandSlug: input.bandSlug,
+      since: input.since,
+      source: input.source ?? "any",
+      cleared,
+    },
+  });
+
+  return { ok: true, cleared };
 }

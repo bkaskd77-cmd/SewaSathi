@@ -187,7 +187,9 @@
         "unparseable": "the reply failed validation",
         "unreachable": "the request never arrived",
         "rejected": "rate limited or refused"
-      }
+      },
+      "band": "product {band}",
+      "noBand": "no product"
     }
   },
   "services": {

@@ -156,6 +156,29 @@ No admin UI exists. When it does:
    Everything above is written to make an admin's actions visible to another
    admin, not to make them impossible.
 
+### `rebandBookings` — the one admin sweep that edits customer bookings
+
+`lib/data/bookings.ts`. Service role, admin-only, and it exists because a
+sub-band rule can be found wrong after bookings have already been filed under
+it — three of the first five were. It clears `band_slug` and `band_source` on
+every booking of one product in a time window, and `sync_booking_duration`
+nulls the length estimate along with them.
+
+- **It only clears, never writes a new value.** The customer's own description
+  is still on the booking, so re-deriving a product from it is possible — and
+  would produce today's guess wearing the appearance of a correction. A null
+  says plainly that nobody knows.
+- **It touches no money and no state.** `band_slug` and the duration columns
+  are scheduling facts; the quote, the final amount and the payment state are
+  refused to this path as they are to every other.
+- **`band_source` is a browser-supplied hint**, so a sweep that has to be
+  certain omits it and clears by product and window alone. Over-clearing costs
+  a scheduling estimate; under-clearing leaves a wrong one in the evidence the
+  researched durations will be built from.
+- **Every run is written to `security_events` as `admin.action`, including runs
+  that clear nothing** — "somebody swept and found none" and "nobody swept" are
+  different facts and only one means the wrong bands are still out there.
+
 ### Break-glass — getting back in when the SMS never arrives
 
 Phone OTP is the only way into this product. That is a deliberate simplicity

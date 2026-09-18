@@ -58,6 +58,7 @@ export default async function BookPage({
   // length. Absent for anybody who reached /book without going through the
   // hero, which is an ordinary case and not a failure.
   const band = first(searchParams.band);
+  const bandSource = first(searchParams.bandSource);
 
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.flow");
@@ -155,6 +156,7 @@ export default async function BookPage({
             description: q,
             triageLogId,
             band,
+            bandSource,
           }}
           categories={categories.map((category) => {
             /*

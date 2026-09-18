@@ -1636,6 +1636,7 @@ describe("the settlement figures cannot be typed from a browser", () => {
     // it holds a professional's week. Neither moves a rupee, so a reader
     // scanning for the money checks would not think to add these to them.
     ["band_slug", "'blockage'", /not a browser's to set/i],
+    ["band_source", "'model'", /not a browser's to set/i],
     ["estimated_working_minutes", "20", /not a browser's to set/i],
     ["estimated_elapsed_days", "9", /not a browser's to set/i],
     ["provider_estimated_working_minutes", "20", /not a browser's to set/i],

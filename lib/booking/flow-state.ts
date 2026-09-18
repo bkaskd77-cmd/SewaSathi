@@ -64,6 +64,8 @@ export type FlowState = {
    * on their own booking and nothing more.
    */
   band: string | null;
+  /** Which path named it. A hint; the server validates and may ignore it. */
+  bandSource: string | null;
 };
 
 export const STORAGE_KEY = "sajilokaam-booking-draft";
@@ -86,6 +88,7 @@ export function initialState(seed: {
   description?: string | null;
   triageLogId?: string | null;
   band?: string | null;
+  bandSource?: string | null;
 }): FlowState {
   return {
     step: "problem",
@@ -104,6 +107,7 @@ export function initialState(seed: {
     paymentMethod: "cash",
     triageLogId: seed.triageLogId ?? null,
     band: seed.band ?? null,
+    bandSource: seed.bandSource ?? null,
   };
 }
 

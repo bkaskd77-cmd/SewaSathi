@@ -29,14 +29,25 @@ let address: string;
 let band: { low: number; high: number };
 let counter = 0;
 
-async function book(bandSlug: string | null): Promise<string> {
+async function book(
+  bandSlug: string | null,
+  bandSource: "model" | "matcher" | null = null,
+): Promise<string> {
   const { rows } = await pg.admin.query(
     `insert into public.bookings
        (reference, customer_id, category_slug, address_id, description,
-        quoted_min, quoted_max, band_slug)
-     values ($1, $2, 'painting', $3, 'Living room needs doing', $4, $5, $6)
+        quoted_min, quoted_max, band_slug, band_source)
+     values ($1, $2, 'painting', $3, 'Living room needs doing', $4, $5, $6, $7)
      returning id`,
-    [`SK-DUR${(counter += 1)}`, ANITA, address, band.low, band.high, bandSlug],
+    [
+      `SK-DUR${(counter += 1)}`,
+      ANITA,
+      address,
+      band.low,
+      band.high,
+      bandSlug,
+      bandSlug ? bandSource : null,
+    ],
   );
   return rows[0].id as string;
 }
@@ -288,5 +299,88 @@ describe("what actually happened, and what is refused as evidence", () => {
     const row = await durationOf(id);
     expect(row.actual_working_minutes).toBeNull();
     expect(row.duration_implausible_at).toBeNull();
+  });
+});
+
+
+/**
+ * Clearing the bookings a band rule got wrong.
+ *
+ * THE SWEEP THESE TESTS EXIST FOR is the one that could not be written. Three
+ * of the five sub-band rules in the keyword matcher shipped wrong, and
+ * `no-water` from the defective `dhara` match is the same three bytes as
+ * `no-water` from the model reading a whole sentence. `band_source` is what
+ * makes them separable, and this is the proof on rows rather than on an empty
+ * table — the live database happened to hold none, which is exactly the
+ * condition under which a cleanup tool goes untested and then does not work.
+ *
+ * SQL here rather than calling `rebandBookings`: that function needs a
+ * Supabase client and this harness is raw Postgres. The predicate is what
+ * matters and it is the same one — category, product, window, and optionally
+ * the source.
+ */
+describe("clearing a product a rule got wrong", () => {
+  const clear = async (source?: "model" | "matcher") =>
+    (
+      await pg.admin.query(
+        `update public.bookings
+            set band_slug = null, band_source = null
+          where category_slug = 'painting'
+            and band_slug = 'touch-up'
+            and created_at >= now() - interval '1 hour'
+            ${source ? "and band_source = $1" : ""}
+          returning id`,
+        source ? [source] : [],
+      )
+    ).rows.length;
+
+  it("clears the matcher's and leaves the model's", async () => {
+    await pg.admin.query("delete from public.bookings");
+    const fromMatcher = await book("touch-up", "matcher");
+    const fromModel = await book("touch-up", "model");
+
+    expect(await clear("matcher")).toBe(1);
+
+    expect((await durationOf(fromMatcher)).band_slug).toBeNull();
+    expect((await durationOf(fromModel)).band_slug).toBe("touch-up");
+  });
+
+  /*
+   * AND THE ESTIMATE GOES WITH IT. `sync_booking_duration` nulls the figures
+   * when the product is cleared, so a swept booking falls back to the hold
+   * every unbanded booking already uses rather than keeping a length derived
+   * from a product we have just decided was wrong.
+   */
+  it("takes the estimate away with the product", async () => {
+    await pg.admin.query("delete from public.bookings");
+    const id = await book("touch-up", "matcher");
+    expect((await durationOf(id)).estimated_working_minutes).not.toBeNull();
+
+    await clear("matcher");
+
+    const row = await durationOf(id);
+    expect(row.estimated_working_minutes).toBeNull();
+    expect(row.estimated_elapsed_days).toBeNull();
+  });
+
+  /*
+   * THE SOURCE IS A HINT, so a sweep that has to be certain omits it. Over-
+   * clearing costs a scheduling estimate; under-clearing leaves a wrong one in
+   * the evidence, and only one of those is recoverable.
+   */
+  it("clears regardless of source when no source is named", async () => {
+    await pg.admin.query("delete from public.bookings");
+    await book("touch-up", "matcher");
+    await book("touch-up", "model");
+    await book("touch-up", null);
+
+    expect(await clear()).toBe(3);
+  });
+
+  it("leaves other products alone", async () => {
+    await pg.admin.query("delete from public.bookings");
+    const other = await book("room-supplied", "matcher");
+    await clear();
+    expect((await durationOf(other)).band_slug).toBe("room-supplied");
   });
 });

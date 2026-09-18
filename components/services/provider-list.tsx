@@ -43,6 +43,7 @@ export type ListParams = {
    * that says the job is four days rather than two hours.
    */
   band?: string | null;
+  bandSource?: string | null;
 };
 
 export async function ProviderList({
@@ -131,6 +132,7 @@ export async function ProviderList({
               categorySlug={params.category}
               urgency={params.urgency}
               band={params.band}
+              bandSource={params.bandSource}
               q={params.q}
               index={index}
             />

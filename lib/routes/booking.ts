@@ -26,11 +26,17 @@ export function bookingHref(options: {
    * in.
    */
   band?: string | null;
+  /** Which path named it — see the note on `bandSource` in lib/data/bookings. */
+  bandSource?: string | null;
 }): string {
   const params = new URLSearchParams({ category: options.category });
   if (options.providerId) params.set("provider", options.providerId);
   if (options.urgency) params.set("urgency", options.urgency);
   if (options.q) params.set("q", options.q);
   if (options.band) params.set("band", options.band);
+  // Only alongside a band. A source for no product is a fact about nothing.
+  if (options.band && options.bandSource) {
+    params.set("bandSource", options.bandSource);
+  }
   return `/book?${params.toString()}`;
 }

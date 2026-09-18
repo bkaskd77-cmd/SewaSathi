@@ -242,6 +242,7 @@ export type Database = {
            * thing that ever makes the researched durations better.
            */
           band_slug: string | null;
+          band_source: string | null;
           estimated_working_minutes: number | null;
           estimated_elapsed_days: number | null;
           provider_estimated_working_minutes: number | null;
@@ -319,6 +320,7 @@ export type Database = {
           overbook_missed_at?: string | null;
           provider_visit_reviewed_at?: string | null;
           band_slug?: string | null;
+          band_source?: string | null;
           estimated_working_minutes?: number | null;
           estimated_elapsed_days?: number | null;
           provider_estimated_working_minutes?: number | null;
@@ -1329,6 +1331,7 @@ export type Database = {
           model: string | null;
           latency_ms: number | null;
           hazard: string | null;
+          band: string | null;
         };
         Insert: {
           id?: string;
@@ -1344,6 +1347,7 @@ export type Database = {
           model?: string | null;
           latency_ms?: number | null;
           hazard?: string | null;
+          band?: string | null;
         };
         Update: {
           id?: string;
@@ -1359,6 +1363,7 @@ export type Database = {
           model?: string | null;
           latency_ms?: number | null;
           hazard?: string | null;
+          band?: string | null;
         };
         Relationships: [
           {
