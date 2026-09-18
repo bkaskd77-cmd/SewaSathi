@@ -1643,6 +1643,20 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["provider_estimated_elapsed_days", "9", /not a browser's to set/i],
     ["actual_working_minutes", "20", /not a browser's to set/i],
     ["duration_implausible_at", "now()", /not a browser's to set/i],
+
+    /*
+     * The band correction, and it gets its OWN sentence rather than joining
+     * the duration block above. Both halves are a browser trying to settle an
+     * argument about price on its own: a customer stamping their own approval,
+     * or a professional stamping the customer's. Telling either of them "how
+     * long a job takes is not yours to set" would be answering a question
+     * nobody asked.
+     */
+    ["provider_band_slug", "'blockage'", /agreed through the app/i],
+    ["provider_band_at", "now()", /agreed through the app/i],
+    ["provider_band_reason", "'found a burst pipe'", /agreed through the app/i],
+    ["band_change_approved_at", "now()", /agreed through the app/i],
+    ["band_change_declined_at", "now()", /agreed through the app/i],
   ];
 
   /** Guarded, but on a condition rather than outright. Tested separately. */

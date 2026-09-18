@@ -172,6 +172,53 @@ const GUARDS: Record<string, Guard[]> = {
     },
   ],
 
+  enforce_price_correction: [
+    {
+      protects:
+        "The customer's own statement is never overwritten by the professional's correction.",
+      ifMissing:
+        "A correction edits band_slug and the only evidence of the disagreement is gone. That evidence is how we later learn, per product, how far our published ranges sit from the work — the same reason provider_estimated_working_minutes sits beside estimated_working_minutes.",
+      clauses: [
+        "new.band_slug is distinct from old.band_slug",
+        "does not rewrite what the customer said",
+      ],
+    },
+    {
+      protects: "A corrected product carries a reason.",
+      ifMissing:
+        "A price moves with no sentence attached and a dispute has one side on the record. Same rule final_amount_reason keeps.",
+      clauses: ["A corrected product needs a reason"],
+    },
+    {
+      protects:
+        "A correction cannot price the job below what the customer said it was.",
+      ifMissing:
+        "The anti-under-reporting design reopens through a different door: the fee is charged on max(final_amount, quoted_min), so a professional who cannot report a smaller NUMBER names a cheaper PRODUCT instead.",
+      clauses: [
+        "corrected_high < stated_low",
+        "below what the customer said it was",
+      ],
+    },
+    {
+      protects: "An agreed price is frozen.",
+      ifMissing:
+        "The 2x ceiling moves out from under an approval the customer gave for a different product.",
+      clauses: [
+        "old.band_change_approved_at is not null",
+        "An agreed price cannot be rewritten",
+      ],
+    },
+    {
+      protects: "Work cannot start on a correction nobody answered.",
+      ifMissing:
+        "The re-narrowed price arrives at SETTLEMENT instead — a professional standing in somebody's kitchen naming a new number, which is the exact position lib/payments/pricing.ts exists to keep people out of.",
+      clauses: [
+        "new.status = 'in_progress'",
+        "The customer has not answered the corrected price",
+      ],
+    },
+  ],
+
   sync_booking_days: [
     {
       protects:
