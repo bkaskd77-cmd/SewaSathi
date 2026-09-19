@@ -5,6 +5,18 @@ name: CI
 # paint check runs here because it needs a browser, which Vercel's builder does
 # not have; and the message check catches a key that exists in one language and
 # not the other, which next-intl renders as a raw key path rather than failing.
+#
+# TWO JOBS, AND THE SPLIT IS THE LESSON. The advisory gate used to be the sixth
+# step of this one job. On 2026-09-10 a CRITICAL advisory landed in Next 14,
+# fixable only by the Next 16 major upgrade — so that step failed, and every
+# step below it stopped running: lint, typecheck, the message and transition
+# checks, the tests, the build, the paint check, the flow check. Nine days and
+# seventy-one runs, all red at 37 seconds, while the notification emails kept
+# arriving and said nothing about which check had actually failed.
+#
+# A check that cannot pass must not be able to silence the checks that can. So
+# the advisories run in a job of their own: `verify` going red now means
+# something is wrong with the code, which is the only reason to look at it.
 on:
   push:
     branches: ["**"]
@@ -23,20 +35,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      # A dependency with a known advisory is a way in that nobody in this
-      # repository wrote, so this fails the build rather than printing a
-      # warning somebody scrolls past.
-      #
-      # GATED AT `critical`, NOT `high`, AND THAT IS A DECISION WITH AN EXPIRY.
-      # Today's two high-severity advisories are both Next 14 and both resolve
-      # only by upgrading to Next 16 — a major version, across next-intl and
-      # every route in the app. Gating at `high` today would mean a red CI on
-      # every commit until that migration lands, and a check that is always red
-      # is a check nobody reads. The upgrade is a named launch blocker rather
-      # than a note here; when it lands, this drops back to `high`.
-      - name: Dependency advisories
-        run: npm audit --audit-level=critical --omit=dev
 
       - run: npm run lint
 
@@ -82,3 +80,35 @@ jobs:
       # in three screens, signs in, and must come back to all of it.
       - name: Booking flows
         run: npm run check:flows
+
+  # ---------------------------------------------------------------------------
+  # Dependency advisories, in a job of their own
+  # ---------------------------------------------------------------------------
+  #
+  # A dependency with a known advisory is a way in that nobody in this
+  # repository wrote, so this fails rather than printing a warning somebody
+  # scrolls past — but it fails ALONE, and takes nothing down with it.
+  #
+  # `check:advisories` asks the question that is actually useful: not "is there
+  # an advisory" — there are twenty-seven, all waiting on one major upgrade —
+  # but "is there a NEW one, or has a known one got worse". The accepted list
+  # and the reasoning are in scripts/check-advisories.mjs, and every accepted
+  # entry is printed on every run so none of them becomes invisible.
+  #
+  # It is also in `npm run verify`, so a new advisory is found on the machine
+  # that introduced it rather than by email afterwards.
+  advisories:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Dependency advisories
+        run: npm run check:advisories
