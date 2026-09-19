@@ -1319,6 +1319,33 @@
       "claimed": "Reported. We will pay you for the trip and let you know.",
       "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything."
     },
+    "correction": {
+      "open": "This is a different job",
+      "title": "Tell the customer what it really is",
+      "bookedAs": "Booked as {product}",
+      "whatItIs": "What the job actually is",
+      "choose": "Choose the work",
+      "why": "Why it is different",
+      "whyPlaceholder": "What you found when you got here",
+      "thenWhat": "The customer sees this and has to agree before you start. If they say no, the job ends and you are paid for the trip.",
+      "send": "Send to the customer",
+      "cancel": "Leave it as it is",
+      "waiting": "Waiting for the customer to agree to {product}. You cannot start until they do.",
+      "agreed": "The customer agreed to {product}.",
+      "refused": "The customer did not agree, so this job has ended.",
+      "theNewProduct": "the new price",
+      "errors": {
+        "failed": "That did not send. Try again.",
+        "reasonRequired": "Say what you found — the customer sees this.",
+        "tooLate": "Work has already started, so this needs support.",
+        "notYours": "That job is not yours.",
+        "notFound": "That job could not be found.",
+        "notSignedIn": "Sign in again to do that.",
+        "notAProvider": "This account is not linked to a listing.",
+        "saveFailed": "That did not save. Try again.",
+        "notConfigured": "That is unavailable right now."
+      }
+    },
     "dashboard": {
       "title": "Your listing",
       "unlinked": "This account is not linked to a listing yet.",

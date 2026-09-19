@@ -11,6 +11,7 @@ import {
   declineJob,
   getMyProvider,
   offerOverbookAndClaim,
+  proposeBandCorrection,
   recordOverbookMiss,
 } from "@/lib/data/provider-jobs";
 import { replyToReview, submitVisitReview } from "@/lib/data/reviews";
@@ -349,4 +350,38 @@ export async function replyToReviewAction(
     return { ok: true };
   }
   return { ok: false, reason: result.reason };
+}
+
+/**
+ * "This is a different job from the one that was booked."
+ *
+ * The customer named a product when the triage card asked, and their answer set
+ * the price. Somebody who arrives and finds a burst pipe where "inspection
+ * only" was booked says so HERE, before starting work — `proposeBandCorrection`
+ * re-reads the booking, checks this is their job and that it has not started,
+ * and the database refuses `in_progress` until the customer has answered.
+ *
+ * Both paths are revalidated because both screens change: the professional's
+ * card becomes "waiting on the customer" and the customer's page grows a
+ * question they have to answer before anybody works.
+ */
+export async function proposeCorrectionAction(
+  bookingId: string,
+  bandSlug: string,
+  reason: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await proposeBandCorrection({
+    bookingId,
+    bandSlug,
+    reason,
+    actorId: profile.id,
+  });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  return result;
 }

@@ -74,6 +74,17 @@ export type ProviderJob = {
   quoteExpiresAt: string | null;
   quoteApprovedAt: string | null;
   quoteDeclinedAt: string | null;
+  /**
+   * The product the CUSTOMER named, and the one the professional says it
+   * actually is. Both, never one over the other — keeping them apart is what
+   * lets us ask later, per product, how far a published range sits from the
+   * work. `correctionState` in lib/booking reads the three stamps.
+   */
+  bandSlug: string | null;
+  providerBandSlug: string | null;
+  providerBandAt: string | null;
+  bandChangeApprovedAt: string | null;
+  bandChangeDeclinedAt: string | null;
   /** The listing that offered to squeeze this job in, if anybody did. */
   overbookOfferedBy: string | null;
   /** When they answered for the visit — their half of the sealed review pair. */
@@ -138,7 +149,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at, band_slug, provider_band_slug, provider_band_at, band_change_approved_at, band_change_declined_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -261,6 +272,13 @@ export async function listProviderJobs(
       quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+      bandSlug: (row.band_slug as string | null) ?? null,
+      providerBandSlug: (row.provider_band_slug as string | null) ?? null,
+      providerBandAt: (row.provider_band_at as string | null) ?? null,
+      bandChangeApprovedAt:
+        (row.band_change_approved_at as string | null) ?? null,
+      bandChangeDeclinedAt:
+        (row.band_change_declined_at as string | null) ?? null,
       overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
       providerVisitReviewedAt:
         (row.provider_visit_reviewed_at as string | null) ?? null,
@@ -617,6 +635,20 @@ export async function listOpenJobs(
       quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
       quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
       quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+      /*
+       * AN OPEN JOB CANNOT CARRY A CORRECTION. It has no professional, and a
+       * correction is one saying the product is wrong after seeing it. Nulls
+       * rather than a second select: reading columns that are structurally
+       * always null would cost a wider query on the list a professional
+       * refreshes most. `bandSlug` goes with them: this select does not carry
+       * it either, and reading it from a row that never had it would be a null
+       * dressed as a measurement.
+       */
+      bandSlug: null,
+      providerBandSlug: null,
+      providerBandAt: null,
+      bandChangeApprovedAt: null,
+      bandChangeDeclinedAt: null,
       overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
       providerVisitReviewedAt:
         (row.provider_visit_reviewed_at as string | null) ?? null,

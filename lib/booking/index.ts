@@ -134,3 +134,10 @@ export {
   type BandRange,
   type BandSource,
 } from "./band-bounds";
+
+export {
+  correctionState,
+  canProposeCorrection,
+  type CorrectionState,
+  type CorrectionFacts,
+} from "./correction";

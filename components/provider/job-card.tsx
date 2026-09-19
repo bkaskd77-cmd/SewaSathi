@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 import { Loader2, MapPin, Phone } from "lucide-react";
 
 import { ArrivalPanel } from "@/components/provider/arrival-panel";
+import {
+  CorrectionPanel,
+  type CorrectionProduct,
+} from "@/components/provider/correction-panel";
 import { VisitReview } from "@/components/provider/visit-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import {
   BOOKING_TRANSITIONS,
   type BookingStatus,
+  type CorrectionState,
   type QuoteState,
 } from "@/lib/booking";
 import { cn } from "@/lib/utils";
@@ -118,6 +123,19 @@ export type JobCardProps = {
    */
   open?: boolean;
   /** ISO instant, once an arrival has been recorded for this job. */
+  /**
+   * The price correction, when this trade has products to correct to.
+   *
+   * Null on a survey job and on an open one: neither has a published band for
+   * this professional to say is wrong. `correctionState` in lib/booking is what
+   * decides which of the four shapes it is in.
+   */
+  correction?: {
+    state: CorrectionState;
+    products: CorrectionProduct[];
+    statedLabel: string | null;
+    proposedLabel: string | null;
+  } | null;
   arrivedAt?: string | null;
   /** True once a wasted-trip claim exists, so the panel stops offering one. */
   noShowClaimed?: boolean;
@@ -308,6 +326,23 @@ export function JobCard(props: JobCardProps) {
           <Phone aria-hidden="true" className="size-3.5" />
           {props.customerName ?? t("callCustomer")}
         </a>
+      ) : null}
+
+      {/*
+        THE PRODUCT, BEFORE THE MONEY. It sits above the arrival and payment
+        blocks because it is the thing that has to be settled FIRST: the
+        database refuses `in_progress` while a correction is unanswered, so a
+        professional who cannot start work needs to find the reason here rather
+        than hunting for it under a commission line.
+      */}
+      {props.correction ? (
+        <CorrectionPanel
+          bookingId={props.id}
+          state={props.correction.state}
+          products={props.correction.products}
+          statedLabel={props.correction.statedLabel}
+          proposedLabel={props.correction.proposedLabel}
+        />
       ) : null}
 
       {/*

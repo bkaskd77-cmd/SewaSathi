@@ -10,15 +10,18 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
+import type { CorrectionProduct } from "@/components/provider/correction-panel";
 import {
   QUOTE_VALID_HOURS,
+  canProposeCorrection,
+  correctionState,
   formatInstant,
   formatSlotInstant,
   hasRoom,
   quoteState,
 } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
-import { getCategory } from "@/lib/data/categories";
+import { getCategory, getSubBands } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import {
   getMyProvider,
@@ -97,9 +100,20 @@ export default async function ProviderJobsPage() {
   // been given; "open" is work first refusal has lapsed on and anybody
   // eligible can take. An open job carries no customer name, phone or
   // doorstep — nobody has agreed to anything yet.
-  const [jobs, openJobs] = await Promise.all([
+  /*
+   * THE TRADE'S PRODUCTS, ONCE FOR THE PAGE.
+   *
+   * `getSubBands` is `cache()`d per request and falls back to the seed, so this
+   * is one query for every card rather than one each — and a card on an
+   * unreachable database still offers the products instead of an empty list.
+   * It goes in the same wave as the two job reads because none depends on
+   * another: three round trips in sequence is three, and this screen is opened
+   * by somebody standing between two jobs.
+   */
+  const [jobs, openJobs, subBands] = await Promise.all([
     listProviderJobs(profile!.id),
     listOpenJobs(profile!.id),
+    getSubBands(),
   ]);
 
   /*
@@ -135,6 +149,67 @@ export default async function ProviderJobsPage() {
     });
   };
 
+  /*
+   * "THIS IS A DIFFERENT JOB FROM THE ONE THAT WAS BOOKED."
+   *
+   * The customer named a product when the triage card asked, and their answer
+   * set the price — which gives them a reason to name a cheaper one than the
+   * job they have. The correction is how somebody standing in front of a burst
+   * pipe says so, and the database refuses `in_progress` until the customer has
+   * answered.
+   *
+   * THE PRODUCTS ARE EMPTY WHENEVER A PROPOSAL WOULD BE REFUSED. The panel
+   * shows its quiet "this is a different job" link only when it has something
+   * to offer, so the window in `canProposeCorrection` is what decides whether
+   * the link exists at all — rather than the link existing on a finished job
+   * and the server saying no afterwards.
+   *
+   * Labels are picked here because a sub-band's name is DATA, not interface
+   * copy — the same rule `categoryCopy` follows one level up, and the same
+   * choice `app/api/triage/route.ts` makes when it offers the products to the
+   * customer.
+   */
+  const correctionFor = (job: (typeof jobs)[number]) => {
+    // A survey job has no published band for anybody to say is wrong; its
+    // whole price arrives after the visit.
+    if (job.quoteModel === "survey") return null;
+
+    const state = correctionState(job);
+    const mine = subBands.filter(
+      (band) => band.categorySlug === job.categorySlug,
+    );
+    const labelOf = (slug: string | null) => {
+      if (!slug) return null;
+      const band = mine.find((entry) => entry.slug === slug);
+      if (!band) return null;
+      return locale === "ne" ? band.labelNe : band.labelEn;
+    };
+
+    const products: CorrectionProduct[] = canProposeCorrection({
+      status: job.status,
+      state,
+      quoteModel: job.quoteModel,
+    })
+      ? mine.map((band) => ({
+          slug: band.slug,
+          label: locale === "ne" ? band.labelNe : band.labelEn,
+          bandLabel:
+            formatBand({ min: band.low, max: band.high }, { locale }) ?? "",
+        }))
+      : [];
+
+    // Nothing to say and nothing to offer. Null rather than an empty panel, so
+    // the card is unchanged on the ordinary job.
+    if (state === "none" && products.length === 0) return null;
+
+    return {
+      state,
+      products,
+      statedLabel: labelOf(job.bandSlug),
+      proposedLabel: labelOf(job.providerBandSlug),
+    };
+  };
+
   // Category names are data, not interface copy, so they are resolved here
   // rather than in the card — and a function cannot cross to a Client
   // Component anyway.
@@ -146,6 +221,7 @@ export default async function ProviderJobsPage() {
         categoryName: category
           ? categoryCopy(category, locale).name
           : job.categorySlug,
+        correction: correctionFor(job),
       };
     }),
   );
@@ -243,9 +319,10 @@ export default async function ProviderJobsPage() {
           messages={{ provider: messages.provider }}
         >
           <div className="assemble mt-6 space-y-4">
-            {named.map(({ job, categoryName }, i) => (
+            {named.map(({ job, categoryName, correction }, i) => (
               <div key={job.id} style={{ ["--i" as string]: i }}>
                 <JobCard
+                  correction={correction}
                   id={job.id}
                   reference={job.reference}
                   status={job.status}
