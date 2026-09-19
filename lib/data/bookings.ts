@@ -1076,7 +1076,7 @@ export async function answerBandCorrection(input: {
   const { data: booking, error: readError } = await createClient()
     .from("bookings")
     .select(
-      "id, reference, customer_id, provider_id, status, provider_band_at, band_change_approved_at, band_change_declined_at",
+      "id, reference, customer_id, provider_id, status, provider_band_at, band_change_approved_at, band_change_declined_at, guarantee_claim_id",
     )
     .eq("id", input.bookingId)
     .maybeSingle();
@@ -1094,12 +1094,29 @@ export async function answerBandCorrection(input: {
 
   const now = new Date().toISOString();
   const admin = createAdminClient();
+  const isGuaranteeVisit = booking.guarantee_claim_id != null;
 
+  /*
+   * ON A GUARANTEE RETURN VISIT, AGREEING IS WHAT MAKES IT CHARGEABLE.
+   *
+   * The visit was created free — the guarantee promises a redo, not a bill —
+   * and `billable` turns on the customer's own agreement to the different
+   * problem, in the same statement that records it. Not on the professional's
+   * proposal, and NOT on the verdict: the verdict is written when the claim
+   * resolves, which is after the work, and a charge decided then is precisely
+   * the "billed at settlement" outcome this gate exists to prevent.
+   *
+   * `enforce_guarantee_visit` refuses the flip without the approval and once
+   * `started_at` is stamped, so the ordering here is checked rather than
+   * trusted.
+   */
   const { error } = await admin
     .from("bookings")
     .update(
       input.agreed
-        ? { band_change_approved_at: now }
+        ? isGuaranteeVisit
+          ? { band_change_approved_at: now, billable: true }
+          : { band_change_approved_at: now }
         : { band_change_declined_at: now },
     )
     .eq("id", input.bookingId);
@@ -1129,6 +1146,16 @@ export async function answerBandCorrection(input: {
     await recordCorrectionVisitFee({
       bookingId: input.bookingId,
       providerId: (booking.provider_id as string | null) ?? null,
+      /*
+       * COUNTED AS ITS OWN OUTCOME. A declined redo earns the same trip fee as
+       * a declined correction — the travel and the diagnosis were real work
+       * whoever turned out to be right, and unpaid callbacks are callbacks
+       * that stop being accepted. But a run of declined "different problem"
+       * claims by one professional is the pattern that matters while leakage
+       * scoring does not exist, and folded in with `band-declined` it would be
+       * invisible.
+       */
+      outcome: isGuaranteeVisit ? "redo-declined" : "band-declined",
     });
   }
 
@@ -1162,6 +1189,7 @@ export async function answerBandCorrection(input: {
 async function recordCorrectionVisitFee(input: {
   bookingId: string;
   providerId: string | null;
+  outcome: "band-declined" | "redo-declined";
 }): Promise<void> {
   if (!input.providerId) return;
 
@@ -1171,7 +1199,7 @@ async function recordCorrectionVisitFee(input: {
       .insert({
         booking_id: input.bookingId,
         provider_id: input.providerId,
-        outcome: "band-declined",
+        outcome: input.outcome,
         amount: PAYOUT_RULES.surveyVisitFeeNpr,
       });
 

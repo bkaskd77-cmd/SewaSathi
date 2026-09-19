@@ -51,6 +51,9 @@ export const refunds: LocalisedDocument = {
             p: "If the same fault comes back within the window for that service, we send somebody back and you pay nothing. That is the whole promise: the work put right, against the amount recorded for the job.",
           },
           {
+            p: "Looking at it and telling you what is wrong is always free, whatever the answer turns out to be. If it is a different problem rather than the same fault returning, you are quoted before any work starts and you decide then — nobody is asked to agree to a bill while somebody is standing in their house. It can never cost more than the original job.",
+          },
+          {
             dl: [
               {
                 term: "Repairs — plumbing, electrical, appliances, AC, carpentry, water tanks",
@@ -210,6 +213,9 @@ export const refunds: LocalisedDocument = {
         blocks: [
           {
             p: "त्यो सेवाका लागि तोकिएको अवधिभित्र उही समस्या फेरि देखियो भने हामी फेरि मान्छे पठाउँछौँ, र तपाईंले केही तिर्नु पर्दैन। वाचा यत्ति हो — काम फेरि मिलाइदिने, कामका लागि लेखिएको रकमसम्म।",
+          },
+          {
+            p: "हेरेर के बिग्रेको हो भन्नु सधैँ निःशुल्क हो, जवाफ जे भए पनि। उही बिग्रेको नभई अर्कै समस्या रहेछ भने काम सुरु गर्नुअघि नै मूल्य भनिन्छ र तपाईंले त्यहीँ निर्णय गर्नुहुन्छ — कोही घरभित्रै उभिएका बेला बिल मान्नुपर्ने अवस्थामा कसैलाई पारिँदैन। यो पहिलेको कामभन्दा महँगो कहिल्यै हुँदैन।",
           },
           {
             dl: [

@@ -143,6 +143,31 @@ const GUARDS: Record<string, Guard[]> = {
    * data-integrity rules about the return visit, of exactly the kind this
    * manifest exists for, and neither is expressible as a transition.
    */
+  enforce_guarantee_visit: [
+    {
+      protects:
+        "A free redo is never charged for at the door, and never charged for afterwards.",
+      ifMissing:
+        "Either a professional bills a customer who is already in their own house with no real choice, or the charge arrives at settlement for work nobody agreed to pay for. Both are the failure this whole design exists to prevent.",
+      clauses: [
+        "old.started_at is not null",
+        "new.band_change_approved_at is null",
+      ],
+    },
+    {
+      protects: "A chargeable visit is never laundered back into a free one.",
+      ifMissing:
+        "A bill the customer accepted is erased, which is also the obvious way to make an ordinary job look covered.",
+      clauses: ["old.billable and not new.billable"],
+    },
+    {
+      protects: "Ordinary bookings are untouched by any of it.",
+      ifMissing:
+        "A guard that reached past guarantee visits would refuse every settlement in the product.",
+      clauses: ["new.guarantee_claim_id is null"],
+    },
+  ],
+
   enforce_claim_transition: [
     {
       protects: "A claim is not repointed at a second return visit.",

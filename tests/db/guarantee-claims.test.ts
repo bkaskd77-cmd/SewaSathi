@@ -632,6 +632,130 @@ describe("the return visit is a real booking", () => {
     expect(held[0].n).toBe(0);
   });
 
+  /*
+   * THE GATE. Diagnosis is free; the charge for a different problem is agreed
+   * BEFORE remedial work, never sprung at the door and never applied
+   * afterwards.
+   */
+  describe("who pays, and when it stops being changeable", () => {
+    async function visitWithProposal(tag: string) {
+      const parent = await completedBooking(`SK-G${tag}A`);
+      const claim = await openClaim(parent);
+      const visit = await visitFor(claim, parent, `SK-G${tag}B`);
+      await pg.admin.query(
+        `update public.bookings
+            set provider_band_slug = 'blockage',
+                provider_band_reason = 'The old joint is fine; a different pipe has split',
+                provider_band_at = now()
+          where id = $1`,
+        [visit],
+      );
+      return { claim, visit };
+    }
+
+    it("refuses to charge before the customer has agreed", async () => {
+      const { visit } = await visitWithProposal("01");
+      await expect(
+        pg.admin.query(
+          "update public.bookings set billable = true where id = $1",
+          [visit],
+        ),
+      ).rejects.toThrow(/once the customer has agreed/i);
+    });
+
+    it("charges once they have", async () => {
+      const { visit } = await visitWithProposal("02");
+      await pg.admin.query(
+        `update public.bookings
+            set band_change_approved_at = now(), billable = true
+          where id = $1`,
+        [visit],
+      );
+      const { rows } = await pg.admin.query(
+        "select billable from public.bookings where id = $1",
+        [visit],
+      );
+      expect(rows[0].billable).toBe(true);
+    });
+
+    it("will not let work start while the question is open", async () => {
+      /*
+       * `enforce_price_correction`, unchanged and with no service-role bypass.
+       * On a visit booking its last clause means exactly this.
+       */
+      const { visit } = await visitWithProposal("03");
+      for (const status of ["accepted", "en_route"]) {
+        await pg.admin.query(
+          "update public.bookings set status = $1 where id = $2",
+          [status, visit],
+        );
+      }
+      await expect(
+        pg.admin.query(
+          "update public.bookings set status = 'in_progress' where id = $1",
+          [visit],
+        ),
+      ).rejects.toThrow(/has not answered the corrected price/i);
+    });
+
+    it("freezes who pays once work has begun", async () => {
+      /*
+       * `started_at` is stamped by the status trigger, so the line is a
+       * recorded moment rather than an argument afterwards. This is what stops
+       * the charge arriving at settlement.
+       */
+      const { visit } = await visitWithProposal("04");
+      await pg.admin.query(
+        `update public.bookings
+            set band_change_declined_at = now() where id = $1`,
+        [visit],
+      );
+      for (const status of ["accepted", "en_route", "in_progress"]) {
+        await pg.admin.query(
+          "update public.bookings set status = $1 where id = $2",
+          [status, visit],
+        );
+      }
+
+      await expect(
+        pg.admin.query(
+          `update public.bookings
+              set band_change_approved_at = now(), billable = true
+            where id = $1`,
+          [visit],
+        ),
+      ).rejects.toThrow(/work has already started/i);
+    });
+
+    it("never turns a chargeable visit free again", async () => {
+      const { visit } = await visitWithProposal("05");
+      await pg.admin.query(
+        `update public.bookings
+            set band_change_approved_at = now(), billable = true
+          where id = $1`,
+        [visit],
+      );
+      await expect(
+        pg.admin.query(
+          "update public.bookings set billable = false where id = $1",
+          [visit],
+        ),
+      ).rejects.toThrow(/cannot be made free again/i);
+    });
+
+    it("leaves ordinary bookings entirely alone", async () => {
+      // The function returns early on a null guarantee_claim_id. A guard that
+      // reached ordinary jobs would refuse every settlement in the product.
+      const parent = await completedBooking("SK-G06A");
+      const { rows } = await pg.admin.query(
+        "select billable, guarantee_claim_id from public.bookings where id = $1",
+        [parent],
+      );
+      expect(rows[0].billable).toBe(true);
+      expect(rows[0].guarantee_claim_id).toBeNull();
+    });
+  });
+
   it("is not free-able from a browser", async () => {
     /*
      * Both directions are real: a customer who could clear `billable` has a

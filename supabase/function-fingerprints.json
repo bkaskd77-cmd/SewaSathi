@@ -47,6 +47,10 @@
     "sha": "176915304a970b04",
     "file": "20260910000002_customer_risk.sql"
   },
+  "enforce_guarantee_visit": {
+    "sha": "6a7989b0a9606c44",
+    "file": "20260921000007_guarantee_visit_gate.sql"
+  },
   "enforce_payment_transition": {
     "sha": "6f667677f0171f51",
     "file": "20260902000001_payments.sql"

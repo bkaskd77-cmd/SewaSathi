@@ -71,6 +71,9 @@ export const standards: LocalisedDocument = {
             p: "What decides who pays is what you find when you get there, and you are the one who records it. Only the same fault coming back is unpaid. A different problem, nothing wrong, or damage caused since the last visit — all three become an ordinary job at the ordinary price and you are paid normally. The customer is told all of this before we send you out, so you are not the one breaking the news at their door.",
           },
           {
+            p: "Looking is always free and always covered, so you are never guessing at the doorstep to protect your own time. If it turns out to be a different problem, you say so in the app and the customer agrees before you start — never afterwards, and never more than the original job cost. If they say no, the job ends there and you are paid for the trip.",
+          },
+          {
             p: "That is why the verdict has to be honest in both directions. Calling a genuine recurrence something else takes money from a customer who was promised otherwise. Calling a new job a recurrence takes a morning's work from you for nothing.",
           },
           {
@@ -229,6 +232,9 @@ export const standards: LocalisedDocument = {
           },
           {
             p: "खर्च कसले बेहोर्ने भन्ने तपाईंले त्यहाँ पुगेर जे भेट्नुहुन्छ त्यसैले तय हुन्छ, र त्यो लेख्ने पनि तपाईं नै हो। उही समस्या फर्केको अवस्थामा मात्र ज्याला हुँदैन। अर्कै समस्या, केही नबिग्रेको अवस्था, वा गएपछि पुगेको क्षति — यी तीनै सामान्य काम बन्छन्, सामान्य मूल्य लाग्छ, र तपाईंले सधैँझैँ पाउनुहुन्छ। यी सबै कुरा हामीले तपाईंलाई पठाउनुअघि नै ग्राहकलाई भनिसकेका हुन्छौँ, त्यसैले ढोकैमा उभिएर यो कुरा सुनाउने काम तपाईंको होइन।",
+          },
+          {
+            p: "हेर्ने काम सधैँ निःशुल्क हो र त्यो हामी बेहोर्छौँ, त्यसैले आफ्नो समय जोगाउन ढोकैमा अनुमान लगाउनुपर्दैन। अर्कै समस्या रहेछ भने एपमै लेख्नुहोस्, र तपाईंले सुरु गर्नुअघि ग्राहकले मान्नुहुन्छ — पछि होइन, र पहिलेको कामभन्दा महँगो पनि होइन। मान्नुभएन भने काम त्यहीँ टुङ्गिन्छ र आउजाउको पैसा तपाईंले पाउनुहुन्छ।",
           },
           {
             p: "त्यसैले जे भेटिन्छ त्यही लेख्नुपर्छ, दुवैतिर। साँच्चै फर्केको समस्यालाई अर्कै भन्दा वाचा गरिएको ग्राहकबाट पैसा लिइन्छ। नयाँ काम भएकोलाई फर्केको भन्दा तपाईंकै आधा दिन सित्तैमा जान्छ।",
