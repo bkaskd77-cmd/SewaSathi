@@ -511,6 +511,20 @@ Where a change on one side cannot reach the other.
   trade, never per professional**: a trade where most quotes are declined is our
   pricing, not a list of people, which is the same rule
   `category_pricing_signals` follows and the same reason.
+- **The person a queue waits for has a screen, and the screen adds no rules.**
+  `survey_visit_fees` and `commission_appeals` were both born waiting for a
+  human decision and both sat pending with nowhere for that human to go.
+  `/admin/survey-fees` and `/admin/appeals` are the two hands, built
+  separately and deliberately not generalised into one queue framework — two
+  concrete screens whose evidence is different (a trip and a trade's decline
+  rate; an amount, a floor and a band) and whose sameness is a coincidence of
+  shape rather than of meaning. Neither re-implements a database rule: the
+  monthly cap is `enforce_survey_visit_fee`'s and reaches the reviewer as the
+  policy it is, and the commission recompute uses the `commission_bps` frozen
+  at settlement. Both re-read `profiles.role` inside the action, because a page
+  guard protects a screen and not the POST endpoint behind it. **A guarantee
+  refund still has no screen** and is a new money write path, kept out on
+  purpose.
 - **A trade whose price does not exist until somebody has looked.** Movers and
   packers carries `quote_model = 'survey'` and a **null band**, and the survey
   visit is a booking — a real professional at a real door — rather than a second

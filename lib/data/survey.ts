@@ -403,3 +403,255 @@ export async function expireStaleQuotes(
 
   return { expired };
 }
+
+/* ------------------------------------------------------------------ *
+ * The survey visit fee, waiting on a person
+ * ------------------------------------------------------------------ */
+
+export type PendingSurveyFee = {
+  id: string;
+  bookingId: string;
+  reference: string;
+  categorySlug: string;
+  providerId: string;
+  providerName: string | null;
+  /** `declined` or `expired` — what the customer did, or did not do. */
+  outcome: string;
+  /** Rupees, frozen when the row was written. */
+  amount: number;
+  createdAt: string;
+  /** Approved fees this professional already has this month. Cap is four. */
+  approvedThisMonth: number;
+  /**
+   * How often this TRADE's surveys are declined, as a percentage.
+   *
+   * Never the person's own rate. A high decline rate has three readings and
+   * only one is about somebody: quoting high, a ward where customers shop
+   * around, or OUR WHOLE PROPOSITION FOR THAT TRADE BEING MISPRICED. Read the
+   * wrong way round it is a list of people to punish for a price we set, which
+   * is why `survey_decline_signals` is grouped by category and why this number
+   * appears at the moment a human decides one fee and nowhere else.
+   */
+  tradeDeclineRate: number | null;
+};
+
+/**
+ * Every survey fee nobody has decided yet.
+ *
+ * Service role, because the queue is an admin screen and the table grants
+ * nobody insert or update by design — see the migration. The read is
+ * admin-only at the page and again in the action; this function is not the
+ * guard and does not pretend to be.
+ */
+export async function pendingSurveyFees(): Promise<PendingSurveyFee[]> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from("survey_visit_fees")
+      .select(
+        "id, booking_id, provider_id, outcome, amount, created_at, counts_for_month, bookings (reference, category_slug), providers (display_name)",
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      if (error) {
+        console.error(`[survey] fee queue failed — ${describeError(error)}`);
+      }
+      return [];
+    }
+
+    const rows = data as Array<Record<string, unknown>>;
+
+    /*
+     * The two counts the reviewer needs, both in one wave rather than per row.
+     * A queue that costs a query per entry is a queue somebody stops opening.
+     */
+    const [{ data: approved }, { data: signals }] = await Promise.all([
+      admin
+        .from("survey_visit_fees")
+        .select("provider_id, counts_for_month")
+        .eq("status", "approved"),
+      admin
+        .from("survey_decline_signals")
+        .select("category_slug, decline_rate_pct"),
+    ]);
+
+    const approvedCount = new Map<string, number>();
+    for (const row of (approved ?? []) as Record<string, unknown>[]) {
+      const key = `${row.provider_id as string}:${row.counts_for_month as string}`;
+      approvedCount.set(key, (approvedCount.get(key) ?? 0) + 1);
+    }
+
+    /*
+     * Several months come back per trade. The most recent wins — a rate from
+     * March is not evidence about a fee raised in September, and averaging
+     * them would bury a trade that has just started going wrong.
+     */
+    const declineRate = new Map<string, number>();
+    for (const row of (signals ?? []) as Record<string, unknown>[]) {
+      const slug = row.category_slug as string;
+      const pct = row.decline_rate_pct;
+      if (pct == null || declineRate.has(slug)) continue;
+      declineRate.set(slug, Number(pct));
+    }
+
+    return rows.map((row) => {
+      const booking = (row.bookings ?? null) as Record<string, unknown> | null;
+      const provider = (row.providers ?? null) as Record<string, unknown> | null;
+      const slug = (booking?.category_slug as string | null) ?? "";
+      return {
+        id: row.id as string,
+        bookingId: row.booking_id as string,
+        reference: (booking?.reference as string | null) ?? "—",
+        categorySlug: slug,
+        providerId: row.provider_id as string,
+        providerName: (provider?.display_name as string | null) ?? null,
+        outcome: row.outcome as string,
+        amount: Number(row.amount ?? 0),
+        createdAt: row.created_at as string,
+        approvedThisMonth:
+          approvedCount.get(
+            `${row.provider_id as string}:${row.counts_for_month as string}`,
+          ) ?? 0,
+        // Null is "we have not measured this trade", never zero. A 0% decline
+        // rate printed for a trade nobody has surveyed would read as evidence.
+        tradeDeclineRate: declineRate.has(slug)
+          ? (declineRate.get(slug) as number)
+          : null,
+      };
+    });
+  } catch (thrown) {
+    console.error(`[survey] fee queue threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
+/**
+ * Approve or refuse one survey visit fee.
+ *
+ * THE DEFAULT IS NOT PAID AND THIS IS THE ONLY THING THAT CHANGES IT. A fee
+ * that paid itself would be farmable — quote absurdly high, get declined,
+ * collect — so the row is born `pending` and a person decides, four times a
+ * month at most. This function is that person's hand, not a rule of its own.
+ *
+ * NOTHING HERE RE-IMPLEMENTS THE CAP. `enforce_survey_visit_fee` counts
+ * approved rows for the month and refuses the fifth, and it refuses any
+ * non-pending row with no `decided_by` — an approved row with nobody's name on
+ * it is the automatic payout the table exists to prevent, wearing a status. So
+ * a refusal comes back as the database's own and is reported, rather than
+ * being second-guessed by a number this file would have to keep in step.
+ *
+ * The write goes under the service role because the table grants nobody insert
+ * or update; the admin check is re-read here from the actor's profile and
+ * again in the action, because a server action is a public POST endpoint.
+ */
+export async function decideSurveyVisitFee(input: {
+  feeId: string;
+  approve: boolean;
+  note: string;
+  actorId: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const note = input.note.trim();
+  if (!note) return { ok: false, reason: "reasonRequired" };
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: actor } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", input.actorId)
+      .maybeSingle();
+    if ((actor?.role as string | null) !== "admin") {
+      return { ok: false, reason: "notAdmin" };
+    }
+
+    const { data: fee } = await admin
+      .from("survey_visit_fees")
+      .select("id, status")
+      .eq("id", input.feeId)
+      .maybeSingle();
+
+    if (!fee) return { ok: false, reason: "notFound" };
+    if (fee.status !== "pending") {
+      return { ok: false, reason: "alreadyDecided" };
+    }
+
+    const { error } = await admin
+      .from("survey_visit_fees")
+      .update({
+        status: input.approve ? "approved" : "rejected",
+        decided_by: input.actorId,
+        decided_at: new Date().toISOString(),
+        decision_note: note.slice(0, 600),
+      })
+      .eq("id", input.feeId)
+      // Guarded, so two reviewers deciding the same row at the same second
+      // produce one decision rather than the second overwriting the first.
+      .eq("status", "pending");
+
+    if (error) {
+      /*
+       * The monthly cap arrives here, as a check violation raised by the
+       * trigger. It is a normal outcome — a fifth honest trip in one month —
+       * and the reviewer is told which it was rather than "save failed".
+       */
+      const message = describeError(error);
+      if (/more survey visits than we pay for/i.test(message)) {
+        return { ok: false, reason: "monthlyCap" };
+      }
+      console.error(`[survey] fee decision failed — ${message}`);
+      return { ok: false, reason: "saveFailed" };
+    }
+
+    return { ok: true };
+  } catch (thrown) {
+    console.error(`[survey] fee decision threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+}
+
+/**
+ * This professional's own survey fees, for their dashboard.
+ *
+ * A FEE NOBODY CAN SEE IS A PROMISE NOBODY HAS BEEN MADE. The policy says we
+ * pay for the trip when a survey comes to nothing; until this read existed,
+ * the row was written, held pending, and never mentioned to the person it was
+ * written for. Through RLS — "Providers read their own survey fees" exists for
+ * exactly this.
+ */
+export async function mySurveyFees(): Promise<
+  Array<{ id: string; outcome: string; amount: number; status: string; createdAt: string }>
+> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    const { data, error } = await createClient()
+      .from("survey_visit_fees")
+      .select("id, outcome, amount, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error(`[survey] own fees failed — ${describeError(error)}`);
+      return [];
+    }
+
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id as string,
+      outcome: row.outcome as string,
+      amount: Number(row.amount ?? 0),
+      status: row.status as string,
+      createdAt: row.created_at as string,
+    }));
+  } catch (thrown) {
+    console.error(`[survey] own fees threw — ${describeError(thrown)}`);
+    return [];
+  }
+}

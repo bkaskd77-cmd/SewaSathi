@@ -1454,6 +1454,15 @@
         "empty": "Your record starts with your first job. Ratings, reviews and the number of jobs you have finished all show up here.",
         "notRated": "No ratings yet",
         "jobsLabel": "Jobs done"
+      },
+      "surveyFees": {
+        "heading": "Survey trips",
+        "body": "When a survey comes to nothing we pay for the journey. Each one is decided by a person, so nothing here is owed to you until it says approved.",
+        "status": {
+          "pending": "Waiting on us",
+          "approved": "Approved",
+          "rejected": "Not covered"
+        }
       }
     },
     "chrome": {
@@ -1534,6 +1543,54 @@
       "recovered": "Added to their next bill"
     },
     "openFailed": "Could not open that. Try once more.",
-    "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about."
+    "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",
+    "surveyFees": {
+      "title": "Survey trips",
+      "lead": "Somebody crossed the Valley to look at a job that did not happen. Nothing here has been paid — that is what this screen decides. The question is whether we cover this trip, not whether anybody did anything wrong.",
+      "empty": "Nothing waiting.",
+      "outcome": {
+        "declined": "The customer turned down the {trade} quote after the survey.",
+        "expired": "The customer let the {trade} quote lapse without answering."
+      },
+      "when": "Surveyed {when}",
+      "thisMonth": "Approved for this professional this month: {n} of {cap}",
+      "tradeRate": "{trade} quotes are declined {pct}% of the time",
+      "tradeRateUnknown": "No decline rate measured for {trade} yet",
+      "pays": "Pays {amount}",
+      "note": "Why",
+      "approve": "Pay the trip",
+      "refuse": "Do not pay",
+      "errors": {
+        "monthlyCap": "That is more survey visits than we pay for in one month. The cap counts approved trips only.",
+        "alreadyDecided": "Somebody has already decided this one.",
+        "reasonRequired": "Say why. This is the only record of the decision.",
+        "notAdmin": "You cannot decide this.",
+        "notFound": "That fee could not be found.",
+        "notConfigured": "That is unavailable right now.",
+        "saveFailed": "That did not save. Try again."
+      }
+    },
+    "appeals": {
+      "title": "Commission appeals",
+      "lead": "The fee is charged on the published floor when a job comes in under it, which is what makes under-reporting pointless — and occasionally lands on a job that really was a five-minute washer. Upholding waives the floor for this booking alone.",
+      "empty": "Nothing waiting.",
+      "trade": "{trade}",
+      "when": "Raised {when}",
+      "collected": "Collected",
+      "chargedOn": "Fee charged on",
+      "published": "Published band",
+      "unrecorded": "Not recorded",
+      "note": "Why",
+      "uphold": "Uphold — waive the floor",
+      "refuse": "Leave the floor",
+      "errors": {
+        "alreadyResolved": "Somebody has already answered this one.",
+        "reasonRequired": "Say why. This is the only record of the decision.",
+        "notAdmin": "You cannot decide this.",
+        "notFound": "That appeal could not be found.",
+        "notConfigured": "That is unavailable right now.",
+        "saveFailed": "That did not save. Try again."
+      }
+    }
   }
 }

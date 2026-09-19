@@ -1122,6 +1122,81 @@ export async function getCommissionAppeal(
   }
 }
 
+export type OpenAppeal = {
+  id: string;
+  bookingId: string;
+  reference: string;
+  categorySlug: string;
+  providerName: string | null;
+  reason: string;
+  createdAt: string;
+  /** What was actually collected. */
+  finalAmount: number | null;
+  /** The floor the fee was charged on, which is what they are appealing. */
+  commissionBasis: number | null;
+  /** The band frozen on the booking, so the reviewer can see the gap. */
+  quotedMin: number | null;
+  quotedMax: number | null;
+};
+
+/**
+ * Every commission appeal nobody has answered yet.
+ *
+ * THE EVIDENCE IS THE ARITHMETIC. What the customer paid, what the fee was
+ * charged on, and what the band said — because the question is not "is this
+ * person honest", it is "was this job genuinely smaller than the price we
+ * published". Those are different questions and only the second one is
+ * answerable from a screen.
+ *
+ * AND A WHOLE CATEGORY BUNCHING UNDER ITS FLOOR IS OUR MISPRICING, never a
+ * list of people: `category_pricing_signals` counts that per category and is
+ * deliberately never grouped by person. This queue is one appeal at a time.
+ *
+ * Service role, because `commission_appeals` grants nobody update and the
+ * admin check lives in the action and in `resolveCommissionAppeal`.
+ */
+export async function openCommissionAppeals(): Promise<OpenAppeal[]> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("commission_appeals")
+      .select(
+        "id, booking_id, reason, created_at, providers (display_name), bookings (reference, category_slug, final_amount, commission_basis, quoted_min, quoted_max)",
+      )
+      .eq("status", "open")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error(`[payments] appeal queue failed — ${describeError(error)}`);
+      return [];
+    }
+
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+      const booking = (row.bookings ?? null) as Record<string, unknown> | null;
+      const provider = (row.providers ?? null) as Record<string, unknown> | null;
+      const number = (value: unknown) =>
+        value == null ? null : Number(value);
+      return {
+        id: row.id as string,
+        bookingId: row.booking_id as string,
+        reference: (booking?.reference as string | null) ?? "—",
+        categorySlug: (booking?.category_slug as string | null) ?? "",
+        providerName: (provider?.display_name as string | null) ?? null,
+        reason: row.reason as string,
+        createdAt: row.created_at as string,
+        finalAmount: number(booking?.final_amount),
+        commissionBasis: number(booking?.commission_basis),
+        quotedMin: number(booking?.quoted_min),
+        quotedMax: number(booking?.quoted_max),
+      };
+    });
+  } catch (thrown) {
+    console.error(`[payments] appeal queue threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
 /**
  * "This job really was smaller than the band."
  *

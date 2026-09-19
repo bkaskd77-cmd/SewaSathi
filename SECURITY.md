@@ -46,7 +46,7 @@ subject and decides.
 | `advanceJobAction` | the assigned professional | one booking assigned to them | `getMyProvider` from session; RLS read; `canTransition`; status trigger |
 | `offerOverbookAction` | any professional the open job is visible to | claiming one open job, with an offer stamped on it | `getMyProvider` from session; the RLS read is the eligibility check; the offer is a service-role write because `enforce_booking_immutability` refuses it to browsers; the claim itself still goes through RLS so the race is settled by the policy |
 | `overbookMissAction` | the assigned professional who made the offer | handing back one job of theirs that they offered on | `getMyProvider` from session; RLS read; refuses unless `overbook_offered_by` is their own listing and the status is `accepted` or `en_route`; the release is service-role because a professional cannot write their own release through RLS |
-| _(no endpoint)_ `survey_visit_fees` | nobody writes through RLS | what we owe a surveyor for a visit the customer declined | no INSERT or UPDATE policy exists, same posture as `payments` and `commission_appeals`; rows are written by `lib/data/survey.ts` under the service role and `enforce_survey_visit_fee` refuses one with no recorded arrival, an approval with no `decided_by`, or a fifth approved fee in a month |
+| _(no provider endpoint)_ `survey_visit_fees` | no professional writes one, through RLS or otherwise | what we owe a surveyor for a visit the customer declined | no INSERT or UPDATE policy exists, same posture as `payments` and `commission_appeals`; rows are written by `lib/data/survey.ts` under the service role and `enforce_survey_visit_fee` refuses one with no recorded arrival, an approval with no `decided_by`, or a fifth approved fee in a month. A professional **reads** their own through RLS on `/provider` — `mySurveyFees` — and can change nothing about it. Approving one is an admin surface, below |
 | `recordSurveyQuoteAction` | the assigned professional | the surveyed range on one survey-priced booking of theirs | `getMyProvider` from session; RLS read proves the job is theirs; `enforce_survey_quote` refuses a rewrite after the customer has answered and refuses `in_progress` without an approval |
 | `declineJobAction` | the assigned professional | releasing that one booking | RLS read proves ownership, then a server write (an UPDATE may not make a row invisible to its writer) |
 | `claimJobAction` | any professional who covers it | one open, unassigned booking | the claim policy's `using` clause settles the race; refusals excluded |
@@ -67,6 +67,31 @@ bypass, because no path in this product does any of those legitimately.
 through RLS; reads are the customer's own, the professionals a claim names, and
 admins. The ledger is append-only and its trigger refuses UPDATE and DELETE for
 every caller, service role included.
+
+### Admin surfaces
+
+Every one of these re-reads `profiles.role` from the session **in the action**,
+not only on the page. A page guard stops somebody SEEING a screen and does
+nothing at all to stop them calling the server action behind it, which is a
+public POST endpoint like any other.
+
+| Endpoint | Who may call it | What it may act on | Enforced by |
+| --- | --- | --- | --- |
+| `decideClaimAction` | admins | one wasted-trip claim | role re-read in the action; `settleNoShowClaim` re-reads the claim |
+| `decideSurveyFeeAction` | admins | one pending survey visit fee | role re-read in the action **and** again in `decideSurveyVisitFee`; the update is guarded on `status = 'pending'` so two reviewers produce one decision; `enforce_survey_visit_fee` refuses an approval with no `decided_by` and the fifth approved fee in a month, on the UPDATE as well as the INSERT |
+| `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
+| `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess` |
+
+**Neither money queue can pay itself, and that is the point of both.**
+`survey_visit_fees` and `commission_appeals` are born waiting for a person
+because an automatic payoff is a farmable one — quote high, get declined,
+collect. The screens are that person's hand; they add no rule of their own and
+re-implement none of the database's, so a cap refusal reaches the reviewer as
+the policy it is rather than as a failed save.
+
+**Still no admin path issues a guarantee refund.** `tests/db/guarantee-claims.test.ts`
+proves one needs an admin, and today that means database access. It is a new
+money write path and is deliberately not bolted onto either queue.
 
 ### Public and machine surfaces
 
@@ -133,9 +158,11 @@ What we hold, why, who can read it, how long.
 
 ---
 
-## 3. The admin model — defined before it is built
+## 3. The admin model
 
-No admin UI exists. When it does:
+Four admin screens now exist — `/admin/applications`, `/admin/claims`,
+`/admin/survey-fees` and `/admin/appeals`, each listed above. The rules below
+were written before any of them and every one of them holds today:
 
 1. **Role in the database, not in a token.** `profiles.role` and `is_admin()`,
    which six policies already call. A role claim in a JWT is a role claim the

@@ -510,6 +510,171 @@ describe("the visit fee cannot be farmed", () => {
     expect(byCmd["SELECT"]).toBeGreaterThan(0);
   });
 
+  /*
+   * A LISTING OF ITS OWN PER TEST. The cap is per professional per month and
+   * the case above already spends Krishna's four, so anything that approves
+   * has to start from somebody who has not been paid yet — otherwise these
+   * would pass or fail depending on the order they ran in.
+   */
+  async function freshProvider(): Promise<string> {
+    counter += 1;
+    const profileId = `cccccccc-7${String(counter).padStart(3, "0")}-4999-8999-cccccccccccc`;
+    await pg.admin.query(
+      "insert into auth.users (id) values ($1) on conflict do nothing",
+      [profileId],
+    );
+    await pg.admin.query(
+      `insert into public.profiles (id, full_name, phone, role)
+       values ($1, $2, $3, 'provider')
+       on conflict (id) do nothing`,
+      [profileId, `Surveyor ${counter}`, `+97798170${String(counter).padStart(5, "0")}`],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.providers
+         (profile_id, display_name, base_rate, availability, standing,
+          is_verified, service_areas)
+       values ($1, $2, 4000, 'now', 'established', true, array['lalitpur-4'])
+       returning id`,
+      [profileId, `Surveyor ${counter}`],
+    );
+    const id = rows[0].id as string;
+    await pg.admin.query(
+      "insert into public.provider_categories (provider_id, category_slug) values ($1, 'movers-packers')",
+      [id],
+    );
+    return id;
+  }
+
+  /** A pending fee on a fresh listing, which is what the queue actually holds. */
+  async function pendingFee(providerId: string): Promise<string> {
+    const booking = await book({ survey: true, provider: providerId });
+    await pg.admin.query(
+      "insert into public.booking_arrivals (booking_id, provider_id) values ($1, $2)",
+      [booking, providerId],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.survey_visit_fees
+         (booking_id, provider_id, outcome, amount)
+       values ($1, $2, 'declined', 500) returning id`,
+      [booking, providerId],
+    );
+    return rows[0].id as string;
+  }
+
+  /*
+   * THE PATH THE ADMIN SCREEN ACTUALLY TAKES.
+   *
+   * Everything above proves the row cannot pay itself. These prove the one
+   * thing that CAN pay it behaves — `/admin/survey-fees` updates a pending row
+   * to `approved` under the service role, and every guard has to bite on that
+   * UPDATE and not only on the INSERT the earlier cases use.
+   */
+  it("approves a pending fee when a person signs it", async () => {
+    const feeId = await pendingFee(await freshProvider());
+
+    await pg.admin.query(
+      `update public.survey_visit_fees
+          set status = 'approved', decided_by = $1, decided_at = now(),
+              decision_note = 'Real trip, customer changed their mind'
+        where id = $2 and status = 'pending'`,
+      [ANITA, feeId],
+    );
+
+    const { rows: stored } = await pg.admin.query(
+      "select status, decided_by from public.survey_visit_fees where id = $1",
+      [feeId],
+    );
+    expect(stored[0].status).toBe("approved");
+    expect(stored[0].decided_by).toBe(ANITA);
+  });
+
+  it("refuses an approval by UPDATE with nobody's name on it", async () => {
+    /*
+     * The insert case is already covered. This is the one the screen can
+     * actually reach: a caller that sets the status and forgets the signature
+     * would have produced the automatic payout this table exists to prevent.
+     */
+    const feeId = await pendingFee(await freshProvider());
+
+    await expect(
+      pg.admin.query(
+        "update public.survey_visit_fees set status = 'approved' where id = $1",
+        [feeId],
+      ),
+    ).rejects.toThrow(/needs a person/);
+  });
+
+  it("caps the fifth approval when it arrives as an update", async () => {
+    /*
+     * The cap has to hold on the path a reviewer takes, not just on a row
+     * inserted pre-approved. A fifth honest trip in one month is a normal
+     * outcome, so the screen reports the refusal as a policy rather than as a
+     * failed save — which it can only do if the refusal actually happens here.
+     */
+    const provider = await freshProvider();
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      ids.push(await pendingFee(provider));
+    }
+
+    for (const id of ids.slice(0, 4)) {
+      await pg.admin.query(
+        `update public.survey_visit_fees
+            set status = 'approved', decided_by = $1, decided_at = now()
+          where id = $2`,
+        [ANITA, id],
+      );
+    }
+
+    await expect(
+      pg.admin.query(
+        `update public.survey_visit_fees
+            set status = 'approved', decided_by = $1, decided_at = now()
+          where id = $2`,
+        [ANITA, ids[4]],
+      ),
+    ).rejects.toThrow(/more survey visits than we pay for/);
+
+    // ...and refusing the fifth is always allowed. The cap is on what we pay,
+    // not on how many decisions a person may make.
+    await pg.admin.query(
+      `update public.survey_visit_fees
+          set status = 'rejected', decided_by = $1, decided_at = now()
+        where id = $2`,
+      [ANITA, ids[4]],
+    );
+  });
+
+  it("settles a race between two reviewers with one decision", async () => {
+    /*
+     * The screen's update is guarded on `status = 'pending'`, so a second
+     * reviewer deciding the same row a second later changes nothing rather
+     * than overwriting the first person's name on it.
+     */
+    const feeId = await pendingFee(await freshProvider());
+
+    await pg.admin.query(
+      `update public.survey_visit_fees
+          set status = 'approved', decided_by = $1, decided_at = now()
+        where id = $2 and status = 'pending'`,
+      [ANITA, feeId],
+    );
+    const second = await pg.admin.query(
+      `update public.survey_visit_fees
+          set status = 'rejected', decided_by = $1, decided_at = now()
+        where id = $2 and status = 'pending'`,
+      [KRISHNA, feeId],
+    );
+
+    expect(second.rowCount).toBe(0);
+    const { rows: stored } = await pg.admin.query(
+      "select status, decided_by from public.survey_visit_fees where id = $1",
+      [feeId],
+    );
+    expect(stored[0].status).toBe("approved");
+    expect(stored[0].decided_by).toBe(ANITA);
+  });
+
   it("reads the decline rate per TRADE, never per professional", async () => {
     /*
      * A high decline rate most likely means OUR pricing is wrong, not that

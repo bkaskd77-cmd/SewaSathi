@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { ShieldAlert, Wallet } from "lucide-react";
+import { Route, ShieldAlert, Wallet } from "lucide-react";
 
 import { AvailabilityControls } from "@/components/provider/availability-toggle";
 import { ClaimCard } from "@/components/provider/claim-card";
@@ -12,8 +12,9 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { claimsForProvider, openClaimsForTrade } from "@/lib/data/claims";
+import { mySurveyFees } from "@/lib/data/survey";
 import { getProviderDashboard } from "@/lib/data/provider-profile";
-import { formatMonth } from "@/lib/booking";
+import { formatInstant, formatMonth } from "@/lib/booking";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -82,9 +83,16 @@ export default async function ProviderDashboardPage() {
    * claim whose professional cannot return used to sit open where nobody could
    * see or take it; these are the ones now offered to the rest of the trade.
    */
-  const [claims, openToMe] = await Promise.all([
+  const [claims, openToMe, surveyFees] = await Promise.all([
     claimsForProvider(dashboard.providerId),
     openClaimsForTrade({ providerId: dashboard.providerId }),
+    /*
+     * A FEE NOBODY CAN SEE IS A PROMISE NOBODY HAS BEEN MADE. We say we pay
+     * for the trip when a survey comes to nothing; until this read existed the
+     * row was written, held pending, and never mentioned to the person it was
+     * written for. Through RLS — the policy exists for exactly this.
+     */
+    mySurveyFees(),
   ]);
   const live = claims.filter((claim) =>
     ["open", "dispatched", "attended"].includes(claim.status),
@@ -212,6 +220,41 @@ export default async function ProviderDashboardPage() {
           </p>
         ) : null}
       </section>
+
+      {/* SURVEY TRIPS, AND WHERE EACH ONE HAS GOT TO.
+          Every row is a journey somebody made for a job that did not happen.
+          `pending` is said plainly rather than shown as a figure they are
+          owed: the default is not paid, a person decides, and a number
+          presented as forthcoming when it is not yet is how a professional
+          comes to feel cheated by an honest process. */}
+      {surveyFees.length > 0 ? (
+        <section className="animate-rise mt-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <h2 className="text-body-sm flex items-center gap-2 font-semibold text-foreground">
+            <Route aria-hidden="true" className="size-4 text-primary" />
+            {t("surveyFees.heading")}
+          </h2>
+          <p className="text-caption mt-1 text-muted-foreground">
+            {t("surveyFees.body")}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {surveyFees.map((fee) => (
+              <li
+                key={fee.id}
+                className="flex items-baseline justify-between gap-4 text-body-sm"
+              >
+                <span className="text-muted-foreground">
+                  {t(`surveyFees.status.${fee.status}`)}
+                  {" · "}
+                  {formatInstant(fee.createdAt, locale)}
+                </span>
+                <span className="tabular-nums text-foreground">
+                  {formatNpr(fee.amount, { locale })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="animate-rise mt-4">
         <h2 className="text-body-sm flex items-center gap-2 font-semibold text-foreground">
