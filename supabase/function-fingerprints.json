@@ -28,8 +28,8 @@
     "file": "20260906000001_address_ownership.sql"
   },
   "enforce_booking_immutability": {
-    "sha": "3699f1a6b7b35672",
-    "file": "20260921000003_band_ask_signals.sql"
+    "sha": "1cf32853adbebea3",
+    "file": "20260921000005_guarantee_visit.sql"
   },
   "enforce_booking_transition": {
     "sha": "14a4e17195bb7f3f",

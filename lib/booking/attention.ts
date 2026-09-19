@@ -79,6 +79,15 @@ export type AttentionInput = {
   finalAmountApprovedAt: string | null;
   amountMismatchAt: string | null;
   paymentStatus: string;
+  /**
+   * False only on a guarantee return visit nobody is charged for.
+   *
+   * OPTIONAL AND DEFAULTING TO BILLABLE, which matches the column: every
+   * ordinary booking is billable and a check constraint refuses a free one
+   * that is not a guarantee visit. A caller that does not read the column gets
+   * the ordinary answer rather than a silently free job.
+   */
+  billable?: boolean;
   /*
    * OPTIONAL, because most callers predate corrections and a booking without
    * them is simply one nobody has corrected. Read through `correctionState`
@@ -137,7 +146,23 @@ export function attentionFor(booking: AttentionInput): AttentionKind | null {
 
   if (booking.amountMismatchAt) wanted.push("resolveMismatch");
 
-  if (booking.status === "completed" && booking.paymentStatus === "unpaid") {
+  /*
+   * NOBODY IS ASKED TO PAY FOR A FREE REDO.
+   *
+   * A guarantee return visit finishes `completed` and `unpaid` like any other
+   * job, because nothing is ever charged for it — so without this clause the
+   * dashboard would put "Pay now" on the visit we sent BECAUSE the first job
+   * failed. That is the single worst place in the product to ask somebody for
+   * money, and it would have been the default behaviour.
+   *
+   * The band on that visit is real and the professional's time is accounted
+   * for; `billable` is the one thing that says the customer does not pay it.
+   */
+  if (
+    booking.status === "completed" &&
+    booking.paymentStatus === "unpaid" &&
+    booking.billable !== false
+  ) {
     wanted.push("pay");
   }
 

@@ -116,6 +116,24 @@ const GUARDS: Record<string, Guard[]> = {
         "new.provider_estimated_working_minutes is distinct from old.provider_estimated_working_minutes",
       ],
     },
+    {
+      protects: "A corrected price is agreed through the app, not written.",
+      ifMissing:
+        "A professional stamps the customer's own approval on a price the customer never saw.",
+      clauses: [
+        "new.provider_band_slug is distinct from old.provider_band_slug",
+        "new.band_change_approved_at is distinct from old.band_change_approved_at",
+      ],
+    },
+    {
+      protects: "Whether anybody pays for a return visit is not a browser's.",
+      ifMissing:
+        "A customer flips `billable` and has a free job for the asking; a professional flips it the other way and bills for a redo of their own defect.",
+      clauses: [
+        "new.billable is distinct from old.billable",
+        "new.guarantee_claim_id is distinct from old.guarantee_claim_id",
+      ],
+    },
   ],
 
   enforce_booking_address_ownership: [

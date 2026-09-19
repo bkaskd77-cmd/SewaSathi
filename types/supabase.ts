@@ -253,6 +253,18 @@ export type Database = {
           provider_band_reason: string | null;
           band_change_approved_at: string | null;
           band_change_declined_at: string | null;
+          /**
+           * The return visit, and whether anybody pays for it.
+           *
+           * `billable` is TRUE on every ordinary booking — the column defaults
+           * that way and a check constraint refuses a free booking that is not
+           * a guarantee visit. The visit still carries the parent's band,
+           * because that band is what the professional's time is worth and
+           * what the customer is charged if the verdict says the fault was not
+           * ours.
+           */
+          guarantee_claim_id: string | null;
+          billable: boolean;
           estimated_working_minutes: number | null;
           estimated_elapsed_days: number | null;
           provider_estimated_working_minutes: number | null;
@@ -337,6 +349,8 @@ export type Database = {
           provider_band_reason?: string | null;
           band_change_approved_at?: string | null;
           band_change_declined_at?: string | null;
+          guarantee_claim_id?: string | null;
+          billable?: boolean;
           estimated_working_minutes?: number | null;
           estimated_elapsed_days?: number | null;
           provider_estimated_working_minutes?: number | null;

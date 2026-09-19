@@ -183,6 +183,44 @@ describe("an unanswered price correction", () => {
   });
 });
 
+/**
+ * The free return visit.
+ *
+ * It finishes `completed` and `unpaid` exactly like a job somebody owes money
+ * for, because nothing is ever charged — so the dashboard would have put
+ * "Pay now" on the visit we sent BECAUSE the first job failed. The worst
+ * possible place to ask for money, and it was the default behaviour.
+ */
+describe("a guarantee return visit", () => {
+  const visit: AttentionInput = {
+    ...base,
+    status: "completed",
+    paymentStatus: "unpaid",
+    billable: false,
+  };
+
+  it("never asks the customer to pay for it", () => {
+    expect(attentionFor(visit)).toBeNull();
+  });
+
+  it("still asks on the ordinary unpaid job beside it", () => {
+    expect(attentionFor({ ...visit, billable: true })).toBe("pay");
+  });
+
+  it("treats a caller that does not read the column as billable", () => {
+    const { billable: _omitted, ...withoutFlag } = visit;
+    expect(attentionFor(withoutFlag)).toBe("pay");
+  });
+
+  /**
+   * A visit that turned out to be a different problem IS billable — the
+   * verdict flips the flag — so it must ask like any other job.
+   */
+  it("asks once a verdict has made the visit billable", () => {
+    expect(attentionFor({ ...visit, billable: true })).toBe("pay");
+  });
+});
+
 describe("only one thing is asked at a time", () => {
   /**
    * A card with two calls to action has none. The blocking one wins, and the

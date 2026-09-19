@@ -1663,6 +1663,23 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["provider_band_reason", "'found a burst pipe'", /agreed through the app/i],
     ["band_change_approved_at", "now()", /agreed through the app/i],
     ["band_change_declined_at", "now()", /agreed through the app/i],
+
+    /*
+     * WHETHER ANYBODY PAYS FOR A RETURN VISIT.
+     *
+     * Both directions are real. A customer who could clear `billable` has a
+     * free job for the asking on any booking; a professional who could set it
+     * bills the customer for a redo of their own defect. And
+     * `guarantee_claim_id` is guarded with it because the check constraint
+     * ties them together — a booking may only be free if it is a guarantee
+     * visit, so being able to write one is being able to defeat the other.
+     */
+    ["billable", "false", /Who pays for a return visit/i],
+    [
+      "guarantee_claim_id",
+      "'00000000-0000-4000-8000-000000000000'",
+      /Who pays for a return visit/i,
+    ],
   ];
 
   /** Guarded, but on a condition rather than outright. Tested separately. */
