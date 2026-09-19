@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { attentionFor, isLiveBooking, summarise } from "@/lib/booking";
+import {
+  attentionFor,
+  isHappeningNow,
+  isLiveBooking,
+  summarise,
+} from "@/lib/booking";
 import type { AttentionInput } from "@/lib/booking";
 import type { BookingStatus } from "@/lib/booking";
 
@@ -248,6 +253,44 @@ describe("which half of the page a booking sits in", () => {
   it("splits the statuses with nothing left over", () => {
     for (const status of live) expect(isLiveBooking(status)).toBe(true);
     for (const status of done) expect(isLiveBooking(status)).toBe(false);
+  });
+
+  /**
+   * A guarantee claim keeps a finished job in flight.
+   *
+   * The status stays `completed` for ever — the claim is a second visit, not a
+   * rerun of the first — so the status alone filed a customer who had reported
+   * their tap leaking again under "Earlier", beside jobs closed months ago,
+   * while they waited for us to send somebody.
+   */
+  it("keeps a completed booking up while a claim is in flight", () => {
+    expect(
+      isHappeningNow({ status: "completed", hasLiveClaim: true }),
+    ).toBe(true);
+  });
+
+  it("files it away again once the claim is settled", () => {
+    expect(
+      isHappeningNow({ status: "completed", hasLiveClaim: false }),
+    ).toBe(false);
+    expect(isHappeningNow({ status: "completed" })).toBe(false);
+  });
+
+  it("changes nothing about a booking that is live on its own", () => {
+    for (const status of live) {
+      expect(isHappeningNow({ status })).toBe(true);
+    }
+  });
+
+  /**
+   * A claim cannot outlive its booking being cancelled, but if one ever did,
+   * the honest answer is still that something is happening on it — somebody is
+   * going out. The rule is about whether anybody is moving, not about status.
+   */
+  it("says so even on a cancelled booking with a claim", () => {
+    expect(
+      isHappeningNow({ status: "cancelled", hasLiveClaim: true }),
+    ).toBe(true);
   });
 });
 

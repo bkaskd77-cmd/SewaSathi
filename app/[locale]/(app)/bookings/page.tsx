@@ -12,13 +12,14 @@ import { getSessionProfile } from "@/lib/auth/session";
 import {
   attentionFor,
   formatSlotInstant,
-  isLiveBooking,
+  isHappeningNow,
   summarise,
 } from "@/lib/booking";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
+import { liveClaimsByBooking } from "@/lib/data/claims";
 import { unreadByBooking } from "@/lib/data/notifications";
 import { getProvider } from "@/lib/data/providers";
 import { formatBand, formatNpr } from "@/lib/utils";
@@ -68,6 +69,8 @@ export default async function BookingsPage() {
   const t = await getTranslations("booking.bookings");
   const tNote = await getTranslations("booking");
   const tServices = await getTranslations("services");
+  // The claim's own status sentences, already written for the booking page.
+  const tClaim = await getTranslations("booking.guarantee");
 
   // The middleware already guards this route. Repeated here because a page
   // that reads a session should not depend on something else having checked.
@@ -82,13 +85,31 @@ export default async function BookingsPage() {
     unreadByBooking(),
   ]);
 
+  /*
+   * A FINISHED JOB WITH A CLAIM ON IT IS NOT FINISHED.
+   *
+   * The status stays `completed` for ever — the claim is a second visit, not a
+   * rerun of the first — so a customer who had reported their tap leaking
+   * again found their booking filed under "Earlier", beside jobs closed in
+   * June, while they waited for us to send somebody. One query for the whole
+   * list, because this page ships no client JavaScript on purpose and a read
+   * per row would undo that on the connection it exists to serve.
+   */
+  const liveClaims = await liveClaimsByBooking(bookings.map((b) => b.id));
+
   const categoryName = (slug: string) => {
     const category = categories.find((c) => c.slug === slug);
     return category ? categoryCopy(category, locale).name : slug;
   };
 
-  const live = bookings.filter((b) => isLiveBooking(b.status));
-  const past = bookings.filter((b) => !isLiveBooking(b.status));
+  const happening = (booking: (typeof bookings)[number]) =>
+    isHappeningNow({
+      status: booking.status,
+      hasLiveClaim: liveClaims.has(booking.id),
+    });
+
+  const live = bookings.filter(happening);
+  const past = bookings.filter((b) => !happening(b));
 
   /*
    * WHO IS COMING. Only for live bookings, and only for the ones somebody has
@@ -129,6 +150,15 @@ export default async function BookingsPage() {
 
   /** The unread marker, already turned into a sentence. */
   const noteFor = (bookingId: string) => {
+    /*
+     * The claim outranks an unread notification, because it is the reason the
+     * booking is up here at all. "We are arranging a visit" is the answer to
+     * the question somebody opened this page with; a card promoted out of
+     * "Earlier" with nothing saying why reads as a bug.
+     */
+    const claim = liveClaims.get(bookingId);
+    if (claim) return tClaim(`status.${claim}`);
+
     const event = unread.get(bookingId);
     if (!event) return null;
     // The kind is "booking.declined"; next-intl reads a dot as nesting, so the

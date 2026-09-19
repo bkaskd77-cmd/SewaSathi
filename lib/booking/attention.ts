@@ -158,6 +158,29 @@ export function isLiveBooking(status: BookingStatus): boolean {
 }
 
 /**
+ * Is something still happening on this booking?
+ *
+ * A FINISHED JOB WITH A GUARANTEE CLAIM ON IT IS NOT FINISHED. The status is
+ * `completed` and always will be — the claim is a second visit, not a rerun of
+ * the first — so `isLiveBooking` filed it under "Earlier, quiet and small",
+ * beside jobs closed in June. Somebody who has reported that their tap is
+ * leaking again and is waiting for us to send a person was being shown their
+ * booking as history.
+ *
+ * SEPARATE FROM `attentionFor`, AND DELIBERATELY NOT ONE OF ITS KINDS. That
+ * rule answers "does this need ME"; a claim in flight needs US. Putting it in
+ * "Needs you" would ask the customer to act on the one thing they have already
+ * done, which is how a product teaches somebody their report was not received.
+ */
+export function isHappeningNow(booking: {
+  status: BookingStatus;
+  /** A guarantee claim at `open`, `dispatched` or `attended`. */
+  hasLiveClaim?: boolean;
+}): boolean {
+  return isLiveBooking(booking.status) || booking.hasLiveClaim === true;
+}
+
+/**
  * The customer's own history, counted honestly.
  *
  * ONLY WHAT WE ACTUALLY KNOW. `spent` sums recorded amounts on jobs that were

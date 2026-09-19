@@ -81,6 +81,7 @@ export {
 
 export {
   attentionFor,
+  isHappeningNow,
   isLiveBooking,
   summarise,
   type AttentionInput,

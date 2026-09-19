@@ -566,6 +566,53 @@ async function notifyProvider(
  * Reads
  * ------------------------------------------------------------------ */
 
+/**
+ * Which of these bookings has a claim in flight.
+ *
+ * ONE QUERY FOR THE WHOLE LIST. `/bookings` is the screen somebody opens to
+ * find out whether anything is happening, and it ships no client JavaScript
+ * precisely so it is correct on a connection that never finishes loading a
+ * bundle — a read per row would undo that on the slowest connection it exists
+ * to serve.
+ *
+ * THE STATUS, NOT A BOOLEAN. "We are arranging a visit" and "Somebody is
+ * coming to look" are different facts to somebody waiting, and collapsing them
+ * into "claim open" would be the list answering a question nobody asked.
+ *
+ * Through RLS, so this is the customer's own claims and nobody else's.
+ */
+export async function liveClaimsByBooking(
+  bookingIds: string[],
+): Promise<Map<string, ClaimStatus>> {
+  const live = new Map<string, ClaimStatus>();
+  if (!hasSupabaseConfig() || bookingIds.length === 0) return live;
+
+  try {
+    const { data, error } = await createClient()
+      .from("guarantee_claims")
+      .select("booking_id, status, opened_at")
+      .in("booking_id", bookingIds)
+      .in("status", ["open", "dispatched", "attended"])
+      .order("opened_at", { ascending: false });
+
+    if (error) {
+      console.error(`[claims] live read failed — ${describeError(error)}`);
+      return live;
+    }
+
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      const id = row.booking_id as string;
+      // Newest first, and the database refuses a second live claim on one
+      // booking anyway — so the first seen is the only one there is.
+      if (!live.has(id)) live.set(id, row.status as ClaimStatus);
+    }
+    return live;
+  } catch (thrown) {
+    console.error(`[claims] live read threw — ${describeError(thrown)}`);
+    return live;
+  }
+}
+
 /** Claims on one booking, for the customer looking at it. Through RLS. */
 export async function claimsForBooking(bookingId: string): Promise<ClaimRow[]> {
   if (!hasSupabaseConfig()) return [];
