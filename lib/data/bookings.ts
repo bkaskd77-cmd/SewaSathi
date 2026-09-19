@@ -96,6 +96,26 @@ export type Booking = {
   quoteExpiresAt: string | null;
   quoteApprovedAt: string | null;
   quoteDeclinedAt: string | null;
+  /**
+   * The professional says the job is a different product from the one booked.
+   *
+   * SEPARATE FROM `bandSlug`, NEVER OVERWRITING IT. `bandSlug` is what the
+   * customer said when the triage card asked, and their answer set the price;
+   * these columns are what somebody who actually saw the job says instead. Both
+   * are kept because the disagreement is the record — the customer agreed to a
+   * change or they did not, and the money moved on that answer.
+   *
+   * `providerBandAt` is the existence test rather than the slug: the foreign
+   * key is `on delete set null`, so retiring a product from the catalogue
+   * months later must not turn an answered correction back into "none". See
+   * `correctionState` in lib/booking.
+   */
+  providerBandSlug: string | null;
+  /** Why, in their own words. The customer reads this, not a new number. */
+  providerBandReason: string | null;
+  providerBandAt: string | null;
+  bandChangeApprovedAt: string | null;
+  bandChangeDeclinedAt: string | null;
   /** The listing that offered to fit this job in beside one they already held. */
   overbookOfferedBy: string | null;
   finalAmount: number | null;
@@ -245,7 +265,7 @@ export const bookingInputSchema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, band_slug, band_source, estimated_working_minutes, estimated_elapsed_days, provider_estimated_working_minutes, provider_estimated_elapsed_days, actual_working_minutes, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
+  "id, reference, category_slug, band_slug, band_source, estimated_working_minutes, estimated_elapsed_days, provider_estimated_working_minutes, provider_estimated_elapsed_days, actual_working_minutes, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, provider_band_slug, provider_band_reason, provider_band_at, band_change_approved_at, band_change_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -281,6 +301,13 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     quoteExpiresAt: (row.quote_expires_at as string | null) ?? null,
     quoteApprovedAt: (row.quote_approved_at as string | null) ?? null,
     quoteDeclinedAt: (row.quote_declined_at as string | null) ?? null,
+    providerBandSlug: (row.provider_band_slug as string | null) ?? null,
+    providerBandReason: (row.provider_band_reason as string | null) ?? null,
+    providerBandAt: (row.provider_band_at as string | null) ?? null,
+    bandChangeApprovedAt:
+      (row.band_change_approved_at as string | null) ?? null,
+    bandChangeDeclinedAt:
+      (row.band_change_declined_at as string | null) ?? null,
     overbookOfferedBy: (row.overbook_offered_by as string | null) ?? null,
     finalAmount: (row.final_amount as number | null) ?? null,
     finalAmountReason: (row.final_amount_reason as string | null) ?? null,

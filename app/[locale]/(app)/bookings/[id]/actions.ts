@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/session";
 import { checkDispatchNow } from "@/lib/data/dispatch";
 import { site } from "@/lib/config/site";
-import { cancelBooking, chooseProvider, getBooking } from "@/lib/data/bookings";
+import {
+  answerBandCorrection,
+  cancelBooking,
+  chooseProvider,
+  getBooking,
+} from "@/lib/data/bookings";
 import { getCategory } from "@/lib/data/categories";
 import {
   abandonPayment,
@@ -371,6 +376,52 @@ export async function respondToQuoteAction(
   if (result.ok) {
     revalidatePath(`/bookings/${bookingId}`);
     revalidatePath("/bookings");
+    return { ok: true };
+  }
+  return { ok: false, reason: result.reason };
+}
+
+/**
+ * The customer answering "this is a different job from the one you booked".
+ *
+ * THE ANSWER IS THE GATE. `enforce_price_correction` will not let the booking
+ * reach `in_progress` while the question is open, so the job genuinely does not
+ * start until this runs — which is the whole reason the correction happens at
+ * the door rather than at settlement, with somebody standing in the kitchen and
+ * the work already done.
+ *
+ * AGREEING MOVES THE MONEY NUMBERS AND NOT FROM HERE.
+ * `sync_booking_quote_floor` recomputes `quoted_min`, `quoted_max` and
+ * `band_min` from the band now in force. Every check is in
+ * `answerBandCorrection`: it re-reads the booking through RLS, confirms this is
+ * the customer's own, and refuses an answer to a question nobody asked or one
+ * already answered.
+ *
+ * DECLINING ENDS THE BOOKING AND IS RECORDED AGAINST NOBODY. A customer who
+ * will not pay for the product it turned out to be is not a customer with a
+ * booking, and counting the refusal would teach professionals to start the work
+ * first and correct afterwards.
+ *
+ * Both routes are revalidated because both screens change — the professional's
+ * card stops saying "waiting on the customer".
+ */
+export async function answerCorrectionAction(
+  bookingId: string,
+  agreed: boolean,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await answerBandCorrection({
+    bookingId,
+    agreed,
+    actorId: profile.id,
+  });
+
+  if (result.ok) {
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath("/bookings");
+    revalidatePath("/provider/jobs");
     return { ok: true };
   }
   return { ok: false, reason: result.reason };

@@ -18,6 +18,7 @@ import {
   PaymentPanel,
   type PaymentStage,
 } from "@/components/booking/payment-panel";
+import { CorrectionAnswer } from "@/components/booking/correction-answer";
 import { QuotePanel } from "@/components/booking/quote-panel";
 import { ReviewForm } from "@/components/booking/review-form";
 import { StatusBadge } from "@/components/booking/status-badge";
@@ -25,7 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { dispatchStage, formatInstant, formatSlotInstant } from "@/lib/booking";
+import {
+  correctionState,
+  dispatchStage,
+  formatInstant,
+  formatSlotInstant,
+} from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { guaranteeFor } from "@/lib/config/guarantee";
@@ -34,7 +40,7 @@ import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking, listRefusals } from "@/lib/data/bookings";
-import { getCategory } from "@/lib/data/categories";
+import { getCategory, getSubBands } from "@/lib/data/categories";
 import { claimEligibility, claimsForBooking } from "@/lib/data/claims";
 import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
@@ -113,9 +119,24 @@ export default async function BookingDetailPage({
    * The refusals are the only genuine dependency: the replacement list is
    * built from them, so it waits. Everything else goes now.
    */
-  const [category, address, provider, photoUrl, payments, providerPhone, review, refusalRows] =
+  const [
+    category,
+    subBands,
+    address,
+    provider,
+    photoUrl,
+    payments,
+    providerPhone,
+    review,
+    refusalRows,
+  ] =
     await Promise.all([
       getCategory(booking.categorySlug),
+      // For the price correction: the products this trade publishes, so a
+      // slug can be named and its range shown. `cache()`d per request and
+      // seed-backed like every other catalogue read, and it depends on
+      // nothing, so it costs no extra wave.
+      getSubBands(),
       getAddress(booking.addressId),
       booking.providerId
         ? getProvider(booking.providerId)
@@ -315,6 +336,34 @@ export default async function BookingDetailPage({
   );
   const quoteLabel = bandLabel ?? tServices("surveyPriced");
 
+  /*
+   * "THIS IS A DIFFERENT JOB FROM THE ONE YOU BOOKED."
+   *
+   * The customer named a product when the triage card asked, and their answer
+   * set the price. A professional who has now seen the job can say it is
+   * something else, and `enforce_price_correction` refuses `in_progress` until
+   * the customer has answered — so this is a gate and not a notice.
+   *
+   * THE NEW RANGE IS READ FROM THE PRODUCT, NOT FROM THE BOOKING, and that is
+   * deliberate: `sync_booking_quote_floor` moves `quoted_min` and `quoted_max`
+   * only once the correction is agreed, so before the answer the booking still
+   * carries the range they are being asked to leave. Showing both is the whole
+   * question.
+   *
+   * Labels are picked here because a product's name is DATA, not interface
+   * copy — the same rule `categoryCopy` follows one level up.
+   */
+  const correction = correctionState(booking);
+  const tradeBands = subBands.filter(
+    (band) => band.categorySlug === booking.categorySlug,
+  );
+  const findBand = (slug: string | null) =>
+    slug ? (tradeBands.find((band) => band.slug === slug) ?? null) : null;
+  const statedBand = findBand(booking.bandSlug);
+  const proposedBand = findBand(booking.providerBandSlug);
+  const nameOf = (band: (typeof tradeBands)[number] | null) =>
+    band ? (locale === "ne" ? band.labelNe : band.labelEn) : null;
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <Button variant="ghost" size="sm" asChild className="animate-rise -ml-2">
@@ -383,6 +432,37 @@ export default async function BookingDetailPage({
             bookingId={booking.id}
             submitted={review.submitted}
             published={review.published}
+          />
+        </NextIntlClientProvider>
+      ) : null}
+
+      {/* THE OTHER GATE, AND IT OUTRANKS EVERYTHING BELOW IT.
+
+          A booking whose product is in dispute cannot start, so this goes
+          where the eye lands rather than under the status card. `none` renders
+          nothing at all, which is the ordinary job. */}
+      {correction !== "none" ? (
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ booking: messages.booking }}
+        >
+          <CorrectionAnswer
+            bookingId={booking.id}
+            state={correction}
+            providerName={provider?.displayName ?? null}
+            statedLabel={nameOf(statedBand)}
+            proposedLabel={nameOf(proposedBand)}
+            reason={booking.providerBandReason}
+            oldBandLabel={bandLabel}
+            newBandLabel={
+              proposedBand
+                ? formatBand(
+                    { min: proposedBand.low, max: proposedBand.high },
+                    { locale },
+                  )
+                : null
+            }
+            onAskAgain={`/services/${booking.categorySlug}`}
           />
         </NextIntlClientProvider>
       ) : null}

@@ -929,6 +929,36 @@
         "badRating": "Pick a rating from one to five.",
         "failed": "That did not go through. Try again."
       }
+    },
+    "correction": {
+      "title": "Your professional says this is a different job",
+      "titleNamed": "{name} says this is a different job",
+      "bookedAs": "You booked {product}",
+      "saysItIs": "They say it is {product}",
+      "reasonLabel": "What they found",
+      "priceWas": "Quoted",
+      "priceNow": "New quote",
+      "ifYouAgree": "If you agree, the quote becomes this range and they can start. Nothing is charged now — you still agree the final figure with them when the work is done.",
+      "ifYouDont": "If you do not agree, the booking ends. You pay nothing for the work, only for the trip they have already made.",
+      "agree": "Yes, that is the job",
+      "agreeing": "Sending…",
+      "decline": "No, end the booking",
+      "declining": "Ending…",
+      "agreedTitle": "You agreed to the change",
+      "agreedProduct": "This job is now {product}.",
+      "refusedTitle": "You did not agree, so this booking has ended",
+      "refusedBody": "Nothing is owed for the work. You can ask somebody else whenever you are ready.",
+      "askAgain": "Find somebody else",
+      "errors": {
+        "failed": "That did not go through. Try again.",
+        "alreadyAnswered": "You have already answered this.",
+        "noCorrection": "There is nothing to answer here any more.",
+        "notYours": "That booking is not yours.",
+        "notFound": "That booking could not be found.",
+        "notSignedIn": "Sign in again to answer this.",
+        "saveFailed": "That did not save. Try again.",
+        "notConfigured": "That is unavailable right now."
+      }
     }
   },
   "safety": {
