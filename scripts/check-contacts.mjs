@@ -191,14 +191,51 @@ function main() {
   }
   selfTest();
 
+  /*
+   * A DIRECTORY WE CANNOT READ IS NOT A DIRECTORY WITH NOTHING IN IT.
+   *
+   * This returned `[]` on a throw, so a renamed or missing entry in SCAN
+   * contributed no files, no files meant no problems, and the check passed
+   * while looking at less of the product than it claims to. Exactly the shape
+   * of the npm-audit false green: "could not read" collapsing into "nothing
+   * found". `check-launch-blockers.mjs` is the model — unreadable is not
+   * evidence that anything is fine.
+   *
+   * And the floor matters as much as the catch. Five readable directories and
+   * one silently empty is the same blindness in miniature, so every entry in
+   * SCAN has to yield something: they are six fixed paths in this repository,
+   * not a glob that might legitimately match nothing.
+   */
+  const unreadable = [];
+  const empty = [];
   const files = SCAN.flatMap((dir) => {
     const full = path.join(ROOT, dir);
+    let found;
     try {
-      return walk(full);
-    } catch {
+      found = walk(full);
+    } catch (error) {
+      unreadable.push(`${dir} — ${error.message}`);
       return [];
     }
+    if (found.length === 0) empty.push(dir);
+    return found;
   });
+
+  if (unreadable.length > 0 || empty.length > 0) {
+    console.error("");
+    for (const entry of unreadable) {
+      console.error(`  UNREADABLE  ${entry}`);
+    }
+    for (const dir of empty) {
+      console.error(`  EMPTY       ${dir} yielded no files to scan`);
+    }
+    console.error(
+      "\n  This is NOT a pass. The check looked at less of the product than it\n" +
+        "  is supposed to, which is indistinguishable from finding nothing wrong.\n" +
+        "  Fix the path, or update SCAN if a directory genuinely moved.\n",
+    );
+    process.exit(2);
+  }
 
   let failures = 0;
   for (const file of files) {

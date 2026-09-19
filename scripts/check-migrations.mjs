@@ -223,15 +223,39 @@ for (const [name, def] of [...definitions].sort()) {
 
 const FINGERPRINT_FILE = path.join(process.cwd(), "supabase/function-fingerprints.json");
 const rendered = JSON.stringify(fingerprints, null, 2) + "\n";
+const wanted = process.argv.includes("--write");
+
+/*
+ * A MISSING FINGERPRINT FILE IS A FAILURE, NOT A FIRST RUN.
+ *
+ * This used to write the file whenever it could not be read, which made
+ * deleting it a way to get a clean regeneration and a pass — on the one file
+ * `/api/health` compares production against. The drift it exists to catch
+ * would go with it, silently. Same class as the npm-audit false green:
+ * "cannot read" must not collapse into "nothing to report".
+ *
+ * `--write` is the one case where creating it is the whole point, so that path
+ * is unchanged. Everything else says so and stops.
+ */
 const existing = (() => {
   try {
     return readFileSync(FINGERPRINT_FILE, "utf8");
-  } catch {
-    return null;
+  } catch (error) {
+    if (wanted) return null;
+    console.error("\nMigration check failed:");
+    console.error(
+      `  - supabase/function-fingerprints.json could not be read — ${error.message}`,
+    );
+    console.error(
+      "    It is what /api/health compares production against, so its absence is\n" +
+        "    a hole rather than a fresh start. Restore it from git, or run\n" +
+        "    `npm run check:migrations -- --write` if you meant to create it.\n",
+    );
+    process.exit(1);
   }
 })();
 
-if (process.argv.includes("--write") || existing === null) {
+if (wanted || existing === null) {
   writeFileSync(FINGERPRINT_FILE, rendered);
   console.log(`  wrote ${Object.keys(fingerprints).length} function fingerprints`);
 } else if (existing !== rendered) {
