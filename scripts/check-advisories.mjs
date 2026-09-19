@@ -76,6 +76,33 @@ try {
   process.exit(2);
 }
 
+/*
+ * A REPORT THAT IS NOT A REPORT.
+ *
+ * This is the hole the first version of this file shipped with, and it gave a
+ * false green within two days of being written. `npm audit --json` can exit
+ * ZERO, emit valid JSON, and have that JSON be an HTTP error envelope rather
+ * than a result — `{statusCode, error, message, body, headers, method, uri}`
+ * with no `vulnerabilities` key at all. "Invalid package tree" does exactly
+ * that. `report.vulnerabilities ?? {}` then read it as an empty set of
+ * findings, printed "0 accepted, nothing new" and exited 0, on a project with
+ * a known unpatched critical.
+ *
+ * The exit-2 path below already said "no answer is not a pass" and it was
+ * right; it just only covered JSON that would not parse. Parsing fine and
+ * meaning nothing is the same event, so it gets the same answer.
+ */
+if (!report || typeof report !== "object" || !("vulnerabilities" in report)) {
+  const why =
+    typeof report?.message === "string" && report.message
+      ? report.message
+      : `npm returned ${report?.statusCode ?? "no findings and no error"}`;
+  console.error("\nDependency advisories");
+  console.error(`  npm audit did not return a report — ${why}`);
+  console.error("  This is NOT a pass. Fix the tree and run it again.\n");
+  process.exit(2);
+}
+
 const found = report.vulnerabilities ?? {};
 const unexpected = [];
 const accepted = [];
