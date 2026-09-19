@@ -36,11 +36,19 @@ import { createClient } from "@/lib/supabase/server";
  * resolution nobody attended, a refund nobody signed. Those triggers have no
  * service-role bypass, so this file cannot get them wrong either.
  *
- * WHAT IS NOT HERE YET. `visit_booking_id` exists and nothing writes it: the
- * return visit is currently the claim itself rather than a second row in
- * `bookings`. The column is there because that is where it goes when the visit
- * needs its own tracking, slot and payment — not as a claim that it already
- * does.
+ * THE RETURN VISIT IS A REAL BOOKING NOW. `visit_booking_id` went unwritten
+ * from the day this table was created until `createGuaranteeVisit` below — the
+ * visit WAS the claim row, so a redo took no capacity seat, recorded no
+ * arrival, and could not be charged for when the fault turned out to be
+ * somebody else's. It is created at ACCEPTANCE, because the claim machine
+ * already decides who goes and a second dispatcher would be the
+ * duplicate-definition problem this project has paid for three times.
+ *
+ * Two things follow that are easy to get wrong and are handled here:
+ * `enforce_claim_transition` clears the link on a release, so the booking it
+ * pointed at must be cancelled or it holds a capacity seat nobody can reach;
+ * and the same trigger refuses a claim being repointed at a DIFFERENT visit,
+ * which the unique column alone did not stop.
  */
 
 export type ClaimRow = {
@@ -258,7 +266,7 @@ export async function acceptClaim(input: {
    */
   const trades = await tradesFor(input.providerId);
 
-  return moveClaim({
+  const moved = await moveClaim({
     claimId: input.claimId,
     to: "dispatched",
     /*
@@ -291,6 +299,184 @@ export async function acceptClaim(input: {
     },
     patch: { attending_provider_id: input.providerId },
   });
+
+  if (!moved.ok) return moved;
+
+  /*
+   * NOW THE VISIT EXISTS AS A JOB. After the claim move rather than before,
+   * because the move is what proves this professional is allowed to go — a
+   * booking created first and then refused by the guard would be an orphan
+   * holding one of their capacity seats.
+   *
+   * A failure here does NOT roll the acceptance back. The professional has
+   * said they are going and the customer has been told; losing that over a
+   * booking insert would be the worse outcome by a long way. It is logged,
+   * and `visit_booking_id` staying null is the signal that this claim needs
+   * looking at.
+   */
+  await createGuaranteeVisit({
+    claimId: input.claimId,
+    providerId: input.providerId,
+  });
+
+  return moved;
+}
+
+/* ------------------------------------------------------------------ *
+ * The return visit
+ * ------------------------------------------------------------------ */
+
+/** The reference alphabet the booking table uses. Unambiguous on a phone. */
+const VISIT_REFERENCE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function visitReference(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    out += VISIT_REFERENCE_ALPHABET[bytes[i] % VISIT_REFERENCE_ALPHABET.length];
+  }
+  return `SK-${out}`;
+}
+
+/**
+ * The visit the guarantee actually promises, as a real booking.
+ *
+ * `visit_booking_id` has existed since the claim table was written and nothing
+ * ever wrote it — the return visit WAS the claim row. So a redo took no seat
+ * from `enforce_slot_capacity`, counted against no `crew_count`, appeared in no
+ * `providerCapacity`, recorded no arrival, and could not be charged for when
+ * the fault turned out to be somebody else's. This is where it starts existing.
+ *
+ * CREATED AT ACCEPTANCE, NOT AT FILING, and that is a deliberate choice about
+ * who dispatches. The claim machine already decides who goes — `openClaim`
+ * tells the original professional, `openClaimsForTrade` offers it to the rest
+ * of the trade once `claimOpenToAll` says the first refusal has lapsed, and
+ * `acceptClaim` settles it. A booking created at filing would go into the
+ * ordinary dispatch sweep as well, and two dispatchers for one visit is the
+ * duplicate-definition problem that has cost this project three rebuilds.
+ *
+ * IT CARRIES THE PARENT'S FROZEN BAND AND IS NOT BILLABLE. Not priced at zero:
+ * `quoted_min > 0` forbids that and a zero band would make the professional's
+ * time worth nothing to capacity, duration and the commission floor alike. The
+ * price is real and it is the CAP — a callback can never cost more than the job
+ * that prompted it — while `billable` says nobody is charged unless the visit
+ * finds a different problem and the customer agrees to it BEFORE work starts.
+ *
+ * IDEMPOTENT. `guarantee_claims.visit_booking_id` is unique, and two
+ * professionals tapping accept a second apart is a normal event: the second
+ * finds a visit already there and returns it rather than orphaning a booking.
+ */
+async function createGuaranteeVisit(input: {
+  claimId: string;
+  providerId: string;
+}): Promise<string | null> {
+  try {
+    const admin = createAdminClient();
+
+    const { data: claim } = await admin
+      .from("guarantee_claims")
+      .select("id, booking_id, customer_id, category_slug, description, visit_booking_id")
+      .eq("id", input.claimId)
+      .maybeSingle();
+
+    if (!claim) return null;
+    // Already has one. The claim, not this function, is the source of truth.
+    if (claim.visit_booking_id) return claim.visit_booking_id as string;
+
+    const { data: parent } = await admin
+      .from("bookings")
+      .select(
+        "id, customer_id, address_id, category_slug, urgency, payment_method, quote_model, quoted_min, quoted_max, band_min, band_slug, reference",
+      )
+      .eq("id", claim.booking_id as string)
+      .maybeSingle();
+
+    if (!parent) return null;
+
+    const { data: visit, error } = await admin
+      .from("bookings")
+      .insert({
+        reference: visitReference(),
+        customer_id: parent.customer_id as string,
+        // Set at insert, which is legal: a customer picking a professional
+        // creates exactly this shape. `enforce_booking_immutability` only
+        // refuses a REASSIGNMENT, and there is none here.
+        provider_id: input.providerId,
+        // A booking must start pending — `enforce_booking_transition` says so
+        // on INSERT, and going through the machine rather than around it is
+        // the whole reason the machine is trustworthy.
+        status: "pending",
+        address_id: parent.address_id as string,
+        category_slug: parent.category_slug as string,
+        description: claim.description as string,
+        /*
+         * The parent's urgency, copied rather than decided here. A tap that
+         * was fixed and leaks again is at least as urgent as it was the first
+         * time, and inventing a different answer would be this file having an
+         * opinion about somebody's household that the original booking already
+         * settled.
+         */
+        urgency: parent.urgency as string,
+        payment_method: parent.payment_method as string,
+        /*
+         * The band and the model travel together, because
+         * `bookings_band_only_null_for_survey` ties them: a movers callback
+         * has no band for the same reason the original had none, and copying
+         * one without the other would be refused outright.
+         */
+        quote_model: parent.quote_model as string,
+        quoted_min: parent.quoted_min as number | null,
+        quoted_max: parent.quoted_max as number | null,
+        band_min: parent.band_min as number | null,
+        band_slug: parent.band_slug as string | null,
+        guarantee_claim_id: claim.id as string,
+        // The one place in the product that writes this false, and the check
+        // constraint refuses it on anything that is not a guarantee visit.
+        billable: false,
+      })
+      .select("id")
+      .single();
+
+    if (error || !visit) {
+      console.error(`[claims] visit insert failed — ${describeError(error)}`);
+      return null;
+    }
+
+    const visitId = visit.id as string;
+
+    /*
+     * Guarded on the column still being null, so the loser of a race updates
+     * nothing rather than overwriting the winner's visit — the same shape
+     * every other write in this file uses to settle a double tap.
+     */
+    const { error: linkError } = await admin
+      .from("guarantee_claims")
+      .update({ visit_booking_id: visitId })
+      .eq("id", input.claimId)
+      .is("visit_booking_id", null);
+
+    if (linkError) {
+      console.error(`[claims] visit link failed — ${describeError(linkError)}`);
+      return null;
+    }
+
+    /*
+     * The professional has already said they are going — that is what
+     * accepting the claim meant — so the visit follows them to `accepted`
+     * rather than sitting pending and waiting to be accepted a second time.
+     * Through the status machine, which stamps `accepted_at`.
+     */
+    await admin
+      .from("bookings")
+      .update({ status: "accepted" })
+      .eq("id", visitId)
+      .eq("status", "pending");
+
+    return visitId;
+  } catch (thrown) {
+    console.error(`[claims] visit threw — ${describeError(thrown)}`);
+    return null;
+  }
 }
 
 /** They cannot go. Back to open, and the claim says so rather than stalling. */
@@ -298,7 +484,15 @@ export async function releaseClaim(input: {
   claimId: string;
   providerId: string;
 }): Promise<ClaimWriteResult> {
-  return moveClaim({
+  /*
+   * Read BEFORE the move. `enforce_claim_transition` clears the link on the
+   * way to `open`, so afterwards there is nothing left to say which booking
+   * needs cancelling — the orphan would be unreachable by the code that
+   * created it.
+   */
+  const visitId = await visitBookingFor(input.claimId);
+
+  const released = await moveClaim({
     claimId: input.claimId,
     to: "open",
     guard: (claim) => claim.attending_provider_id === input.providerId,
@@ -311,6 +505,66 @@ export async function releaseClaim(input: {
      */
     patch: { attending_provider_id: null, released_at: new Date().toISOString() },
   });
+
+  if (released.ok) await cancelOrphanedVisit(visitId);
+  return released;
+}
+
+/** The visit on a claim, read before a move that would clear it. */
+async function visitBookingFor(claimId: string): Promise<string | null> {
+  if (!hasSupabaseConfig()) return null;
+  try {
+    const { data } = await createAdminClient()
+      .from("guarantee_claims")
+      .select("visit_booking_id")
+      .eq("id", claimId)
+      .maybeSingle();
+    return (data?.visit_booking_id as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The visit the released claim left behind.
+ *
+ * `enforce_claim_transition` nulls `visit_booking_id` on the way back to
+ * `open`, which is right — the next professional gets a new visit. But the old
+ * booking is still `accepted` and still holds one of the first professional's
+ * capacity seats, on a claim that no longer points at it. Nobody can reach it
+ * and nothing will ever close it.
+ *
+ * SO IT IS CANCELLED, IN TYPESCRIPT RATHER THAN IN THE TRIGGER. A trigger on
+ * `guarantee_claims` writing `bookings` re-enters that table's own triggers,
+ * which is the recursion `is_admin()` exists to break and has caught this
+ * project twice. The same shape `declineJob` uses: prove it with a read, write
+ * under the service role.
+ *
+ * NEVER THROWS. The release has already happened and the customer has been
+ * told; losing that because a tidy-up failed would be the worse outcome by a
+ * long way.
+ */
+async function cancelOrphanedVisit(visitId: string | null): Promise<void> {
+  if (!visitId) return;
+  try {
+    await createAdminClient()
+      .from("bookings")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        // `system`, not `support`: nobody decided this. The release is the
+        // decision and this is the tidy-up that follows it. The column's
+        // check constraint allows customer/provider/admin/system and
+        // refused "support" outright, which is the constraint doing its job.
+        cancelled_by_role: "system",
+      })
+      .eq("id", visitId)
+      // Only a visit that has not started. If work began the booking is a
+      // record of something that happened and cancelling it would be a lie.
+      .in("status", ["pending", "accepted", "en_route"]);
+  } catch (thrown) {
+    console.error(`[claims] orphan visit threw — ${describeError(thrown)}`);
+  }
 }
 
 /**

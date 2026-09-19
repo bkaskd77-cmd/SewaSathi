@@ -136,6 +136,32 @@ const GUARDS: Record<string, Guard[]> = {
     },
   ],
 
+  /*
+   * MOSTLY a status machine — checked by the claim-status tests and by
+   * `check:transitions`, which parses the TS/SQL pair — and it was listed as
+   * UNGUARDED for that reason. It is not only that. The two clauses below are
+   * data-integrity rules about the return visit, of exactly the kind this
+   * manifest exists for, and neither is expressible as a transition.
+   */
+  enforce_claim_transition: [
+    {
+      protects: "A claim is not repointed at a second return visit.",
+      ifMissing:
+        "The old visit is orphaned — still accepted, still holding one of the professional's capacity seats, on a claim that no longer references it. THE UNIQUE COLUMN DOES NOT STOP THIS: it only stops two claims sharing one visit, which is a different mistake. Found by a test written against my own wrong assertion that it did.",
+      clauses: [
+        "new.visit_booking_id <> old.visit_booking_id",
+        "already has a return visit",
+      ],
+    },
+    {
+      protects:
+        "A released claim drops its visit, which is why the guard above cannot be 'never changes once set'.",
+      ifMissing:
+        "Either a released claim keeps pointing at a visit its professional is not doing, or the repoint guard is written as an absolute and refuses every legitimate hand-back.",
+      clauses: ["new.visit_booking_id := null"],
+    },
+  ],
+
   enforce_booking_address_ownership: [
     {
       protects: "Nobody books a job at an address they do not own.",
@@ -391,8 +417,6 @@ const UNGUARDED: Record<string, string> = {
     "Covered behaviourally end to end in provider-applications.test.ts, which asserts each refused field by attempting it.",
   enforce_claim_eligibility:
     "Covered behaviourally in guarantee-claims.test.ts: two per booking, one open at a time, finished and settled only.",
-  enforce_claim_transition:
-    "A status machine checked by claim-status tests and check:transitions, which parses the TS/SQL pair.",
   enforce_payment_transition:
     "Same: a status machine, parsed by check:transitions against lib/payments.",
   enforce_confirmation_integrity:

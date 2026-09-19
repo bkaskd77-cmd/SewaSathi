@@ -40,8 +40,8 @@
     "file": "20260912000002_guarantee_claims.sql"
   },
   "enforce_claim_transition": {
-    "sha": "c28647315e7d15f9",
-    "file": "20260912000002_guarantee_claims.sql"
+    "sha": "26d6f94ac8e85c90",
+    "file": "20260921000006_visit_repoint_guard.sql"
   },
   "enforce_confirmation_integrity": {
     "sha": "176915304a970b04",

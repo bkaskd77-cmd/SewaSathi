@@ -391,6 +391,279 @@ describe("who may read a claim", () => {
   });
 });
 
+/**
+ * The visit the guarantee promises, as a real booking.
+ *
+ * Every one of these was unreachable while `visit_booking_id` was null on
+ * every claim — which it was, for every claim, since the table was written.
+ */
+describe("the return visit is a real booking", () => {
+  /*
+   * A DAY OF ITS OWN PER BOOKING.
+   *
+   * Without this every fixture here lands in the same ASAP window and
+   * `enforce_slot_capacity` refuses the second one — which is the feature
+   * working, and is exactly what this describe block exists to prove, but it
+   * makes the fixtures collide with each other rather than with the thing
+   * under test. Same pattern `survey-quote.test.ts` uses.
+   */
+  let day = 0;
+  const slot = (): string => {
+    day += 1;
+    return new Date(Date.UTC(2026, 10, day, 9, 0)).toISOString();
+  };
+
+  /** A visit as `createGuaranteeVisit` builds one. */
+  async function visitFor(
+    claimId: string,
+    parentId: string,
+    reference: string,
+  ): Promise<string> {
+    const { rows: parent } = await pg.admin.query(
+      `select customer_id, address_id, category_slug, urgency, payment_method,
+              quote_model, quoted_min, quoted_max, band_min, band_slug
+         from public.bookings where id = $1`,
+      [parentId],
+    );
+    const p = parent[0];
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, status, address_id, category_slug,
+          description, urgency, payment_method, quote_model,
+          quoted_min, quoted_max, band_min, band_slug,
+          guarantee_claim_id, billable, scheduled_for)
+       values ($1, $2, $3, 'pending', $4, $5, 'It is dripping again', $6, $7, $8,
+               $9, $10, $11, $12, $13, false, $14)
+       returning id`,
+      [
+        reference,
+        p.customer_id,
+        krishnaProvider,
+        p.address_id,
+        p.category_slug,
+        p.urgency,
+        p.payment_method,
+        p.quote_model,
+        p.quoted_min,
+        p.quoted_max,
+        p.band_min,
+        p.band_slug,
+        claimId,
+        slot(),
+      ],
+    );
+    const visitId = rows[0].id as string;
+    await pg.admin.query(
+      "update public.guarantee_claims set visit_booking_id = $1 where id = $2",
+      [visitId, claimId],
+    );
+    return visitId;
+  }
+
+  it("carries the parent's band, so the professional's time is worth something", async () => {
+    const parent = await completedBooking("SK-VIS01");
+    const claim = await openClaim(parent);
+    const visit = await visitFor(claim, parent, "SK-VIS02");
+
+    const { rows } = await pg.admin.query(
+      "select quoted_min, quoted_max, billable from public.bookings where id = $1",
+      [visit],
+    );
+    // The same 900–4500 the parent froze. Not zero: a zero band would make the
+    // visit worth nothing to capacity, duration and the commission floor.
+    expect(Number(rows[0].quoted_min)).toBe(900);
+    expect(Number(rows[0].quoted_max)).toBe(4500);
+    expect(rows[0].billable).toBe(false);
+  });
+
+  it("refuses a free booking that is not a guarantee visit", async () => {
+    /*
+     * The constraint that stops a bug anywhere making an ordinary job free.
+     * The two columns are one fact and the database says so.
+     */
+    await expect(
+      pg.admin.query(
+        `insert into public.bookings
+           (reference, customer_id, provider_id, category_slug, address_id,
+            description, quoted_min, quoted_max, billable, scheduled_for)
+         values ('SK-VIS03', $1, $2, 'plumbing', $3, 'Free for no reason', 900, 4500, false, $4)`,
+        [ANITA, krishnaProvider, anitaAddress, slot()],
+      ),
+    ).rejects.toThrow(/bookings_free_only_for_guarantee/);
+  });
+
+  it("allows only one visit per claim", async () => {
+    /*
+     * Two professionals tapping accept a second apart is a normal event. The
+     * unique column is what makes the second one find the first's visit
+     * instead of orphaning a booking that holds a capacity seat.
+     */
+    const parent = await completedBooking("SK-VIS04");
+    const claim = await openClaim(parent);
+    const first = await visitFor(claim, parent, "SK-VIS05");
+
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, guarantee_claim_id, billable,
+          scheduled_for)
+       values ('SK-VIS06', $1, $2, 'plumbing', $3, 'Second visit', 900, 4500, $4, false, $5)
+       returning id`,
+      [ANITA, krishnaProvider, anitaAddress, claim, slot()],
+    );
+
+    await expect(
+      pg.admin.query(
+        "update public.guarantee_claims set visit_booking_id = $1 where id = $2",
+        [rows[0].id, claim],
+      ),
+    ).rejects.toThrow(/already has a return visit/i);
+
+    const { rows: still } = await pg.admin.query(
+      "select visit_booking_id from public.guarantee_claims where id = $1",
+      [claim],
+    );
+    expect(still[0].visit_booking_id).toBe(first);
+  });
+
+  it("takes a capacity seat like any other job", async () => {
+    /*
+     * THE REASON THIS EXISTS AT ALL. While the visit was only a claim row it
+     * consumed none of the professional's day — no seat here, nothing against
+     * crew_count — so somebody could be sent back to a job the scheduler
+     * believed they were free for.
+     */
+    const parent = await completedBooking("SK-VIS07");
+    const claim = await openClaim(parent);
+    const visit = await visitFor(claim, parent, "SK-VIS08");
+
+    const { rows } = await pg.admin.query(
+      `select count(*)::int as held
+         from public.bookings
+        where provider_id = $1
+          and status in ('pending', 'accepted', 'en_route', 'in_progress')`,
+      [krishnaProvider],
+    );
+    expect(rows[0].held).toBeGreaterThan(0);
+
+    const { rows: mine } = await pg.admin.query(
+      "select guarantee_claim_id from public.bookings where id = $1",
+      [visit],
+    );
+    expect(mine[0].guarantee_claim_id).toBe(claim);
+  });
+
+  it("drops its visit when the professional hands the claim back", async () => {
+    /*
+     * The one legitimate value->null, and the reason the repoint guard cannot
+     * simply be "never changes once set". `enforce_claim_transition` clears
+     * the link on a move back to `open`, because a released claim gets a new
+     * visit when somebody else accepts.
+     */
+    const parent = await completedBooking("SK-VIS10");
+    const claim = await openClaim(parent);
+    await visitFor(claim, parent, "SK-VIS11");
+
+    await pg.admin.query(
+      "update public.guarantee_claims set status = 'dispatched', attending_provider_id = $1 where id = $2",
+      [krishnaProvider, claim],
+    );
+    await pg.admin.query(
+      "update public.guarantee_claims set status = 'open' where id = $1",
+      [claim],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select visit_booking_id, attending_provider_id from public.guarantee_claims where id = $1",
+      [claim],
+    );
+    expect(rows[0].visit_booking_id).toBeNull();
+    expect(rows[0].attending_provider_id).toBeNull();
+  });
+
+  it("leaves no visit holding a seat once the claim is handed back", async () => {
+    /*
+     * THE ORPHAN. The trigger clears the link, so without `cancelOrphanedVisit`
+     * the booking it pointed at stays `accepted` for ever: unreachable from the
+     * claim, invisible to the customer, and still consuming one of the
+     * professional's capacity seats on that day.
+     *
+     * Asserted as the state `releaseClaim` leaves behind, since the cancel
+     * itself is TypeScript — a trigger writing `bookings` from
+     * `guarantee_claims` would re-enter that table's triggers, which is the
+     * recursion this schema already has `is_admin()` to break.
+     */
+    const parent = await completedBooking("SK-VIS12");
+    const claim = await openClaim(parent);
+    const visit = await visitFor(claim, parent, "SK-VIS13");
+
+    await pg.admin.query(
+      "update public.bookings set status = 'accepted' where id = $1",
+      [visit],
+    );
+    await pg.admin.query(
+      "update public.guarantee_claims set status = 'dispatched', attending_provider_id = $1 where id = $2",
+      [krishnaProvider, claim],
+    );
+
+    // What releaseClaim does: read the link, move the claim, cancel the visit.
+    await pg.admin.query(
+      "update public.guarantee_claims set status = 'open' where id = $1",
+      [claim],
+    );
+    await pg.admin.query(
+      `update public.bookings
+          set status = 'cancelled', cancelled_at = now(), cancelled_by_role = 'system'
+        where id = $1 and status in ('pending', 'accepted', 'en_route')`,
+      [visit],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select status from public.bookings where id = $1",
+      [visit],
+    );
+    expect(rows[0].status).toBe("cancelled");
+
+    const { rows: held } = await pg.admin.query(
+      `select count(*)::int as n from public.bookings
+        where id = $1 and status in ('pending','accepted','en_route','in_progress')`,
+      [visit],
+    );
+    expect(held[0].n).toBe(0);
+  });
+
+  it("is not free-able from a browser", async () => {
+    /*
+     * Both directions are real: a customer who could clear `billable` has a
+     * free job for the asking, a professional who could set it bills for a
+     * redo of their own defect.
+     *
+     * AGAINST A LIVE BOOKING, AND THE FIRST VERSION OF THIS TEST WAS WORTHLESS
+     * BECAUSE IT WAS NOT. It ran against a `completed` booking, which no
+     * customer update policy covers — so the statement matched zero rows and
+     * "succeeded" without the trigger ever being reached. A test that cannot
+     * fail is worse than no test, because it reads as coverage.
+     */
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, scheduled_for)
+       values ('SK-VIS09', $1, $2, 'plumbing', $3, 'Tap drips', 900, 4500, $4)
+       returning id`,
+      [ANITA, krishnaProvider, anitaAddress, slot()],
+    );
+
+    const anita = await pg.asUser(ANITA);
+    await expect(
+      anita.query(
+        "update public.bookings set billable = false where id = $1",
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/Who pays for a return visit/i);
+    await anita.end();
+  });
+});
+
 describe("the provider ledger", () => {
   it("is append-only for every caller, service role included", async () => {
     const { rows } = await pg.admin.query(

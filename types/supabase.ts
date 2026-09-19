@@ -196,7 +196,14 @@ export type Database = {
           quoted_min: number | null;
           quoted_max: number | null;
           /** The category band's floor as published when this was booked. */
-          band_min: number;
+          /**
+           * NULL ON A SURVEY BOOKING. `20260916000001_survey_quotes.sql`
+           * dropped the not-null when movers stopped carrying a band, and this
+           * file was not updated with it — so every reader believed a figure
+           * was always there. `Number(null)` is 0, which is the exact shape of
+           * bug the survey phase existed to prevent.
+           */
+          band_min: number | null;
           final_amount: number | null;
           payment_method: string;
           payment_status: string;
@@ -306,7 +313,7 @@ export type Database = {
           quoted_min?: number | null;
           quoted_max?: number | null;
           /** Filled by `freeze_booking_band` when omitted, so never required. */
-          band_min?: number;
+          band_min?: number | null;
           final_amount?: number | null;
           payment_method?: string;
           payment_status?: string;
