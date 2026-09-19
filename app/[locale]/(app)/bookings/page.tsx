@@ -114,8 +114,13 @@ export default async function BookingsPage() {
       bookingId: booking.id,
       label: t(`needs.${kind}`),
       context: `${categoryName(booking.categorySlug)} · ${booking.reference}`,
-      // Nothing is moving until they answer, and they cannot tell.
-      blocking: kind === "confirmTrip" || kind === "approveAmount",
+      // Nothing is moving until they answer, and they cannot tell. A price
+      // correction is the same gate one step later: the database refuses
+      // `in_progress` while the question is open.
+      blocking:
+        kind === "confirmTrip" ||
+        kind === "respondToCorrection" ||
+        kind === "approveAmount",
     });
   }
 

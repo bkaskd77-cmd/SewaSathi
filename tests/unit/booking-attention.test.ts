@@ -115,6 +115,69 @@ describe("what needs the customer", () => {
   });
 });
 
+/**
+ * The price correction, which is the trip gate one step later.
+ *
+ * `enforce_price_correction` refuses `in_progress` while the question is open,
+ * so a booking waiting on this answer is a booking with a professional
+ * possibly already outside and no way to begin. It looked exactly like a
+ * booking that was proceeding, which is the failure `confirmTrip` exists for.
+ */
+describe("an unanswered price correction", () => {
+  const corrected: AttentionInput = {
+    ...base,
+    status: "accepted",
+    providerBandAt: "2026-09-19T09:00:00Z",
+  };
+
+  it("asks while nobody has answered", () => {
+    expect(attentionFor(corrected)).toBe("respondToCorrection");
+  });
+
+  it("stops asking once they agree", () => {
+    expect(
+      attentionFor({
+        ...corrected,
+        bandChangeApprovedAt: "2026-09-19T09:05:00Z",
+      }),
+    ).toBeNull();
+  });
+
+  it("stops asking once they decline", () => {
+    expect(
+      attentionFor({
+        ...corrected,
+        bandChangeDeclinedAt: "2026-09-19T09:05:00Z",
+      }),
+    ).toBeNull();
+  });
+
+  /**
+   * Declining cancels the booking, so the question dies with it. Re-asking
+   * would be asking somebody to answer for work that is not going to happen.
+   */
+  it("drops the question when the booking is no longer live", () => {
+    expect(
+      attentionFor({ ...corrected, status: "cancelled" }),
+    ).toBeNull();
+  });
+
+  /**
+   * The stamp is the existence test, not the slug: retiring a product clears
+   * `provider_band_slug` through an `on delete set null` foreign key, and an
+   * answered correction must not silently become a fresh question.
+   */
+  it("asks on a correction whose product was later retired", () => {
+    expect(
+      attentionFor({ ...corrected, providerBandAt: "2026-01-02T00:00:00Z" }),
+    ).toBe("respondToCorrection");
+  });
+
+  it("wants nothing from a booking nobody corrected", () => {
+    expect(attentionFor({ ...base, status: "accepted" })).toBeNull();
+  });
+});
+
 describe("only one thing is asked at a time", () => {
   /**
    * A card with two calls to action has none. The blocking one wins, and the
@@ -128,6 +191,38 @@ describe("only one thing is asked at a time", () => {
         finalAmount: 9000,
       }),
     ).toBe("confirmTrip");
+  });
+
+  /**
+   * Both gates at once is a real booking: a first visit to a new address where
+   * the professional then finds a different job. The trip gate wins because
+   * nothing has been dispatched at all yet.
+   */
+  it("puts the trip gate ahead of a price correction", () => {
+    expect(
+      attentionFor({
+        ...base,
+        status: "accepted",
+        confirmationRequired: true,
+        providerBandAt: "2026-09-19T09:00:00Z",
+      }),
+    ).toBe("confirmTrip");
+  });
+
+  /**
+   * An amount cannot honestly be approved against a band that is itself in
+   * dispute — the 2x ceiling would be measured off a number nobody has agreed
+   * to. So the correction is asked first.
+   */
+  it("puts a price correction ahead of an unapproved amount", () => {
+    expect(
+      attentionFor({
+        ...base,
+        status: "in_progress",
+        providerBandAt: "2026-09-19T09:00:00Z",
+        finalAmount: 9000,
+      }),
+    ).toBe("respondToCorrection");
   });
 
   it("puts an unapproved amount ahead of the payment", () => {

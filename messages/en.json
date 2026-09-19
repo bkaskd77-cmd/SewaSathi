@@ -410,7 +410,8 @@
         "approveAmount": "A price is waiting for your approval",
         "resolveMismatch": "The two amounts do not match — we are looking at it",
         "pay": "This job is finished and not paid for",
-        "rebook": "Nobody was free. Book this again"
+        "rebook": "Nobody was free. Book this again",
+        "respondToCorrection": "Agree to the change before they start"
       }
     },
     "account": {

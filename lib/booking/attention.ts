@@ -1,3 +1,4 @@
+import { correctionState } from "./correction";
 import type { BookingStatus } from "./status";
 
 /**
@@ -26,6 +27,8 @@ import type { BookingStatus } from "./status";
 export type AttentionKind =
   /** Nobody is dispatched until they answer. Invisible unless we say so. */
   | "confirmTrip"
+  /** The professional says it is a different job, and work cannot start. */
+  | "respondToCorrection"
   /** The figure went over the band and a professional is waiting on a yes. */
   | "approveAmount"
   /** Work is done and nothing has been paid. */
@@ -39,10 +42,14 @@ export type AttentionKind =
  * The order is a ranking of whose time is being wasted, not of severity.
  *
  *   1. `confirmTrip` — nothing is moving and the customer cannot tell.
- *   2. `approveAmount` — somebody is standing in their kitchen waiting.
- *   3. `resolveMismatch` — the two figures disagree.
- *   4. `pay` — somebody did the work and has not been paid.
- *   5. `rebook` — nothing is in flight, and they already know their tap leaks.
+ *   2. `respondToCorrection` — the same, one step later and with somebody
+ *      already assigned: `enforce_price_correction` refuses `in_progress`
+ *      while the question is open, so a professional may be standing outside
+ *      a door they are not allowed to start work behind.
+ *   3. `approveAmount` — somebody is standing in their kitchen waiting.
+ *   4. `resolveMismatch` — the two figures disagree.
+ *   5. `pay` — somebody did the work and has not been paid.
+ *   6. `rebook` — nothing is in flight, and they already know their tap leaks.
  *
  * A dashboard that lists three things needing attention has to put the one
  * that is blocking work first, or it is just another list.
@@ -56,10 +63,11 @@ export type AttentionKind =
  */
 const RANK: Record<AttentionKind, number> = {
   confirmTrip: 0,
-  approveAmount: 1,
-  resolveMismatch: 2,
-  pay: 3,
-  rebook: 4,
+  respondToCorrection: 1,
+  approveAmount: 2,
+  resolveMismatch: 3,
+  pay: 4,
+  rebook: 5,
 };
 
 /** Just enough of a booking to judge it. Keeps this loadable anywhere. */
@@ -71,6 +79,15 @@ export type AttentionInput = {
   finalAmountApprovedAt: string | null;
   amountMismatchAt: string | null;
   paymentStatus: string;
+  /*
+   * OPTIONAL, because most callers predate corrections and a booking without
+   * them is simply one nobody has corrected. Read through `correctionState`
+   * rather than tested here: `providerBandAt` is the existence test and the
+   * reason why is written once, next to the rule.
+   */
+  providerBandAt?: string | null;
+  bandChangeApprovedAt?: string | null;
+  bandChangeDeclinedAt?: string | null;
 };
 
 /**
@@ -93,6 +110,23 @@ export function attentionFor(booking: AttentionInput): AttentionKind | null {
 
   if (live && booking.confirmationRequired && !booking.confirmedAt) {
     wanted.push("confirmTrip");
+  }
+
+  /*
+   * THE PROFESSIONAL SAYS IT IS A DIFFERENT JOB AND NOBODY HAS ANSWERED.
+   *
+   * The same shape as the trip gate and the same reason for being here: the
+   * database refuses `in_progress` while the question is open, so the booking
+   * is stopped and the only person who can unstop it is the one reading this
+   * dashboard. Without it, `/bookings` showed a blocked job exactly as it
+   * showed a proceeding one.
+   *
+   * Live only. Declining cancels the booking, so a question on a dead job is
+   * not a question — and re-asking it would be asking somebody to answer for
+   * work that is not going to happen.
+   */
+  if (live && correctionState(booking) === "awaiting-answer") {
+    wanted.push("respondToCorrection");
   }
 
   // A figure is recorded and nobody has agreed it. The type says exactly this:
