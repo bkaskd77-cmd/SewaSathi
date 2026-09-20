@@ -751,6 +751,15 @@ endpoint or stores a new kind of personal data.
   the value and the name of every secret. Next decides what is client code by
   tracing imports, so a server module can become client code without being
   edited.
+  **Its third pass reads the source, and that is the one that catches the
+  class.** Any module reading `process.env.<SECRET>` must declare
+  `server-only`; naming a key in a comment is documentation and is not a read.
+  The bundle passes can only see a leak that already happened — they were
+  correctly green for months while `lib/env.ts` exported the service role key
+  from the module `lib/supabase/client.ts` imports, because the key sat in a
+  getter and Next tree-shook it. The source pass sees the arrangement, before a
+  build exists. It self-tests on every run, like `check:contacts`: a scanner
+  that has quietly stopped scanning says so rather than printing a tick.
 
 ## Schema
 

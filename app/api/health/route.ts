@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
 
 import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
