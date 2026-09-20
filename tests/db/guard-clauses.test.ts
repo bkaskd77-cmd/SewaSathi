@@ -618,3 +618,170 @@ describe("the manifest cannot go stale", () => {
     }
   });
 });
+
+/**
+ * Who may CALL these functions, which the manifest above never asked.
+ *
+ * THE DRIFT THIS CATCHES, AND HOW IT WAS FOUND. Everything above proves a
+ * guard's clauses survive a rewrite and that it is still attached to a trigger.
+ * None of it asks who holds `execute`. So when six trigger functions were added
+ * after `20260903000001_harden_functions.sql` worked through the list once,
+ * each arrived carrying Postgres's default grant to `anon` — and
+ * `provider_works_trade`, which is not a trigger and genuinely runs, arrived
+ * callable by a stranger over `/rest/v1/rpc`. `npm run verify` was green
+ * throughout. The only thing that knew was Supabase's dashboard, which nothing
+ * in this repository reads.
+ *
+ * So this block is that advisor's two function rules, rewritten as catalog
+ * queries and run against the real migrations on every test run. It covers
+ * today's rule set rather than whatever Supabase adds next — but it turns the
+ * two findings that mattered from a dashboard somebody remembers to open into
+ * a failure on the machine that introduced them.
+ */
+describe("who may execute what", () => {
+  /**
+   * SECURITY DEFINER functions a signed-in user is MEANT to be able to call.
+   *
+   * Every one is called from a POLICY, and a policy expression is evaluated
+   * with the CALLER's privileges — so revoking `execute` here does not harden
+   * anything, it breaks the read. Supabase's advisor will keep suggesting it
+   * and the answer is no; the reason is written beside each so the next person
+   * to be told off by the dashboard does not have to rediscover it.
+   *
+   * Trigger functions are not in this list and do not need to be: Postgres
+   * checks `execute` when a trigger is CREATED, not when it fires, so a grant
+   * on one is inert. They are still revoked, because a function nobody is
+   * supposed to call by hand should not be callable by hand.
+   */
+  const AUTHENTICATED_MAY_CALL: Record<string, string> = {
+    is_admin:
+      "Six policies call it — profiles, triage_logs, bookings, payments, refunds, booking_status_history. Revoking breaks every read in the product for every signed-in user.",
+    provider_can_serve:
+      "Called by the bookings policies. `security definer` to break the recursion a policy on bookings reading addresses would otherwise cause.",
+    provider_outstanding:
+      "Read by the provider ledger surface so a professional can see what they owe.",
+    provider_refused:
+      "Called by the open-jobs policy, so a refused job is not offered back to the person who refused it.",
+    provider_serves:
+      "Called by the open-jobs policy to decide whether a professional covers the trade and the ward.",
+    provider_works_trade:
+      "Called by 'Providers read open claims in their trade' on guarantee_claims. Revoke it and every professional's open-claims list silently returns nothing.",
+    session_is_verified:
+      "Called by the addresses policy, which is what keeps an unverified session from reading somebody's home address.",
+  };
+
+  const definers = async () => {
+    const { rows } = await pg.admin.query(`
+      select p.proname,
+             coalesce(array_to_string(p.proconfig, ','), '') as config,
+             has_function_privilege('anon', p.oid, 'execute') as anon_exec,
+             has_function_privilege('authenticated', p.oid, 'execute') as auth_exec,
+             exists (
+               select 1 from pg_trigger t
+                where t.tgfoid = p.oid and not t.tgisinternal
+             ) as is_trigger
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.prosecdef
+       order by p.proname
+    `);
+    return rows as Array<{
+      proname: string;
+      config: string;
+      anon_exec: boolean;
+      auth_exec: boolean;
+      is_trigger: boolean;
+    }>;
+  };
+
+  /*
+   * NO EXCEPTIONS ON THIS ONE. Nothing in this product is meant to be called
+   * by a stranger: the only anon surface is reading the catalogue and posting
+   * the join form, and neither goes through a function.
+   */
+  it("lets a stranger execute no security-definer function at all", async () => {
+    const callable = (await definers())
+      .filter((f) => f.anon_exec)
+      .map((f) => f.proname);
+
+    expect(
+      callable,
+      `these are callable by anon over /rest/v1/rpc: ${callable.join(", ")}. ` +
+        `Revoke with 'revoke execute on function public.NAME(args) from anon'. ` +
+        `Note that 'revoke ... from public' does NOT clear it — Supabase grants ` +
+        `anon directly through a default privilege on the public schema, which ` +
+        `is why the first version of harden_functions.sql left nine warnings ` +
+        `standing.`,
+    ).toEqual([]);
+  });
+
+  /*
+   * The classic SECURITY DEFINER escalation: the caller points `search_path`
+   * at a schema they control and shadows something the body calls. Every body
+   * here is schema-qualified already, so this costs nothing and closes it.
+   */
+  it("pins search_path to empty on every security-definer function", async () => {
+    const unpinned = (await definers())
+      .filter((f) => !f.config.includes('search_path=""'))
+      .map((f) => f.proname);
+
+    expect(
+      unpinned,
+      `these run on whatever search_path the caller brought: ${unpinned.join(", ")}. ` +
+        `Add 'set search_path = ''' to the definition.`,
+    ).toEqual([]);
+  });
+
+  /*
+   * A NEW callable function reachable by every signed-in user is the thing
+   * worth being told about. Trigger functions are excluded because their grant
+   * is inert; what is left is the real surface, and it should only ever grow
+   * on purpose.
+   */
+  it("names every signed-in-callable definer function, with the policy that needs it", async () => {
+    const callable = (await definers())
+      .filter((f) => f.auth_exec && !f.is_trigger)
+      .map((f) => f.proname);
+
+    const unexplained = callable.filter((n) => !(n in AUTHENTICATED_MAY_CALL));
+    expect(
+      unexplained,
+      `these are callable by any signed-in user and nothing says why: ` +
+        `${unexplained.join(", ")}. Either revoke execute from authenticated, ` +
+        `or add an entry naming the policy that calls it — a policy expression ` +
+        `runs with the caller's privileges, so revoking one that IS called ` +
+        `empties a read instead of hardening it.`,
+    ).toEqual([]);
+  });
+
+  it("lists nothing that is no longer callable", async () => {
+    // The inverse, so the list cannot describe a past version of the schema.
+    const callable = new Set(
+      (await definers()).filter((f) => f.auth_exec).map((f) => f.proname),
+    );
+    for (const name of Object.keys(AUTHENTICATED_MAY_CALL)) {
+      expect(
+        callable.has(name),
+        `public.${name} is in AUTHENTICATED_MAY_CALL but signed-in users can ` +
+          `no longer execute it. If that was deliberate, the policy that ` +
+          `called it is now broken — check before removing the entry.`,
+      ).toBe(true);
+    }
+  });
+
+  /*
+   * SECURITY INVOKER, so not in the sweep above — and the one function
+   * `harden_functions.sql` missed. It happens to be the trigger that makes the
+   * security log unrewritable, which is a bad place for an unpinned path.
+   */
+  it("pins the audit log's own trigger, which the hardening pass missed", async () => {
+    const { rows } = await pg.admin.query(
+      `select coalesce(array_to_string(proconfig, ','), '') as config
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname = 'security_events_are_append_only'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect((rows[0] as { config: string }).config).toContain('search_path=""');
+  });
+});

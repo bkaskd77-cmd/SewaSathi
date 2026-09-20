@@ -260,6 +260,21 @@ Where a change on one side cannot reach the other.
   policy expressions run with the caller's privileges, so it keeps `execute`
   for `authenticated`. Supabase's Security Advisor asks for it anyway; the
   answer is no, and the test that would fail is in the db suite.
+  **That discipline did not survive contact with later phases, so it is
+  asserted now rather than remembered.** Six trigger functions added after that
+  migration each arrived carrying Postgres's default grant to `anon`, and
+  `provider_works_trade` — not a trigger, genuinely callable over
+  `/rest/v1/rpc` — arrived reachable by a stranger. `npm run verify` was green
+  throughout; only the dashboard knew. `20260921000009_function_grant_posture.sql`
+  revokes all seven from `anon` (and `anon` only: `provider_works_trade` is
+  called by "Providers read open claims in their trade" on `guarantee_claims`,
+  so revoking it from `authenticated` would silently empty every
+  professional's open-claims list — the `is_admin()` trap exactly). The block
+  in `tests/db/guard-clauses.test.ts` is Supabase's two function rules rewritten
+  as catalog queries: no definer function callable by `anon`, `search_path`
+  pinned on all of them, and every signed-in-callable one named with the policy
+  that needs it. It covers today's rule set, not whatever the advisor adds
+  next.
 - **The motive is removed rather than the report policed.** The platform fee is
   charged on `max(final_amount, quoted_min)` (`settleSplit`), so under-reporting
   a cash job earns nothing. The honest exceptions are handled at two different

@@ -169,7 +169,7 @@
   },
   "security_events_are_append_only": {
     "sha": "1258d9853e6b9cdb",
-    "file": "20260906000002_audit_and_documents.sql"
+    "file": "20260921000009_function_grant_posture.sql"
   },
   "session_is_verified": {
     "sha": "8749624cce87057e",
