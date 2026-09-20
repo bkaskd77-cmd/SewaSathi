@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Loader2, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Locale } from "@/i18n/routing";
+import { formatNpr } from "@/lib/utils";
 
 /**
  * The guarantee, on the screen of the person it was promised to.
@@ -43,12 +45,31 @@ export type ClaimState = {
   payer: "provider" | "customer" | null;
 };
 
+/**
+ * A refund on this booking, as the customer needs to read it.
+ *
+ * `sent` IS THE WHOLE POINT OF THIS TYPE. The claim row records what was
+ * agreed and nothing about whether it has moved, so a panel reading only that
+ * told somebody their money had been refunded while it sat in a queue. Two of
+ * our three rails cannot move money from inside this product — eSewa has no
+ * merchant-initiated refund on ePay v2, cash comes back the way it went out —
+ * so "we have agreed this and are sending it" is a real state somebody can sit
+ * in for days, and it is not "sent".
+ */
+export type RefundState = {
+  id: string;
+  amount: number;
+  sent: boolean;
+  sentAt: string | null;
+};
+
 export function GuaranteePanel({
   bookingId,
   windowKey,
   allowed,
   reason,
   claims,
+  refunds = [],
 }: {
   bookingId: string;
   /** d30 | d90 | h48 — the window for this trade, written once per language. */
@@ -56,9 +77,11 @@ export function GuaranteePanel({
   allowed: boolean;
   reason: string | null;
   claims: ClaimState[];
+  refunds?: RefundState[];
 }) {
   const t = useTranslations("booking.guarantee");
   const tWindows = useTranslations("booking.payment.guaranteeWindows");
+  const locale = useLocale() as Locale;
 
   const [description, setDescription] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -114,6 +137,33 @@ export function GuaranteePanel({
       <p className="text-caption mt-1 text-muted-foreground">
         {t("window", { window: tWindows(windowKey) })}
       </p>
+
+      {/* MONEY BACK, AND WHICH OF THE TWO THINGS IS TRUE. Above the claims
+          rather than inside one, because a customer owed money is looking for
+          that sentence and nothing else on this panel. The amount is named in
+          both states: somebody who is told "we are sending it" and not how
+          much has been told almost nothing. */}
+      {refunds.length > 0 ? (
+        <ul className="mt-3 space-y-2">
+          {refunds.map((refund) => (
+            <li
+              key={refund.id}
+              className="animate-pop-in rounded-lg border border-primary/30 bg-primary/5 p-3"
+            >
+              <p className="text-caption font-medium text-foreground">
+                {refund.sent
+                  ? t("refund.sent", { amount: formatNpr(refund.amount, { locale }) })
+                  : t("refund.approved", {
+                      amount: formatNpr(refund.amount, { locale }),
+                    })}
+              </p>
+              <p className="text-caption mt-1 text-muted-foreground">
+                {refund.sent ? t("refund.sentBody") : t("refund.approvedBody")}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {claims.length > 0 ? (
         <ul className="mt-3 space-y-2">

@@ -19,8 +19,12 @@ import { site, supportPhoneDisplay } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
-import { liveClaimsByBooking } from "@/lib/data/claims";
+import {
+  liveClaimsByBooking,
+  unpaidRefundsByBooking,
+} from "@/lib/data/claims";
 import { unreadByBooking } from "@/lib/data/notifications";
+import { listNoteKey } from "@/lib/notify/channel";
 import { getProvider } from "@/lib/data/providers";
 import { formatBand, formatNpr } from "@/lib/utils";
 
@@ -95,7 +99,14 @@ export default async function BookingsPage() {
    * list, because this page ships no client JavaScript on purpose and a read
    * per row would undo that on the connection it exists to serve.
    */
-  const liveClaims = await liveClaimsByBooking(bookings.map((b) => b.id));
+  const bookingIds = bookings.map((b) => b.id);
+  const [liveClaims, refundsOwed] = await Promise.all([
+    liveClaimsByBooking(bookingIds),
+    // AND A REFUND WE HAVE AGREED AND NOT SENT IS NOT HISTORY EITHER. Two of
+    // three rails need a person to go and move the money, so "approved" is
+    // where it stops unless something keeps the booking in front of somebody.
+    unpaidRefundsByBooking(bookingIds),
+  ]);
 
   const categoryName = (slug: string) => {
     const category = categories.find((c) => c.slug === slug);
@@ -106,6 +117,7 @@ export default async function BookingsPage() {
     isHappeningNow({
       status: booking.status,
       hasLiveClaim: liveClaims.has(booking.id),
+      hasUnpaidRefund: refundsOwed.has(booking.id),
     });
 
   const live = bookings.filter(happening);
@@ -161,10 +173,17 @@ export default async function BookingsPage() {
 
     const event = unread.get(bookingId);
     if (!event) return null;
-    // The kind is "booking.declined"; next-intl reads a dot as nesting, so the
-    // catalogue key drops the prefix. Passing the raw kind printed
-    // `booking.notifications.booking.declined` onto the page.
-    return tNote(`notifications.${event.kind.replace("booking.", "")}`);
+    /*
+     * THROUGH THE ALLOW-LIST, never by stripping a prefix. Dropping
+     * `booking.` is correct for the kinds that carry it and wrong for every
+     * other one: an unread `claim.resolved` printed
+     * `booking.notifications.claim.resolved` onto this list, because
+     * next-intl reads a dot as nesting and renders a miss as its own key
+     * path. `listNoteKey` returns null for a kind with no sentence, and a
+     * card with no note is the honest version of "nothing to say".
+     */
+    const key = listNoteKey(event.kind);
+    return key ? tNote(`notifications.${key}`) : null;
   };
 
   const amountLabel = (booking: (typeof bookings)[number]) => {

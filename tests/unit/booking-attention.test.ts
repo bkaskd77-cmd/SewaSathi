@@ -354,3 +354,43 @@ describe("the customer's own totals", () => {
     expect(summarise([])).toEqual({ done: 0, spent: 0 });
   });
 });
+
+/**
+ * A refund we have agreed and not sent keeps the booking in front of somebody.
+ *
+ * THE FAILURE IT PREVENTS. Two of our three rails cannot move money from
+ * inside this product, so an approved refund waits on a person going and
+ * sending it. Without this the card dropped into "Earlier" — quiet and small,
+ * beside jobs closed months ago — while the customer waited for money we had
+ * already told them they would get.
+ */
+describe("a refund agreed but not yet sent", () => {
+  it("keeps a finished booking under 'happening now'", () => {
+    expect(
+      isHappeningNow({ status: "completed", hasUnpaidRefund: true }),
+    ).toBe(true);
+  });
+
+  it("lets it settle back into history once the money has gone", () => {
+    expect(
+      isHappeningNow({ status: "completed", hasUnpaidRefund: false }),
+    ).toBe(false);
+  });
+
+  /*
+   * DELIBERATELY NOT AN `attentionFor` KIND. "Needs you" is a list of things
+   * the customer must act on; their own unpaid refund is not one of them, and
+   * putting it there would ask somebody to chase us for money we have already
+   * agreed to pay. It is ours to finish, so it lives where a live claim lives.
+   */
+  it("never asks the customer to do anything about it", () => {
+    const owed: AttentionInput = {
+      ...base,
+      status: "completed",
+      paymentStatus: "paid",
+      finalAmount: 2000,
+      finalAmountApprovedAt: "2026-09-01T10:00:00Z",
+    };
+    expect(attentionFor(owed)).toBeNull();
+  });
+});

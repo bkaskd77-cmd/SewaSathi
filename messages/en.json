@@ -788,7 +788,9 @@
       "priceCorrectionApproved": "Price agreed",
       "priceCorrectionDeclined": "Price turned down",
       "mayRunLate": "Your professional may not make it",
-      "reviewPublished": "Your review is live"
+      "reviewPublished": "Your review is live",
+      "refundApproved": "Refund agreed",
+      "refundSent": "Refund sent"
     },
     "alternatives": {
       "heading": "Choose someone else",
@@ -888,6 +890,12 @@
         "notSignedIn": "Sign in again to send this.",
         "unavailable": "We couldn't send that just now. Try again.",
         "generic": "We couldn't send that just now. Try again."
+      },
+      "refund": {
+        "approved": "We have agreed a refund of {amount}.",
+        "approvedBody": "It has not left us yet. We are sending it now and you will see it here once it has gone.",
+        "sent": "{amount} has been sent back to you.",
+        "sentBody": "If it has not reached you, tell us and we will trace it — we have the reference."
       }
     },
     "quote": {
@@ -1589,6 +1597,69 @@
         "notAdmin": "You cannot decide this.",
         "notFound": "That appeal could not be found.",
         "notConfigured": "That is unavailable right now.",
+        "saveFailed": "That did not save. Try again."
+      }
+    },
+    "guaranteeClaims": {
+      "title": "Guarantee money",
+      "lead": "Money we have agreed to pay a customer back, and claims where paying some back is still a decision. Agreeing a refund and sending it are two different things here: on eSewa and on cash, a person has to go and move it.",
+      "owedHeading": "Agreed and not yet sent ({n})",
+      "owedEmpty": "Nothing is owed.",
+      "stale": "{n} of these have been waiting more than {days} days. The customer has been told we are paying them.",
+      "approvedOn": "Agreed {when}",
+      "rail": {
+        "automatic": "Khalti can send this from here. One tap and the money goes.",
+        "esewaHasNoApi": "eSewa cannot be refunded from here. Raise it in the eSewa merchant dashboard, then record it below.",
+        "cashByHand": "This was paid in cash, so it goes back by hand or by transfer. Record it below once it has gone.",
+        "gatewayNotConfigured": "Khalti's key is not set on this deployment, so this one cannot be sent from here. Send it in the Khalti dashboard, then record it below."
+      },
+      "sendNow": "Send it now",
+      "markPaid": "Record that it has gone",
+      "reference": "Reference",
+      "referencePlaceholder": "Transaction or transfer reference",
+      "paidOn": "Sent on",
+      "decideHeading": "Claims where a refund is still a decision",
+      "decideLead": "Somebody went, found the same fault, and it is still not right. A refund is the last rung — the re-do is the guarantee, and this is what is left when it has not worked.",
+      "decideEmpty": "Nothing to decide.",
+      "sameFault": "Same fault again on a {trade} job.",
+      "found": "What they found: {note}",
+      "ceiling": "The most that can go back is {amount}",
+      "windowOpen": "{days} days left in the guarantee window",
+      "windowClosed": "The guarantee window closed {days} days ago",
+      "blocked": {
+        "not-settled": "Nothing was ever collected on this job, so there is nothing to pay back.",
+        "amount-disputed": "The two figures for this job still disagree. Nothing can be refunded until somebody settles which is right.",
+        "no-amount": "No amount was recorded on this job."
+      },
+      "amount": "Amount",
+      "why": "Why",
+      "approve": "Agree this refund",
+      "errors": {
+        "aboveCeiling": "That is more than was ever collected on this job. The most that can go back is on the card above.",
+        "above-ceiling": "That is more than was ever collected on this job. The most that can go back is on the card above.",
+        "alreadyRefunded": "This claim has already been refunded. A second one is a conversation, not a button.",
+        "already-refunded": "This claim has already been refunded. A second one is a conversation, not a button.",
+        "amountDisputed": "The two figures for this job still disagree. Nothing can be refunded until somebody settles which is right.",
+        "notSettled": "This job was never settled, so there is nothing to pay back.",
+        "unavailable": "This job cannot be refunded — check what it says above the amount.",
+        "outsideWindow": "The guarantee window for this trade has closed.",
+        "invalid": "That is not an amount.",
+        "noPayment": "No settled payment could be found for this job.",
+        "alreadyPaid": "Somebody has already recorded this one as sent.",
+        "referenceRequired": "A reference is needed. It is what lets us answer somebody who says the money never arrived.",
+        "badDate": "That is not a date.",
+        "futureDate": "That date is in the future. Record it once the money has actually gone.",
+        "gatewaySaidNo": "Khalti refused the refund. Check it in their dashboard before trying again.",
+        "noAnswer": "Khalti did not answer, so we do not know whether the money moved. Check their dashboard before sending it again.",
+        "noGatewayReference": "We have no Khalti transaction id for the original payment, so there is nothing to refund against. Send it by hand and record it below.",
+        "gatewayNotConfigured": "Khalti's key is not set on this deployment.",
+        "esewaHasNoApi": "eSewa cannot be refunded from here.",
+        "cashByHand": "Cash cannot be refunded from here.",
+        "manualOnly": "This one has to be sent by hand.",
+        "notAdmin": "You cannot decide this.",
+        "notFound": "That could not be found.",
+        "notConfigured": "That is unavailable right now.",
+        "reasonRequired": "Say why. This is the only record of the decision.",
         "saveFailed": "That did not save. Try again."
       }
     }

@@ -201,8 +201,29 @@ export function isHappeningNow(booking: {
   status: BookingStatus;
   /** A guarantee claim at `open`, `dispatched` or `attended`. */
   hasLiveClaim?: boolean;
+  /**
+   * A refund agreed but not yet sent — `refunds.status = 'requested'`.
+   *
+   * ALSO OURS, AND FOR THE SAME REASON AS A LIVE CLAIM. Two of our three
+   * rails cannot move money from inside this product, so an approved refund
+   * waits on a person going and sending it. Until they have, the customer is
+   * owed money and has nothing to do about it.
+   *
+   * DELIBERATELY HERE AND NOT A KIND IN `attentionFor`, which is the one
+   * place this file departs from the obvious reading of the instruction that
+   * asked for it. "Needs you" is a list of things the customer must act on;
+   * putting their own unpaid refund in it would ask them to chase us for
+   * money we have already agreed to pay. That is the failure this rule was
+   * written to avoid, one party over — so it sits where "we are still doing
+   * something about this" lives, beside the live claim.
+   */
+  hasUnpaidRefund?: boolean;
 }): boolean {
-  return isLiveBooking(booking.status) || booking.hasLiveClaim === true;
+  return (
+    isLiveBooking(booking.status) ||
+    booking.hasLiveClaim === true ||
+    booking.hasUnpaidRefund === true
+  );
 }
 
 /**

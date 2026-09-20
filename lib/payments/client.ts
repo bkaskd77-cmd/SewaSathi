@@ -60,3 +60,21 @@ export {
   paymentErrorKey,
   type CustomerPaymentError,
 } from "./errors";
+
+/*
+ * The pure half of the refund rule. `refundRail` and `isRefundStale` decide
+ * what a screen says about money already agreed, so both sides of the app need
+ * them; nothing here reaches a gateway.
+ */
+export {
+  isRefundStale,
+  judgeRefund,
+  refundCeiling,
+  refundFunding,
+  refundRail,
+  REFUND_PAYMENT_DAYS,
+  type RefundCeiling,
+  type RefundRail,
+  type RefundSubject,
+  type RefundVerdict,
+} from "./refund";

@@ -41,7 +41,11 @@ import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking, listRefusals } from "@/lib/data/bookings";
 import { getCategory, getSubBands } from "@/lib/data/categories";
-import { claimEligibility, claimsForBooking } from "@/lib/data/claims";
+import {
+  claimEligibility,
+  claimsForBooking,
+  refundsForBooking,
+} from "@/lib/data/claims";
 import { markBookingRead } from "@/lib/data/notifications";
 import { listPaymentsForBooking } from "@/lib/data/payments";
 import { getProviderPhone } from "@/lib/data/provider-jobs";
@@ -238,13 +242,21 @@ export default async function BookingDetailPage({
    * this page has already been through one round of collapsing five waves into
    * one — see the note above. They go together rather than one after the other.
    */
-  const [eligibility, claims] =
+  const [eligibility, claims, refunds] =
     booking.status === "completed"
       ? await Promise.all([
           claimEligibility({ bookingId: booking.id, actorId: profile!.id }),
           claimsForBooking(booking.id),
+          /*
+           * APPROVED IS NOT SENT, and the claim row cannot tell them apart.
+           * `refund_rupees` records what was agreed and says nothing about
+           * whether it has moved — so a panel reading only that told somebody
+           * their money was refunded while it sat in a queue waiting for a
+           * person to go and send it.
+           */
+          refundsForBooking(booking.id),
         ])
-      : ([{ allowed: false, reason: "notCompleted" }, []] as const);
+      : ([{ allowed: false, reason: "notCompleted" }, [], []] as const);
 
   /*
    * HAS ANYBODY ANSWERED?
@@ -721,6 +733,12 @@ export default async function BookingDetailPage({
               verdict: claim.verdict,
               verdictNote: claim.verdictNote,
               payer: claim.payer,
+            }))}
+            refunds={refunds.map((refund) => ({
+              id: refund.id,
+              amount: refund.amount,
+              sent: refund.status === "completed",
+              sentAt: refund.sentAt,
             }))}
           />
         </NextIntlClientProvider>

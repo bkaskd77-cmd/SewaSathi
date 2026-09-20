@@ -522,9 +522,25 @@ Where a change on one side cannot reach the other.
   monthly cap is `enforce_survey_visit_fee`'s and reaches the reviewer as the
   policy it is, and the commission recompute uses the `commission_bps` frozen
   at settlement. Both re-read `profiles.role` inside the action, because a page
-  guard protects a screen and not the POST endpoint behind it. **A guarantee
-  refund still has no screen** and is a new money write path, kept out on
-  purpose.
+  guard protects a screen and not the POST endpoint behind it.
+- **Approving money back and sending it are two acts, because they are two
+  events.** `/admin/guarantee-claims` is the third queue, built like the other
+  two and deliberately not generalised with them. Approving writes a `refunds`
+  row at `requested` and moves nothing; a second act records that somebody has
+  actually sent it, with a reference and a date. Two of our three rails cannot
+  move money from inside this product — eSewa has no merchant-initiated refund
+  on ePay v2, cash comes back the way it went out — so `refundRail` in
+  `lib/payments/refund.ts` says which is which, and says a missing Khalti key
+  is a missing key rather than letting "absent" read as "manual". A gateway
+  that does not answer leaves the row at `requested`: the money may already
+  have gone, so nothing is recorded in either direction, the same rule
+  `verifyAndSettle` follows. `isRefundStale` surfaces anything that has waited
+  past `REFUND_PAYMENT_DAYS` (3, argued down from the 7-day cash payout hold —
+  a customer must not wait longer than we make our own side wait), and
+  `isHappeningNow` keeps the booking out of the customer's history until the
+  money has gone. It is in `isHappeningNow` and **not** a kind in
+  `attentionFor` on purpose: "Needs you" would ask somebody to chase us for
+  money we have already agreed to pay them.
 - **A trade whose price does not exist until somebody has looked.** Movers and
   packers carries `quote_model = 'survey'` and a **null band**, and the survey
   visit is a booking — a real professional at a real door — rather than a second

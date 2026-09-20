@@ -959,3 +959,147 @@ describe("the provider ledger", () => {
     await client.end();
   });
 });
+
+/**
+ * Approved and sent are two states of a refund, and the database says so.
+ *
+ * WHY THIS IS WORTH A DATABASE TEST. Two of our three rails cannot move money
+ * from inside this product — eSewa has no merchant-initiated refund on ePay v2
+ * and cash comes back the way it went out — so a person leaves, sends it, and
+ * comes back to record that they did. `refunds_processed_shape` is what makes
+ * "recorded as sent" and "actually has a date it went" the same fact; without
+ * it, `status = 'completed'` would be a word anybody could write.
+ *
+ * And a customer must be able to read their own, or the whole two-step is
+ * invisible to the person waiting on it.
+ */
+describe("a refund that has been agreed but not yet sent", () => {
+  async function settledPayment(reference: string): Promise<string> {
+    const bookingId = await completedBooking(reference);
+    await pg.admin.query(
+      `update public.bookings
+          set payment_status = 'paid', final_amount = 3000, completed_at = now()
+        where id = $1`,
+      [bookingId],
+    );
+    // A payment starts `pending` and is walked to `paid`, because
+    // `payment_transition_allowed` refuses a row born settled — the same
+    // machine the product uses, rather than a shortcut this test invents.
+    const { rows } = await pg.admin.query(
+      `insert into public.payments
+         (booking_id, method, amount, our_reference)
+       values ($1, 'cash', 3000, $2)
+       returning id`,
+      [bookingId, `${reference}-PAY`],
+    );
+    await pg.admin.query(
+      "update public.payments set status = 'paid', settled_at = now() where id = $1",
+      [rows[0].id],
+    );
+    return rows[0].id as string;
+  }
+
+  it("is born at 'requested' with nothing recorded as sent", async () => {
+    const payment = await settledPayment("SK-REF1");
+    const { rows } = await pg.admin.query(
+      `insert into public.refunds (payment_id, amount, reason, requested_by_role)
+       values ($1, 2000, 'Same fault after a redo', 'admin')
+       returning status, processed_at`,
+      [payment],
+    );
+    expect(rows[0].status).toBe("requested");
+    expect(rows[0].processed_at).toBeNull();
+  });
+
+  it("refuses 'completed' with no date it actually went", async () => {
+    const payment = await settledPayment("SK-REF2");
+    await expect(
+      pg.admin.query(
+        `insert into public.refunds
+           (payment_id, amount, reason, requested_by_role, status)
+         values ($1, 2000, 'Same fault after a redo', 'admin', 'completed')`,
+        [payment],
+      ),
+    ).rejects.toThrow(/refunds_processed_shape/i);
+  });
+
+  it("refuses a date on one nobody has sent", async () => {
+    // The mirror, and the one that matters more: a timestamp on a `requested`
+    // row would make "when did this go?" answerable about money still sitting
+    // in our account.
+    const payment = await settledPayment("SK-REF3");
+    await expect(
+      pg.admin.query(
+        `insert into public.refunds
+           (payment_id, amount, reason, requested_by_role, processed_at)
+         values ($1, 2000, 'Same fault after a redo', 'admin', now())`,
+        [payment],
+      ),
+    ).rejects.toThrow(/refunds_processed_shape/i);
+  });
+
+  it("takes the completion once both halves are there", async () => {
+    const payment = await settledPayment("SK-REF4");
+    const { rows } = await pg.admin.query(
+      `insert into public.refunds (payment_id, amount, reason, requested_by_role)
+       values ($1, 2000, 'Same fault after a redo', 'admin')
+       returning id`,
+      [payment],
+    );
+
+    await pg.admin.query(
+      `update public.refunds
+          set status = 'completed', processed_at = now(), provider_txn_id = $2
+        where id = $1 and status = 'requested'`,
+      [rows[0].id, "ESW-9912"],
+    );
+
+    const after = await pg.admin.query(
+      "select status, provider_txn_id from public.refunds where id = $1",
+      [rows[0].id],
+    );
+    expect(after.rows[0].status).toBe("completed");
+    // The reference is the point: it is what answers somebody who says the
+    // money never arrived, rather than arguing with them.
+    expect(after.rows[0].provider_txn_id).toBe("ESW-9912");
+  });
+
+  it("is readable by the customer it belongs to and nobody else", async () => {
+    const payment = await settledPayment("SK-REF5");
+    await pg.admin.query(
+      `insert into public.refunds (payment_id, amount, reason, requested_by_role)
+       values ($1, 2000, 'Same fault after a redo', 'admin')`,
+      [payment],
+    );
+
+    const anita = await pg.asUser(ANITA);
+    const mine = await anita.query(
+      "select count(*)::int as n from public.refunds",
+    );
+    expect(mine.rows[0].n).toBeGreaterThan(0);
+    await anita.end();
+
+    const stranger = await pg.asUser(STRANGER);
+    const theirs = await stranger.query(
+      "select count(*)::int as n from public.refunds",
+    );
+    expect(theirs.rows[0].n).toBe(0);
+    await stranger.end();
+  });
+
+  it("is not writable through a browser, by anybody", async () => {
+    // RLS grants no insert or update on `refunds` to any role. Every write
+    // goes through `lib/data/claims.ts` under the service role, which re-reads
+    // the claim rather than believing what it was handed.
+    const payment = await settledPayment("SK-REF6");
+    const anita = await pg.asUser(ANITA);
+    await expect(
+      anita.query(
+        `insert into public.refunds (payment_id, amount, reason)
+         values ($1, 99999, 'I would like my money back please')`,
+        [payment],
+      ),
+    ).rejects.toThrow(/row-level security/i);
+    await anita.end();
+  });
+});

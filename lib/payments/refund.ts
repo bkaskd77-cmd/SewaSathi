@@ -19,6 +19,8 @@
  * in one screen and testable without a database.
  */
 
+import type { PaymentMethod } from "./status";
+
 /** Just enough of a settled booking to judge a refund against it. */
 export type RefundSubject = {
   /** What was actually recorded as collected. */
@@ -165,4 +167,98 @@ export function refundFunding(input: {
     platformReturns,
     providerOwes: refund - platformReturns,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Getting the money back to them, which is a second step and not a flag
+ * ------------------------------------------------------------------ */
+
+/**
+ * WHY APPROVING A REFUND AND PAYING IT ARE TWO DIFFERENT EVENTS.
+ *
+ * The first draft had one: a person approved an amount and the claim recorded
+ * `refund_rupees`, which every screen then rendered as "refunded". Nothing in
+ * that sentence was true yet. **Two of our three rails cannot move money from
+ * inside this product at all** — eSewa has no merchant-initiated refund on
+ * ePay v2, and cash by its nature comes back the way it went out — so for most
+ * refunds the approval is somebody saying yes and a second person still has to
+ * go and send it. A screen that says "refunded" at the moment of approval is
+ * telling the customer their money has been sent by somebody who has not sent
+ * it, and it removes the only thing that would ever remind us to.
+ *
+ * So `refunds.status` carries it: `requested` is approved and owed,
+ * `completed` is gone, with `processed_at` and the gateway's or the sender's
+ * reference on the row. The constraint `refunds_processed_shape` already
+ * refuses a completed row with no timestamp, which is why this needed no
+ * migration — the shape was right and nothing was using it.
+ */
+
+export type RefundRail = {
+  /** Can this product move the money itself, right now? */
+  automatic: boolean;
+  /**
+   * Why it cannot, when it cannot. A copy key, never a sentence — the reader
+   * of this screen may be reading it in Nepali.
+   */
+  reason: "esewaHasNoApi" | "cashByHand" | "gatewayNotConfigured" | null;
+};
+
+/**
+ * Which rail this refund travels on, and whether a person has to walk it.
+ *
+ * `configured` IS PART OF THE ANSWER AND NOT A DETAIL. Khalti has a real
+ * refund endpoint, so a Khalti payment is automatic — but only where the
+ * secret is actually present. With no key the call returns `notConfigured`,
+ * and a screen that had already said "we will send this automatically" would
+ * be promising on the strength of a setting nobody checked. Absent is not
+ * working; it is reported as its own reason so somebody can go and fix it.
+ */
+export function refundRail(input: {
+  method: PaymentMethod;
+  /** `gatewayFor(method).isConfigured()`, read by the caller that may. */
+  configured: boolean;
+}): RefundRail {
+  if (input.method === "cash") return { automatic: false, reason: "cashByHand" };
+  if (input.method === "esewa") {
+    return { automatic: false, reason: "esewaHasNoApi" };
+  }
+  if (!input.configured) {
+    return { automatic: false, reason: "gatewayNotConfigured" };
+  }
+  return { automatic: true, reason: null };
+}
+
+/**
+ * How long an approved refund may sit unpaid before the queue says so.
+ *
+ * THREE DAYS, AND THE NUMBER IS ARGUED FROM WHAT WE ALREADY PAY OURSELVES.
+ * `PAYOUT_RULES` holds a professional's money for 24 hours on digital and
+ * seven days on cash; a customer we have already agreed to pay back must not
+ * wait longer than the slowest thing we do for our own side. Three days is
+ * inside that and outside a weekend, so a refund approved on Friday is flagged
+ * on Monday rather than the same afternoon.
+ *
+ * IT IS A FLAG, NEVER A DEADLINE THAT PAYS ITSELF. Nothing about this number
+ * moves money — the whole point of the two steps is that a person does — and a
+ * timer that auto-completed a refund would record money as sent that nobody
+ * sent, which is exactly the fault the second step exists to stop.
+ */
+export const REFUND_PAYMENT_DAYS = 3;
+
+/**
+ * Has this approved refund been sitting unpaid too long?
+ *
+ * An unpaid approved refund is the worst thing this product can leave quiet:
+ * the customer has been told yes, and from their side a refund that is never
+ * sent is indistinguishable from one that was refused without being said.
+ */
+export function isRefundStale(input: {
+  /** When it was approved. `refunds.created_at`. */
+  requestedAt: string;
+  now?: Date;
+}): boolean {
+  const requested = Date.parse(input.requestedAt);
+  if (Number.isNaN(requested)) return false;
+  const now = (input.now ?? new Date()).getTime();
+  return now - requested >= REFUND_PAYMENT_DAYS * 24 * 60 * 60 * 1000;
 }

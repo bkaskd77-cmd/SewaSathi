@@ -216,7 +216,7 @@ export async function openClaim(input: {
 
     await notifyProvider(booking.provider_id as string | null, {
       kind: "claim.opened",
-      reference: booking.reference as string,
+      params: { reference: booking.reference as string },
       bookingId: input.bookingId,
     });
 
@@ -710,8 +710,7 @@ async function recordRedoDebt(input: {
       note: `Return visit on ${booking?.reference ?? "a job"} — same fault`,
     });
 
-    await notify({
-      recipientId: input.originalProviderId,
+    await notifyProvider(input.originalProviderId, {
       kind: "claim.ledger",
       params: { amount: String(Math.round(amount)) },
       bookingId: input.bookingId,
@@ -789,9 +788,28 @@ async function moveClaim(input: {
   }
 }
 
+/**
+ * Tell a professional something, addressed the one way that works.
+ *
+ * A PROVIDER ID IS NOT A PROFILE ID, and passing one where the other belongs
+ * fails silently. `notifications.profile_id` references `profiles`, so an id
+ * from `providers` is refused by the foreign key — and `notify` never throws
+ * on purpose, because the event it reports has already happened. The result is
+ * a message nobody is ever sent and no error anybody ever sees.
+ *
+ * `recordRedoDebt` and `issueRefund` both did exactly that with
+ * `claim.ledger`: the one notification whose whole job is to stop a deduction
+ * arriving with no explanation. Nothing had reached production — no ledger row
+ * exists yet — but every future one would have been silent. So there is one
+ * way to address a professional and this is it.
+ */
 async function notifyProvider(
   providerId: string | null,
-  input: { kind: "claim.opened"; reference: string; bookingId: string },
+  input: {
+    kind: "claim.opened" | "claim.ledger";
+    params: Record<string, string>;
+    bookingId: string;
+  },
 ): Promise<void> {
   if (!providerId) return;
   try {
@@ -808,7 +826,7 @@ async function notifyProvider(
     await notify({
       recipientId: profileId,
       kind: input.kind,
-      params: { reference: input.reference },
+      params: input.params,
       bookingId: input.bookingId,
     });
   } catch (thrown) {
@@ -1215,18 +1233,646 @@ export async function issueRefund(input: {
       .eq("id", payment.id as string)
       .eq("status", "paid");
 
-    if (claim.provider_id) {
-      await notify({
-        recipientId: claim.provider_id as string,
+    if (claim.provider_id && funding.providerOwes > 0) {
+      await notifyProvider(claim.provider_id as string, {
         kind: "claim.ledger",
         params: { amount: String(funding.providerOwes) },
         bookingId: booking.id as string,
       });
     }
 
+    /*
+     * AND THE CUSTOMER IS TOLD IT WAS AGREED — never that it was sent. Two of
+     * three rails cannot move money from here, so `claim.refundSent` is a
+     * second, later event with somebody's name and a reference on it.
+     */
+    await notifyCustomer(booking.id as string, {
+      kind: "claim.refundApproved",
+      params: { amount: String(verdict.amount) },
+    });
+
     return { ok: true, refundId: refund.id as string, verdict: verdict.outcome };
   } catch (thrown) {
     console.error(`[claims] refund threw — ${describeError(thrown)}`);
     return { ok: false, reason: "saveFailed" };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Approved is not sent
+ * ------------------------------------------------------------------ */
+
+/**
+ * A refund that has been agreed and is waiting to actually go.
+ *
+ * WHY THIS IS A ROW SOMEBODY LOOKS AT RATHER THAN A FLAG NOBODY DOES. Two of
+ * our three rails cannot move money from inside this product: eSewa has no
+ * merchant-initiated refund on ePay v2, and cash comes back the way it went
+ * out. So for most refunds the approval is one person saying yes and a second
+ * person still has to go and send it — and if nothing on any screen says so,
+ * "approved" is where the money stops. An unpaid approved refund is the worst
+ * thing this product can leave quiet: the customer has been told yes, and from
+ * their side a refund that never arrives is indistinguishable from one that
+ * was refused without being said.
+ */
+export type PendingRefund = {
+  refundId: string;
+  paymentId: string;
+  bookingId: string;
+  bookingReference: string;
+  claimId: string | null;
+  amount: number;
+  reason: string;
+  method: "cash" | "esewa" | "khalti";
+  /** Theirs, from the original payment. Needed to refund through a gateway. */
+  providerTxnId: string | null;
+  requestedAt: string;
+  /** Past `REFUND_PAYMENT_DAYS`. Sorted to the top and said out loud. */
+  stale: boolean;
+  /** Whether this product can move it, and why not when it cannot. */
+  automatic: boolean;
+  railReason: string | null;
+};
+
+/** A resolved claim on which a person could still decide money back. */
+export type RefundableClaim = {
+  claimId: string;
+  bookingId: string;
+  bookingReference: string;
+  categorySlug: string;
+  description: string;
+  verdictNote: string | null;
+  providerName: string | null;
+  completedAt: string | null;
+  /** The most this booking could ever pay back, or why it can pay nothing. */
+  ceiling: number | null;
+  blocked: string | null;
+  /** Days left in the trade's window. Negative is past it. */
+  daysLeft: number | null;
+};
+
+export type RefundQueue = {
+  awaitingPayment: PendingRefund[];
+  decidable: RefundableClaim[];
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Everything a person has to act on about guarantee money, in one read.
+ *
+ * THE UNPAID ONES COME FIRST AND THAT IS THE WHOLE ORDERING. A queue that put
+ * the interesting decisions at the top and the owed money underneath would be
+ * optimised for the reviewer rather than for the customer waiting on it.
+ *
+ * ADMIN ONLY, through the service role, because it crosses every customer.
+ * The caller proves the role; this function is not reachable from a page that
+ * has not.
+ */
+export async function refundQueue(): Promise<RefundQueue> {
+  const empty: RefundQueue = { awaitingPayment: [], decidable: [] };
+  if (!hasSupabaseConfig()) return empty;
+
+  try {
+    const admin = createAdminClient();
+    const { isRefundStale, refundCeiling, refundRail } = await import(
+      "@/lib/payments/refund"
+    );
+    const { gatewayFor } = await import("@/lib/payments");
+
+    const [{ data: refundRows }, { data: claimRows }] = await Promise.all([
+      admin
+        .from("refunds")
+        .select("id, payment_id, amount, reason, created_at")
+        .eq("status", "requested")
+        .order("created_at", { ascending: true })
+        .limit(100),
+      admin
+        .from("guarantee_claims")
+        .select(
+          "id, booking_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, closed_at",
+        )
+        .eq("status", "resolved")
+        .eq("verdict", "sameFault")
+        .eq("refund_rupees", 0)
+        .order("closed_at", { ascending: false })
+        .limit(50),
+    ]);
+
+    const refunds = (refundRows ?? []) as Record<string, unknown>[];
+    const claims = (claimRows ?? []) as Record<string, unknown>[];
+
+    /*
+     * The bookings behind both halves, in one read each. `refunds` points at a
+     * payment and the payment points at the booking, so the refund half needs
+     * the payments first — there is no column that would let it skip a hop,
+     * and inventing one would be a second place that knows which booking a
+     * refund belongs to.
+     */
+    const { data: paymentRows } = refunds.length
+      ? await admin
+          .from("payments")
+          .select("id, booking_id, method, provider_txn_id")
+          .in("id", refunds.map((r) => r.payment_id as string))
+      : { data: [] as Record<string, unknown>[] };
+
+    const payments = new Map(
+      ((paymentRows ?? []) as Record<string, unknown>[]).map((p) => [
+        p.id as string,
+        p,
+      ]),
+    );
+
+    const bookingIds = Array.from(
+      new Set([
+        ...((paymentRows ?? []) as Record<string, unknown>[]).map(
+          (p) => p.booking_id as string,
+        ),
+        ...claims.map((c) => c.booking_id as string),
+      ]),
+    );
+
+    const { data: bookingRows } = bookingIds.length
+      ? await admin
+          .from("bookings")
+          .select(
+            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, completed_at",
+          )
+          .in("id", bookingIds)
+      : { data: [] as Record<string, unknown>[] };
+
+    const bookings = new Map(
+      ((bookingRows ?? []) as Record<string, unknown>[]).map((b) => [
+        b.id as string,
+        b,
+      ]),
+    );
+
+    // Which claim, if any, each refunded booking belongs to — so the screen
+    // can show what it was for rather than an amount with no story.
+    const { data: claimByBooking } = bookingIds.length
+      ? await admin
+          .from("guarantee_claims")
+          .select("id, booking_id")
+          .in("booking_id", bookingIds)
+          .gt("refund_rupees", 0)
+      : { data: [] as Record<string, unknown>[] };
+
+    const claimFor = new Map(
+      ((claimByBooking ?? []) as Record<string, unknown>[]).map((c) => [
+        c.booking_id as string,
+        c.id as string,
+      ]),
+    );
+
+    const awaitingPayment: PendingRefund[] = [];
+    for (const row of refunds) {
+      const payment = payments.get(row.payment_id as string);
+      if (!payment) continue;
+      const booking = bookings.get(payment.booking_id as string);
+      const method = payment.method as "cash" | "esewa" | "khalti";
+      /*
+       * `isConfigured()` is part of the rail, not a detail. With no Khalti
+       * secret the refund call returns `notConfigured`, and a screen that had
+       * already promised "we will send this automatically" would be promising
+       * on a setting nobody checked.
+       */
+      const rail = refundRail({
+        method,
+        configured: gatewayFor(method).isConfigured(),
+      });
+      awaitingPayment.push({
+        refundId: row.id as string,
+        paymentId: payment.id as string,
+        bookingId: payment.booking_id as string,
+        bookingReference: (booking?.reference as string | undefined) ?? "",
+        claimId: claimFor.get(payment.booking_id as string) ?? null,
+        amount: Number(row.amount ?? 0),
+        reason: (row.reason as string) ?? "",
+        method,
+        providerTxnId: (payment.provider_txn_id as string | null) ?? null,
+        requestedAt: row.created_at as string,
+        stale: isRefundStale({ requestedAt: row.created_at as string }),
+        automatic: rail.automatic,
+        railReason: rail.reason,
+      });
+    }
+
+    // Stale first, then oldest first. Both orderings say the same thing — the
+    // one that has been waiting longest is the one to deal with.
+    awaitingPayment.sort((a, b) =>
+      a.stale === b.stale
+        ? a.requestedAt.localeCompare(b.requestedAt)
+        : a.stale
+          ? -1
+          : 1,
+    );
+
+    const names = await providerNames(
+      claims
+        .map((c) => (c.provider_id ?? c.attending_provider_id) as string | null)
+        .filter((id): id is string => Boolean(id)),
+    );
+
+    const now = Date.now();
+    const decidable: RefundableClaim[] = claims.map((claim) => {
+      const booking = bookings.get(claim.booking_id as string);
+      const ceiling = refundCeiling({
+        finalAmount: (booking?.final_amount as number | null) ?? null,
+        customerReportedAmount:
+          (booking?.customer_reported_amount as number | null) ?? null,
+        amountMismatchAt: (booking?.amount_mismatch_at as string | null) ?? null,
+        paymentStatus: (booking?.payment_status as string) ?? "unpaid",
+      });
+
+      const completedAt = (booking?.completed_at as string | null) ?? null;
+      const window = guaranteeFor(claim.category_slug as string);
+      const daysLeft = completedAt
+        ? Math.floor(
+            (Date.parse(completedAt) + window.days * DAY_MS - now) / DAY_MS,
+          )
+        : null;
+
+      const providerId = (claim.provider_id ??
+        claim.attending_provider_id) as string | null;
+
+      return {
+        claimId: claim.id as string,
+        bookingId: claim.booking_id as string,
+        bookingReference: (booking?.reference as string | undefined) ?? "",
+        categorySlug: claim.category_slug as string,
+        description: (claim.description as string) ?? "",
+        verdictNote: (claim.verdict_note as string | null) ?? null,
+        providerName: providerId ? (names.get(providerId) ?? null) : null,
+        completedAt,
+        ceiling: ceiling.ok ? ceiling.ceiling : null,
+        blocked: ceiling.ok ? null : ceiling.reason,
+        daysLeft,
+      };
+    });
+
+    return { awaitingPayment, decidable };
+  } catch (thrown) {
+    console.error(`[claims] refund queue threw — ${describeError(thrown)}`);
+    return empty;
+  }
+}
+
+/** Display names for a set of professionals. Service role; admin surface only. */
+async function providerNames(ids: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const unique = Array.from(new Set(ids));
+  if (unique.length === 0) return names;
+  const { data } = await createAdminClient()
+    .from("providers")
+    .select("id, display_name")
+    .in("id", unique);
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    names.set(row.id as string, row.display_name as string);
+  }
+  return names;
+}
+
+/**
+ * Tell the customer of a booking something. Addressed from the booking row,
+ * for the same reason `notifyProvider` exists: the id has to come from the
+ * table that holds profile ids, not from whichever one was to hand.
+ */
+async function notifyCustomer(
+  bookingId: string,
+  input: {
+    kind: "claim.refundApproved" | "claim.refundSent";
+    params: Record<string, string>;
+  },
+): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("bookings")
+      .select("customer_id")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    const customerId = (data?.customer_id as string | null) ?? null;
+    if (!customerId) return;
+
+    await notify({
+      recipientId: customerId,
+      kind: input.kind,
+      params: input.params,
+      bookingId,
+    });
+  } catch (thrown) {
+    console.error(`[claims] customer notify threw — ${describeError(thrown)}`);
+  }
+}
+
+export type RefundPaidResult =
+  | { ok: true; refundId: string }
+  | { ok: false; reason: string };
+
+/**
+ * The second step: somebody has actually sent the money.
+ *
+ * WHAT MAKES THIS A SEPARATE ACT AND NOT A FLAG ON THE FIRST. eSewa has no
+ * merchant-initiated refund on ePay v2 and cash comes back the way it went
+ * out, so on two of our three rails a person leaves this product, moves the
+ * money, and comes back. The only honest record of that is one they make
+ * afterwards, carrying the reference it went under and the date it went. A
+ * single "refunded" written at approval would be this product asserting
+ * something it cannot know.
+ *
+ * A REFERENCE IS REQUIRED AND IT IS THE POINT. It is the one thing that lets a
+ * customer saying "I never got it" be answered rather than argued with, and
+ * the one thing that tells a second reviewer this has already been sent. A
+ * completion with nothing to look up is a completion nobody can check.
+ *
+ * GUARDED ON `requested`, so two reviewers a minute apart do not both record a
+ * payment. `refunds_processed_shape` refuses a completed row with no
+ * timestamp, so the shape cannot be got wrong either.
+ */
+export async function markRefundPaid(input: {
+  refundId: string;
+  reference: string;
+  /** When it actually went, which is not necessarily now. ISO date or instant. */
+  paidAt: string;
+  actorId: string;
+}): Promise<RefundPaidResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const reference = input.reference.trim();
+  if (reference.length < 3) return { ok: false, reason: "referenceRequired" };
+
+  const paidAt = new Date(input.paidAt);
+  if (Number.isNaN(paidAt.getTime())) {
+    return { ok: false, reason: "badDate" };
+  }
+  /*
+   * A DATE IN THE FUTURE IS A TYPO, NOT A PLAN. Money that has not moved yet
+   * is a refund still at `requested`; recording it as sent tomorrow would take
+   * it off this queue today, which is the one thing the queue exists to stop.
+   * An hour of slack absorbs a clock that is a little ahead.
+   */
+  if (paidAt.getTime() > Date.now() + 60 * 60 * 1000) {
+    return { ok: false, reason: "futureDate" };
+  }
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: actor } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", input.actorId)
+      .maybeSingle();
+    if ((actor?.role as string | null) !== "admin") {
+      return { ok: false, reason: "notAdmin" };
+    }
+
+    const { data: refund } = await admin
+      .from("refunds")
+      .select("id, payment_id, amount, status")
+      .eq("id", input.refundId)
+      .maybeSingle();
+    if (!refund) return { ok: false, reason: "notFound" };
+    if ((refund.status as string) !== "requested") {
+      return { ok: false, reason: "alreadyPaid" };
+    }
+
+    const { data: updated, error } = await admin
+      .from("refunds")
+      .update({
+        status: "completed",
+        processed_at: paidAt.toISOString(),
+        provider_txn_id: reference.slice(0, 200),
+      })
+      .eq("id", input.refundId)
+      // The status it was judged against. The second reviewer updates nothing.
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
+
+    if (error || !updated) {
+      if (error) console.error(`[claims] refund pay failed — ${describeError(error)}`);
+      return { ok: false, reason: error ? "saveFailed" : "alreadyPaid" };
+    }
+
+    const { data: payment } = await admin
+      .from("payments")
+      .select("booking_id")
+      .eq("id", refund.payment_id as string)
+      .maybeSingle();
+
+    if (payment?.booking_id) {
+      await notifyCustomer(payment.booking_id as string, {
+        kind: "claim.refundSent",
+        params: { amount: String(refund.amount ?? 0), reference },
+      });
+    }
+
+    return { ok: true, refundId: input.refundId };
+  } catch (thrown) {
+    console.error(`[claims] refund pay threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+}
+
+/**
+ * Send an approved refund through the gateway that took the money.
+ *
+ * ONLY WHERE THE RAIL CAN CARRY IT. Khalti has a real refund endpoint; eSewa
+ * does not on ePay v2 and cash never will. `refundRail` decides, and this
+ * refuses rather than pretending — the manual path is not a fallback for a
+ * failed call, it is what those rails are.
+ *
+ * A GATEWAY THAT DOES NOT ANSWER IS NOT A REFUND THAT FAILED. The same rule
+ * `verifyAndSettle` follows and for a sharper reason here: the money may
+ * already have left our account. So the row stays at `requested`, nothing is
+ * recorded as sent, and the screen says to check the gateway before sending
+ * again. Recording a failure would be the mirror of recording a success
+ * nobody verified.
+ */
+export async function sendRefundToGateway(input: {
+  refundId: string;
+  actorId: string;
+}): Promise<RefundPaidResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: actor } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", input.actorId)
+      .maybeSingle();
+    if ((actor?.role as string | null) !== "admin") {
+      return { ok: false, reason: "notAdmin" };
+    }
+
+    const { data: refund } = await admin
+      .from("refunds")
+      .select("id, payment_id, amount, reason, status")
+      .eq("id", input.refundId)
+      .maybeSingle();
+    if (!refund) return { ok: false, reason: "notFound" };
+    if ((refund.status as string) !== "requested") {
+      return { ok: false, reason: "alreadyPaid" };
+    }
+
+    const { data: payment } = await admin
+      .from("payments")
+      .select("id, booking_id, method, our_reference, provider_txn_id")
+      .eq("id", refund.payment_id as string)
+      .maybeSingle();
+    if (!payment) return { ok: false, reason: "notFound" };
+
+    const method = payment.method as "cash" | "esewa" | "khalti";
+    const { gatewayFor } = await import("@/lib/payments");
+    const { refundRail } = await import("@/lib/payments/refund");
+
+    const gateway = gatewayFor(method);
+    const rail = refundRail({ method, configured: gateway.isConfigured() });
+    if (!rail.automatic) return { ok: false, reason: rail.reason ?? "manualOnly" };
+
+    const providerTxnId = (payment.provider_txn_id as string | null) ?? null;
+    // Their id for the original payment is what a refund is raised against.
+    // Without it there is nothing to refund, and guessing is not an option.
+    if (!providerTxnId) return { ok: false, reason: "noGatewayReference" };
+
+    const sent = await gateway.refund({
+      reference: payment.our_reference as string,
+      providerTxnId,
+      amount: Number(refund.amount ?? 0),
+      reason: (refund.reason as string) ?? "Guarantee refund",
+    });
+
+    if (!sent.ok) {
+      console.error(`[claims] gateway refund said no — ${sent.reason}`);
+      return { ok: false, reason: "gatewaySaidNo" };
+    }
+
+    return markRefundPaid({
+      refundId: input.refundId,
+      reference: sent.providerTxnId,
+      paidAt: new Date().toISOString(),
+      actorId: input.actorId,
+    });
+  } catch (thrown) {
+    console.error(`[claims] gateway refund threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "noAnswer" };
+  }
+}
+
+/**
+ * The refunds on one booking, for the customer looking at it.
+ *
+ * THE STATUS, NOT THE AMOUNT. `guarantee_claims.refund_rupees` says what was
+ * agreed and nothing about whether it has moved; a panel reading only that
+ * would tell somebody their money was refunded while it sat in a queue. So the
+ * booking page reads the refund row and says which of the two is true.
+ *
+ * Through RLS — "Customers read refunds on their payments" — so this is their
+ * own and nobody else's.
+ */
+export type CustomerRefund = {
+  id: string;
+  amount: number;
+  /** `requested` is agreed and on its way. `completed` has actually gone. */
+  status: string;
+  sentAt: string | null;
+};
+
+export async function refundsForBooking(
+  bookingId: string,
+): Promise<CustomerRefund[]> {
+  if (!hasSupabaseConfig()) return [];
+  try {
+    const supabase = createClient();
+
+    const { data: payments } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("booking_id", bookingId);
+
+    const ids = ((payments ?? []) as { id: string }[]).map((p) => p.id);
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from("refunds")
+      .select("id, amount, status, processed_at, created_at")
+      .in("payment_id", ids)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(`[claims] refund read failed — ${describeError(error)}`);
+      return [];
+    }
+
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: row.id as string,
+      amount: Number(row.amount ?? 0),
+      status: (row.status as string) ?? "requested",
+      sentAt: (row.processed_at as string | null) ?? null,
+    }));
+  } catch (thrown) {
+    console.error(`[claims] refund read threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
+/**
+ * Which of these bookings has a refund agreed but not yet sent.
+ *
+ * ONE QUERY FOR THE WHOLE LIST, the same rule as `liveClaimsByBooking` and for
+ * the same reason: `/bookings` ships no client JavaScript on purpose, and a
+ * read per row would undo that on exactly the connection the page exists to
+ * serve. Through RLS, so it is the reader's own.
+ *
+ * WHAT IT IS FOR. A booking with money owed on it is not history. Without this
+ * the card dropped into "Earlier", quiet and small, while the customer waited
+ * for a refund we had already agreed to pay them.
+ */
+export async function unpaidRefundsByBooking(
+  bookingIds: string[],
+): Promise<Set<string>> {
+  const owed = new Set<string>();
+  if (!hasSupabaseConfig() || bookingIds.length === 0) return owed;
+
+  try {
+    const supabase = createClient();
+
+    const { data: payments } = await supabase
+      .from("payments")
+      .select("id, booking_id")
+      .in("booking_id", bookingIds);
+
+    const bookingOf = new Map(
+      ((payments ?? []) as { id: string; booking_id: string }[]).map((p) => [
+        p.id,
+        p.booking_id,
+      ]),
+    );
+    if (bookingOf.size === 0) return owed;
+
+    const { data, error } = await supabase
+      .from("refunds")
+      .select("payment_id, status")
+      .in("payment_id", Array.from(bookingOf.keys()))
+      .eq("status", "requested");
+
+    if (error) {
+      console.error(`[claims] owed read failed — ${describeError(error)}`);
+      return owed;
+    }
+
+    for (const row of (data ?? []) as { payment_id: string }[]) {
+      const bookingId = bookingOf.get(row.payment_id);
+      if (bookingId) owed.add(bookingId);
+    }
+    return owed;
+  } catch (thrown) {
+    console.error(`[claims] owed read threw — ${describeError(thrown)}`);
+    return owed;
   }
 }

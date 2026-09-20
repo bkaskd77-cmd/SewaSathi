@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { judgeRefund, refundCeiling, refundFunding } from "@/lib/payments/refund";
+import {
+  isRefundStale,
+  judgeRefund,
+  refundCeiling,
+  refundFunding,
+  refundRail,
+  REFUND_PAYMENT_DAYS,
+} from "@/lib/payments/refund";
+import { PAYOUT_RULES } from "@/lib/payments/payout";
 
 /**
  * The last two rungs of the guarantee, and the ceiling they cannot pass.
@@ -139,5 +147,74 @@ describe("who funds it", () => {
       const f = refundFunding({ refund, platformFee: 450, providerEarning: 2550 });
       expect(f.platformReturns + f.providerOwes).toBe(f.customerReceives);
     }
+  });
+});
+
+describe("which rail the money goes back on", () => {
+  it("khalti with a key is the only automatic one", () => {
+    expect(refundRail({ method: "khalti", configured: true })).toEqual({
+      automatic: true,
+      reason: null,
+    });
+  });
+
+  it("eSewa is manual because ePay v2 has no merchant-initiated refund", () => {
+    const rail = refundRail({ method: "esewa", configured: true });
+    expect(rail.automatic).toBe(false);
+    expect(rail.reason).toBe("esewaHasNoApi");
+  });
+
+  it("cash is manual by nature, configured or not", () => {
+    for (const configured of [true, false]) {
+      const rail = refundRail({ method: "cash", configured });
+      expect(rail.automatic).toBe(false);
+      expect(rail.reason).toBe("cashByHand");
+    }
+  });
+
+  /*
+   * ABSENT IS NOT WORKING. With no Khalti secret the refund call returns
+   * `notConfigured`, so a screen that had already said "we will send this
+   * automatically" would be promising on a setting nobody checked — and the
+   * refund would sit there while everyone assumed it had gone.
+   */
+  it("says a missing key is a missing key, not just 'manual'", () => {
+    const rail = refundRail({ method: "khalti", configured: false });
+    expect(rail.automatic).toBe(false);
+    expect(rail.reason).toBe("gatewayNotConfigured");
+  });
+});
+
+describe("an approved refund that has not been sent", () => {
+  const now = new Date("2026-09-20T12:00:00Z");
+  const daysAgo = (n: number) =>
+    new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  it("is not stale the day it is approved", () => {
+    expect(isRefundStale({ requestedAt: daysAgo(0), now })).toBe(false);
+    expect(isRefundStale({ requestedAt: daysAgo(1), now })).toBe(false);
+  });
+
+  it("is stale once it passes the published number of days", () => {
+    expect(isRefundStale({ requestedAt: daysAgo(REFUND_PAYMENT_DAYS), now })).toBe(
+      true,
+    );
+    expect(isRefundStale({ requestedAt: daysAgo(30), now })).toBe(true);
+  });
+
+  /*
+   * The number is argued from what we already pay ourselves: a professional's
+   * money is held 24 hours on digital and seven days on cash, and a customer
+   * we have agreed to pay back must not wait longer than the slowest thing we
+   * do for our own side.
+   */
+  it("flags sooner than the slowest payout hold", () => {
+    expect(REFUND_PAYMENT_DAYS).toBeLessThan(PAYOUT_RULES.cashHoldHours / 24);
+  });
+
+  it("treats an unreadable date as not stale rather than as stale", () => {
+    // A parse failure is not evidence that anything is overdue. Reading it as
+    // stale would put a warning on a row nobody can act on.
+    expect(isRefundStale({ requestedAt: "not a date", now })).toBe(false);
   });
 });

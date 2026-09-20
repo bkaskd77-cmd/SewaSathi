@@ -109,7 +109,20 @@ export type NotificationKind =
    * off future earnings. Told, never billed: a deduction nobody can account
    * for is worse than the deduction.
    */
-  | "claim.ledger";
+  | "claim.ledger"
+  /**
+   * Money back has been agreed. NOT that it has been sent.
+   *
+   * Two of our three rails cannot move money from inside this product — eSewa
+   * has no merchant-initiated refund on ePay v2, cash comes back the way it
+   * went out — so approval and payment are genuinely two events and the
+   * customer is told about each. One message covering both would have to be
+   * written before the second happened, which is how a product says "sent"
+   * about money nobody has sent.
+   */
+  | "claim.refundApproved"
+  /** It has actually gone, with the reference it went under. */
+  | "claim.refundSent";
 
 export type Notification = {
   /** Who it is for. Their language is read at delivery, not passed in. */
@@ -135,3 +148,66 @@ export type NotificationChannel = {
   isConfigured(): boolean;
   send(notification: Notification): Promise<DeliveryResult>;
 };
+
+/* ------------------------------------------------------------------ *
+ * Reading a kind back as a sentence
+ * ------------------------------------------------------------------ */
+
+/**
+ * The catalogue key for one notification kind, or null if it has no sentence.
+ *
+ * THE BUG THIS EXISTS TO STOP, AND IT WAS ALREADY SHIPPED. `/bookings` turned
+ * a kind into a key by stripping the `booking.` prefix and interpolating the
+ * rest — which is correct for exactly the kinds that carry it and wrong for
+ * every other. next-intl reads a dot as nesting, so an unread `claim.resolved`
+ * rendered `booking.notifications.claim.resolved` onto a customer's list: not
+ * a build error, not a runtime error, just the key path printed on the page in
+ * the language they are least likely to be reading. The catalogue check cannot
+ * see it either, since both languages are equally missing it.
+ *
+ * AN ALLOW-LIST, LIKE `KNOWN_CORRECTION_ERRORS` AND FOR THE SAME REASON. A
+ * kind added to the union above and not given copy returns null and shows
+ * nothing, which is the honest failure: the card simply carries no note, the
+ * same as a booking nothing has happened to. Interpolating would guarantee the
+ * opposite — the more kinds this product grows, the more key paths leak onto
+ * the one screen a customer opens to see whether anybody is coming.
+ */
+const LIST_NOTES: Partial<Record<NotificationKind, string>> = {
+  "booking.accepted": "accepted",
+  "booking.en_route": "en_route",
+  "booking.in_progress": "in_progress",
+  "booking.completed": "completed",
+  "booking.cancelled": "cancelled",
+  "booking.declined": "declined",
+  "booking.assigned": "assigned",
+  "booking.amountEntered": "amountEntered",
+  "booking.paid": "paid",
+  "booking.widened": "widened",
+  "booking.noProviderFound": "noProviderFound",
+  "booking.mayRunLate": "mayRunLate",
+  "booking.quoteReady": "quoteReady",
+  "booking.quoteExpired": "quoteExpired",
+  "booking.quoteApproved": "quoteApproved",
+  "booking.quoteDeclined": "quoteDeclined",
+  "booking.priceCorrected": "priceCorrected",
+  "booking.priceCorrectionApproved": "priceCorrectionApproved",
+  "booking.priceCorrectionDeclined": "priceCorrectionDeclined",
+  "payment.receipt": "receipt",
+  "payment.mismatch": "mismatch",
+  "review.published": "reviewPublished",
+  "claim.refundApproved": "refundApproved",
+  "claim.refundSent": "refundSent",
+};
+
+/** Every kind that has a sentence on the bookings list. Exported for the test. */
+export const LIST_NOTE_KINDS = Object.keys(LIST_NOTES) as NotificationKind[];
+
+/**
+ * `booking.notifications.<key>` for this kind, or null.
+ *
+ * Returns the leaf only — the namespace belongs to the screen, so a second
+ * screen can read the same kinds under its own.
+ */
+export function listNoteKey(kind: string): string | null {
+  return LIST_NOTES[kind as NotificationKind] ?? null;
+}

@@ -81,6 +81,9 @@ public POST endpoint like any other.
 | `decideSurveyFeeAction` | admins | one pending survey visit fee | role re-read in the action **and** again in `decideSurveyVisitFee`; the update is guarded on `status = 'pending'` so two reviewers produce one decision; `enforce_survey_visit_fee` refuses an approval with no `decided_by` and the fifth approved fee in a month, on the UPDATE as well as the INSERT |
 | `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
 | `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess` |
+| `issueRefundAction` | admins | agrees money back on one guarantee claim | role re-read in the action **and** again in `issueRefund`; `judgeRefund` judges first so the reviewer gets a sentence, and `enforce_claim_refund` — no service-role bypass — refuses a second refund, a rupee over `least(final_amount, customer_reported_amount)`, an unsettled or disputed booking and one past the trade's window; the claim write is guarded on `refund_rupees = 0` so two reviewers produce one refund; writes the `refunds` row at `requested`, never `completed` |
+| `markRefundPaidAction` | admins | records that one approved refund has actually been sent | role re-read in the action and again in `markRefundPaid`; guarded on `status = 'requested'`; a reference of at least three characters and a non-future date are required, and `refunds_processed_shape` refuses a completed row with no `processed_at` |
+| `sendRefundAction` | admins | sends one approved refund through the gateway that took it | role re-read in both places; `refundRail` refuses every rail but a **configured** Khalti, so a missing key is reported as a missing key rather than silently becoming "manual"; a gateway that does not answer leaves the row at `requested` — the money may already have moved, so nothing is recorded either way |
 
 **Neither money queue can pay itself, and that is the point of both.**
 `survey_visit_fees` and `commission_appeals` are born waiting for a person
@@ -89,9 +92,18 @@ collect. The screens are that person's hand; they add no rule of their own and
 re-implement none of the database's, so a cap refusal reaches the reviewer as
 the policy it is rather than as a failed save.
 
-**Still no admin path issues a guarantee refund.** `tests/db/guarantee-claims.test.ts`
-proves one needs an admin, and today that means database access. It is a new
-money write path and is deliberately not bolted onto either queue.
+**A guarantee refund now has a screen, and it takes two people's acts rather
+than one.** `/admin/guarantee-claims` approves an amount, which writes a
+`refunds` row at `requested` and nothing else; a second act records that the
+money has actually gone, with the reference it went under and the date. The
+split is not ceremony: eSewa has no merchant-initiated refund on ePay v2 and
+cash comes back the way it went out, so on two of our three rails a person
+leaves this product, moves the money and comes back. A single "refunded"
+written at approval would be the product asserting a payment nobody made — and
+would remove the only thing that would ever remind us to make it. The queue
+surfaces anything sitting at `requested` past `REFUND_PAYMENT_DAYS`, because an
+unpaid approved refund is indistinguishable, from the customer's side, from one
+refused without being said.
 
 ### Public and machine surfaces
 
