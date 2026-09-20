@@ -143,6 +143,43 @@ const GUARDS: Record<string, Guard[]> = {
    * data-integrity rules about the return visit, of exactly the kind this
    * manifest exists for, and neither is expressible as a transition.
    */
+  enforce_claim_refund: [
+    {
+      protects:
+        "The only part of the guarantee that moves real money cannot pay twice, or pay more than was collected.",
+      ifMissing:
+        "A claim becomes a repeatable route to cash — the exact farming the re-do design exists to make pointless, except now with money instead of labour.",
+      clauses: [
+        "already been refunded",
+        "more than the amount recorded for the job",
+      ],
+    },
+    {
+      protects:
+        "Nothing is refunded out of a job nobody settled, or one whose amount is still in dispute.",
+      ifMissing:
+        "Money leaves against a figure that does not exist, or against one of two figures a person is still deciding between — picking a side silently.",
+      clauses: [
+        "has not been settled",
+        "b.amount_mismatch_at is not null",
+      ],
+    },
+    {
+      protects:
+        "A claim that sat open past its window does not become payable by waiting.",
+      ifMissing:
+        "The published window stops being the promise, because claimIsAllowed only checked it at filing and a refund is decided later.",
+      clauses: ["window_days", "guarantee window has closed"],
+    },
+    {
+      protects:
+        "An unsigned refund is refused by the trigger whose sentence describes it.",
+      ifMissing:
+        "This function sorts first alphabetically, so its complaint about the booking would preempt `money back needs a person` — the more fundamental rule — and misdescribe the fault.",
+      clauses: ["new.refund_decided_by is null"],
+    },
+  ],
+
   enforce_guarantee_visit: [
     {
       protects:

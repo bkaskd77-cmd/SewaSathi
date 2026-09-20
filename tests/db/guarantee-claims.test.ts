@@ -235,8 +235,41 @@ describe("the visit is the verification", () => {
 });
 
 describe("money back needs a person", () => {
+  /**
+   * A finished job somebody actually paid for.
+   *
+   * `completedBooking` leaves `payment_status` unpaid with no final amount,
+   * which is the right default for most of this file — but a refund has to
+   * come out of money that was collected, so every case below needs one of
+   * these instead.
+   */
+  async function settledBooking(
+    reference: string,
+    amount = 3000,
+    over: Record<string, unknown> = {},
+  ): Promise<string> {
+    const id = await completedBooking(reference);
+    const sets = Object.keys(over)
+      .map((k, i) => `${k} = $${i + 3}`)
+      .join(", ");
+    await pg.admin.query(
+      `update public.bookings
+          set payment_status = 'paid', final_amount = $2,
+              completed_at = now()${sets ? ", " + sets : ""}
+        where id = $1`,
+      [id, amount, ...Object.values(over)],
+    );
+    return id;
+  }
+
   it("refuses a refund nobody signed, service role included", async () => {
-    const claim = await openClaim(await completedBooking("SK-CLAIM8"));
+    /*
+     * THE ANTI-FARMING DESIGN IN ONE CONSTRAINT, and the reason
+     * `enforce_claim_refund` returns early on an unsigned refund rather than
+     * refusing it first: this sentence describes what is actually wrong, and
+     * it would otherwise be preempted by a complaint about the booking.
+     */
+    const claim = await openClaim(await settledBooking("SK-CLAIM8"));
 
     await expect(
       pg.admin.query(
@@ -247,7 +280,7 @@ describe("money back needs a person", () => {
   });
 
   it("allows one an admin decided", async () => {
-    const claim = await openClaim(await completedBooking("SK-CLAIM9"));
+    const claim = await openClaim(await settledBooking("SK-CLAIM9"));
 
     await pg.admin.query(
       `update public.guarantee_claims
@@ -260,6 +293,80 @@ describe("money back needs a person", () => {
       [claim],
     );
     expect(rows[0].refund_rupees).toBe(2000);
+  });
+
+  /*
+   * THE FOUR THINGS NO PERSON MAY DECIDE. A refund is the only part of the
+   * guarantee that moves real money, so these are in the database rather than
+   * only in `lib/payments/refund.ts` — no service-role bypass, because none
+   * of them has a legitimate case.
+   */
+  const pay = (claim: string, amount: number) =>
+    pg.admin.query(
+      `update public.guarantee_claims
+          set refund_rupees = $2, refund_decided_by = $3 where id = $1`,
+      [claim, amount, ADMIN],
+    );
+
+  it("never pays twice on one claim", async () => {
+    const claim = await openClaim(await settledBooking("SK-REF01"));
+    await pay(claim, 1000);
+
+    // A second figure, and an edit of the first, are the same event.
+    await expect(pay(claim, 500)).rejects.toThrow(/already been refunded/i);
+    await expect(pay(claim, 2000)).rejects.toThrow(/already been refunded/i);
+  });
+
+  it("never pays more than was collected", async () => {
+    const claim = await openClaim(await settledBooking("SK-REF02", 3000));
+    await expect(pay(claim, 3001)).rejects.toThrow(/more than the amount recorded/i);
+    // And the ceiling itself is payable — full labour is a real rung.
+    await pay(claim, 3000);
+  });
+
+  it("takes the lower figure when the customer's differs", async () => {
+    /*
+     * The cash screen promises "up to the amount you enter". That is a
+     * ceiling, not a floor — taking the higher of the two would let somebody
+     * name a figure and be refunded it.
+     */
+    const claim = await openClaim(
+      await settledBooking("SK-REF03", 3000, { customer_reported_amount: 1800 }),
+    );
+    await expect(pay(claim, 2500)).rejects.toThrow(/more than the amount recorded/i);
+    await pay(claim, 1800);
+  });
+
+  it("never pays out of a job nobody settled", async () => {
+    const claim = await openClaim(await completedBooking("SK-REF04"));
+    await expect(pay(claim, 500)).rejects.toThrow(/has not been settled/i);
+  });
+
+  it("never pays while the two figures are in dispute", async () => {
+    /*
+     * A standing mismatch means a person is already deciding which number is
+     * true. Refunding against either picks a side silently, in whichever
+     * direction happened to be written down.
+     */
+    const claim = await openClaim(
+      await settledBooking("SK-REF05", 3000, { amount_mismatch_at: new Date() }),
+    );
+    await expect(pay(claim, 1000)).rejects.toThrow(/still in dispute/i);
+  });
+
+  it("never pays after the trade's window has closed", async () => {
+    /*
+     * `claimIsAllowed` checked the window when the claim was filed. A refund
+     * is decided later, sometimes much later, and a claim that sat open past
+     * its window must not become payable by waiting.
+     */
+    const id = await settledBooking("SK-REF06");
+    await pg.admin.query(
+      "update public.bookings set completed_at = now() - interval '40 days' where id = $1",
+      [id],
+    );
+    const claim = await openClaim(id);
+    await expect(pay(claim, 1000)).rejects.toThrow(/window has closed/i);
   });
 });
 

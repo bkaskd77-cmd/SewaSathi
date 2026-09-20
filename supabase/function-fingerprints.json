@@ -39,6 +39,10 @@
     "sha": "a4dab881c3c3f345",
     "file": "20260912000002_guarantee_claims.sql"
   },
+  "enforce_claim_refund": {
+    "sha": "c9163484c4d4c024",
+    "file": "20260921000008_refund_guards.sql"
+  },
   "enforce_claim_transition": {
     "sha": "26d6f94ac8e85c90",
     "file": "20260921000006_visit_repoint_guard.sql"

@@ -1017,3 +1017,216 @@ export async function claimsForProvider(
 
 /** The guarantee window for a category, for the sentence on the screen. */
 export { guaranteeFor };
+
+/* ------------------------------------------------------------------ *
+ * The last rung: money back
+ * ------------------------------------------------------------------ */
+
+export type RefundResult =
+  | { ok: true; refundId: string; verdict: "partial-labour" | "full-labour" }
+  | { ok: false; reason: string };
+
+/**
+ * Pay a customer back, partially or in full, on a claim a re-do could not fix.
+ *
+ * WHY THIS IS THE LAST RUNG. The guarantee is a re-do: we send somebody back
+ * and the labour belongs to the professional whose defect it was, so it costs
+ * the platform almost nothing and can be generous. A refund costs real money,
+ * which is why nothing reaches this function automatically — no verdict, and
+ * no combination of verdicts, produces one. A person decides every single one,
+ * and `enforce_claim_transition` refuses a refund with nobody's name on it.
+ *
+ * LABOUR ONLY. Consequential damage is excluded in plain words on a page
+ * anybody can read; a guarantee that paid for the leak's water would be
+ * unbounded liability on a 15% commission.
+ *
+ * WHO FUNDS IT. The customer receives the whole amount. The platform returns
+ * its commission on that job in proportion — we do not keep a fee out of work
+ * that failed. The professional's share becomes a debt netted forward against
+ * future earnings by `applyRedoRecovery`, never chased backward: there is no
+ * card on file, no direct debit and no wage to garnish, and backward recovery
+ * selects against the honest ones.
+ *
+ * THE DEBT IS AN ORDINARY `redo_debt` AND NOT A NEW LEDGER KIND.
+ * `provider_outstanding` sums `redo_debt` positive and every other kind
+ * NEGATIVE, so a `commission_returned` row would have quietly reduced what
+ * somebody owed — wrong, and in the direction that costs us money.
+ *
+ * THE FOUR REFUSALS ARE THE DATABASE'S. `enforce_claim_refund` has no
+ * service-role bypass: no double payout, nothing above what was collected,
+ * nothing on an unsettled or disputed booking, nothing past the window. This
+ * function judges the same things first so the caller gets a sentence instead
+ * of an exception — the guards are what make it true.
+ */
+export async function issueRefund(input: {
+  claimId: string;
+  amount: number;
+  actorId: string;
+  note: string;
+}): Promise<RefundResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const note = input.note.trim();
+  if (!note) return { ok: false, reason: "reasonRequired" };
+
+  try {
+    const admin = createAdminClient();
+
+    // The actor's role is re-read here as well as in the action, because a
+    // server action is a public POST endpoint and this one moves money.
+    const { data: actor } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", input.actorId)
+      .maybeSingle();
+    if ((actor?.role as string | null) !== "admin") {
+      return { ok: false, reason: "notAdmin" };
+    }
+
+    const { data: claim } = await admin
+      .from("guarantee_claims")
+      .select("id, booking_id, provider_id, status, refund_rupees")
+      .eq("id", input.claimId)
+      .maybeSingle();
+    if (!claim) return { ok: false, reason: "notFound" };
+
+    const { data: booking } = await admin
+      .from("bookings")
+      .select(
+        "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, platform_fee, provider_earning",
+      )
+      .eq("id", claim.booking_id as string)
+      .maybeSingle();
+    if (!booking) return { ok: false, reason: "notFound" };
+
+    const { judgeRefund, refundFunding } = await import("@/lib/payments/refund");
+    const verdict = judgeRefund({
+      amount: input.amount,
+      subject: {
+        finalAmount: (booking.final_amount as number | null) ?? null,
+        customerReportedAmount:
+          (booking.customer_reported_amount as number | null) ?? null,
+        amountMismatchAt: (booking.amount_mismatch_at as string | null) ?? null,
+        paymentStatus: booking.payment_status as string,
+      },
+      alreadyRefunded: Number(claim.refund_rupees ?? 0),
+    });
+
+    if (verdict.outcome !== "partial-labour" && verdict.outcome !== "full-labour") {
+      return { ok: false, reason: verdict.outcome };
+    }
+
+    /*
+     * The payment this refund comes out of. `refunds.payment_id` is not null
+     * and cash settles through a payments row like everything else, so there
+     * is always one on a settled booking — but a missing one is reported
+     * rather than assumed, because the alternative is an exception on the
+     * money path.
+     */
+    const { data: payment } = await admin
+      .from("payments")
+      .select("id, status")
+      .eq("booking_id", booking.id as string)
+      .eq("status", "paid")
+      .maybeSingle();
+    if (!payment) return { ok: false, reason: "noPayment" };
+
+    const funding = refundFunding({
+      refund: verdict.amount,
+      platformFee: Number(booking.platform_fee ?? 0),
+      providerEarning: Number(booking.provider_earning ?? 0),
+    });
+
+    /*
+     * THE CLAIM FIRST, because it carries every guard. If any of the four
+     * refusals fires, nothing else has been written — a refunds row beside a
+     * claim that refused it would be money owed with no record of the
+     * decision.
+     */
+    const { error: claimError } = await admin
+      .from("guarantee_claims")
+      .update({
+        refund_rupees: verdict.amount,
+        refund_decided_by: input.actorId,
+      })
+      .eq("id", input.claimId)
+      // Guarded, so two reviewers a second apart produce one refund.
+      .eq("refund_rupees", 0);
+
+    if (claimError) {
+      const message = describeError(claimError);
+      for (const [pattern, reason] of [
+        [/already been refunded/i, "alreadyRefunded"],
+        [/more than the amount recorded/i, "aboveCeiling"],
+        [/has not been settled/i, "notSettled"],
+        [/still in dispute/i, "amountDisputed"],
+        [/window has closed/i, "outsideWindow"],
+      ] as const) {
+        if (pattern.test(message)) return { ok: false, reason };
+      }
+      console.error(`[claims] refund failed — ${message}`);
+      return { ok: false, reason: "saveFailed" };
+    }
+
+    const { data: refund, error: refundError } = await admin
+      .from("refunds")
+      .insert({
+        payment_id: payment.id as string,
+        amount: verdict.amount,
+        reason: note.slice(0, 500),
+        requested_by: input.actorId,
+        requested_by_role: "admin",
+      })
+      .select("id")
+      .single();
+
+    if (refundError || !refund) {
+      console.error(`[claims] refund row failed — ${describeError(refundError)}`);
+      return { ok: false, reason: "saveFailed" };
+    }
+
+    /*
+     * The professional's share, netted forward. Never their whole payout: the
+     * platform's returned commission comes off first, so somebody is only
+     * ever charged for the part they were actually paid.
+     */
+    if (claim.provider_id && funding.providerOwes > 0) {
+      await admin.from("provider_ledger").insert({
+        provider_id: claim.provider_id as string,
+        claim_id: input.claimId,
+        booking_id: booking.id as string,
+        kind: "redo_debt",
+        amount_rupees: funding.providerOwes,
+        note: `Refund on ${booking.reference as string} — netted off future earnings`,
+      });
+    }
+
+    /*
+     * `partially_refunded` or `refunded`, so the payment's own machine records
+     * what happened to it rather than the claim being the only place that
+     * knows.
+     */
+    await admin
+      .from("payments")
+      .update({
+        status:
+          verdict.outcome === "full-labour" ? "refunded" : "partially_refunded",
+      })
+      .eq("id", payment.id as string)
+      .eq("status", "paid");
+
+    if (claim.provider_id) {
+      await notify({
+        recipientId: claim.provider_id as string,
+        kind: "claim.ledger",
+        params: { amount: String(funding.providerOwes) },
+        bookingId: booking.id as string,
+      });
+    }
+
+    return { ok: true, refundId: refund.id as string, verdict: verdict.outcome };
+  } catch (thrown) {
+    console.error(`[claims] refund threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+}
