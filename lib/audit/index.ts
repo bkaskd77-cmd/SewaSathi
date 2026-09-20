@@ -51,6 +51,8 @@ export type SecurityEventKind =
   | "document.viewed"
   /* What a stranger recorded about a customer, and who read it */
   | "customerRisk.viewed"
+  /* Somebody's phone number was put on an admin's screen */
+  | "contact.viewed"
   | "document.reviewed"
   /* Anything an admin does at all */
   | "admin.action";
@@ -154,5 +156,50 @@ export async function recordRiskAccess(input: {
     subjectType: "profile",
     subjectId: input.customerId,
     detail: { reason: input.reason, action: input.action },
+  });
+}
+
+/**
+ * An admin had somebody's phone number on their screen.
+ *
+ * THE SAME RISK AS AN IDENTITY DOCUMENT, SO THE SAME STANDARD. A phone number
+ * is the one piece of personal data this product holds about everybody — it is
+ * the login, so there is no account without one — and it is the piece most
+ * useful to somebody who should not have it. Documents got a mandatory log the
+ * day they were built; numbers did not, and the only reason is that nobody
+ * asked the question about them.
+ *
+ * ITS OWN FUNCTION, like `recordDocumentAccess` and `recordRiskAccess`, so the
+ * read and the record cannot drift apart. A `kind` on the general logger would
+ * be one more thing a call site can forget.
+ *
+ * `count` RATHER THAN THE NUMBERS THEMSELVES. A log that holds the data it is
+ * logging access to is a second copy of that data, in a table designed to be
+ * kept for ever and read by people — which is the rule at the top of this
+ * file, and phone numbers are exactly what it is about. The subject id says
+ * whose screen it was; the numbers stay where they live.
+ *
+ * WHAT THIS DOES NOT COVER, and it is worth being plain about: this records
+ * reads that go through our code. The policies "Admins can read every profile"
+ * and "Admins read every contact" still let an admin read numbers straight
+ * through PostgREST or the Supabase dashboard with no trace. Closing that
+ * means narrowing those two policies, which is a schema change and a separate
+ * decision.
+ */
+export async function recordContactAccess(input: {
+  adminId: string;
+  /** Whose numbers were shown — the profile the screen was about. */
+  subjectId: string;
+  /** How many phone numbers appeared. Never the numbers. */
+  count: number;
+  reason: string;
+}): Promise<void> {
+  await recordSecurityEvent({
+    kind: "contact.viewed",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "profile",
+    subjectId: input.subjectId,
+    detail: { count: input.count, reason: input.reason },
   });
 }

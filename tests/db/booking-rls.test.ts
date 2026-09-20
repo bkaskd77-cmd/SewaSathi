@@ -2184,6 +2184,41 @@ describe("the security log is append-only and admin-only", () => {
       ),
     ).rejects.toThrow(/row-level security/i);
   });
+
+  /*
+   * A PHONE NUMBER ON AN ADMIN'S SCREEN IS A READ WORTH RECORDING, and the
+   * record is held to the same standard as the read it describes: unrewritable
+   * by the application, invisible to everybody but an admin, and carrying no
+   * copy of the thing it is about.
+   *
+   * `contact.viewed` is written by `recordContactAccess`, which
+   * `applicationForReview` calls — the only path in the product that puts a
+   * phone number in front of a reviewer. Up to four at a time: the applicant's
+   * own and their references', who never signed up for anything.
+   */
+  it("records a contact read without recording the contact", async () => {
+    const { rows } = await pg.admin.query(
+      `insert into public.security_events
+         (kind, actor_id, actor_role, subject_type, subject_id, detail)
+       values ('contact.viewed', $1, 'admin', 'profile', $2,
+               '{"count": 4, "reason": "Reviewing a provider application"}'::jsonb)
+       returning id, detail`,
+      [ALICE, BOB],
+    );
+
+    // The count, never the numbers. A log holding the data it logs access to
+    // is a second copy of that data, kept for ever, read by people.
+    const detail = rows[0].detail as Record<string, unknown>;
+    expect(detail.count).toBe(4);
+    expect(JSON.stringify(detail)).not.toMatch(/\+977|98\d{8}/);
+
+    await expect(
+      pg.admin.query(
+        "update public.security_events set detail = '{}'::jsonb where id = $1",
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/append-only/i);
+  });
 });
 
 /*

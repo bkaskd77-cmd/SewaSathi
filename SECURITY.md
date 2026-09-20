@@ -80,7 +80,7 @@ public POST endpoint like any other.
 | `decideClaimAction` | admins | one wasted-trip claim | role re-read in the action; `settleNoShowClaim` re-reads the claim |
 | `decideSurveyFeeAction` | admins | one pending survey visit fee | role re-read in the action **and** again in `decideSurveyVisitFee`; the update is guarded on `status = 'pending'` so two reviewers produce one decision; `enforce_survey_visit_fee` refuses an approval with no `decided_by` and the fifth approved fee in a month, on the UPDATE as well as the INSERT |
 | `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
-| `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess` |
+| `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess`, and the applicant's and referees' phone numbers by `recordContactAccess` on every load of the review screen |
 | `issueRefundAction` | admins | agrees money back on one guarantee claim | role re-read in the action **and** again in `issueRefund`; `judgeRefund` judges first so the reviewer gets a sentence, and `enforce_claim_refund` — no service-role bypass — refuses a second refund, a rupee over `least(final_amount, customer_reported_amount)`, an unsettled or disputed booking and one past the trade's window; the claim write is guarded on `refund_rupees = 0` so two reviewers produce one refund; writes the `refunds` row at `requested`, never `completed` |
 | `markRefundPaidAction` | admins | records that one approved refund has actually been sent | role re-read in the action and again in `markRefundPaid`; guarded on `status = 'requested'`; a reference of at least three characters and a non-future date are required, and `refunds_processed_shape` refuses a completed row with no `processed_at` |
 | `sendRefundAction` | admins | sends one approved refund through the gateway that took it | role re-read in both places; `refundRail` refuses every rail but a **configured** Khalti, so a missing key is reported as a missing key rather than silently becoming "manual"; a gateway that does not answer leaves the row at `requested` — the money may already have moved, so nothing is recorded either way |
@@ -189,6 +189,19 @@ were written before any of them and every one of them holds today:
    function precisely so it cannot be quietly skipped: a professional cannot
    tell that an admin opened their citizenship certificate, and an admin who
    wanted to would have no reason to mention it.
+   **So is reading a phone number, and that took longer to notice.**
+   `recordContactAccess` writes `contact.viewed` from `applicationForReview` —
+   the only path in the product that puts a number in front of a reviewer, and
+   it puts up to four there at once: the applicant's own, and their
+   references', who never signed up for anything and cannot see that we hold
+   their number. A phone number is the login here, so it is the one piece of
+   personal data held about everybody. It records the COUNT and never the
+   numbers: a log holding what it logs access to is a second copy of that data,
+   in a table designed to be kept for ever.
+   **What it does not cover, plainly:** the policies "Admins can read every
+   profile" and "Admins read every contact" still allow a read straight
+   through PostgREST or the Supabase dashboard with no trace. Narrowing those
+   two is a schema change and a separate decision.
 5. **No bulk export in the product.** Anything that dumps addresses or phone
    numbers is a deliberate, logged, out-of-band operation — not a button.
 6. **Admins are the largest single risk here** and the model says so out loud.

@@ -6,7 +6,7 @@ import {
   judgeCustomerLadder,
   tripDebtFor,
 } from "@/lib/abuse";
-import { recordSecurityEvent } from "@/lib/audit";
+import { recordContactAccess, recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
@@ -218,6 +218,31 @@ export async function applicationForReview(input: {
       expiresOn: (row.expires_on as string | null) ?? null,
     });
   }
+
+  /*
+   * THIS SCREEN PUTS PHONE NUMBERS IN FRONT OF A PERSON, so it says so.
+   *
+   * Up to four: the applicant's own, and their references' — third parties who
+   * never signed up for anything and cannot see that we hold their number, let
+   * alone that somebody read it. A phone number is the login here, so it is
+   * the one piece of personal data we hold about everybody, and the reviewing
+   * of an application is the only path in the product that displays one.
+   *
+   * The same standard identity documents got on the day they were built: its
+   * own function so the read and the record cannot drift apart, a mandatory
+   * reason, and an append-only table the service role itself cannot edit.
+   * Logged before the return rather than after, because the caller is what
+   * renders them.
+   */
+  const shown = 1 + (referenceRows.data ?? []).length;
+  await recordContactAccess({
+    adminId: input.adminId,
+    subjectId: application.profile_id as string,
+    count: shown,
+    reason: `Reviewing a provider application — applicant and ${
+      (referenceRows.data ?? []).length
+    } references.`,
+  });
 
   return {
     id: application.id as string,
