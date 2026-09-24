@@ -54,7 +54,7 @@ export async function startEnrollmentAction(): Promise<
  */
 export async function confirmCodeAction(
   formData: FormData,
-): Promise<{ ok: boolean; reason?: string }> {
+): Promise<{ ok: boolean; reason?: string; detail?: string }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "signedOut" };
 

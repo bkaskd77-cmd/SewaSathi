@@ -39,6 +39,8 @@ export {
   type PhoneError,
 } from "./phone";
 
+export { describeEnrollError } from "./mfa-error";
+
 export {
   strandsCustomer,
   type OtpError,

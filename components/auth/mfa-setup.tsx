@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
+import { describeEnrollError } from "@/lib/auth";
 
 /**
  * Reasons this screen has a sentence for.
@@ -98,8 +99,23 @@ export function MfaSetup({
           setError(errorKey(result.reason));
           setDetail(result.detail ?? null);
         }
-      } catch {
+      } catch (thrown) {
+        /*
+         * A THROW IS AS MUCH OF AN ANSWER AS A RETURNED FAILURE, and this
+         * branch used to discard it — which is how enrolment came to fail in
+         * production showing "That did not start" and nothing else, with the
+         * reason reaching neither the screen nor anywhere a person could read
+         * it. The server-side catch was fixed first and this one was missed,
+         * which left exactly the same hole one layer up.
+         *
+         * It also covers the failure my own code never sees: a server action
+         * invoked from a page that was loaded off an EARLIER deployment throws
+         * "Failed to find Server Action" inside Next before any of this runs.
+         * That reads as a broken button and is cured by a reload, so the
+         * sentence naming it is the whole fix.
+         */
         setError("enrollFailed");
+        setDetail(describeEnrollError(thrown));
       } finally {
         setBusy(false);
       }
@@ -136,8 +152,11 @@ export function MfaSetup({
           return;
         }
         setError(errorKey(result.reason));
-      } catch {
+        setDetail(result.detail ?? null);
+      } catch (thrown) {
+        // Same rule as `begin`: a thrown reason is still a reason.
         setError("wrongCode");
+        setDetail(describeEnrollError(thrown));
       } finally {
         setBusy(false);
       }
