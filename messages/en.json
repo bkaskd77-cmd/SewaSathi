@@ -47,7 +47,8 @@
     "signIn": "Sign in",
     "logOut": "Log out",
     "bookService": "Book a service",
-    "myWork": "My work"
+    "myWork": "My work",
+    "admin": "Admin"
   },
   "home": {
     "badge": "Now serving the Kathmandu Valley",
@@ -1519,6 +1520,30 @@
   "admin": {
     "meta": {
       "title": "Applications"
+    },
+    "chrome": {
+      "wordmark": "SajiloKaam",
+      "badge": "Admin",
+      "navLabel": "Queues",
+      "overview": "Overview",
+      "applications": "Applications",
+      "claims": "Nobody arrived",
+      "guaranteeClaims": "Guarantee",
+      "surveyFees": "Survey fees",
+      "appeals": "Appeals",
+      "signedInAs": "Signed in as {name}",
+      "logOut": "Log out",
+      "unnamed": "this account",
+      "footerNote": "Decisions here move money and reach personal data. Every one is logged.",
+      "home": "Main site"
+    },
+    "login": {
+      "title": "Admin sign-in",
+      "lead": "Enter the number on your admin account. We send a code, and your authenticator app is asked for a second one.",
+      "wrongAccountTitle": "Not an admin account",
+      "wrongAccountBody": "You are signed in as {name}, and this account cannot open the admin panel. Log out and sign back in on the admin number if you have one.",
+      "unnamed": "this account",
+      "backHome": "Back to SajiloKaam"
     },
     "index": {
       "title": "Admin",

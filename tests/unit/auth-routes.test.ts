@@ -253,4 +253,64 @@ describe("where somebody lands after signing in", () => {
   it("leaves a customer on the homepage", () => {
     expect(landingFor({ next: "/", worksHere: false })).toBe("/");
   });
+
+  it("sends an admin who asked for nothing to the admin surface", () => {
+    /*
+     * `worksHere` is TRUE for an admin, because the auth action computes it
+     * from `roleOpensProviderRoutes` — an admin passes the provider guard so
+     * support can reach a professional's screen. That sent them to
+     * /provider/jobs, an empty shell they own no listing for, while their own
+     * header deliberately hides "My work" from them. One name, two meanings.
+     */
+    expect(landingFor({ next: "/", worksHere: true, isAdmin: true })).toBe(
+      "/admin",
+    );
+  });
+
+  it("still lets an admin's explicit destination win", () => {
+    // The one rule that outranks every role: they tapped something.
+    expect(
+      landingFor({ next: "/bookings/abc", worksHere: true, isAdmin: true }),
+    ).toBe("/bookings/abc");
+  });
+});
+
+/**
+ * A public path sitting underneath a protected prefix.
+ *
+ * `matches` is a prefix test, so `/admin` swallows everything below it —
+ * which is right for `/admin/applications` and wrong for the admin's own
+ * sign-in page. A signed-out visitor reaching it would be bounced to
+ * `/login?next=/admin/login`: the customer door, to reach the admin door.
+ *
+ * The carve-out has to bite in BOTH directions. Making it public while it is
+ * still protected leaves the middleware redirecting; making it not-protected
+ * without making it public leaves it in neither list, which `isPublicRoute`
+ * answers with false.
+ */
+describe("the admin sign-in page is public, and nothing else under /admin is", () => {
+  it("is public in both languages", () => {
+    expect(isPublicRoute("/admin/login")).toBe(true);
+    expect(isPublicRoute("/ne/admin/login")).toBe(true);
+  });
+
+  it("is not protected, so the middleware lets a signed-out visitor reach it", () => {
+    expect(isProtectedRoute("/admin/login")).toBe(false);
+    expect(isProtectedRoute("/ne/admin/login")).toBe(false);
+  });
+
+  it("does not widen to the prefix it sits under", () => {
+    // The whole risk of a carve-out written as a prefix rather than a path.
+    for (const path of [
+      "/admin",
+      "/admin/applications",
+      "/admin/claims",
+      "/admin/guarantee-claims",
+      "/admin/login-something-else",
+      "/ne/admin/applications",
+    ]) {
+      expect(isProtectedRoute(path), path).toBe(true);
+      expect(isPublicRoute(path), path).toBe(false);
+    }
+  });
 });

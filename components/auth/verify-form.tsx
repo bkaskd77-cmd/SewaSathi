@@ -76,6 +76,7 @@ export function VerifyForm({ phone, next }: { phone: string; next: string }) {
       const landing = landingFor({
         next,
         worksHere: outcome.worksHere ?? false,
+        isAdmin: outcome.isAdmin ?? false,
       });
 
       // New accounts need a name before anyone is sent to their door.

@@ -116,6 +116,22 @@
     /* Text-sized on the work ground — a muted ivory that still clears 4.5:1. */
     --work-muted: 42 30% 80%;
 
+    /*
+     * The admin ground. THE BRAND'S DEEP SLATE HUE, NOT THE EMERALD, and the
+     * difference is the whole reason it exists: `--work` is emerald (170) and
+     * an admin bar in the same colour would make the two internal surfaces
+     * look like one another, which is the exact entity blur the work group was
+     * split out to remove. Three grounds, three jobs: ivory for somebody
+     * shopping, emerald for somebody working, slate for somebody deciding.
+     *
+     * Drawn from Deep Slate #24323A, which is already the ink of the whole
+     * product, so nothing new enters the palette.
+     */
+    --admin: 202 30% 16%;
+    --admin-foreground: 42 70% 97%;
+    /* 8.19:1 on the ground above — text-sized, so it clears 4.5:1 with room. */
+    --admin-muted: 202 14% 76%;
+
     --radius: 0.625rem;
 
     /* Elevation tinted with the slate hue so shadows sit with the ink rather
@@ -159,6 +175,12 @@
     --work: 172 40% 12%;
     --work-foreground: 42 28% 95%;
     --work-muted: 170 12% 70%;
+
+    /* Same rule on the dark theme: the admin bar stays darker than the cards
+       sitting on it, so it reads as a frame. 8.10:1 for the muted text. */
+    --admin: 202 26% 11%;
+    --admin-foreground: 42 28% 95%;
+    --admin-muted: 202 10% 70%;
 
     --gold: 40 72% 62%;
     --gold-foreground: 40 60% 10%;

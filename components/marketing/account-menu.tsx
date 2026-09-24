@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { Briefcase, CalendarDays, LogOut, User } from "lucide-react";
+import { Briefcase, CalendarDays, LogOut, ShieldCheck, User } from "lucide-react";
 
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,22 @@ import { cn } from "@/lib/utils";
 export function AccountMenu({
   name,
   worksHere = false,
+  isAdmin = false,
 }: {
   name: string;
   /** True when this account has a provider or admin role. */
   worksHere?: boolean;
+  /**
+   * The door to the admin surface, and without it there was none.
+   *
+   * `/admin` was built with nothing anywhere linking to it — the same
+   * oversight, one level up, as the five queues nothing linked to before the
+   * index existed. An admin already signed in on this side had to type the
+   * URL. Kept SEPARATE from `worksHere`, which is listing-based: an admin owns
+   * no listing and has no jobs, and merging the two would put "My work" in
+   * their menu pointing at an empty shell.
+   */
+  isAdmin?: boolean;
 }) {
   const t = useTranslations("nav");
   const [open, setOpen] = React.useState(false);
@@ -79,6 +91,19 @@ export function AccountMenu({
             "animate-rise absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-lg border border-border bg-popover shadow-lg",
           )}
         >
+          {/* First, because for an admin it is the reason they opened the
+              menu. A customer never sees it. */}
+          {isAdmin ? (
+            <Link
+              role="menuitem"
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 border-b border-border px-4 py-3 text-body-sm font-semibold hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            >
+              <ShieldCheck aria-hidden="true" className="size-4" />
+              {t("admin")}
+            </Link>
+          ) : null}
           <Link
             role="menuitem"
             href="/bookings"

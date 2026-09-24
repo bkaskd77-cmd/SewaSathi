@@ -169,14 +169,14 @@ function Submit({
 /** Bound at call time so these stay plain client components. */
 async function record(_previous: Result, formData: FormData): Promise<Result> {
   const { markRefundPaidAction } = await import(
-    "@/app/[locale]/(app)/admin/guarantee-claims/actions"
+    "@/app/[locale]/(admin)/admin/guarantee-claims/actions"
   );
   return markRefundPaidAction(formData);
 }
 
 async function send(_previous: Result, formData: FormData): Promise<Result> {
   const { sendRefundAction } = await import(
-    "@/app/[locale]/(app)/admin/guarantee-claims/actions"
+    "@/app/[locale]/(admin)/admin/guarantee-claims/actions"
   );
   return sendRefundAction(formData);
 }

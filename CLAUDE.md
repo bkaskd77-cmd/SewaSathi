@@ -382,6 +382,20 @@ otherwise have had a fallback in name only.
 Phone + OTP only. There is no email/password path anywhere in this product and
 adding one would be a product decision, not a convenience.
 
+**It was proposed once, for the admin panel, and refused — with the reason, so
+the question does not get reopened from scratch.** The ask was a username and
+password plus a sign-up page at `/admin`, because "needing an OTP every time is
+inconvenient". Two things were wrong with it. The friction was misdiagnosed:
+`stepUpFor` returns `enrol` for an admin with no authenticator, so `/admin`
+bounces to `/account/security` on *every* visit until one is set up — no phone
+code is involved, and once enrolled it is one offline code per eight hours.
+And a public admin sign-up is not a convenience, it is a door anybody can walk
+through to every customer phone number and identity document we hold. Admin
+accounts are provisioned, never self-registered; a password would trade
+something you hold for a secret that leaks from somebody else's breach. If the
+real problem is signing in too often, the lever is session lifetime, not the
+factor.
+
 - `lib/auth/otp.ts` is the **only** file that talks to an SMS provider. Swapping
   Supabase's default sender for Sparrow SMS or Aakash SMS means reimplementing
   `sendOtp`/`verifyOtp` behind the same signatures — nothing else should know

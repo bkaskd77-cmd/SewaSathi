@@ -87,6 +87,27 @@ export const PROTECTED_ROUTES = [
  * re-reads the session server-side, so nothing is trusted to the browser.
  */
 
+/**
+ * Public paths that sit UNDERNEATH a protected prefix. Checked first, by both
+ * predicates.
+ *
+ * `matches` is a prefix test, so `/admin` swallows everything below it. That is
+ * right for `/admin/applications` and wrong for the admin's own sign-in page:
+ * a signed-out visitor reaching `/admin/login` would be redirected to
+ * `/login?next=/admin/login` — sent through the customer door to reach the
+ * admin one.
+ *
+ * WRITTEN AS WHOLE PATHS, NOT PREFIXES, and `matches` compares whole segments —
+ * so this opens `/admin/login` and nothing else. `/admin/login-something-else`
+ * does not match it, and neither does anything under it.
+ *
+ * It must bite in BOTH directions or it does nothing: public without
+ * not-protected leaves the middleware still redirecting, and not-protected
+ * without public leaves the path in neither list, which `isPublicRoute`
+ * answers with false.
+ */
+const PUBLIC_EXCEPTIONS = ["/admin/login"] as const;
+
 /** Requires a session AND profiles.role = 'provider'. */
 export const PROVIDER_ROUTES = ["/providers/dashboard"] as const;
 
@@ -98,7 +119,9 @@ function matches(rawPathname: string, routes: readonly string[]): boolean {
 }
 
 export function isPublicRoute(pathname: string): boolean {
-  // Provider routes are checked first: /providers/join is public but
+  // The carve-out first, before the prefix it sits under gets a chance.
+  if (matches(pathname, PUBLIC_EXCEPTIONS)) return true;
+  // Provider routes are checked next: /providers/join is public but
   // /providers/dashboard is not, and a bare prefix match would let the
   // shorter public entry swallow both.
   if (matches(pathname, PROVIDER_ROUTES)) return false;
@@ -106,6 +129,7 @@ export function isPublicRoute(pathname: string): boolean {
 }
 
 export function isProtectedRoute(pathname: string): boolean {
+  if (matches(pathname, PUBLIC_EXCEPTIONS)) return false;
   return matches(pathname, PROTECTED_ROUTES);
 }
 
@@ -187,7 +211,21 @@ export function landingFor(input: {
   /** Already through `safeRedirect`, so "/" means "they did not say". */
   next: string;
   worksHere: boolean;
+  /**
+   * Checked BEFORE `worksHere`, and that order is the fix rather than a
+   * preference.
+   *
+   * `worksHere` is true for an admin: the auth action computes it from
+   * `roleOpensProviderRoutes`, which passes admins so support can open a
+   * professional's screen. So an admin signing in cold landed on
+   * `/provider/jobs` — an empty shell they own no listing for — while the
+   * signed-in header deliberately hides "My work" from them, because
+   * permission to reach a screen and a reason to go there are different
+   * questions. One name meaning two things in two files.
+   */
+  isAdmin?: boolean;
 }): string {
   if (input.next !== "/") return input.next;
+  if (input.isAdmin) return "/admin";
   return input.worksHere ? "/provider/jobs" : "/";
 }

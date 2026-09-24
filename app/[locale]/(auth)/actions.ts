@@ -103,16 +103,25 @@ export async function verifyOtpAction(
    * the product something they had to go looking for.
    */
   let worksHere = false;
+  let isAdmin = false;
   try {
     const profile = await getSessionProfile();
     worksHere = roleOpensProviderRoutes(profile?.role ?? null);
+    /*
+     * READ SEPARATELY, because `worksHere` is true for an admin — that guard
+     * passes them so support can open a professional's screen. Landing on it
+     * was a different claim, and a wrong one: an admin owns no listing, so
+     * /provider/jobs is an empty shell. `landingFor` checks this first.
+     */
+    isAdmin = profile?.role === "admin";
   } catch {
     // A failed read is "not a professional". They are signed in either way,
     // and the menu carries the door.
     worksHere = false;
+    isAdmin = false;
   }
 
-  return { ...outcome, worksHere };
+  return { ...outcome, worksHere, isAdmin };
 }
 
 /**

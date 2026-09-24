@@ -165,6 +165,21 @@ Where a change on one side cannot reach the other.
   what makes the two unmistakable at a glance for the person who is both.
   Adding a professional screen means adding it to `(work)`; the frame comes
   with it.
+- **And the admin's product is a third group, for the same reason.**
+  `app/[locale]/(admin)/` carries `AdminHeader`, the five queues plus the
+  overview, and one line of footer. The queues used to sit in `(app)` and
+  inherited the customer frame whole — a "Book a service" button, the
+  catalogue footer, an account menu offering Bookings — so opening `/admin`
+  showed the customer product with a queue in the middle of it, and the person
+  holding the most dangerous permissions in the product could not tell which
+  half they were in. The `--admin` tokens are the brand's **slate** hue, not
+  the emerald `--work` uses: three surfaces, three grounds, and the two
+  internal ones must not look like each other or the split achieves nothing.
+  `/admin/login` is its own door on exactly the same lock — `PhoneForm`, the
+  same OTP path, the shared `/verify` — because a second sign-in flow would be
+  a second place that knows which SMS gateway is in play. It is the one public
+  path underneath a protected prefix, which `PUBLIC_EXCEPTIONS` in
+  `lib/auth/routes.ts` carves out in both directions.
 - **A guarantee claim reaches `resolved` only through `attended`.** The visit is
   the verification, and the edge is enforced in Postgres
   (`claim_transition_allowed`) as well as in `lib/booking/claim-status.ts`.

@@ -137,7 +137,7 @@ function Approve({ label }: { label: string }) {
 /** Bound at call time so this stays a plain client component. */
 async function decide(_previous: Result, formData: FormData): Promise<Result> {
   const { issueRefundAction } = await import(
-    "@/app/[locale]/(app)/admin/guarantee-claims/actions"
+    "@/app/[locale]/(admin)/admin/guarantee-claims/actions"
   );
   return issueRefundAction(formData);
 }

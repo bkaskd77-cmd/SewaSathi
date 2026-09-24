@@ -112,7 +112,7 @@ function Send({
 /** Bound at call time so the component stays a plain client component. */
 async function decide(_previous: Result, formData: FormData): Promise<Result> {
   const { decideSurveyFeeAction } = await import(
-    "@/app/[locale]/(app)/admin/survey-fees/actions"
+    "@/app/[locale]/(admin)/admin/survey-fees/actions"
   );
   return decideSurveyFeeAction(formData);
 }

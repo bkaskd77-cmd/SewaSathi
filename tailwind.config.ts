@@ -59,6 +59,11 @@ const config: Config = {
           ink: "hsl(var(--warning-ink))",
         },
         /* The professional's chrome. See the note in styles/globals.css. */
+        admin: {
+          DEFAULT: "hsl(var(--admin))",
+          foreground: "hsl(var(--admin-foreground))",
+          muted: "hsl(var(--admin-muted))",
+        },
         work: {
           DEFAULT: "hsl(var(--work))",
           foreground: "hsl(var(--work-foreground))",

@@ -187,7 +187,20 @@ were written before any of them and every one of them holds today:
    holder of that JWT keeps until it expires.
 2. **Separately authenticated.** An admin signs in as an admin, not by their
    customer account acquiring a flag. Same phone, a distinct session, and a
-   shorter one.
+   shorter one. `/admin/login` is that door — the only public path underneath
+   `/admin`, carved out by `PUBLIC_EXCEPTIONS` in `lib/auth/routes.ts`. It
+   fixes `next` to `/admin` rather than reading `?next=`, so it has no
+   open-redirect surface to validate at all.
+2a. **There is no admin sign-up, and there will not be one.** Admin accounts
+   are provisioned — an existing admin, or the service role — never
+   self-registered. A page anybody can reach that mints admin accounts is a
+   public door to every customer phone number and every identity document in
+   the product. This was asked for as a convenience and refused; so was
+   replacing phone+TOTP with a username and password, which trades something
+   you hold for a reusable secret that leaks from other people's breaches.
+   The friction that prompted both was neither: it was `stepUpFor` returning
+   `enrol` for an admin who had not yet set up an authenticator, which bounces
+   every visit to `/account/security` until they do.
 3. **Every action logged and attributable.** `security_events` with
    `actor_role = 'admin'` and the subject. There is no "system did it" for a
    thing a person did.

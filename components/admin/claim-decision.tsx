@@ -84,7 +84,7 @@ async function decide(
   formData: FormData,
 ): Promise<{ ok: boolean }> {
   const { decideClaimAction } = await import(
-    "@/app/[locale]/(app)/admin/claims/actions"
+    "@/app/[locale]/(admin)/admin/claims/actions"
   );
   return decideClaimAction(formData);
 }

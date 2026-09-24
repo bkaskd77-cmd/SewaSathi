@@ -43,6 +43,10 @@ export default async function AppLayout({
            split exists to remove. Permission to reach a screen and a reason to
            go there are different questions. */
         worksHere={profile?.providerId != null}
+        /* The admin door, which is a ROLE and not a listing — the one case
+           where those two genuinely differ. Without it `/admin` was reachable
+           only by typing the URL. */
+        isAdmin={profile?.role === "admin"}
       />
 
       <main id="main" className="container flex-1 py-10 sm:py-14">

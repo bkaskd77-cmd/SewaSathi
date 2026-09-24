@@ -75,10 +75,12 @@ function AnchorLink({
 export function SiteHeader({
   accountName,
   worksHere = false,
+  isAdmin = false,
 }: {
   accountName?: string | null;
   /** Read from `profiles.role` by the layout. Adds the door to the work side. */
   worksHere?: boolean;
+  isAdmin?: boolean;
 }) {
   const t = useTranslations("nav");
   const signedIn = accountName !== null && accountName !== undefined;
@@ -170,7 +172,7 @@ export function SiteHeader({
           <ThemeToggle />
           <div className="hidden sm:block">
             {signedIn ? (
-              <AccountMenu name={accountName} worksHere={worksHere} />
+              <AccountMenu name={accountName} worksHere={worksHere} isAdmin={isAdmin} />
             ) : (
               <SignedOutCta />
             )}
@@ -239,7 +241,7 @@ export function SiteHeader({
               <LanguageToggle />
               {signedIn ? (
                 <div className="flex-1">
-                  <AccountMenu name={accountName} worksHere={worksHere} />
+                  <AccountMenu name={accountName} worksHere={worksHere} isAdmin={isAdmin} />
                 </div>
               ) : (
                 // Just the primary action here — "Sign in" is already a row in

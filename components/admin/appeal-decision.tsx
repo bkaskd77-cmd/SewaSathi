@@ -103,7 +103,7 @@ function Send({
 /** Bound at call time so the component stays a plain client component. */
 async function resolve(_previous: Result, formData: FormData): Promise<Result> {
   const { resolveAppealAction } = await import(
-    "@/app/[locale]/(app)/admin/appeals/actions"
+    "@/app/[locale]/(admin)/admin/appeals/actions"
   );
   return resolveAppealAction(formData);
 }

@@ -63,6 +63,17 @@ export type VerifyOutcome =
        * Optional because the send path has no session to read it from.
        */
       worksHere?: boolean;
+      /**
+       * Is this an admin? Read the same way and at the same moment, and kept
+       * SEPARATE from `worksHere` rather than folded into it.
+       *
+       * `worksHere` comes from `roleOpensProviderRoutes`, which passes admins
+       * so support can open a professional's screen — a statement about
+       * permission. Where somebody lands is a statement about what they came
+       * to do, and for an admin that is the admin surface, not a provider
+       * dashboard they own no listing for. `landingFor` checks this first.
+       */
+      isAdmin?: boolean;
     }
   | { ok: false; error: OtpError; detail?: string };
 
