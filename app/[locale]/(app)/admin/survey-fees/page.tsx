@@ -6,7 +6,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { SurveyFeeDecision } from "@/components/admin/survey-fee-decision";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategories } from "@/lib/data/categories";
@@ -44,11 +44,20 @@ export default async function SurveyFeesPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.surveyFees");
 
-  const profile = await getSessionProfile();
-  if (!profile) {
-    redirect({ href: "/login?next=/admin/survey-fees", locale });
+  /*
+   * ROLE AND SECOND FACTOR IN ONE PLACE. Six pages and eight actions
+   * each re-read the role; adding a second condition to all fourteen by
+   * hand is how one of them ends up without it, and that one is the hole.
+   */
+  const gate = await adminGate();
+  if (!gate.ok) {
+    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/survey-fees", locale });
+    // A 404 rather than a refusal: a signed-in customer learns nothing
+    // about what exists here, which is what notFound() has always been for.
+    if (gate.reason === "notAdmin") notFound();
+    // An admin who has to set up or use their code first. They come back.
+    redirect({ href: "/account/security?next=/admin/survey-fees", locale });
   }
-  if (profile!.role !== "admin") notFound();
 
   const [fees, categories, messages] = await Promise.all([
     pendingSurveyFees(),

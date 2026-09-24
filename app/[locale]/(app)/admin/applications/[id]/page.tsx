@@ -7,7 +7,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { ReviewDecision } from "@/components/admin/review-decision";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminGate } from "@/lib/auth/admin-gate";
 import { areaShortLabel } from "@/lib/config/areas";
 import { applicationForReview } from "@/lib/data/review";
 
@@ -40,14 +40,24 @@ export default async function ApplicationReviewPage({
   const t = await getTranslations("admin.detail");
   const tApply = await getTranslations("join.apply");
 
-  const profile = await getSessionProfile();
-  if (!profile) {
-    redirect({ href: `/login?next=/admin/applications/${params.id}`, locale });
+  /*
+   * ROLE AND SECOND FACTOR IN ONE PLACE. Six pages and eight actions
+   * each re-read the role; adding a second condition to all fourteen by
+   * hand is how one of them ends up without it, and that one is the hole.
+   */
+  const gate = await adminGate();
+  if (!gate.ok) {
+    if (gate.reason === "signedOut") redirect({ href: `/login?next=/admin/applications/${params.id}`, locale });
+    // A 404 rather than a refusal: a signed-in customer learns nothing
+    // about what exists here, which is what notFound() has always been for.
+    if (gate.reason === "notAdmin") notFound();
+    // An admin who has to set up or use their code first. They come back.
+    redirect({ href: `/account/security?next=/admin/applications/${params.id}`, locale });
   }
-  if (profile!.role !== "admin") notFound();
+  const profile = gate.profile;
 
   const [application, messages] = await Promise.all([
-    applicationForReview({ applicationId: params.id, adminId: profile!.id }),
+    applicationForReview({ applicationId: params.id, adminId: profile.id }),
     getMessages(),
   ]);
 

@@ -81,6 +81,12 @@ public POST endpoint like any other.
 | `decideSurveyFeeAction` | admins | one pending survey visit fee | role re-read in the action **and** again in `decideSurveyVisitFee`; the update is guarded on `status = 'pending'` so two reviewers produce one decision; `enforce_survey_visit_fee` refuses an approval with no `decided_by` and the fifth approved fee in a month, on the UPDATE as well as the INSERT |
 | `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
 | `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess`, and the applicant's and referees' phone numbers by `recordContactAccess` on every load of the review screen |
+
+**Every admin endpoint above now goes through `adminActor()`**, which is
+`adminGate()` collapsed to a profile or null: it re-reads the role *and* the
+second factor. An action has no screen to send anybody to, so every refusal
+returns the same answer — leaking which half of the gate somebody failed would
+tell a caller what to attack next.
 | `issueRefundAction` | admins | agrees money back on one guarantee claim | role re-read in the action **and** again in `issueRefund`; `judgeRefund` judges first so the reviewer gets a sentence, and `enforce_claim_refund` — no service-role bypass — refuses a second refund, a rupee over `least(final_amount, customer_reported_amount)`, an unsettled or disputed booking and one past the trade's window; the claim write is guarded on `refund_rupees = 0` so two reviewers produce one refund; writes the `refunds` row at `requested`, never `completed` |
 | `markRefundPaidAction` | admins | records that one approved refund has actually been sent | role re-read in the action and again in `markRefundPaid`; guarded on `status = 'requested'`; a reference of at least three characters and a non-future date are required, and `refunds_processed_shape` refuses a completed row with no `processed_at` |
 | `sendRefundAction` | admins | sends one approved refund through the gateway that took it | role re-read in both places; `refundRail` refuses every rail but a **configured** Khalti, so a missing key is reported as a missing key rather than silently becoming "manual"; a gateway that does not answer leaves the row at `requested` — the money may already have moved, so nothing is recorded either way |
@@ -207,6 +213,43 @@ were written before any of them and every one of them holds today:
 6. **Admins are the largest single risk here** and the model says so out loud.
    Everything above is written to make an admin's actions visible to another
    admin, not to make them impossible.
+7. **An admin needs a second factor, and the product enforces it.** Phone plus
+   OTP is the only way in for everybody, which means an admin account — one
+   that reaches every customer's phone number, every professional's private
+   number and every identity document, all named table by table in
+   `docs/rls-matrix.md` — sat behind a single SMS code. An SMS code is the
+   factor most easily taken from somebody: a SIM swap costs a conversation at
+   a counter. `lib/auth/mfa.ts` is the one file that talks to Supabase MFA,
+   `lib/auth/step-up.ts` is the rule, and `lib/auth/admin-gate.ts` is the one
+   place six pages and eight actions ask. Customers and professionals are not
+   asked for one: their account holds their own bookings and their own address,
+   and a TOTP code to look at your own tap repair is theatre charged to the
+   wrong person.
+
+### Losing the authenticator — the recovery path, and it is the last resort
+
+`supabase.auth.mfa.unenroll()` needs the locked-out person's own session, so it
+cannot help somebody who is locked out. There are no recovery codes: the
+`auth.mfa_recovery_codes` table exists in the schema but the installed
+supabase-js exposes no method that issues or redeems one.
+
+So recovery is a service-role delete of the factor, run by somebody with
+database access:
+
+```sql
+-- Find the account, then remove its factor. The person can then sign in with
+-- the phone OTP alone and enrol again from /account/security.
+delete from auth.mfa_factors
+ where user_id = (select id from public.profiles where phone = '<their number>');
+```
+
+**Two enrolled admins on two devices is the real redundancy, and the reason
+that is the arrangement rather than this query.** Anybody who can run the
+statement above can also read every table it protects, so treating it as the
+plan rather than the emergency would make the second factor decorative.
+Removing a factor is not written to `security_events` by the application —
+nothing in the product performs it — so the audit trail for a recovery is the
+database's own logs and whoever asked for it.
 
 ### `rebandBookings` — the one admin sweep that edits customer bookings
 

@@ -253,6 +253,19 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **An admin proves who they are twice; a customer does not.** Phone plus OTP
+  is the only way in, so an admin account — which `docs/rls-matrix.md` shows
+  reaching every customer's phone number, every professional's private number
+  and every identity document — sat behind one SMS code, and an SMS code is the
+  factor most cheaply taken from somebody. `lib/auth/mfa.ts` is the adapter and
+  is private, `lib/auth/step-up.ts` is the pure rule (`STEP_UP_HOURS`, absolute
+  from verification rather than sliding), and **`@/lib/auth/admin-gate` is the
+  fourth and last public entry of the auth module** — six pages and eight
+  actions ask it instead of composing the answer themselves, because fourteen
+  hand-written copies of a two-part condition is how one ends up with only the
+  first part. An admin with no factor is sent to enrol, never refused: that is
+  what lets this ship before anybody has enrolled, and with one admin account
+  in production it is the difference between a gate and a lockout.
 - **Who can read what is written down and cannot rot.** `docs/rls-matrix.md` is
   every table in `public` against six roles — anon, a customer, another
   customer, a professional, another professional, an admin —

@@ -388,6 +388,31 @@
       "call": "Call us to book",
       "hours": "7am to 9pm, every day.",
       "bodyNoPhone": "This is our problem, not yours — retrying won’t help. We’re fixing it now. Please try again a little later."
+    },
+    "mfa": {
+      "title": "Sign-in security",
+      "lead": "You can add a code from an authenticator app to your account. It is not required.",
+      "leadAdmin": "Your account can reach every customer's phone number and every identity document in the product, so it needs a code from an authenticator app as well as your phone. You will be asked for it once every {hours} hours.",
+      "offTitle": "No authenticator set up",
+      "offBody": "Use any authenticator app — Google Authenticator, Authy, or the one built into your password manager. It generates a six-digit code that changes every thirty seconds and works with no signal.",
+      "start": "Set one up",
+      "scan": "Scan this with your authenticator app.",
+      "qrAlt": "QR code for your authenticator app",
+      "orType": "On the same phone as your authenticator? Type this in instead:",
+      "codeLabel": "Six-digit code",
+      "finish": "Finish setting up",
+      "onTitle": "Authenticator set up",
+      "onBody": "Keep the app on a phone you are not going to lose. If you do lose it, somebody with database access has to remove the factor before you can sign in to the admin screens again.",
+      "challengeTitle": "Enter your code to continue",
+      "challengeBody": "Open your authenticator app and type the six-digit code it is showing.",
+      "confirm": "Continue",
+      "errors": {
+        "wrongCode": "That code was not right. Codes change every thirty seconds — type the one showing now.",
+        "badCode": "A code is six digits.",
+        "noFactor": "There is no authenticator on this account yet.",
+        "enrollFailed": "That did not start. Try again.",
+        "signedOut": "You have been signed out. Sign in and try again."
+      }
     }
   },
   "booking": {

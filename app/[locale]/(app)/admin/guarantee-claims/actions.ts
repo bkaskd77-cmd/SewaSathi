@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminActor } from "@/lib/auth/admin-gate";
 import {
   issueRefund,
   markRefundPaid,
@@ -31,8 +31,8 @@ const QUEUE = "/[locale]/(app)/admin/guarantee-claims";
 export async function issueRefundAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") {
+  const profile = await adminActor();
+  if (!profile) {
     return { ok: false, reason: "notAdmin" };
   }
 
@@ -54,8 +54,8 @@ export async function issueRefundAction(
 export async function markRefundPaidAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") {
+  const profile = await adminActor();
+  if (!profile) {
     return { ok: false, reason: "notAdmin" };
   }
 
@@ -74,8 +74,8 @@ export async function markRefundPaidAction(
 export async function sendRefundAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") {
+  const profile = await adminActor();
+  if (!profile) {
     return { ok: false, reason: "notAdmin" };
   }
 

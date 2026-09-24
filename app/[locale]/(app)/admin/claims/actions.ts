@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminActor } from "@/lib/auth/admin-gate";
 import { settleNoShowClaim } from "@/lib/data/customer-risk";
 
 /**
@@ -15,8 +15,8 @@ import { settleNoShowClaim } from "@/lib/data/customer-risk";
 export async function decideClaimAction(
   formData: FormData,
 ): Promise<{ ok: boolean }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") return { ok: false };
+  const profile = await adminActor();
+  if (!profile) return { ok: false };
 
   const reason = String(formData.get("reason") ?? "").trim();
   if (reason.length < 5) return { ok: false };

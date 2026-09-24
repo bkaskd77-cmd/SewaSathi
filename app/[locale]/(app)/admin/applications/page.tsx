@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminGate } from "@/lib/auth/admin-gate";
 import { areaShortLabel } from "@/lib/config/areas";
 import { reviewQueue } from "@/lib/data/verification";
 
@@ -41,13 +41,22 @@ export default async function ApplicationQueuePage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.queue");
 
-  const profile = await getSessionProfile();
-  if (!profile) {
-    redirect({ href: "/login?next=/admin/applications", locale });
+  /*
+   * ROLE AND SECOND FACTOR IN ONE PLACE. Six pages and eight actions
+   * each re-read the role; adding a second condition to all fourteen by
+   * hand is how one of them ends up without it, and that one is the hole.
+   */
+  const gate = await adminGate();
+  if (!gate.ok) {
+    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/applications", locale });
+    // A 404 rather than a refusal: a signed-in customer learns nothing
+    // about what exists here, which is what notFound() has always been for.
+    if (gate.reason === "notAdmin") notFound();
+    // An admin who has to set up or use their code first. They come back.
+    redirect({ href: "/account/security?next=/admin/applications", locale });
   }
   // Route-level gating is not the boundary — every table below is admin-only
   // under RLS — but a non-admin should meet a 404 rather than a shell.
-  if (profile!.role !== "admin") notFound();
 
   const rows = await reviewQueue();
 

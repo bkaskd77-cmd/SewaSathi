@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminActor } from "@/lib/auth/admin-gate";
 import { signDocumentForReview } from "@/lib/data/provider-documents";
 import { decideApplication } from "@/lib/data/review";
 
@@ -20,8 +20,8 @@ export async function decideAction(
   _previous: { ok: boolean; error?: string } | null,
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") {
+  const profile = await adminActor();
+  if (!profile) {
     return { ok: false, error: "notAllowed" };
   }
 
@@ -69,8 +69,8 @@ export async function decideAction(
 export async function openDocumentAction(
   documentId: string,
 ): Promise<{ ok: true; url: string } | { ok: false }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") return { ok: false };
+  const profile = await adminActor();
+  if (!profile) return { ok: false };
 
   const url = await signDocumentForReview({ documentId, adminId: profile.id });
   return url ? { ok: true, url } : { ok: false };

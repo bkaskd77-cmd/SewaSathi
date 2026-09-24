@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminActor } from "@/lib/auth/admin-gate";
 import { decideSurveyVisitFee } from "@/lib/data/survey";
 
 /**
@@ -16,8 +16,8 @@ import { decideSurveyVisitFee } from "@/lib/data/survey";
 export async function decideSurveyFeeAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await getSessionProfile();
-  if (!profile || profile.role !== "admin") {
+  const profile = await adminActor();
+  if (!profile) {
     return { ok: false, reason: "notAdmin" };
   }
 

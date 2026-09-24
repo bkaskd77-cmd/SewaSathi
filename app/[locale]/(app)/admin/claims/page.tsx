@@ -7,7 +7,7 @@ import { MapPin, MapPinOff, Phone } from "lucide-react";
 import { ClaimDecision } from "@/components/admin/claim-decision";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { getSessionProfile } from "@/lib/auth/session";
+import { adminGate } from "@/lib/auth/admin-gate";
 import { openNoShowClaims } from "@/lib/data/review";
 import { formatNpr } from "@/lib/utils";
 
@@ -34,11 +34,20 @@ export default async function ClaimsQueuePage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.claims");
 
-  const profile = await getSessionProfile();
-  if (!profile) {
-    redirect({ href: "/login?next=/admin/claims", locale });
+  /*
+   * ROLE AND SECOND FACTOR IN ONE PLACE. Six pages and eight actions
+   * each re-read the role; adding a second condition to all fourteen by
+   * hand is how one of them ends up without it, and that one is the hole.
+   */
+  const gate = await adminGate();
+  if (!gate.ok) {
+    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/claims", locale });
+    // A 404 rather than a refusal: a signed-in customer learns nothing
+    // about what exists here, which is what notFound() has always been for.
+    if (gate.reason === "notAdmin") notFound();
+    // An admin who has to set up or use their code first. They come back.
+    redirect({ href: "/account/security?next=/admin/claims", locale });
   }
-  if (profile!.role !== "admin") notFound();
 
   const [claims, messages] = await Promise.all([
     openNoShowClaims(),
