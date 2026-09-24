@@ -7,6 +7,7 @@ import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "@/i18n/navigation";
 
 /**
  * Reasons this screen has a sentence for.
@@ -51,12 +52,24 @@ type Enrolment = { factorId: string; qr: string; secret: string };
 export function MfaSetup({
   hasFactor,
   needsCode,
+  returnTo = null,
 }: {
   hasFactor: boolean;
   /** An enrolled admin whose session has not used the factor, or used it too long ago. */
   needsCode: boolean;
+  /**
+   * Where they were going when the gate sent them here, or null.
+   *
+   * Decided on the server by `afterSecurity` and already through
+   * `safeRedirect`, so this component neither validates a path nor decides
+   * whether the gate is satisfied — both would be second opinions on rules
+   * that live in `lib/auth`, and second opinions are how two halves of a guard
+   * come to disagree.
+   */
+  returnTo?: string | null;
 }) {
   const t = useTranslations("auth.mfa");
+  const router = useRouter();
   const [enrolment, setEnrolment] = React.useState<Enrolment | null>(null);
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -98,6 +111,16 @@ export function MfaSetup({
           // same round trip and the state below changes underneath us.
           setEnrolment(null);
           setCode("");
+          /*
+           * And if something sent them here, take them back to it. Without
+           * this the gate asked for a code, got one, and left them on a
+           * settings page with no mention of where they had been going.
+           *
+           * `router` comes from `@/i18n/navigation`, never `next/navigation`:
+           * the plain one drops a Nepali reader into the English route and
+           * nothing fails loudly when it does.
+           */
+          if (returnTo) router.replace(returnTo);
           return;
         }
         setError(errorKey(result.reason));

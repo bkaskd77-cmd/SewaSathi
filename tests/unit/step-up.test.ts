@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { stepUpBlocks, stepUpFor, STEP_UP_HOURS } from "@/lib/auth/step-up";
+import {
+  afterSecurity,
+  stepUpBlocks,
+  stepUpFor,
+  STEP_UP_HOURS,
+} from "@/lib/auth/step-up";
 
 /**
  * The admin second-factor gate.
@@ -111,5 +116,42 @@ describe("what the number is", () => {
     // Named here so changing it is a decision somebody makes on purpose, in a
     // commit that says why.
     expect(STEP_UP_HOURS).toBe(8);
+  });
+});
+
+/**
+ * The return trip, which did not exist.
+ *
+ * `/admin` bounces an un-enrolled admin to `/account/security?next=/admin`,
+ * and the screen ignored the parameter entirely — so somebody who set up their
+ * authenticator was left sitting on the security page with no way back, having
+ * never been told why they were sent there. Carrying `next` and then dropping
+ * it is worse than not carrying it: the product asked for something, got it,
+ * and did nothing with it.
+ *
+ * Null means stay. A path means go. It must not send anybody back before the
+ * gate they were bounced by would actually let them through, or they arrive
+ * and get bounced straight here again.
+ */
+describe("where somebody goes after satisfying the security screen", () => {
+  const ready = { next: "/admin", hasFactor: true, needsCode: false };
+
+  it("returns them once the factor exists and is proved", () => {
+    expect(afterSecurity(ready)).toBe("/admin");
+  });
+
+  it("keeps them here while there is no factor at all", () => {
+    expect(afterSecurity({ ...ready, hasFactor: false })).toBeNull();
+  });
+
+  it("keeps them here while a code is still owed", () => {
+    // Enrolled, but this session has not proved it. Returning now means
+    // arriving at /admin and being bounced straight back.
+    expect(afterSecurity({ ...ready, needsCode: true })).toBeNull();
+  });
+
+  it("stays put when they came here on their own", () => {
+    // No `next` means nobody sent them; they opened their own settings.
+    expect(afterSecurity({ ...ready, next: "/" })).toBeNull();
   });
 });

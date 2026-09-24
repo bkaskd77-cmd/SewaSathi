@@ -6,8 +6,10 @@ import { MfaSetup } from "@/components/auth/mfa-setup";
 import { SessionDebug } from "@/components/auth/session-debug";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { safeRedirect } from "@/lib/auth";
 import {
   accessTokenLifetimeSeconds,
+  afterSecurity,
   securityState,
 } from "@/lib/auth/admin-gate";
 import { getSessionProfile } from "@/lib/auth/session";
@@ -29,9 +31,24 @@ export const dynamic = "force-dynamic";
  * set up and it needs proving. They are the same question to the person in
  * front of them.
  */
-export default async function SecurityPage() {
+export default async function SecurityPage({
+  searchParams,
+}: {
+  searchParams: { next?: string };
+}) {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("auth.mfa");
+
+  /*
+   * WHERE THEY WERE GOING, AND IT WAS BEING THROWN AWAY. `/admin` sends
+   * `?next=/admin`; this page read nothing, so enrolling left somebody on a
+   * settings screen with no way back and no idea why they had been sent.
+   *
+   * Through `safeRedirect`, which is the one place that decides whether a
+   * path is safe to send anybody to — it comes off the query string, and an
+   * unchecked value here is the same open redirect as on /login.
+   */
+  const next = safeRedirect(searchParams.next);
 
   const profile = await getSessionProfile();
   if (!profile) {
@@ -47,6 +64,19 @@ export default async function SecurityPage() {
     getMessages(),
   ]);
 
+  /*
+   * Somebody bounced here for a CHALLENGE rather than for enrolment, who has
+   * since proved it: they have nothing left to do on this screen, so sending
+   * them on is the whole answer rather than showing them a card that says
+   * "set up" about a factor they already have.
+   */
+  const onward = afterSecurity({
+    next,
+    hasFactor: state.hasFactor,
+    needsCode: state.needsCode,
+  });
+  if (onward) redirect({ href: onward, locale });
+
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10">
       <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
@@ -56,10 +86,20 @@ export default async function SecurityPage() {
           : t("lead")}
       </p>
 
+      {/* Why they are here, when something sent them. A gate that refuses
+          without saying what it was protecting reads as the product being
+          broken rather than as a step. */}
+      {next !== "/" ? (
+        <p className="animate-rise mt-4 rounded-lg border border-border bg-muted/40 px-3 py-2 text-body-sm text-foreground">
+          {next.startsWith("/admin") ? t("whyAdmin") : t("whyGeneric")}
+        </p>
+      ) : null}
+
       <NextIntlClientProvider locale={locale} messages={{ auth: messages.auth }}>
         <MfaSetup
           hasFactor={state.hasFactor}
           needsCode={state.needsCode}
+          returnTo={next === "/" ? null : next}
         />
         <SessionDebug
           accessTokenSeconds={lifetime}

@@ -418,7 +418,9 @@
         "token": "access token {minutes} min",
         "tokenUnknown": "access token lifetime unreadable",
         "stepUp": "admin step-up {hours}h"
-      }
+      },
+      "whyAdmin": "You were on your way to the admin panel. Set this up and we will take you straight back to it.",
+      "whyGeneric": "Something you were opening needs this first. Set it up and we will take you back."
     }
   },
   "booking": {

@@ -82,3 +82,39 @@ export function stepUpFor(input: StepUpInput): StepUpVerdict {
 export function stepUpBlocks(verdict: StepUpVerdict): boolean {
   return verdict === "enrol" || verdict === "challenge";
 }
+
+/**
+ * Where somebody goes once this screen has done its job.
+ *
+ * THE RETURN TRIP, WHICH DID NOT EXIST. `/admin` bounces an un-enrolled admin
+ * to `/account/security?next=/admin`, and the screen ignored the parameter
+ * entirely: somebody who set up their authenticator was left sitting there
+ * with no way back, having never been told why they had been sent. Carrying
+ * `next` and then dropping it is worse than never carrying it — the product
+ * asked for something, got it, and did nothing with it.
+ *
+ * NULL MEANS STAY, and it is the answer for every state but one. Returning
+ * before the gate would actually let them through just means arriving and
+ * being bounced back here, which reads as the button having failed. So both
+ * halves have to be true: a factor exists, and this session has proved it.
+ *
+ * `next` IS ALREADY THROUGH `safeRedirect` BY THE TIME IT ARRIVES. This
+ * function does no redirect validation of its own and must never start —
+ * `lib/auth/routes.ts` is the one place that decides whether a path is safe to
+ * send anybody to, and a second opinion on that is how the two come to
+ * disagree. "/" is what `safeRedirect` returns for nothing-was-asked-for, so
+ * it means they opened their own settings and nobody sent them.
+ *
+ * Pure, like everything else in this file, so the rule is tested without a
+ * session.
+ */
+export function afterSecurity(input: {
+  /** Already through `safeRedirect`; "/" means they did not say. */
+  next: string;
+  hasFactor: boolean;
+  needsCode: boolean;
+}): string | null {
+  if (input.next === "/") return null;
+  if (!input.hasFactor || input.needsCode) return null;
+  return input.next;
+}
