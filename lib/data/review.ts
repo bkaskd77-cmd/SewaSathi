@@ -7,6 +7,11 @@ import {
   tripDebtFor,
 } from "@/lib/abuse";
 import { recordContactAccess, recordSecurityEvent } from "@/lib/audit";
+import {
+  QUEUE_CAP,
+  unreadableQueue,
+  type QueuePage,
+} from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
@@ -587,25 +592,31 @@ export type OpenClaim = {
   wouldBeAbsorbed: boolean;
 };
 
+export const NO_SHOW_QUEUE_CAP = QUEUE_CAP;
+
+/** The statuses this queue is. Shared with the count so the two cannot drift. */
+const UNDECIDED = ["open", "needs_person"] as const;
+
 /** Claims a person still has to decide, oldest first. */
-export async function openNoShowClaims(): Promise<OpenClaim[]> {
-  if (!hasSupabaseConfig()) return [];
+export async function openNoShowClaims(): Promise<QueuePage<OpenClaim>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(NO_SHOW_QUEUE_CAP);
   const db = createAdminClient();
 
-  const { data, error } = await db
+  const { data, error, count } = await db
     .from("no_show_claims")
-    .select("*")
-    .in("status", ["open", "needs_person"])
+    .select("*", { count: "exact" })
+    .in("status", UNDECIDED)
     .order("created_at", { ascending: true })
-    .limit(100);
+    .limit(NO_SHOW_QUEUE_CAP);
 
   if (error) {
     console.error(`[claims] queue — ${describeError(error)}`);
-    return [];
+    return unreadableQueue(NO_SHOW_QUEUE_CAP);
   }
 
+  const total = count ?? null;
   const rows = data ?? [];
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { rows: [], total, cap: NO_SHOW_QUEUE_CAP };
 
   const bookingIds = rows.map((row) => row.booking_id as string);
   const [{ data: arrivals }, { data: bookings }, { data: providers }] =
@@ -677,5 +688,21 @@ export async function openNoShowClaims(): Promise<OpenClaim[]> {
     });
   }
 
-  return claims;
+  return { rows: claims, total, cap: NO_SHOW_QUEUE_CAP };
+}
+
+/** How many claims are waiting, without fetching any. */
+export async function openNoShowClaimsCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  const { count, error } = await createAdminClient()
+    .from("no_show_claims")
+    .select("id", { count: "exact", head: true })
+    .in("status", UNDECIDED);
+
+  if (error) {
+    console.error(`[claims] queue count — ${describeError(error)}`);
+    return null;
+  }
+  return count ?? null;
 }

@@ -6,6 +6,11 @@ import {
   type QuoteFacts,
   type QuoteState,
 } from "@/lib/booking";
+import {
+  QUEUE_CAP,
+  unreadableQueue,
+  type QueuePage,
+} from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
@@ -443,25 +448,32 @@ export type PendingSurveyFee = {
  * admin-only at the page and again in the action; this function is not the
  * guard and does not pretend to be.
  */
-export async function pendingSurveyFees(): Promise<PendingSurveyFee[]> {
-  if (!hasSupabaseConfig()) return [];
+export const SURVEY_FEE_QUEUE_CAP = QUEUE_CAP;
+
+export async function pendingSurveyFees(): Promise<QueuePage<PendingSurveyFee>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(SURVEY_FEE_QUEUE_CAP);
 
   try {
     const admin = createAdminClient();
 
-    const { data, error } = await admin
+    const { data, error, count } = await admin
       .from("survey_visit_fees")
       .select(
         "id, booking_id, provider_id, outcome, amount, created_at, counts_for_month, bookings (reference, category_slug), providers (display_name)",
+        { count: "exact" },
       )
       .eq("status", "pending")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(SURVEY_FEE_QUEUE_CAP);
 
-    if (error || !data || data.length === 0) {
-      if (error) {
-        console.error(`[survey] fee queue failed — ${describeError(error)}`);
-      }
-      return [];
+    if (error) {
+      console.error(`[survey] fee queue failed — ${describeError(error)}`);
+      return unreadableQueue(SURVEY_FEE_QUEUE_CAP);
+    }
+
+    const total = count ?? null;
+    if (!data || data.length === 0) {
+      return { rows: [], total, cap: SURVEY_FEE_QUEUE_CAP };
     }
 
     const rows = data as Array<Record<string, unknown>>;
@@ -499,7 +511,7 @@ export async function pendingSurveyFees(): Promise<PendingSurveyFee[]> {
       declineRate.set(slug, Number(pct));
     }
 
-    return rows.map((row) => {
+    const fees = rows.map((row) => {
       const booking = (row.bookings ?? null) as Record<string, unknown> | null;
       const provider = (row.providers ?? null) as Record<string, unknown> | null;
       const slug = (booking?.category_slug as string | null) ?? "";
@@ -524,9 +536,32 @@ export async function pendingSurveyFees(): Promise<PendingSurveyFee[]> {
           : null,
       };
     });
+
+    return { rows: fees, total, cap: SURVEY_FEE_QUEUE_CAP };
   } catch (thrown) {
     console.error(`[survey] fee queue threw — ${describeError(thrown)}`);
-    return [];
+    return unreadableQueue(SURVEY_FEE_QUEUE_CAP);
+  }
+}
+
+/** How many survey fees are waiting, without fetching any. */
+export async function pendingSurveyFeesCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const { count, error } = await createAdminClient()
+      .from("survey_visit_fees")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    if (error) {
+      console.error(`[survey] fee count failed — ${describeError(error)}`);
+      return null;
+    }
+    return count ?? null;
+  } catch (thrown) {
+    console.error(`[survey] fee count threw — ${describeError(thrown)}`);
+    return null;
   }
 }
 

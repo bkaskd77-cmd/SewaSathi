@@ -13,6 +13,11 @@ import {
   type ClaimEligibility,
   type ClaimVerdict,
 } from "@/lib/config/guarantee";
+import {
+  QUEUE_CAP,
+  unreadableQueue,
+  type QueuePage,
+} from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
@@ -1311,10 +1316,27 @@ export type RefundableClaim = {
   daysLeft: number | null;
 };
 
+/**
+ * Two queues on one screen, each capped and counted on its own.
+ *
+ * They are different work — one is money we owe and have not sent, the other
+ * is a verdict nobody has turned into a refund yet — so a single count across
+ * both would answer neither question.
+ */
 export type RefundQueue = {
-  awaitingPayment: PendingRefund[];
-  decidable: RefundableClaim[];
+  awaitingPayment: QueuePage<PendingRefund>;
+  decidable: QueuePage<RefundableClaim>;
 };
+
+export const REFUND_QUEUE_CAP = QUEUE_CAP;
+
+/**
+ * Lower than its sibling on purpose. A decidable claim is a verdict already
+ * reached and waiting to be turned into money, so the queue is fed by the
+ * no-show and guarantee screens rather than by traffic, and it should never
+ * approach even this.
+ */
+export const REFUND_DECIDABLE_CAP = 50;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -1330,7 +1352,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * has not.
  */
 export async function refundQueue(): Promise<RefundQueue> {
-  const empty: RefundQueue = { awaitingPayment: [], decidable: [] };
+  const empty: RefundQueue = {
+    awaitingPayment: unreadableQueue(REFUND_QUEUE_CAP),
+    decidable: unreadableQueue(REFUND_DECIDABLE_CAP),
+  };
   if (!hasSupabaseConfig()) return empty;
 
   try {
@@ -1340,23 +1365,29 @@ export async function refundQueue(): Promise<RefundQueue> {
     );
     const { gatewayFor } = await import("@/lib/payments");
 
-    const [{ data: refundRows }, { data: claimRows }] = await Promise.all([
+    const [
+      { data: refundRows, count: refundTotal },
+      { data: claimRows, count: claimTotal },
+    ] = await Promise.all([
       admin
         .from("refunds")
-        .select("id, payment_id, amount, reason, created_at")
+        .select("id, payment_id, amount, reason, created_at", {
+          count: "exact",
+        })
         .eq("status", "requested")
         .order("created_at", { ascending: true })
-        .limit(100),
+        .limit(REFUND_QUEUE_CAP),
       admin
         .from("guarantee_claims")
         .select(
           "id, booking_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, closed_at",
+          { count: "exact" },
         )
         .eq("status", "resolved")
         .eq("verdict", "sameFault")
         .eq("refund_rupees", 0)
         .order("closed_at", { ascending: false })
-        .limit(50),
+        .limit(REFUND_DECIDABLE_CAP),
     ]);
 
     const refunds = (refundRows ?? []) as Record<string, unknown>[];
@@ -1511,10 +1542,67 @@ export async function refundQueue(): Promise<RefundQueue> {
       };
     });
 
-    return { awaitingPayment, decidable };
+    return {
+      awaitingPayment: {
+        rows: awaitingPayment,
+        total: refundTotal ?? null,
+        cap: REFUND_QUEUE_CAP,
+      },
+      decidable: {
+        rows: decidable,
+        total: claimTotal ?? null,
+        cap: REFUND_DECIDABLE_CAP,
+      },
+    };
   } catch (thrown) {
     console.error(`[claims] refund queue threw — ${describeError(thrown)}`);
     return empty;
+  }
+}
+
+/**
+ * The two counts behind the guarantee screen, without fetching any rows.
+ *
+ * Reported separately rather than summed: the index card names both, because
+ * "three refunds to send" and "three verdicts to turn into refunds" are not
+ * interchangeable and a single number would hide which kind of work is
+ * waiting.
+ */
+export async function refundQueueCounts(): Promise<{
+  awaitingPayment: number | null;
+  decidable: number | null;
+}> {
+  if (!hasSupabaseConfig()) return { awaitingPayment: null, decidable: null };
+
+  try {
+    const admin = createAdminClient();
+    const [owed, verdicts] = await Promise.all([
+      admin
+        .from("refunds")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "requested"),
+      admin
+        .from("guarantee_claims")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "resolved")
+        .eq("verdict", "sameFault")
+        .eq("refund_rupees", 0),
+    ]);
+
+    if (owed.error) {
+      console.error(`[claims] refund count — ${describeError(owed.error)}`);
+    }
+    if (verdicts.error) {
+      console.error(`[claims] verdict count — ${describeError(verdicts.error)}`);
+    }
+
+    return {
+      awaitingPayment: owed.error ? null : (owed.count ?? null),
+      decidable: verdicts.error ? null : (verdicts.count ?? null),
+    };
+  } catch (thrown) {
+    console.error(`[claims] refund counts threw — ${describeError(thrown)}`);
+    return { awaitingPayment: null, decidable: null };
   }
 }
 

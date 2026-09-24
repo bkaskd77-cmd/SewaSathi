@@ -18,6 +18,11 @@ import { recordSecurityEvent } from "@/lib/audit";
 import { notifyAll } from "@/lib/notify";
 import type { PaymentMixRow } from "@/lib/data/payment-mix";
 import type { PricingSignal } from "@/lib/data/pricing-signals";
+import {
+  QUEUE_CAP,
+  unreadableQueue,
+  type QueuePage,
+} from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1155,24 +1160,28 @@ export type OpenAppeal = {
  * Service role, because `commission_appeals` grants nobody update and the
  * admin check lives in the action and in `resolveCommissionAppeal`.
  */
-export async function openCommissionAppeals(): Promise<OpenAppeal[]> {
-  if (!hasSupabaseConfig()) return [];
+export const APPEAL_QUEUE_CAP = QUEUE_CAP;
+
+export async function openCommissionAppeals(): Promise<QueuePage<OpenAppeal>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(APPEAL_QUEUE_CAP);
 
   try {
-    const { data, error } = await createAdminClient()
+    const { data, error, count } = await createAdminClient()
       .from("commission_appeals")
       .select(
         "id, booking_id, reason, created_at, providers (display_name), bookings (reference, category_slug, final_amount, commission_basis, quoted_min, quoted_max)",
+        { count: "exact" },
       )
       .eq("status", "open")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(APPEAL_QUEUE_CAP);
 
     if (error) {
       console.error(`[payments] appeal queue failed — ${describeError(error)}`);
-      return [];
+      return unreadableQueue(APPEAL_QUEUE_CAP);
     }
 
-    return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+    const appeals = ((data ?? []) as Record<string, unknown>[]).map((row) => {
       const booking = (row.bookings ?? null) as Record<string, unknown> | null;
       const provider = (row.providers ?? null) as Record<string, unknown> | null;
       const number = (value: unknown) =>
@@ -1191,9 +1200,32 @@ export async function openCommissionAppeals(): Promise<OpenAppeal[]> {
         quotedMax: number(booking?.quoted_max),
       };
     });
+
+    return { rows: appeals, total: count ?? null, cap: APPEAL_QUEUE_CAP };
   } catch (thrown) {
     console.error(`[payments] appeal queue threw — ${describeError(thrown)}`);
-    return [];
+    return unreadableQueue(APPEAL_QUEUE_CAP);
+  }
+}
+
+/** How many appeals are waiting, without fetching any. */
+export async function openCommissionAppealsCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const { count, error } = await createAdminClient()
+      .from("commission_appeals")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open");
+
+    if (error) {
+      console.error(`[payments] appeal count failed — ${describeError(error)}`);
+      return null;
+    }
+    return count ?? null;
+  } catch (thrown) {
+    console.error(`[payments] appeal count threw — ${describeError(thrown)}`);
+    return null;
   }
 }
 

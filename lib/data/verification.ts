@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { recordSecurityEvent } from "@/lib/audit";
+import { unreadableQueue, type QueuePage } from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -368,23 +369,40 @@ export type QueueRow = {
  * Passing a made-up number would be worse than passing none: it would sort the
  * queue by a fiction and nobody would know.
  */
-export async function reviewQueue(now: Date = new Date()): Promise<QueueRow[]> {
-  if (!hasSupabaseConfig()) return [];
+export const REVIEW_QUEUE_CAP = 200;
+
+/**
+ * The statuses this queue is, in one place.
+ *
+ * Shared with `reviewQueueCount` deliberately. A count that repeated the
+ * filter would agree on the day it was written and drift the first time
+ * somebody added a status — and the drift would show up as the index
+ * promising work the queue does not list.
+ */
+const AWAITING_REVIEW = ["submitted", "in_review"] as const;
+
+export async function reviewQueue(
+  now: Date = new Date(),
+): Promise<QueuePage<QueueRow>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(REVIEW_QUEUE_CAP);
   const db = createAdminClient();
 
-  const { data, error } = await db
+  const { data, error, count } = await db
     .from("provider_applications")
-    .select("id, full_name, trades, service_areas, status, submitted_at, risk_score")
-    .in("status", ["submitted", "in_review"])
+    .select(
+      "id, full_name, trades, service_areas, status, submitted_at, risk_score",
+      { count: "exact" },
+    )
+    .in("status", AWAITING_REVIEW)
     .order("submitted_at", { ascending: true })
-    .limit(200);
+    .limit(REVIEW_QUEUE_CAP);
 
   if (error) {
     console.error(`[verification] queue — ${describeError(error)}`);
-    return [];
+    return unreadableQueue(REVIEW_QUEUE_CAP);
   }
 
-  return (data ?? [])
+  const rows = (data ?? [])
     .map((row) => {
       const submittedAt = row.submitted_at as string | null;
       const waitingDays = submittedAt
@@ -406,4 +424,29 @@ export async function reviewQueue(now: Date = new Date()): Promise<QueueRow[]> {
       };
     })
     .sort((a, b) => b.priority - a.priority);
+
+  return { rows, total: count ?? null, cap: REVIEW_QUEUE_CAP };
+}
+
+/**
+ * How many applications are waiting, without fetching any of them.
+ *
+ * The index needs six numbers and none of the rows behind them; reading the
+ * six queues in full to print six counts would be several hundred rows and
+ * their joins for a page that shows none of it. `head: true` sends no rows at
+ * all.
+ */
+export async function reviewQueueCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  const { count, error } = await createAdminClient()
+    .from("provider_applications")
+    .select("id", { count: "exact", head: true })
+    .in("status", AWAITING_REVIEW);
+
+  if (error) {
+    console.error(`[verification] queue count — ${describeError(error)}`);
+    return null;
+  }
+  return count ?? null;
 }

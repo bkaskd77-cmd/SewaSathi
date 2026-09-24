@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { AppealDecision } from "@/components/admin/appeal-decision";
+import { QueueExtent } from "@/components/admin/queue-extent";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -56,7 +57,7 @@ export default async function AppealsPage() {
     redirect({ href: "/account/security?next=/admin/appeals", locale });
   }
 
-  const [appeals, categories, messages] = await Promise.all([
+  const [queue, categories, messages] = await Promise.all([
     openCommissionAppeals(),
     getCategories(),
     getMessages(),
@@ -73,14 +74,15 @@ export default async function AppealsPage() {
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
+      <QueueExtent page={queue} />
 
-      {appeals.length === 0 ? (
+      {queue.rows.length === 0 ? (
         <p className="animate-rise mt-8 text-body-md text-muted-foreground">
           {t("empty")}
         </p>
       ) : (
         <ul className="mt-8 space-y-4">
-          {appeals.map((appeal, index) => (
+          {queue.rows.map((appeal, index) => (
             <li
               key={appeal.id}
               className="animate-rise rounded-lg border border-border p-5"

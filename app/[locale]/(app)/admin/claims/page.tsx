@@ -5,6 +5,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { MapPin, MapPinOff, Phone } from "lucide-react";
 
 import { ClaimDecision } from "@/components/admin/claim-decision";
+import { QueueExtent } from "@/components/admin/queue-extent";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -49,7 +50,7 @@ export default async function ClaimsQueuePage() {
     redirect({ href: "/account/security?next=/admin/claims", locale });
   }
 
-  const [claims, messages] = await Promise.all([
+  const [queue, messages] = await Promise.all([
     openNoShowClaims(),
     getMessages(),
   ]);
@@ -60,14 +61,15 @@ export default async function ClaimsQueuePage() {
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
+      <QueueExtent page={queue} />
 
-      {claims.length === 0 ? (
+      {queue.rows.length === 0 ? (
         <p className="animate-rise mt-8 text-body-md text-muted-foreground">
           {t("empty")}
         </p>
       ) : (
         <ul className="mt-8 space-y-4">
-          {claims.map((claim, index) => (
+          {queue.rows.map((claim, index) => (
             <li
               key={claim.id}
               className="animate-rise rounded-lg border border-border p-5"

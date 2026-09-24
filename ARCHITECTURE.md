@@ -258,6 +258,26 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **Every admin queue is capped, and every one of them now says so.**
+  `lib/data/queue.ts` is the shape: rows, the cap that was applied, and the
+  total that matched, with the total taken from `count: "exact"` on the same
+  select so it is one query and can never disagree with the rows beside it.
+  Before this each queue stopped at its ceiling and rendered nothing about it,
+  and a drained list looked exactly like a truncated one — opposite situations
+  needing opposite responses. **`total` is nullable and that is the point**: a
+  failed count is null, not zero, because "nothing is waiting" is the one
+  sentence that tells somebody to stop looking. `queuesState` applies the same
+  rule across the index and says `unknown` if even one of the six could not be
+  read. No queue gets a page-two control: they are ordered oldest-first and
+  drain, so the hundred-and-first row becomes the first once the hundred above
+  it are cleared, and paging a drain queue invites working the wrong end of it.
+- **`/admin` is the way in, and it did not exist.** Five admin screens were
+  reachable only by typing their URLs; nothing in the product linked to any of
+  them. The index is six counts and six links, read `head: true` in one
+  `Promise.all` so it fetches no rows at all, and it carries no client
+  JavaScript. Nothing on it is summarised by a model — the counts are the
+  intelligence, and a model call from the highest-privilege screen would put
+  names, addresses and phone numbers into a request that leaves the building.
 - **An admin proves who they are twice; a customer does not.** Phone plus OTP
   is the only way in, so an admin account — which `docs/rls-matrix.md` shows
   reaching every customer's phone number, every professional's private number

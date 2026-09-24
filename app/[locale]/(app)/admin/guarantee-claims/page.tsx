@@ -6,6 +6,7 @@ import { AlertTriangle, Clock } from "lucide-react";
 
 import { RefundDecision } from "@/components/admin/refund-decision";
 import { RefundPayment } from "@/components/admin/refund-payment";
+import { QueueExtent } from "@/components/admin/queue-extent";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -74,7 +75,7 @@ export default async function GuaranteeClaimsPage() {
     return category ? categoryCopy(category, locale).name : slug;
   };
 
-  const staleCount = queue.awaitingPayment.filter((r) => r.stale).length;
+  const staleCount = queue.awaitingPayment.rows.filter((r) => r.stale).length;
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -87,8 +88,9 @@ export default async function GuaranteeClaimsPage() {
           Owed and not sent. First, always.
        * ------------------------------------------------------------ */}
       <h2 className="animate-rise mt-10 font-display text-heading-sm">
-        {t("owedHeading", { n: String(queue.awaitingPayment.length) })}
+        {t("owedHeading", { n: String(queue.awaitingPayment.rows.length) })}
       </h2>
+      <QueueExtent page={queue.awaitingPayment} />
 
       {staleCount > 0 ? (
         <p className="animate-pop-in mt-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-body-sm text-warning-ink">
@@ -102,13 +104,13 @@ export default async function GuaranteeClaimsPage() {
         </p>
       ) : null}
 
-      {queue.awaitingPayment.length === 0 ? (
+      {queue.awaitingPayment.rows.length === 0 ? (
         <p className="animate-rise mt-4 text-body-md text-muted-foreground">
           {t("owedEmpty")}
         </p>
       ) : (
         <ul className="mt-4 space-y-4">
-          {queue.awaitingPayment.map((refund, index) => (
+          {queue.awaitingPayment.rows.map((refund, index) => (
             <li
               key={refund.refundId}
               className={`animate-rise rounded-lg border p-5 ${
@@ -165,14 +167,15 @@ export default async function GuaranteeClaimsPage() {
       <p className="animate-rise mt-2 max-w-2xl text-body-sm text-muted-foreground">
         {t("decideLead")}
       </p>
+      <QueueExtent page={queue.decidable} />
 
-      {queue.decidable.length === 0 ? (
+      {queue.decidable.rows.length === 0 ? (
         <p className="animate-rise mt-4 text-body-md text-muted-foreground">
           {t("decideEmpty")}
         </p>
       ) : (
         <ul className="mt-4 space-y-4">
-          {queue.decidable.map((claim, index) => (
+          {queue.decidable.rows.map((claim, index) => (
             <li
               key={claim.claimId}
               className="animate-rise rounded-lg border border-border p-5"

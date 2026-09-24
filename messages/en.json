@@ -1426,10 +1426,10 @@
         "neither": "By arrangement",
         "onJob": "You are on a job, so customers see that. This is set by us, not by you.",
         "until": "Free until the end of today — {hours}h {minutes}m left.",
-      "untilTomorrow": "Free until the end of tomorrow — {hours}h {minutes}m left.",
+        "untilTomorrow": "Free until the end of tomorrow — {hours}h {minutes}m left.",
         "busyUntil": "Busy for another {hours}h {minutes}m.",
         "explain": "\"Free now\" switches off at the end of the working day, so nobody is sent to you at midnight.",
-          "errors": {
+        "errors": {
           "onAJob": "You are on a job. This will be yours to set again when it is finished.",
           "noListing": "This account is not linked to a listing.",
           "unknownPreset": "That did not save. Try again.",
@@ -1519,6 +1519,45 @@
   "admin": {
     "meta": {
       "title": "Applications"
+    },
+    "index": {
+      "title": "Admin",
+      "lead": "Everything waiting on a person, and how much of it there is.",
+      "allClear": "Nothing is waiting.",
+      "noneReadable": "We could not read any of the queues just now. This is not the same as nothing waiting — try again, and check /api/health if it keeps happening.",
+      "unreadable": "—",
+      "capNote": "Each screen loads its oldest entries first, up to its own limit, and says how many there are in total. Clearing what is shown brings the next ones up.",
+      "queues": {
+        "applications": {
+          "name": "Applications",
+          "what": "Professionals waiting to be let in. Longest wait first."
+        },
+        "claims": {
+          "name": "Nobody arrived",
+          "what": "Customers saying a professional did not turn up."
+        },
+        "refunds": {
+          "name": "Refunds to send",
+          "what": "Money we have approved and not yet paid out."
+        },
+        "verdicts": {
+          "name": "Refunds to decide",
+          "what": "Claims we upheld where the amount is still open."
+        },
+        "surveyFees": {
+          "name": "Survey fees",
+          "what": "Visit fees to approve after a customer turned down the price."
+        },
+        "appeals": {
+          "name": "Commission appeals",
+          "what": "Professionals saying a job was genuinely smaller than the band."
+        }
+      }
+    },
+    "extent": {
+      "showing": "Showing {shown} of {total}, oldest first. This screen loads {cap} at a time — clearing these brings the next ones up.",
+      "all": "{total} waiting, oldest first.",
+      "unknown": "We could not count these. What is listed may not be all of it."
     },
     "queue": {
       "title": "Applications waiting",

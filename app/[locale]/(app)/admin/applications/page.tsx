@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 
+import { QueueExtent } from "@/components/admin/queue-extent";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -58,7 +59,7 @@ export default async function ApplicationQueuePage() {
   // Route-level gating is not the boundary — every table below is admin-only
   // under RLS — but a non-admin should meet a 404 rather than a shell.
 
-  const rows = await reviewQueue();
+  const queue = await reviewQueue();
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 py-10">
@@ -66,14 +67,15 @@ export default async function ApplicationQueuePage() {
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
+      <QueueExtent page={queue} />
 
-      {rows.length === 0 ? (
+      {queue.rows.length === 0 ? (
         <p className="animate-rise mt-8 text-body-md text-muted-foreground">
           {t("empty")}
         </p>
       ) : (
         <ul className="mt-8 space-y-3">
-          {rows.map((row, index) => (
+          {queue.rows.map((row, index) => (
             <li
               key={row.applicationId}
               className="animate-rise"
