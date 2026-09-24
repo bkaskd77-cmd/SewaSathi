@@ -412,6 +412,11 @@
         "noFactor": "There is no authenticator on this account yet.",
         "enrollFailed": "That did not start. Try again.",
         "signedOut": "You have been signed out. Sign in and try again."
+      },
+      "debug": {
+        "token": "access token {minutes} min",
+        "tokenUnknown": "access token lifetime unreadable",
+        "stepUp": "admin step-up {hours}h"
       }
     }
   },

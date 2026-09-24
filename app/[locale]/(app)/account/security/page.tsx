@@ -3,9 +3,13 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { MfaSetup } from "@/components/auth/mfa-setup";
+import { SessionDebug } from "@/components/auth/session-debug";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { securityState } from "@/lib/auth/admin-gate";
+import {
+  accessTokenLifetimeSeconds,
+  securityState,
+} from "@/lib/auth/admin-gate";
 import { getSessionProfile } from "@/lib/auth/session";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -34,7 +38,14 @@ export default async function SecurityPage() {
     redirect({ href: "/login?next=%2Faccount%2Fsecurity", locale });
   }
 
-  const [state, messages] = await Promise.all([securityState(), getMessages()]);
+  const [state, lifetime, messages] = await Promise.all([
+    securityState(),
+    // Observed from this session's own token. The configured value lives in
+    // the Supabase dashboard and needs a management token to read, which is
+    // one more credential than this is worth — `exp - iat` is the same number.
+    accessTokenLifetimeSeconds(),
+    getMessages(),
+  ]);
 
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10">
@@ -49,6 +60,10 @@ export default async function SecurityPage() {
         <MfaSetup
           hasFactor={state.hasFactor}
           needsCode={state.needsCode}
+        />
+        <SessionDebug
+          accessTokenSeconds={lifetime}
+          stepUpHours={state.stepUpHours}
         />
       </NextIntlClientProvider>
     </section>

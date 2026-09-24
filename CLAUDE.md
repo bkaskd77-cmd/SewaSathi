@@ -478,7 +478,15 @@ verify`, and any can be changed by somebody not looking at this code.
   send a real OTP to `SMS_HEALTH_NUMBER` — the only way to know a gateway's
   credentials are real. Point it at a Supabase *test* number and it is free.
 - **`unknown` is never `ok`.** Not looking must never read as working; that is
-  precisely the confusion that let this run for a day.
+  precisely the confusion that let this run for a day. **`session.config` is
+  permanently `unknown` on purpose** — JWT expiry and refresh-token rotation
+  are dashboard settings and reading them needs a management token this
+  product deliberately does not hold, so the line names the dimension and says
+  where to look rather than reporting a number nobody verified. The observable
+  half is `/account/security?debug=auth`, which prints `exp - iat` off a real
+  token: per session, but the same number the dashboard holds. Before that line
+  existed, nothing in the product mentioned session lifetime was a setting, so
+  nobody could notice it had never been chosen.
 - **The login screen never dead-ends.** `strandsCustomer()` decides when the
   failure is ours and unfixable by retrying, and then the screen offers a phone
   number instead. A mistyped digit gets the ordinary error — telling somebody to

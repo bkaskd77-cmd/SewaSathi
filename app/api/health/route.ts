@@ -7,6 +7,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 import { smsGateway } from "@/lib/sms";
+import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
 import FINGERPRINTS from "@/supabase/function-fingerprints.json";
 
 /**
@@ -444,6 +445,38 @@ async function checkSmsBudget(): Promise<Check> {
 }
 
 /**
+ * Session lifetime — named here because it cannot be measured here.
+ *
+ * THE SETTING LIVES IN SOMEBODY ELSE'S DASHBOARD, which is the category of
+ * dependency that broke sign-in for a day: a Supabase toggle, changed by
+ * somebody not looking at this code, invisible to `npm run verify`. JWT expiry
+ * and refresh-token rotation are exactly that, and reading them needs a
+ * management token this product deliberately does not hold.
+ *
+ * SO THIS IS A SIGNPOST AND IT SAYS SO. `unknown`, never `ok` — not looking
+ * must not read as working, and reporting a number nobody verified would be
+ * worse than reporting none. The observable half lives on
+ * `/account/security?debug=auth`, which prints `exp - iat` from a real token:
+ * per session, but the same number the dashboard holds.
+ *
+ * What this line buys is that the dimension is on the page at all. Before it,
+ * nothing anywhere in the product mentioned that session lifetime was a
+ * setting, so nobody could notice it had never been chosen.
+ */
+function checkSessionConfig(): Check {
+  return {
+    name: "session.config",
+    state: "unknown",
+    detail:
+      `Admin step-up re-challenges every ${STEP_UP_HOURS}h and that number is ours ` +
+      `(lib/auth/step-up.ts). The JWT expiry and refresh-token rotation behind it ` +
+      `are Supabase dashboard settings and cannot be read from here without a ` +
+      `management token. Observe this session's actual token lifetime at ` +
+      `/account/security?debug=auth.`,
+  };
+}
+
+/**
  * Which gateway would carry a code, and is it armed?
  *
  * SEPARATE FROM `auth.sms`, which sends one and is the only proof of delivery.
@@ -595,6 +628,7 @@ export async function GET(request: Request) {
   }
 
   const checks: Check[] = [
+    checkSessionConfig(),
     ...(await Promise.all([
       checkAuthConfig(),
       checkDatabase(),

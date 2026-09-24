@@ -122,5 +122,8 @@ export async function securityState(): Promise<{
  * directly would be a second place that knows the second factor is TOTP, and
  * the whole point of the adapter is that swapping it is one file.
  */
-export { enrollTotp, verifyTotp } from "./mfa";
+export { accessTokenLifetimeSeconds, enrollTotp, verifyTotp } from "./mfa";
 export type { EnrollResult, VerifyResult } from "./mfa";
+
+/** The window itself, for anything that reports it rather than enforces it. */
+export { STEP_UP_HOURS } from "./step-up";

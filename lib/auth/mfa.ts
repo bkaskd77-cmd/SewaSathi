@@ -175,3 +175,34 @@ export async function verifyTotp(input: {
     return { ok: false, reason: "wrongCode" };
   }
 }
+
+/**
+ * How long this session's access token lives, as the token itself states it.
+ *
+ * THE ONLY HONEST READING AVAILABLE FROM INSIDE THE PRODUCT. The configured
+ * JWT expiry and the refresh-token rotation setting live in the Supabase
+ * dashboard, and reading them needs a management token — one more credential
+ * held in one more place, which is the category of dependency this product
+ * already has four of. But a verified token carries `iat` and `exp`, and the
+ * difference between them IS the configured lifetime, observed rather than
+ * asked for.
+ *
+ * Per session, not global: it reports what this token was issued with. That is
+ * the number that matters to the person looking at it, and it is the one thing
+ * about the setting that can be shown without taking on a new secret.
+ *
+ * Null when there is no session or the claims cannot be read — never a guess.
+ */
+export async function accessTokenLifetimeSeconds(): Promise<number | null> {
+  try {
+    const { data } = await createClient().auth.getClaims();
+    const claims = (data?.claims ?? {}) as { iat?: number; exp?: number };
+    if (typeof claims.iat !== "number" || typeof claims.exp !== "number") {
+      return null;
+    }
+    const seconds = claims.exp - claims.iat;
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+  } catch {
+    return null;
+  }
+}
