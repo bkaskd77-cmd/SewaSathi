@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
 
+import { AuthDebug } from "@/components/auth/auth-debug";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +75,12 @@ export function MfaSetup({
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /*
+   * The provider's own words, for us. `AuthDebug` decides whether to print
+   * them — development, or `?debug=auth` on the URL — so this component never
+   * has to, and there is one rule for it rather than two.
+   */
+  const [detail, setDetail] = React.useState<string | null>(null);
 
   const begin = () => {
     setBusy(true);
@@ -84,8 +91,13 @@ export function MfaSetup({
           "@/app/[locale]/(app)/account/security/actions"
         );
         const result = await startEnrollmentAction();
-        if (result.ok) setEnrolment(result);
-        else setError(errorKey(result.reason));
+        if (result.ok) {
+          setEnrolment(result);
+          setDetail(null);
+        } else {
+          setError(errorKey(result.reason));
+          setDetail(result.detail ?? null);
+        }
       } catch {
         setError("enrollFailed");
       } finally {
@@ -220,6 +232,10 @@ export function MfaSetup({
       )}
 
       {error ? <Problem>{t(`errors.${error}`)}</Problem> : null}
+      {/* The provider's own sentence, when enrolment refuses to start.
+          "That did not start" is the honest thing to show a person and says
+          nothing at all to whoever has to fix it. */}
+      <AuthDebug detail={detail} />
     </section>
   );
 }

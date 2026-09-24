@@ -1,5 +1,6 @@
 import "server-only";
 
+import { describeEnrollError } from "@/lib/auth/mfa-error";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -90,7 +91,21 @@ export async function mfaState(): Promise<MfaState> {
 
 export type EnrollResult =
   | { ok: true; factorId: string; qr: string; secret: string }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      /** The key the customer-facing copy reads. */
+      reason: string;
+      /**
+       * The provider's own sentence, for us.
+       *
+       * Two halves, the split `lib/auth/otp-contract.ts` already makes. This
+       * one used to be discarded, so a failed enrolment could only ever say
+       * "That did not start. Try again." — and when it started failing for
+       * real, nobody could say why. Shown only in development or behind
+       * `?debug=auth`, like every other provider error in this product.
+       */
+      detail?: string;
+    };
 
 /**
  * Begin enrolment: a factor, a QR code and the secret behind it.
@@ -120,7 +135,13 @@ export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
       friendlyName,
     });
 
-    if (error || !data) return { ok: false, reason: "enrollFailed" };
+    if (error || !data) {
+      return {
+        ok: false,
+        reason: "enrollFailed",
+        detail: describeEnrollError(error),
+      };
+    }
 
     return {
       ok: true,
@@ -128,8 +149,14 @@ export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
       qr: data.totp.qr_code,
       secret: data.totp.secret,
     };
-  } catch {
-    return { ok: false, reason: "enrollFailed" };
+  } catch (thrown) {
+    // A throw is as much of an answer as a returned error, and used to be the
+    // one path that said nothing at all.
+    return {
+      ok: false,
+      reason: "enrollFailed",
+      detail: describeEnrollError(thrown),
+    };
   }
 }
 

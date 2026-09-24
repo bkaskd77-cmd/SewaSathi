@@ -18,13 +18,32 @@ import { enrollTotp, verifyTotp } from "@/lib/auth/admin-gate";
 
 const SECURITY = "/[locale]/(app)/account/security";
 
+/**
+ * The label on the factor, and it is a CONSTANT rather than the person's name.
+ *
+ * It used to be `profile.fullName`, which made a display name load-bearing for
+ * an API call: every apostrophe, bracket and Devanagari character in the user
+ * base becomes a possible enrolment failure, for that person and nobody else.
+ * Enrolment IS failing for the live admin, whose name is "Bikas Khadka
+ * (admin)" — spaces and parentheses — but whether the name is the cause was
+ * never established, because the provider's error was being discarded. It is
+ * surfaced now (`describeEnrollError`); this change stands on its own either
+ * way, since a label on a factor has no business coming from a person's name.
+ *
+ * The friendly name labels the FACTOR, not its owner: it is what sits beside
+ * "Authenticator app" in a list of devices. Supabase only needs it unique per
+ * user, and a person has one of these.
+ */
+const FACTOR_NAME = "Authenticator";
+
 export async function startEnrollmentAction(): Promise<
-  { ok: true; factorId: string; qr: string; secret: string } | { ok: false; reason: string }
+  | { ok: true; factorId: string; qr: string; secret: string }
+  | { ok: false; reason: string; detail?: string }
 > {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "signedOut" };
 
-  return enrollTotp(profile.fullName?.trim() || "SajiloKaam");
+  return enrollTotp(FACTOR_NAME);
 }
 
 /**
