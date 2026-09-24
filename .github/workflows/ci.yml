@@ -44,6 +44,13 @@ jobs:
       - name: Message catalogues
         run: npm run check:messages
 
+      # The other half, and the half that caught a key path printed onto a
+      # live admin screen: a key absent from BOTH catalogues agrees perfectly,
+      # so check:messages passes it. This resolves every t() call through the
+      # TypeScript AST and asserts the copy exists.
+      - name: Message keys
+        run: npm run check:keys
+
       # The status machine exists in TypeScript and in SQL. This fails if they
       # ever disagree about what a booking may do.
       - name: Status transitions

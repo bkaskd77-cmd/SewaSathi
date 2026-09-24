@@ -80,7 +80,9 @@ export function RefundPayment({
       {automatic ? (
         <form action={sendAction} className="space-y-2">
           <input type="hidden" name="refundId" value={refundId} />
-          <p className="text-caption text-muted-foreground">{t("railAuto")}</p>
+          {/* The rail sentence is rendered by the page, immediately above.
+              A second copy here would be the same words from two keys, which
+              drift apart the first time either is edited. */}
           {sendResult && !sendResult.ok ? (
             <p
               role="alert"

@@ -1530,7 +1530,9 @@
       "moreInfo": "Ask for more",
       "confirmSeen": "I have opened every document and read the matches above",
       "mustConfirm": "Open the evidence first. This is the step that actually does the verifying.",
-      "decided": "Decided by {name} on {date}"
+      "decided": "Decided by {name} on {date}",
+      "payoutIsSomebodyElses": "Money goes to a number we have never sent a code to. That is allowed — plenty of people use a spouse's or a family member's wallet — but check who holds it before approving.",
+      "openFailed": "That did not open. Try again."
     },
     "claims": {
       "title": "Wasted trips",

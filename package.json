@@ -15,6 +15,7 @@
     "check:paint": "node scripts/check-paint.mjs",
     "check:flows": "node scripts/check-flows.mjs",
     "check:messages": "node scripts/check-messages.mjs",
+    "check:keys": "node scripts/check-keys.mjs",
     "check:blockers": "node scripts/check-launch-blockers.mjs",
     "check:transitions": "node scripts/check-status-transitions.mjs",
     "check:deployed": "node scripts/check-deployed.mjs",
@@ -24,7 +25,7 @@
     "test:db": "vitest run tests/db",
     "test:watch": "vitest",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run check:duration && npm run check:migrations && npm run check:advisories && npm run test && npm run build && npm run check:paint && npm run check:flows",
+    "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run check:keys && npm run check:duration && npm run check:migrations && npm run check:advisories && npm run test && npm run build && npm run check:paint && npm run check:flows",
     "ui:add": "shadcn add",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:contacts": "node scripts/check-contacts.mjs",
@@ -73,7 +74,7 @@
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

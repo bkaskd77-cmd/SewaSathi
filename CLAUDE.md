@@ -975,6 +975,19 @@ Numbers in a summary are not a guard. Two things run automatically:
   disagree on a key or an ICU placeholder. next-intl renders a missing key as
   its own dotted path, so without this the failure mode is a button labelled
   `services.card.book` on a page nobody on the team reads.
+- **Key check** — `npm run check:keys` is the other half, and it exists because
+  a key missing from **both** catalogues agrees perfectly and sails through the
+  one above. `admin.detail.payoutIsSomebodyElses` rendered as its own name on
+  the live application-review screen, where it was meant to tell the reviewer
+  the payout number is one we never sent a code to; two more were found the
+  same day. It resolves every `t("…")` call to its namespace **through the
+  TypeScript AST**, never a regex — three regex versions were written first and
+  each reported dozens of keys that were fine, defeated in turn by a name
+  rebound later in a file, by `generateMetadata` and its page binding the same
+  name, and by a binding destructured out of a `Promise.all`. A checker that
+  cries wolf gets skimmed, and the one real entry goes with the noise. Dynamic
+  keys (`t(\`errors.${x}\`)`) are **reported, never guessed at** — the shape
+  that makes those safe is the allow-list `listNoteKey` uses in `lib/notify`.
 
 - **Deploy check** — `npm run check:deployed` (optionally with a URL) asks the
   live site which commit it is serving, via the `x-build-commit` meta that
