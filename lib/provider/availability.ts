@@ -29,6 +29,11 @@
  * remembered against anybody, and a future reader looking for the place to add
  * that should read that page first.
  *
+ * That promise is kept on the published page and no longer repeated beside the
+ * control. The screen's job is to get somebody to the right state in one tap;
+ * a reassurance about a penalty that does not exist raises the idea of one,
+ * and it sat directly under the button we most want pressed.
+ *
  * Pure and dependency-free: it decides what a customer is told about whether
  * somebody will come, so it has to be testable without a database.
  */
@@ -199,6 +204,37 @@ export function providerState(input: ProviderStateInput): Availability {
 /** Can this listing be dispatched to a job starting right now? */
 export function canTakeWorkNow(state: Availability): boolean {
   return state === "now";
+}
+
+/**
+ * Does a live stamp end on the Nepali day it is being read on?
+ *
+ * The sentence beside the control read "Free until the end of today" for every
+ * live stamp. But `availableUntil` rolls to tomorrow evening whenever the
+ * switch is pressed after closing — so somebody tapping it at 23:40 was told
+ * "the end of today — 19h 20m left", which is the end of *tomorrow*. The
+ * number was right and the word was not.
+ *
+ * The roll-forward is deliberate and stays (an expired flag is a button that
+ * did nothing), so the copy is what has to be able to say which day it landed
+ * on. Null, unset and unreadable all answer false: no stamp is no claim about
+ * today, and the caller has nothing to print anyway.
+ */
+export function landsSameDay(input: {
+  until: Date | string | null | undefined;
+  at?: Date;
+}): boolean {
+  const until = instant(input.until);
+  if (!until) return false;
+
+  const at = input.at ?? new Date();
+  return nepaliDay(until) === nepaliDay(at);
+}
+
+/** The Nepali calendar day an instant falls in, as a sortable key. */
+function nepaliDay(at: Date): string {
+  const local = new Date(at.getTime() + NEPAL_OFFSET_MINUTES * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 /**

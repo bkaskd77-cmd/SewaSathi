@@ -9,6 +9,7 @@ import {
   clampRate,
   endOfWorkingDay,
   isBusyPreset,
+  landsSameDay,
   minutesRemaining,
   providerState,
 } from "@/lib/provider";
@@ -145,6 +146,26 @@ describe("available now expires on its own", () => {
 
     const after = new Date(until.getTime() + 60_000);
     expect(minutesRemaining({ until, at: after })).toBeNull();
+  });
+
+  it("says which day the stamp lands on, rather than assuming today", () => {
+    // The sentence beside the control read "Free until the end of today" for
+    // every live stamp. Switched on at 23:40 the stamp is tomorrow evening —
+    // so the number was right and the word was not.
+    const lateNight = new Date("2026-09-18T17:55:00Z"); // 23:40 Nepal
+    const rolled = availableUntil({ on: true, at: lateNight })!;
+
+    expect(minutesRemaining({ until: rolled, at: lateNight })).toBe(19 * 60 + 20);
+    expect(landsSameDay({ until: rolled, at: lateNight })).toBe(false);
+
+    const sameDay = availableUntil({ on: true, at: morning })!;
+    expect(landsSameDay({ until: sameDay, at: morning })).toBe(true);
+  });
+
+  it("treats a missing or unreadable stamp as no claim about today", () => {
+    for (const until of [null, undefined, "not a date"]) {
+      expect(landsSameDay({ until, at: morning })).toBe(false);
+    }
   });
 });
 

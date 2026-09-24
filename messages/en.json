@@ -1426,10 +1426,10 @@
         "neither": "By arrangement",
         "onJob": "You are on a job, so customers see that. This is set by us, not by you.",
         "until": "Free until the end of today — {hours}h {minutes}m left.",
+      "untilTomorrow": "Free until the end of tomorrow — {hours}h {minutes}m left.",
         "busyUntil": "Busy for another {hours}h {minutes}m.",
         "explain": "\"Free now\" switches off at the end of the working day, so nobody is sent to you at midnight.",
-        "noPenalty": "Turning work down costs you nothing. Being busy is never counted against you.",
-        "errors": {
+          "errors": {
           "onAJob": "You are on a job. This will be yours to set again when it is finished.",
           "noListing": "This account is not linked to a listing.",
           "unknownPreset": "That did not save. Try again.",

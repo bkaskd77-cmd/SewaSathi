@@ -29,17 +29,26 @@ import { cn } from "@/lib/utils";
  * cannot see why the other buttons are refused would think the screen was
  * broken.
  *
- * NOTHING HERE IS COUNTED AGAINST ANYBODY. `/providers/standards` publishes
- * "Turning work down. You are allowed to be busy." Saying so on the screen
- * itself is what makes the busy button safe to press.
+ * NOTHING HERE IS COUNTED AGAINST ANYBODY, and the screen no longer says so.
+ * `/providers/standards` publishes "Turning work down. You are allowed to be
+ * busy." under *What is never a signal*, and that is where the promise is
+ * kept. Repeating it under the buttons raised the idea of a penalty that does
+ * not exist, directly beneath the one we most want pressed — this control's
+ * whole job is to get somebody to "Free now" when they are.
  */
 export function AvailabilityControls({
   state,
   minutesLeft,
+  endsToday,
 }: {
   state: "now" | "on_job" | "busy" | "today" | "scheduled";
   /** On whichever stamp is currently deciding the state. */
   minutesLeft: number | null;
+  /**
+   * Does that stamp end today? Pressed after closing it lands tomorrow
+   * evening, and the sentence used to call that "the end of today".
+   */
+  endsToday: boolean;
 }) {
   const t = useTranslations("provider.dashboard.availability");
   const [busy, setBusy] = React.useState(false);
@@ -124,15 +133,14 @@ export function AvailabilityControls({
 
       <p className="text-caption mt-2 text-muted-foreground">
         {state === "now" && minutesLeft != null
-          ? t("until", { hours: String(hours), minutes: String(mins) })
+          ? t(endsToday ? "until" : "untilTomorrow", {
+              hours: String(hours),
+              minutes: String(mins),
+            })
           : state === "busy" && minutesLeft != null
             ? t("busyUntil", { hours: String(hours), minutes: String(mins) })
             : t("explain")}
       </p>
-
-      {/* The promise, on the screen rather than only on a page they read once
-          before signing up. */}
-      <p className="text-caption mt-1 text-muted-foreground">{t("noPenalty")}</p>
 
       {failed ? (
         <p role="alert" className="text-caption mt-2 text-destructive-ink">

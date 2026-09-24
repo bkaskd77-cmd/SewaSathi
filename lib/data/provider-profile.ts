@@ -9,6 +9,7 @@ import {
   busyUntil,
   clampRate,
   isBusyPreset,
+  landsSameDay,
   minutesRemaining,
   providerState,
   type Availability,
@@ -44,6 +45,14 @@ export type ProviderDashboard = {
   availability: Availability;
   /** Minutes left on "available now", for the sentence beside the switch. */
   availableFor: number | null;
+  /**
+   * Does that stamp end on the day it is being read on?
+   *
+   * `availableUntil` rolls to tomorrow evening when the switch is pressed
+   * after closing, so the sentence cannot assume "today" — at 23:40 it was
+   * telling a professional "the end of today" about tomorrow evening.
+   */
+  availableForToday: boolean;
   baseRate: number;
   /** The band their trades put them in. Null when no trade is recognised. */
   band: { low: number; high: number } | null;
@@ -123,22 +132,23 @@ export async function getProviderDashboard(
       base: provider.availability as BaseAvailability,
     });
 
+    /*
+     * The countdown and the day it lands on both belong to whichever stamp is
+     * actually deciding the state. Showing "5h left" beside "On a job" would
+     * be counting down a flag that is not what the customer is seeing.
+     */
+    const deciding =
+      state === "busy"
+        ? (provider.busy_until as string | null)
+        : (provider.available_until as string | null);
+
     return {
       providerId,
       displayName: provider.display_name as string,
       trades: tradeSlugs,
       availability: state,
-      /*
-       * The countdown belongs to whichever stamp is actually deciding the
-       * state. Showing "5h left" beside "On a job" would be counting down a
-       * flag that is not what the customer is seeing.
-       */
-      availableFor: minutesRemaining({
-        until:
-          state === "busy"
-            ? (provider.busy_until as string | null)
-            : (provider.available_until as string | null),
-      }),
+      availableFor: minutesRemaining({ until: deciding }),
+      availableForToday: landsSameDay({ until: deciding }),
       baseRate: Number(provider.base_rate ?? 0),
       band,
       requestedRate:

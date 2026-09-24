@@ -54,6 +54,7 @@ export {
   canTakeWorkNow,
   endOfWorkingDay,
   isBusyPreset,
+  landsSameDay,
   minutesRemaining,
   providerState,
   type Availability,

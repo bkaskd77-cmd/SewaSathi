@@ -157,6 +157,7 @@ export default async function ProviderDashboardPage() {
             <AvailabilityControls
               state={dashboard.availability}
               minutesLeft={dashboard.availableFor}
+              endsToday={dashboard.availableForToday}
             />
           </NextIntlClientProvider>
         </div>
