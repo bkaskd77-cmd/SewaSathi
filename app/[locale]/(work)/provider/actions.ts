@@ -9,6 +9,7 @@ import {
   setAvailableNow,
   setBaseRate,
   setBusyUntil,
+  setByArrangement,
 } from "@/lib/data/provider-profile";
 import { CLAIM_VERDICTS, type ClaimVerdict } from "@/lib/config/guarantee";
 
@@ -70,6 +71,25 @@ export async function setBusyAction(
   if (!profile) return { ok: false, error: "notSignedIn" };
 
   const result = await setBusyUntil({ profileId: profile.id, preset });
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath("/provider");
+  return { ok: true };
+}
+
+/**
+ * "Neither" — no claim about today, book me a slot.
+ *
+ * ITS OWN ACTION RATHER THAN THE OTHER TWO CALLED TOGETHER. The screen fired
+ * both from one handler and they raced; `setByArrangement` explains why that
+ * stopped being survivable once the write had a decision in it. One intent,
+ * one call, one error to show.
+ */
+export async function setByArrangementAction(): Promise<ProviderSettingResult> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, error: "notSignedIn" };
+
+  const result = await setByArrangement({ profileId: profile.id });
   if (!result.ok) return { ok: false, error: result.reason };
 
   revalidatePath("/provider");

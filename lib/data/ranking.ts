@@ -191,8 +191,26 @@ const UNMEASURED_COMPLETION = 0.5;
  * punish the exact behaviour the platform exists to produce. They drop out of
  * the "available now" filter and no further.
  *
- * `busy` scores like `scheduled`, because that is what they have said about
- * themselves. It costs them nothing else: `/providers/standards` publishes
+ * `scheduled` SITS BETWEEN THEM, AND IT USED TO SIT ON THE FLOOR WITH `busy`.
+ * Those two are not the same kind of answer. `busy` is a declared refusal —
+ * "not taking work" — and belongs at the bottom. `scheduled` is the absence of
+ * a claim about today: they are bookable, for a slot, in the ordinary way. A
+ * professional who is perfectly willing to come on Thursday was ranking level
+ * with one who had said no, which is the wrong pairing on a platform whose
+ * whole job is to find somebody who will come.
+ *
+ * It was also the DEFAULT, which is what made it expensive. `providers
+ * .availability` defaults to `scheduled` and the approval path never set it,
+ * so every real professional started on the floor and stayed there until they
+ * found the toggle — rule 6, a column default read as a fact, and the fact it
+ * was read as was "this person barely works". Approval now writes `today`
+ * explicitly and clearing both stamps now writes `scheduled` explicitly, so
+ * this number only ever scores something somebody actually said.
+ *
+ * 0.35 rather than 0.55: raising it is not promoting it. They have not claimed
+ * they come the same day, and somebody who has should still be ahead.
+ *
+ * `busy` costs them nothing beyond this: `/providers/standards` publishes
  * "Turning work down. You are allowed to be busy" under *What is never a
  * signal*, and no counter anywhere reads a busy window.
  */
@@ -201,7 +219,7 @@ const AVAILABILITY_SCORE: Record<Provider["availability"], number> = {
   on_job: 0.55,
   busy: 0.15,
   today: 0.55,
-  scheduled: 0.15,
+  scheduled: 0.35,
 };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));

@@ -392,3 +392,77 @@ export async function setBusyUntil(input: {
     return { ok: false, reason: "generic" };
   }
 }
+
+/**
+ * "Book me the ordinary way" — the third thing the dashboard offers.
+ *
+ * ONE CALL FOR ONE INTENT, AND THAT IS THE WHOLE POINT OF THE FUNCTION. The
+ * button used to fire `setAvailableNow({ on: false })` and `setBusyUntil({
+ * preset: null })` together from one click handler, with nothing serialising
+ * them — the component's in-flight guard reads a state value that is still
+ * false for both calls in the same render. That was harmless while the two
+ * only ever wrote nulls, because either order left the same row. It stops
+ * being harmless the moment either call has to DECIDE something from what it
+ * read: each reads the row independently, so whichever loses the race sees a
+ * stamp the other has already cleared, or has not cleared yet. The base would
+ * be written on one ordering and silently skipped on the other, and the bug
+ * would look like the button working most of the time.
+ *
+ * So the decision is not split across two racing writes. Clearing both stamps
+ * and stating the base is one sentence and is now one UPDATE — which is also
+ * one round trip where there were two, and one error state rather than two
+ * that overwrite each other.
+ *
+ * `on_job_since` is deliberately untouched. It is ours, not a stamp this
+ * clears, so a professional mid-job can say how they want to be booked
+ * afterwards without changing what the customer sees right now.
+ */
+export async function setByArrangement(input: {
+  profileId: string;
+}): Promise<AvailabilityWriteResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
+
+  try {
+    const admin = createAdminClient();
+
+    const { data: provider } = await admin
+      .from("providers")
+      .select("id, on_job_since")
+      .eq("profile_id", input.profileId)
+      .maybeSingle();
+
+    if (!provider) return { ok: false, reason: "noListing" };
+
+    const { error } = await admin
+      .from("providers")
+      .update({
+        available_until: null,
+        busy_until: null,
+        availability: "scheduled",
+      })
+      .eq("id", provider.id as string);
+
+    if (error) {
+      console.error(
+        `[provider-profile] by arrangement failed — ${describeError(error)}`,
+      );
+      return { ok: false, reason: "generic" };
+    }
+
+    return {
+      ok: true,
+      state: providerState({
+        onJobSince: provider.on_job_since as string | null,
+        busyUntil: null,
+        availableUntil: null,
+        base: "scheduled",
+      }),
+      until: null,
+    };
+  } catch (thrown) {
+    console.error(
+      `[provider-profile] by arrangement threw — ${describeError(thrown)}`,
+    );
+    return { ok: false, reason: "generic" };
+  }
+}

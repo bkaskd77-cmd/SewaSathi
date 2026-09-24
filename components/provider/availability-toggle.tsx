@@ -86,6 +86,21 @@ export function AvailabilityControls({
       return setBusyAction(preset);
     });
 
+  /*
+   * ONE CALL, NOT THE OTHER TWO TOGETHER. This used to be
+   * `setAvailable(false)` followed by `setBusyWindow(null)`, and `run`'s
+   * in-flight guard does not stop the second: `busy` is still false in this
+   * render's closure for both. They raced, which was invisible while both only
+   * wrote nulls and became a coin flip once the write had to decide the base.
+   */
+  const setByArrangement = () =>
+    void run(async () => {
+      const { setByArrangementAction } = await import(
+        "@/app/[locale]/(work)/provider/actions"
+      );
+      return setByArrangementAction();
+    });
+
   const hours = minutesLeft != null ? Math.floor(minutesLeft / 60) : 0;
   const mins = minutesLeft != null ? minutesLeft % 60 : 0;
 
@@ -117,10 +132,7 @@ export function AvailabilityControls({
         <Choice
           active={state === "today" || state === "scheduled"}
           disabled={busy || onJob}
-          onClick={() => {
-            setAvailable(false);
-            setBusyWindow(null);
-          }}
+          onClick={setByArrangement}
           label={t("neither")}
         />
         {busy ? (

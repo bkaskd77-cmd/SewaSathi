@@ -403,6 +403,24 @@ export async function decideApplication(input: {
       verified_at: new Date().toISOString(),
       id_document_status: "verified",
       checks: ["id", "background"],
+      /*
+       * THE BASE THEY START ON, WRITTEN RATHER THAN DEFAULTED.
+       *
+       * `providers.availability` defaults to `scheduled`, and this insert used
+       * to leave it out — so every professional we approved began life ranked
+       * as low as somebody who had declared themselves unavailable, and stayed
+       * there until they found the toggle. Rule 6: a column default being read
+       * as a fact about them. Somebody who has just applied to a same-day
+       * home-services platform is willing to work today, and one tap says
+       * otherwise if they are not.
+       *
+       * `today` is weaker than it sounds and deliberately so. It does not pass
+       * the "available now" filter, and `canServeAt` still refuses them for
+       * any as-soon-as-possible or emergency job — only a live `available_until`
+       * stamp opens those. It means "bookable for a slot today", which is what
+       * appearing in the directory already implies.
+       */
+      availability: "today",
       // Probation. Never established on day one.
       standing: "provisional",
       approved_at: new Date().toISOString(),

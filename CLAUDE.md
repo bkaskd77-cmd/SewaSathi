@@ -97,7 +97,15 @@ same commit as the change, never afterwards.
    outlived the day it was set. A fourth was found by the audit that produced
    this rule: `completion_rate` defaults to **100**, so a listing nobody has
    ever measured scored a perfect completion rate and outranked a real
-   professional at 96%.
+   professional at 96%. A fifth was found by reading the live `providers` rows:
+   `availability` defaults to **`scheduled`** and the approval insert never
+   named it, so every professional we approved began ranked at
+   `AVAILABILITY_SCORE['scheduled']` — which sat on the floor tied with `busy`,
+   a declared refusal — and stayed there until they found the toggle. Both real
+   professionals were there; the seeded fixtures, authored at `today`,
+   outranked them. **That base is written explicitly now on both paths**:
+   approval writes `today`, and clearing both stamps writes `scheduled`, so the
+   column only ever holds something somebody actually said.
    The shape of the fix is always the same and `bayesianRating` had it first:
    **carry the sample count, and with no evidence score like an unknown rather
    than like an extreme.** `lib/provider/measured.ts` is the one place that
@@ -441,7 +449,11 @@ Phase 8. A booking now moves with a real person on each end.
   and a dead gateway must not roll a booking back.
 - **Availability is three facts and the verified one wins.** `providerState`
   (`lib/provider`) ranks `on_job_since` over `busy_until` over
-  `available_until`. The first is ours, written by a trigger from booking
+  `available_until`, then falls through to the base on `providers.availability`,
+  which is **written, never defaulted** — see rule 6. `setByArrangement` is the one write that states it — one call, because the
+  screen used to fire two that raced. `scheduled` scores 0.35 against
+  `busy`'s 0.15, because not having claimed today is not the same as having
+  refused, and only one of those two is a statement about willingness to work. The first is ours, written by a trigger from booking
   status, and it is `en_route`/`in_progress` only — an `accepted` job on
   Thursday does not make somebody busy today. Being busy costs a professional
   nothing beyond not being shown as free: `/providers/standards` publishes

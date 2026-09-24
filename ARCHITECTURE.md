@@ -208,7 +208,12 @@ Where a change on one side cannot reach the other.
   `providerState` in `lib/provider/availability.ts` is the single rule:
   `on_job_since` (ours, written by a trigger from booking status) beats
   `busy_until` beats `available_until`, and the stored `availability` column is
-  only the base underneath all three. The precedence is the anti-gaming core —
+  only the base underneath all three. **That base is written on both paths and
+  never left to the column default** — approval writes `today`, and
+  `setByArrangement` writes `scheduled` in one UPDATE. It used
+  to be defaulted, which made one value mean both "I book ahead" and "nobody
+  ever touched this", and scored the second like the first. The precedence is
+  the anti-gaming core —
   nobody is listed "available now" while `en_route` to a house, whatever their
   switch says. There is NO sweep for any of it: a background job that turns
   flags off is one that stops running some night, so every read computes it and
