@@ -793,6 +793,20 @@ clause, so `enforce_booking_immutability` (a BEFORE UPDATE trigger) is the rule;
 pass through. Found by the db suite, not by reading the code — add a case there
 before widening any update policy.
 
+**A policy is redefined by later migrations, so breaking one to test it means
+editing its LAST definition.** `drop policy if exists` + `create policy` is the
+idiom here, and several policies are redefined once or twice as the product
+grew — "Customers read their own bookings" is created in
+`20260901000001_bookings.sql` and created again in
+`20260911000001_unverified_session_guard.sql` to add the verified-session
+clause. Editing the first one to prove a test bites changes nothing: the later
+migration overwrites it before the suite runs, the test passes, and the obvious
+conclusion — "the test is blind" — is wrong. That happened while writing
+`tests/db/rls-matrix.test.ts` and nearly got a working guard reported as a
+broken one. `grep -rn "policy name" supabase/migrations/` before breaking
+anything; it is the same trap as `create or replace` taking the text you paste,
+one object type over.
+
 **An UPDATE may not make a row invisible to the person making it.** Postgres
 applies the table's SELECT policies to the *new* row on UPDATE, on top of the
 update policy's own `with check`. A professional therefore cannot write their

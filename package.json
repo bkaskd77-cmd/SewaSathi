@@ -25,6 +25,7 @@
     "test:db": "vitest run tests/db",
     "test:watch": "vitest",
     "seed:sql": "node scripts/generate-seed-sql.mjs",
+    "rls:matrix": "RLS_MATRIX_WRITE=1 vitest run tests/db/rls-matrix.test.ts",
     "verify": "npm run lint && npm run typecheck && npm run check:messages && npm run check:keys && npm run check:duration && npm run check:migrations && npm run check:advisories && npm run test && npm run build && npm run check:paint && npm run check:flows",
     "ui:add": "shadcn add",
     "check:secrets": "node scripts/check-secrets.mjs",
