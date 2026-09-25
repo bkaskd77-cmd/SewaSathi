@@ -57,6 +57,7 @@ subject and decides.
 | `acceptClaimAction` / `releaseClaimAction` | the professional a claim names | taking or giving back one return visit | provider id from the session; `acceptClaim` re-reads the claim; the claim transition trigger |
 | `recordVerdictAction` | the professional who attended | the verdict and the parts answer on one claim | verdict validated against `CLAIM_VERDICTS` here and by the column check; `resolved` is reachable only from `attended`; `parts_failed` is theirs alone to state — the adjudicator was not in the room — and is written on both the attend and resolve moves so an already-attended claim cannot lose it |
 | `claimSignals` (read, no action) | admins, through `/admin/guarantee-claims` behind `adminGate` | counts across one professional and one customer | service role; counts only (`head: true`), never rows — the screen needs "how many", never "which"; nothing it returns is read by `refundCeiling`, `judgeRefund` or `enforce_claim_refund` |
+| `GET /api/payments/reconcile` | nobody without `CRON_SECRET`; refuses outright when the secret is unset | settles stuck payments, then recovers redo debt against due payouts | service role; no session exists here, so the secret is the whole guard. The recovery half only ever REDUCES a payout that has not been made — nothing is charged, chased or collected, and `provider_ledger` is append-only so a wrong row cannot be quietly corrected |
 
 **Customer side, added this phase.** `openClaimAction` and
 `withdrawClaimAction` take a booking or claim id and nothing else; the actor is

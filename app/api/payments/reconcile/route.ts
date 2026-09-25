@@ -3,8 +3,29 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { reconcileStuckPayments } from "@/lib/data/payments";
+import { sweepRedoRecovery } from "@/lib/data/recovery";
 
 /**
+ * TWO SWEEPS, AND THE SECOND ONE IS NOT ABOUT PAYMENTS.
+ *
+ * This route was the payment reconciliation alone. It now also runs the redo
+ * recovery, and that is said here rather than left for somebody to find:
+ * a cron that silently grows a second responsibility is the next person's
+ * surprise, and this one moves money between us and a professional.
+ *
+ * They share a route because they share every property that matters — both
+ * are idempotent, both are safe to run late or twice, both need no session and
+ * both are guarded by the same secret — and a second cron entry would be a
+ * second thing to notice had stopped firing. If either ever needs its own
+ * schedule, splitting them is one file and one line of `vercel.json`.
+ *
+ * THE RECOVERY HALF EXISTS BECAUSE IT WAS PROMISED AND NOT BUILT.
+ * `applyRedoRecovery` had no caller anywhere, so `provider_outstanding` only
+ * ever went up — while /providers/standards told professionals the balance was
+ * one "you can watch going down". See `lib/data/recovery.ts`.
+ *
+ * ---
+ *
  * The sweep for payments that started and never came back.
  *
  * A dropped connection mid-payment is routine on Nepali mobile data, and the
@@ -42,8 +63,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const result = await reconcileStuckPayments();
-  return NextResponse.json(result, {
-    headers: { "cache-control": "no-store" },
-  });
+  /*
+   * SEQUENTIAL, NOT `Promise.all`, and this is the one place in the product
+   * where that is deliberate rather than an oversight. Reconciling can settle
+   * a payment, and settling stamps `payout_due_at` — so a booking that becomes
+   * due in the first half should be recoverable in the second half of the same
+   * run rather than waiting a day for the next one.
+   */
+  const payments = await reconcileStuckPayments();
+  const recovery = await sweepRedoRecovery();
+
+  return NextResponse.json(
+    { payments, recovery },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

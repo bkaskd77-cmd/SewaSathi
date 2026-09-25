@@ -198,6 +198,17 @@ Where a change on one side cannot reach the other.
   where a one-rupee disagreement would hide. `tests/db/guarantee-claims.test.ts`
   runs both halves over one fixture and compares them, which is the thing that
   was missing the last time these two diverged in production.
+- **A redo debt is recovered by a sweep, and a payout is a booking.** There is
+  no payout table and no payout run in this product: `payout_due_at` is stamped
+  on the booking at settlement and that is the whole mechanism. So
+  `sweepRedoRecovery` (`lib/data/recovery.ts`) walks settled bookings whose
+  payout has come due and takes at most `redoRecoveryCapBps` off each, reading
+  `provider_outstanding` once per professional and carrying the balance across
+  their bookings. It is idempotent by construction —
+  `provider_ledger_recovery_once_idx`, a partial unique index, refuses the
+  second recovery row for a booking rather than the application remembering not
+  to write it. It runs from `/api/payments/reconcile`, which now does two jobs
+  and says so.
 - **The parts figure is unevidenced, so it is capped rather than trusted.**
   There are no receipts in this product and `materials_rupees` reduces what a
   professional can be asked to refund, which makes it worth inflating. The half

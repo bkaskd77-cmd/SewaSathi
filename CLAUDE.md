@@ -692,11 +692,25 @@ follows from that.
   paid to anybody; **or** somebody else attends, is paid in full for real work,
   and that amount becomes a debt netted off the first professional's *future*
   earnings by `applyRedoRecovery` at **at most a quarter of any one payout**
-  (`redoRecoveryCapBps` 2500), so no week goes to zero — **though as of today
-  that netting is a tested pure function with no caller: `applyRedoRecovery`
-  is referenced only in comments, no `recovery` or `write_off` row is ever
-  written, and there is no payout run at all, so `provider_outstanding` only
-  ever goes up**; **or** they never work
+  (`redoRecoveryCapBps` 2500), so no week goes to zero. **That netting is
+  wired now and was not for four phases** — `applyRedoRecovery` was written,
+  tested and documented in three places with no caller anywhere, so
+  `provider_outstanding` only ever went up and every refund was money gone,
+  while `/providers/standards` already told professionals the balance was one
+  "you can watch going down". `sweepRedoRecovery` in `lib/data/recovery.ts`
+  runs from the reconcile cron. **A payout is a settled booking whose
+  `payout_due_at` has passed**, because there is no payout table and no payout
+  run — that is the unit the published quarter is measured against, and
+  recovering against one booking twice would take half a payout from somebody
+  promised a quarter. `provider_ledger_recovery_once_idx` is what makes that
+  impossible: a partial unique index, the same idiom as `our_reference`, so a
+  concurrent sweep is refused by the database rather than remembered against by
+  the application. **The balance is read once per professional and carried
+  across their several due payouts** — reading it per booking takes a quarter
+  twice out of a debt that had a quarter left, and the ledger still balances
+  afterwards, which is why that case is pinned in `tests/db/redo-recovery.test.ts`.
+  **`write_off` is still never written** and remains the real, unimplemented
+  cost of the guarantee; **or** they never work
   for us again and it is **written off**. The write-off is the real cost of
   offering a guarantee and it is bounded, but **the bound is 5.7 jobs' worth of
   commission, not the three or four this line used to claim** — and the ratio
