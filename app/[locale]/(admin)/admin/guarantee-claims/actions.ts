@@ -25,7 +25,7 @@ import {
  * would have this product assert a payment nobody made.
  */
 
-const QUEUE = "/[locale]/(app)/admin/guarantee-claims";
+const QUEUE = "/[locale]/(admin)/admin/guarantee-claims";
 
 /** Approve money back on a claim. Writes a refund at `requested`, never sent. */
 export async function issueRefundAction(

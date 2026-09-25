@@ -28,6 +28,6 @@ export async function decideSurveyFeeAction(
     actorId: profile.id,
   });
 
-  if (result.ok) revalidatePath("/[locale]/(app)/admin/survey-fees", "page");
+  if (result.ok) revalidatePath("/[locale]/(admin)/admin/survey-fees", "page");
   return result;
 }

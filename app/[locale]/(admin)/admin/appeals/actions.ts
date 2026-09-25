@@ -31,6 +31,6 @@ export async function resolveAppealAction(
     note,
   });
 
-  if (result.ok) revalidatePath("/[locale]/(app)/admin/appeals", "page");
+  if (result.ok) revalidatePath("/[locale]/(admin)/admin/appeals", "page");
   return result;
 }

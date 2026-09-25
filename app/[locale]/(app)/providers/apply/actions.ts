@@ -62,7 +62,7 @@ async function actor(): Promise<string | null> {
 }
 
 function refresh() {
-  revalidatePath("/[locale]/(work)/providers/apply", "page");
+  revalidatePath("/[locale]/(app)/providers/apply", "page");
 }
 
 /**

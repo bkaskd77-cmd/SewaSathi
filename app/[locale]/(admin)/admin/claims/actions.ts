@@ -31,6 +31,6 @@ export async function decideClaimAction(
     secondsOnEvidence: Number.isFinite(seconds) ? Math.max(0, seconds) : null,
   });
 
-  if (ok) revalidatePath("/[locale]/(app)/admin/claims", "page");
+  if (ok) revalidatePath("/[locale]/(admin)/admin/claims", "page");
   return { ok };
 }

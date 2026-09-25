@@ -42,8 +42,8 @@ export async function decideAction(
   });
 
   if (result.ok) {
-    revalidatePath("/[locale]/(app)/admin/applications", "page");
-    revalidatePath("/[locale]/(app)/admin/applications/[id]", "page");
+    revalidatePath("/[locale]/(admin)/admin/applications", "page");
+    revalidatePath("/[locale]/(admin)/admin/applications/[id]", "page");
   }
 
   return result;
