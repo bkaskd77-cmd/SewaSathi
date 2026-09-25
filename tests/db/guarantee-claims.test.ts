@@ -324,17 +324,36 @@ describe("money back needs a person", () => {
     await pay(claim, 3000);
   });
 
-  it("takes the lower figure when the customer's differs", async () => {
+  it("covers the settled figure once a person has adjudicated, not the customer's typed one", async () => {
     /*
-     * The cash screen promises "up to the amount you enter". That is a
-     * ceiling, not a floor — taking the higher of the two would let somebody
-     * name a figure and be refunded it.
+     * THE RULE REVERSED, DELIBERATELY. This test used to assert the lower of
+     * the two figures, because the cash screen's "up to the amount you enter"
+     * was read as a ceiling. It is a FLOOR now, and the confirmation screen
+     * says so in both languages: somebody who really paid 3,000 and mistyped
+     * 1,800 should not be covered for their own slip once a person has
+     * established what was actually handed over.
+     *
+     * WHAT STOPS SOMEBODY NAMING A FIGURE AND BEING REFUNDED IT — the concern
+     * the old rule existed for, and it is answered by WHERE the number comes
+     * from rather than by which is smaller. A customer's typed amount lands in
+     * `customer_reported_amount`, which is evidence and is not the cap. It
+     * only becomes `final_amount` when an admin adjudicates, and a browser
+     * cannot write `final_amount`, the resolution stamp, or who resolved it —
+     * `tests/db/booking-rls.test.ts` pins all four against the trigger.
      */
     const claim = await openClaim(
-      await settledBooking("SK-REF03", 3000, { customer_reported_amount: 1800 }),
+      await settledBooking("SK-REF03", 3000, {
+        customer_reported_amount: 1800,
+        amount_mismatch_at: new Date(),
+        amount_mismatch_resolved_at: new Date(),
+        amount_settled_source: "adjudicated",
+        amount_mismatch_note: "both wrong; 3,000 agreed on the phone",
+      }),
     );
-    await expect(pay(claim, 2500)).rejects.toThrow(/more than the amount recorded/i);
-    await pay(claim, 1800);
+
+    await expect(pay(claim, 3001)).rejects.toThrow(/more than the amount recorded/i);
+    // Above what the customer typed, up to what was settled.
+    await pay(claim, 2500);
   });
 
   it("never pays out of a job nobody settled", async () => {

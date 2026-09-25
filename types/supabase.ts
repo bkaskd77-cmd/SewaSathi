@@ -285,6 +285,19 @@ export type Database = {
           commission_floor_waived: boolean;
           customer_reported_amount: number | null;
           amount_mismatch_at: string | null;
+          /**
+           * How a disagreement over the cash figure was settled.
+           *
+           * `amount_settled_source` is null until somebody decides — that is
+           * the rule-6 distinction between "nobody has looked" and "decided
+           * in the customer's favour", so nothing here carries a default.
+           * `amount_mismatch_at` set with `..._resolved_at` null is the open
+           * set the admin queue reads.
+           */
+          amount_mismatch_resolved_at: string | null;
+          amount_mismatch_resolved_by: string | null;
+          amount_mismatch_note: string | null;
+          amount_settled_source: "customer" | "provider" | "adjudicated" | null;
           payout_due_at: string | null;
           /**
            * The customer stopped waiting and opened the job to everybody.
@@ -371,6 +384,10 @@ export type Database = {
           commission_floor_waived?: boolean;
           customer_reported_amount?: number | null;
           amount_mismatch_at?: string | null;
+          amount_mismatch_resolved_at?: string | null;
+          amount_mismatch_resolved_by?: string | null;
+          amount_mismatch_note?: string | null;
+          amount_settled_source?: "customer" | "provider" | "adjudicated" | null;
           payout_due_at?: string | null;
           widened_by_customer_at?: string | null;
         };

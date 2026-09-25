@@ -162,7 +162,18 @@ const GUARDS: Record<string, Guard[]> = {
       clauses: [
         "has not been settled",
         "b.amount_mismatch_at is not null",
+        // The resolved half. Pinned separately because dropping it leaves a
+        // clause that still reads correctly and blocks every settled dispute
+        // for ever.
+        "b.amount_mismatch_resolved_at is null",
       ],
+    },
+    {
+      protects:
+        "The refund ceiling is the SETTLED figure — one number, not the lower of two.",
+      ifMissing:
+        "The cap was `least(final_amount, coalesce(customer_reported_amount, final_amount))`, which after a mismatch is adjudicated would quietly re-impose the customer's own mistyped figure as their cover, undoing what a person had just established. The typed amount is a floor on cover, never a cap: the confirmation screen says so in both languages.",
+      clauses: ["new.refund_rupees > b.final_amount"],
     },
     {
       protects:

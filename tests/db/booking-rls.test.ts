@@ -1609,6 +1609,13 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["commission_floor_waived", "true", /not editable from a browser/i],
     ["customer_reported_amount", "100", /not editable from a browser/i],
     ["amount_mismatch_at", "now()", /not editable from a browser/i],
+    // The resolution of a mismatch is a person's decision recorded by the
+    // server. A browser that could write these could close its own dispute
+    // and name itself as the one who did.
+    ["amount_mismatch_resolved_at", "now()", /not editable from a browser/i],
+    ["amount_mismatch_resolved_by", "gen_random_uuid()", /not editable from a browser/i],
+    ["amount_mismatch_note", "'agreed on the phone'", /not editable from a browser/i],
+    ["amount_settled_source", "'customer'", /not editable from a browser/i],
     ["payout_due_at", "now()", /not editable from a browser/i],
     ["payment_status", "'paid'", /not editable from a browser/i],
 
@@ -1749,7 +1756,9 @@ describe("the settlement figures cannot be typed from a browser", () => {
     const { rows } = await pg.admin.query(
       `update public.bookings
        set commission_basis = 900, customer_reported_amount = 1500,
-           payout_due_at = now()
+           payout_due_at = now(), amount_mismatch_resolved_at = now(),
+           amount_settled_source = 'adjudicated',
+           amount_mismatch_note = 'both wrong, agreed on the phone'
        where id = $1 returning commission_basis`,
       [liveBooking],
     );

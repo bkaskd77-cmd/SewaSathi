@@ -28,8 +28,8 @@
     "file": "20260906000001_address_ownership.sql"
   },
   "enforce_booking_immutability": {
-    "sha": "1cf32853adbebea3",
-    "file": "20260921000005_guarantee_visit.sql"
+    "sha": "db93767439480a51",
+    "file": "20260925000002_mismatch_resolution.sql"
   },
   "enforce_booking_transition": {
     "sha": "14a4e17195bb7f3f",
@@ -40,8 +40,8 @@
     "file": "20260912000002_guarantee_claims.sql"
   },
   "enforce_claim_refund": {
-    "sha": "c9163484c4d4c024",
-    "file": "20260921000008_refund_guards.sql"
+    "sha": "6ac151cf665eb5b0",
+    "file": "20260925000002_mismatch_resolution.sql"
   },
   "enforce_claim_transition": {
     "sha": "26d6f94ac8e85c90",
