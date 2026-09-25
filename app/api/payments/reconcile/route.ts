@@ -3,13 +3,14 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { reconcileStuckPayments } from "@/lib/data/payments";
-import { sweepRedoRecovery } from "@/lib/data/recovery";
+import { sweepRedoRecovery, sweepWriteOffs } from "@/lib/data/recovery";
 
 /**
- * TWO SWEEPS, AND THE SECOND ONE IS NOT ABOUT PAYMENTS.
+ * THREE SWEEPS, AND TWO OF THEM ARE NOT ABOUT PAYMENTS.
  *
  * This route was the payment reconciliation alone. It now also runs the redo
- * recovery, and that is said here rather than left for somebody to find:
+ * recovery and the write-off, and that is said here rather than left for
+ * somebody to find:
  * a cron that silently grows a second responsibility is the next person's
  * surprise, and this one moves money between us and a professional.
  *
@@ -73,8 +74,16 @@ export async function GET(request: Request) {
   const payments = await reconcileStuckPayments();
   const recovery = await sweepRedoRecovery();
 
+  /*
+   * LAST, AND THE ORDER IS THE POINT. Recovery runs first so a balance that
+   * can still be collected is collected; only what survives that is written
+   * off. Reversed, a dormant professional's debt would be cleared a moment
+   * before a due payout could have taken a quarter of it.
+   */
+  const writeOffs = await sweepWriteOffs();
+
   return NextResponse.json(
-    { payments, recovery },
+    { payments, recovery, writeOffs },
     { headers: { "cache-control": "no-store" } },
   );
 }

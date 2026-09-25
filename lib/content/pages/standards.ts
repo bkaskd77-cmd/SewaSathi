@@ -25,7 +25,7 @@ export const standards: LocalisedDocument = {
     title: "Our standards, and what happens if they are broken",
     lead:
       "How SajiloKaam handles under-reported jobs and money taken off the platform — what we count, what we never count, and exactly what each step costs.",
-    updated: "2026-09-06",
+    updated: "2026-09-25",
     sections: [
       {
         id: "why",
@@ -63,6 +63,15 @@ export const standards: LocalisedDocument = {
           },
           {
             p: "If you genuinely cannot go — you have left the trade, or the customer asks for somebody else — we send another professional and pay them in full for their work. What they were paid then comes off your next earnings, at most a quarter of any one payout, so no week of yours goes to nothing. It shows on your dashboard as a balance you can watch going down. We will not ring you asking for cash, and we will not take money you have already been paid.",
+          },
+          {
+            p: "The other way a balance appears is a refund. If a re-do cannot put it right and a person here decides to pay the customer back, we return our commission on that job in full — we do not keep a fee out of work that failed — and your share of it becomes the balance. On a job refunded in full that is your whole earning from it, so it is the larger of the two cases and worth knowing before it happens.",
+          },
+          {
+            p: "However the balance arose, it comes off future earnings the same way: never more than a quarter of any single payout, and it stops the moment it reaches zero. Three quarters of every payout reaches you untouched however much is owed, which is the point of the cap — a bad month cannot take a week's earnings, and you are never asked for money you have already been paid.",
+          },
+          {
+            p: "If you stop working, it ends. Twelve months with no completed job and the balance is written off — not suspended, not sold on, not waiting for you: gone, and nobody will contact you about it. The listing closes at that point, so coming back means applying again rather than finding an old debt waiting. That is not a mark against you and it is not the same as being removed; a closed listing says only that you stopped, and you are welcome to apply.",
           },
           {
             p: "The window runs from the day the job is finished: 30 days for most repairs, 90 days for painting, 48 hours for cleaning and for reporting damage in transit.",
@@ -118,6 +127,7 @@ export const standards: LocalisedDocument = {
               "A customer turning down your price after a survey. We pay you for the visit either way, and the only thing measured is whether you went.",
               "A customer complaint on its own. Complaints are read, not counted.",
               "Working few jobs, or being new.",
+              "Carrying a guarantee balance. It is money owed, not a finding against you: it does not move you down the list, it is not one of the five steps below, and no part of this page is triggered by it.",
             ],
           },
         ],
@@ -188,7 +198,7 @@ export const standards: LocalisedDocument = {
     title: "हाम्रा मापदण्ड, र उल्लङ्घन भए के हुन्छ",
     lead:
       "कम रकम लेखिएका काम र प्लेटफर्म बाहिर गएको पैसालाई सजिलोकामले कसरी हेर्छ — के गनिन्छ, के कहिल्यै गनिँदैन, र हरेक चरणले के खर्च गराउँछ।",
-    updated: "2026-09-06",
+    updated: "2026-09-25",
     sections: [
       {
         id: "why",
@@ -226,6 +236,15 @@ export const standards: LocalisedDocument = {
           },
           {
             p: "साँच्चै जान नसक्ने अवस्था भयो — तपाईंले यो पेसा छाड्नुभयो, वा ग्राहकले अर्कै मान्छे माग्नुभयो — भने हामी अर्को प्राविधिक पठाउँछौँ र उहाँको कामको पूरै ज्याला दिन्छौँ। उहाँलाई दिइएको रकम तपाईंको आउँदो कमाइबाट कटाइन्छ, तर एक पटकको भुक्तानीको बढीमा एक चौथाइ मात्र — जसले गर्दा तपाईंको कुनै हप्ता शून्य हुँदैन। यो तपाईंकै ड्यासबोर्डमा घट्दै गएको रकमका रूपमा देखिन्छ। हामी फोन गरेर नगद माग्दैनौँ, र तपाईंले पाइसक्नुभएको पैसा फिर्ता लिँदैनौँ।",
+          },
+          {
+            p: "बाँकी रकम देखिने अर्को बाटो फिर्ता हो। दोस्रो पटक गएर पनि मिलेन र यहाँका कुनै मान्छेले ग्राहकलाई पैसा फिर्ता गर्ने निर्णय गरे भने, त्यो कामको हाम्रो कमिसन हामी पूरै छाड्छौँ — नबनेको कामबाट शुल्क राख्दैनौँ — र त्यसमा तपाईंको हिस्सा बाँकी रकम बन्छ। पूरै फिर्ता भएको कामको हकमा त्यो भनेको त्यही कामबाट तपाईंले कमाएको सबै हो। दुईमध्ये ठूलो यही हो, र भइहाल्नुअघि थाहा पाउनु राम्रो।",
+          },
+          {
+            p: "बाँकी रकम जसरी बनेको भए पनि आउँदो कमाइबाट कटाउने तरिका उस्तै हो: एक पटकको भुक्तानीको एक चौथाइभन्दा बढी कहिल्यै होइन, र शून्य पुगेपछि रोकिन्छ। जति नै बाँकी भए पनि हरेक भुक्तानीको तीन चौथाइ तपाईंकहाँ जस्ताको तस्तै आइपुग्छ — सीमा राखिएको यही कारणले हो। नराम्रो महिनाले हप्ताभरिको कमाइ लैजान सक्दैन, र पाइसक्नुभएको पैसा फिर्ता माग्ने काम कहिल्यै हुँदैन।",
+          },
+          {
+            p: "काम गर्न छाड्नुभयो भने यो सकिन्छ। बाह्र महिनासम्म एउटै काम सकिएन भने बाँकी रकम मिनाहा हुन्छ — रोकिने होइन, अरूलाई बेचिने होइन, तपाईंलाई पर्खिने पनि होइन: सकियो, र यसबारे कसैले तपाईंलाई सम्पर्क गर्दैन। त्यही बेला सूची बन्द हुन्छ, त्यसैले फर्कनुभयो भने पुरानो ऋण कुरेर बसेको भेट्नुहुन्न — फेरि निवेदन दिनुहुन्छ। यो तपाईंविरुद्धको कुनै ठहर होइन, र सूची हटाइनुजस्तो पनि होइन; बन्द सूचीले तपाईंले काम गर्न छाड्नुभयो भन्ने मात्र जनाउँछ, र निवेदन दिन तपाईंलाई स्वागत छ।",
           },
           {
             p: "अवधि काम सकिएको दिनदेखि गनिन्छ: धेरैजसो मर्मतमा ३० दिन, रङरोगनमा ९० दिन, सफाइ र बाटोमा भएको क्षति जनाउन ४८ घण्टा।",
@@ -281,6 +300,7 @@ export const standards: LocalisedDocument = {
               "सर्वेपछि ग्राहकले तपाईंको मूल्य नमान्नु। जे भए पनि गएबापतको रकम तपाईंले पाउनुहुन्छ, र गनिने भनेको तपाईं गएको हो कि होइन भन्ने मात्र हो।",
               "एउटा गुनासो आउनु। गुनासो पढिन्छ, गनिँदैन।",
               "काम थोरै हुनु, वा नयाँ हुनु।",
+              "ग्यारेन्टीको बाँकी रकम बोक्नु। यो तिर्न बाँकी पैसा हो, तपाईंविरुद्धको ठहर होइन: यसले सूचीमा तल पार्दैन, तलका पाँच चरणमध्ये कुनै पनि होइन, र यो पृष्ठको कुनै पनि कुरा यसले सुरु गर्दैन।",
             ],
           },
         ],

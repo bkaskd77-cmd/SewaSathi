@@ -218,3 +218,164 @@ export async function sweepRedoRecovery(
     return EMPTY;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * The end of a balance nobody can collect
+ * ------------------------------------------------------------------ */
+
+/** What one write-off sweep did. */
+export type WriteOffSweep = {
+  /** Listings closed, which is one per write-off. */
+  closed: number;
+  /** Rupees written off across the sweep. */
+  rupees: number;
+};
+
+/**
+ * Write off what is owed by somebody who has stopped working, and close the
+ * listing.
+ *
+ * WHY A DEBT NEEDS AN END. Without one it is immortal: `provider_outstanding`
+ * sums a ledger that only grows, so a professional who left two years ago
+ * still owes us on a screen nobody will ever act on. We have no card on file,
+ * no direct debit and no way to collect a rupee of it — `lib/payments/payout.ts`
+ * refuses backward recovery for exactly that reason — so an open balance
+ * against somebody who has gone is a number pretending to be an asset.
+ *
+ * THE CLOCK IS THE LAST COMPLETED JOB, not the last login or the last claim. A
+ * balance only ever arises from a claim on a job somebody finished, so every
+ * professional who owes anything has at least one completed booking and the
+ * clock always has a real anchor.
+ *
+ * CLOSING IS NOT REMOVING, and the schema keeps them apart on purpose.
+ * `closed_at` carries no finding against anybody and coming back means
+ * re-applying, which is allowed. `removed_at` is step 5 of the enforcement
+ * ladder. Writing one where the other belongs would put a professional who
+ * simply stopped taking work into every future report as somebody removed for
+ * cause.
+ *
+ * ONLY LISTINGS CARRYING A BALANCE ARE CLOSED HERE. Somebody who owes nothing
+ * and takes a year off keeps their listing — the close exists to make the
+ * write-off final, not to tidy up quiet accounts.
+ */
+export async function sweepWriteOffs(): Promise<WriteOffSweep> {
+  if (!hasSupabaseConfig()) return { closed: 0, rupees: 0 };
+
+  try {
+    const admin = createAdminClient();
+    const { PAYOUT_RULES } = await import("@/lib/payments/payout");
+
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - PAYOUT_RULES.writeOffAfterMonths);
+
+    /*
+     * Open listings only — and the predicate is NOT what makes this sweep
+     * idempotent, which is worth saying because it looks as though it is.
+     *
+     * A second run skips a professional already written off because their
+     * balance is zero, not because of the filter: removing `closed_at is null`
+     * leaves every other case in `tests/db/write-off.test.ts` green.
+     *
+     * What it guards is a listing that is STILL closed and acquires a NEW
+     * balance — a claim adjudicated on an old job weeks after the listing
+     * shut. Without it the sweep would write that off and stamp `closed_at`
+     * again, so the row would record a closure on a day it did not happen.
+     * That case is pinned directly.
+     */
+    const { data: openRows, error } = await admin
+      .from("providers")
+      .select("id, display_name")
+      .is("closed_at", null)
+      .is("removed_at", null);
+
+    if (error) {
+      console.error(`[recovery] open listings read failed — ${describeError(error)}`);
+      return { closed: 0, rupees: 0 };
+    }
+
+    let closed = 0;
+    let rupees = 0;
+
+    for (const provider of (openRows ?? []) as Record<string, unknown>[]) {
+      const providerId = provider.id as string;
+
+      const { data: balance, error: balanceError } = await admin.rpc(
+        "provider_outstanding",
+        { target: providerId },
+      );
+      if (balanceError) continue;
+
+      const owed = Number(balance ?? 0);
+      // Nothing owed is the overwhelmingly common case and costs one read.
+      // A quiet listing with no balance is left entirely alone.
+      if (!Number.isFinite(owed) || owed <= 0) continue;
+
+      /*
+       * Their most recent finished job. One row, ordered — asking "is there
+       * anything since the cutoff?" would be the same round trip and would
+       * not let the log say how long it has actually been.
+       */
+      const { data: lastRows } = await admin
+        .from("bookings")
+        .select("completed_at")
+        .eq("provider_id", providerId)
+        .eq("status", "completed")
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false })
+        .limit(1);
+
+      const last = (lastRows ?? [])[0] as { completed_at: string } | undefined;
+      // No completed job at all cannot happen while a balance exists, since a
+      // balance comes from a claim on a finished job. Treated as not-dormant
+      // rather than as infinitely dormant: if the impossible happens, the safe
+      // reading is to leave somebody's listing open and their debt standing.
+      if (!last) continue;
+      if (Date.parse(last.completed_at) > cutoff.getTime()) continue;
+
+      const { error: writeError } = await admin.from("provider_ledger").insert({
+        provider_id: providerId,
+        kind: "write_off",
+        amount_rupees: owed,
+        note: `Written off after ${PAYOUT_RULES.writeOffAfterMonths} months with no completed job`,
+      });
+
+      if (writeError) {
+        console.error(
+          `[recovery] write-off failed for ${providerId} — ${describeError(writeError)}`,
+        );
+        continue;
+      }
+
+      /*
+       * THE LEDGER ROW FIRST, THE CLOSE SECOND. If the close fails, the
+       * balance is still zero and the listing is simply still open — the next
+       * sweep skips it because nothing is owed, and a person can close it. The
+       * other order would close somebody's listing while they still owed the
+       * money, which is the failure worth avoiding.
+       */
+      const { error: closeError } = await admin
+        .from("providers")
+        .update({
+          is_active: false,
+          closed_at: new Date().toISOString(),
+          closed_reason: "dormant",
+        })
+        .eq("id", providerId)
+        .is("closed_at", null);
+
+      if (closeError) {
+        console.error(
+          `[recovery] close failed for ${providerId} — ${describeError(closeError)}`,
+        );
+      }
+
+      closed += 1;
+      rupees += owed;
+    }
+
+    return { closed, rupees };
+  } catch (thrown) {
+    console.error(`[recovery] write-off sweep threw — ${describeError(thrown)}`);
+    return { closed: 0, rupees: 0 };
+  }
+}

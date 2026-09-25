@@ -155,6 +155,41 @@ export const PAYOUT_RULES = {
    * well as the person.
    */
   redoRecoveryCapBps: 2500,
+  /**
+   * How long a balance follows somebody who has stopped working, before it is
+   * written off and the listing closes.
+   *
+   * WHY THERE IS AN END AT ALL. Without one the debt is immortal:
+   * `provider_outstanding` sums a ledger that only grows, so a professional who
+   * left two years ago still owes us on a screen nobody will ever act on. That
+   * is not prudence, it is a number pretending to be an asset — we have no card
+   * on file, no direct debit and no way to collect a rupee of it, and this file
+   * already refuses backward recovery for that exact reason.
+   *
+   * WHY TWELVE MONTHS. It has to be long enough that an ordinary gap does not
+   * end somebody's listing — a season away, an illness, a year on a building
+   * site — and short enough that the write-off is a real event rather than a
+   * formality nobody reaches. A professional who has completed nothing in a
+   * year has left, and the honest thing is to close the account rather than
+   * carry a claim against them indefinitely.
+   *
+   * THE CLOSE IS WHAT MAKES IT FINAL, AND IT IS NOT A PUNISHMENT. `closed_at`
+   * on `providers` is a third state beside `is_active` and `removed_at`: no
+   * finding against anybody, and coming back means re-applying, which is
+   * allowed. Folding it into `removed_at` would write a false accusation into
+   * the schema — that column is step 5 of the enforcement ladder.
+   *
+   * ONLY LISTINGS CARRYING A BALANCE. Somebody who owes nothing and takes a
+   * year off keeps their listing; closing every quiet one would deactivate
+   * people who have done nothing but be quiet, and would need its own decision.
+   *
+   * This is published on /providers/standards, in both languages, before
+   * anybody signs up — and `sweepWriteOffs` in lib/data/recovery.ts is what
+   * makes the sentence true. It was built in the same commit as the copy,
+   * deliberately: `applyRedoRecovery` spent four phases as a tested function
+   * with no caller while that same page promised what it would have done.
+   */
+  writeOffAfterMonths: 12,
 } as const;
 
 /** Cash is the only method we do not hear about from a gateway. */

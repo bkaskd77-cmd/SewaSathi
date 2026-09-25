@@ -209,6 +209,13 @@ Where a change on one side cannot reach the other.
   second recovery row for a booking rather than the application remembering not
   to write it. It runs from `/api/payments/reconcile`, which now does two jobs
   and says so.
+- **A balance has an end, and the end is not a removal.** `sweepWriteOffs`
+  (`lib/data/recovery.ts`) writes off what is owed by anybody with no completed
+  job for `PAYOUT_RULES.writeOffAfterMonths`, then closes the listing through
+  `providers.closed_at` / `closed_reason` — a third state beside `is_active`
+  and `removed_at`, because a dormant close carries no finding and returning
+  means re-applying. Runs last in `/api/payments/reconcile`, after recovery, so
+  a collectable balance is collected before anything is forgiven.
 - **The parts figure is unevidenced, so it is capped rather than trusted.**
   There are no receipts in this product and `materials_rupees` reduces what a
   professional can be asked to refund, which makes it worth inflating. The half

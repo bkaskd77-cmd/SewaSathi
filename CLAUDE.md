@@ -709,8 +709,21 @@ follows from that.
   across their several due payouts** — reading it per booking takes a quarter
   twice out of a debt that had a quarter left, and the ledger still balances
   afterwards, which is why that case is pinned in `tests/db/redo-recovery.test.ts`.
-  **`write_off` is still never written** and remains the real, unimplemented
-  cost of the guarantee; **or** they never work
+  **`write_off` is written now too**: `sweepWriteOffs` clears a balance after
+  `writeOffAfterMonths` (12) with no completed job and closes the listing. The
+  clock is the last completed job, never the last login — a balance only ever
+  arises from a claim on a finished job, so that anchor always exists.
+  **Closing is a third state and not removal**: `providers.closed_at` +
+  `closed_reason` carry no finding against anybody and coming back means
+  re-applying, whereas `removed_at` is step 5 of the ladder and is for cause.
+  The schema already warned about exactly this conflation — "taking a break"
+  and "removed for cause" are not the same state — and writing one for the
+  other would put a false accusation into every future report. Only listings
+  **carrying a balance** close this way; a quiet professional who owes nothing
+  keeps their listing, because a general dormancy policy is a different
+  decision needing its own copy. **Carrying a balance is published under *what
+  is never a signal***, not as a sixth step: it is money owed, not misconduct,
+  so it never moves anybody down the list; **or** they never work
   for us again and it is **written off**. The write-off is the real cost of
   offering a guarantee and it is bounded, but **the bound is 5.7 jobs' worth of
   commission, not the three or four this line used to claim** — and the ratio

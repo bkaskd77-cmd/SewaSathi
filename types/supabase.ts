@@ -1112,6 +1112,16 @@ export type Database = {
            * or one gets undone as if it were the other.
            */
           removed_at: string | null;
+          /**
+           * Closed for dormancy — twelve months with no completed job while
+           * carrying a guarantee balance.
+           *
+           * NOT `removed_at`, which is step 5 of the enforcement ladder and
+           * records a finding against somebody. Returning from a dormant
+           * close means re-applying, which is allowed.
+           */
+          closed_at: string | null;
+          closed_reason: "dormant" | null;
           removal_reason: string | null;
           /**
            * While this is in the future the listing reads "available now".
@@ -1152,6 +1162,8 @@ export type Database = {
           approved_at?: string | null;
           application_id?: string | null;
           removed_at?: string | null;
+          closed_at?: string | null;
+          closed_reason?: "dormant" | null;
           removal_reason?: string | null;
           id_document_status?: IdDocumentStatus;
           checks?: VerificationCheck[];
