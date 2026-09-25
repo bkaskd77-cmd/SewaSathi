@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { SiteFooter } from "@/components/marketing/footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { headerIdentity } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
 
 /**
@@ -27,6 +28,21 @@ export default async function AppLayout({
     getTranslations("nav"),
   ]);
 
+  /*
+   * One function decides every door — see `headerIdentity`. This layout used
+   * to be the only caller that got all three props right; the landing page and
+   * the not-found shell each worked them out separately and each got a
+   * different subset, which is how the Admin item appeared here and vanished
+   * on the homepage.
+   */
+  const identity = headerIdentity({
+    signedIn: profile != null,
+    fullName: profile?.fullName ?? null,
+    role: profile?.role ?? null,
+    providerId: profile?.providerId ?? null,
+    fallbackName: t("account"),
+  });
+
   return (
     <div className="flex min-h-dvh flex-col">
       {/*
@@ -34,20 +50,7 @@ export default async function AppLayout({
         onboarding) still gets the account menu rather than a "Sign in" button
         that would take them nowhere new.
       */}
-      <SiteHeader
-        accountName={profile ? (profile.fullName ?? t("account")) : null}
-        /* The door to the working side, and it opens on OWNING A LISTING
-           rather than on a role. `admin` passes the route guard so support can
-           reach a professional's screen, but an admin with no listing has no
-           work — and putting "My work" in their menu is the entity blur this
-           split exists to remove. Permission to reach a screen and a reason to
-           go there are different questions. */
-        worksHere={profile?.providerId != null}
-        /* The admin door, which is a ROLE and not a listing — the one case
-           where those two genuinely differ. Without it `/admin` was reachable
-           only by typing the URL. */
-        isAdmin={profile?.role === "admin"}
-      />
+      <SiteHeader {...identity} />
 
       <main id="main" className="container flex-1 py-10 sm:py-14">
         {children}

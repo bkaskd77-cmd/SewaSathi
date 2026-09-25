@@ -15,6 +15,7 @@ import { ProblemSearch } from "@/components/marketing/problem-search";
 import { Section, SectionHeading } from "@/components/marketing/section";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { CountUp } from "@/components/shared/count-up";
+import { headerIdentity } from "@/lib/auth";
 import { platformStats } from "@/lib/data/platform";
 import { Reveal } from "@/components/shared/reveal";
 import {
@@ -87,18 +88,33 @@ export async function generateMetadata({
 }
 
 export default async function Home() {
-  const [profile, locale, t, stats] = await Promise.all([
+  const [profile, locale, t, tNav, stats] = await Promise.all([
     getSessionProfile(),
     getLocale() as Promise<Locale>,
     getTranslations("home"),
+    getTranslations("nav"),
     // Cached per request, and it returns nothing at all rather than a smaller
     // number when the evidence is thin. See `platformStats`.
     platformStats(),
   ]);
 
+  /*
+   * One function decides every door in the header — see `headerIdentity`.
+   * Three pages render this component and each used to work the props out for
+   * itself, which is how the Admin item came to appear on one screen and not
+   * another.
+   */
+  const identity = headerIdentity({
+    signedIn: profile != null,
+    fullName: profile?.fullName ?? null,
+    role: profile?.role ?? null,
+    providerId: profile?.providerId ?? null,
+    fallbackName: tNav("account"),
+  });
+
   return (
     <>
-      <SiteHeader accountName={profile?.fullName ?? null} />
+      <SiteHeader {...identity} />
 
       <main id="main">
         {/* ---------------- hero ---------------- */}

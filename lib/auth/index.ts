@@ -41,6 +41,8 @@ export {
 
 export { describeEnrollError } from "./mfa-error";
 
+export { headerIdentity, type HeaderIdentity } from "./identity";
+
 export {
   strandsCustomer,
   type OtpError,

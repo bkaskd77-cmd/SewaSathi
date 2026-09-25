@@ -3,6 +3,7 @@ import { Compass } from "lucide-react";
 
 import { SiteFooter } from "@/components/marketing/footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { headerIdentity } from "@/lib/auth";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
@@ -23,15 +24,25 @@ import { getSessionProfile } from "@/lib/auth/session";
  * screen reader announces Nepali in an English voice.
  */
 export default async function NotFound() {
-  const [profile, locale, t] = await Promise.all([
+  const [profile, locale, t, tNav] = await Promise.all([
     getSessionProfile(),
     getLocale(),
     getTranslations("notFound"),
+    getTranslations("nav"),
   ]);
+
+  // One function decides every door in the header — see `headerIdentity`.
+  const identity = headerIdentity({
+    signedIn: profile != null,
+    fullName: profile?.fullName ?? null,
+    role: profile?.role ?? null,
+    providerId: profile?.providerId ?? null,
+    fallbackName: tNav("account"),
+  });
 
   return (
     <div lang={locale} className="flex min-h-dvh flex-col">
-      <SiteHeader accountName={profile?.fullName ?? null} />
+      <SiteHeader {...identity} />
 
       <main id="main" className="container flex-1 py-16">
         <div className="mx-auto w-full max-w-xl">
