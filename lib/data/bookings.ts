@@ -140,6 +140,16 @@ export type Booking = {
   paymentStatus: string;
   /** Set when the customer's figure and the professional's disagreed. */
   amountMismatchAt: string | null;
+  /**
+   * When a person settled the disagreement, and whose figure they settled on.
+   *
+   * BOTH, NOT JUST THE STAMP. A screen reading `amountMismatchAt` alone keeps
+   * telling the customer their job is paused for ever — the same permanence
+   * the resolution exists to end, and it was in the payment panel until this
+   * pair existed.
+   */
+  amountMismatchResolvedAt: string | null;
+  amountSettledSource: "customer" | "provider" | "adjudicated" | null;
   customerReportedAmount: number | null;
   createdAt: string;
   acceptedAt: string | null;
@@ -277,7 +287,7 @@ export const bookingInputSchema = z.object({
 });
 
 const COLUMNS =
-  "id, reference, category_slug, band_slug, band_source, estimated_working_minutes, estimated_elapsed_days, provider_estimated_working_minutes, provider_estimated_elapsed_days, actual_working_minutes, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, provider_band_slug, provider_band_reason, provider_band_at, band_change_approved_at, band_change_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
+  "id, reference, category_slug, band_slug, band_source, estimated_working_minutes, estimated_elapsed_days, provider_estimated_working_minutes, provider_estimated_elapsed_days, actual_working_minutes, provider_id, address_id, status, urgency, description, photo_url, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, provider_band_slug, provider_band_reason, provider_band_at, band_change_approved_at, band_change_declined_at, overbook_offered_by, final_amount, final_amount_reason, final_amount_approved_at, payment_method, payment_status, amount_mismatch_at, amount_mismatch_resolved_at, amount_settled_source, customer_reported_amount, created_at, accepted_at, completed_at, cancelled_at, confirmation_required, confirmed_at";
 
 function rowToBooking(row: Record<string, unknown>): Booking {
   const status = row.status as string;
@@ -328,6 +338,10 @@ function rowToBooking(row: Record<string, unknown>): Booking {
     paymentMethod: row.payment_method as PaymentMethod,
     paymentStatus: row.payment_status as string,
     amountMismatchAt: (row.amount_mismatch_at as string | null) ?? null,
+    amountMismatchResolvedAt:
+      (row.amount_mismatch_resolved_at as string | null) ?? null,
+    amountSettledSource:
+      (row.amount_settled_source as Booking["amountSettledSource"]) ?? null,
     customerReportedAmount:
       (row.customer_reported_amount as number | null) ?? null,
     createdAt: row.created_at as string,

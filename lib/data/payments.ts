@@ -8,9 +8,11 @@ import {
   commissionBpsFor,
   gatewayFor,
   judgeFinalAmount,
+  judgeMismatchResolution,
   payoutDueAt,
   settleSplit,
   COMMISSION_BPS,
+  type MismatchChoice,
   type PaymentMethod,
   type PaymentStatus,
 } from "@/lib/payments";
@@ -98,7 +100,7 @@ async function readBooking(bookingId: string) {
   const { data } = await createAdminClient()
     .from("bookings")
     .select(
-      "id, reference, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at",
+      "id, reference, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -119,6 +121,8 @@ async function readBooking(bookingId: string) {
     commission_floor_waived: boolean;
     customer_reported_amount: number | null;
     amount_mismatch_at: string | null;
+    /** Set once a person has settled the disagreement. Null while it is open. */
+    amount_mismatch_resolved_at: string | null;
   } | null;
 }
 
@@ -1376,6 +1380,176 @@ export async function resolveCommissionAppeal(input: {
       commission_basis: split.basis,
     })
     .eq("id", booking.id);
+
+  return { ok: true };
+}
+
+/**
+ * A person settles the disagreement, and the job finally pays.
+ *
+ * THE END OF A DEAD END. `flagAmountMismatch` stamped `amount_mismatch_at` and
+ * nothing anywhere cleared it, so the booking never settled, the professional
+ * was never paid, `enforce_claim_refund` blocked every guarantee claim on it,
+ * and the customer read "we are looking at it" while nobody in the product
+ * could look. This is the looking.
+ *
+ * ONE NUMBER EVERYWHERE, which is why `payments.amount` is corrected before
+ * `settlePaid` rather than an override being threaded through it. `settlePaid`
+ * computes the split from the payment row it re-reads, so without this it
+ * would freeze the professional's figure whatever was decided — the fee, the
+ * earning, the receipt and the ledger all disagreeing with the booking. The
+ * correction is honest rather than a workaround: the payment really was for
+ * that amount, and a row saying otherwise is the thing that was wrong.
+ *
+ * AUTHORISED TWICE, like `resolveCommissionAppeal`. The action re-reads the
+ * session, and this re-reads the role from `profiles` — a server action is a
+ * public POST, and an `adminId` that arrived as an argument has proved nothing.
+ */
+export async function resolveAmountMismatch(input: {
+  bookingId: string;
+  adminId: string;
+  choice: MismatchChoice;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const supabase = createAdminClient();
+
+  const { data: admin } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", input.adminId)
+    .maybeSingle();
+  if ((admin?.role as string | null) !== "admin") {
+    return { ok: false, reason: "notAdmin" };
+  }
+
+  const booking = await readBooking(input.bookingId);
+  if (!booking) return { ok: false, reason: "notFound" };
+  if (!booking.amount_mismatch_at) return { ok: false, reason: "noMismatch" };
+  // Idempotent by re-read rather than by hope: two reviewers opening the same
+  // queue row is ordinary, and the second must not settle it again.
+  if (booking.amount_mismatch_resolved_at) {
+    return { ok: false, reason: "alreadyResolved" };
+  }
+  if (booking.final_amount === null) return { ok: false, reason: "noFigure" };
+
+  const ruling = judgeMismatchResolution({
+    choice: input.choice,
+    recorded: booking.final_amount,
+    reported: booking.customer_reported_amount,
+    quote: { min: booking.quoted_min, max: booking.quoted_max },
+  });
+  if (!ruling.ok) return { ok: false, reason: ruling.reason };
+
+  /*
+   * The payment still in flight. A mismatch can only be raised from
+   * `confirmCashPayment`, which needs one, so this is defensive rather than
+   * expected — but settling a booking with no payment row would leave money
+   * recorded in one place and not the other.
+   */
+  const { data: pending } = await supabase
+    .from("payments")
+    .select(COLUMNS)
+    .eq("booking_id", booking.id)
+    .in("status", ["pending", "initiated"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!pending || pending.length === 0) {
+    return { ok: false, reason: "noPayment" };
+  }
+  const payment = rowToPayment(pending[0] as Record<string, unknown>);
+
+  const resolvedAt = new Date().toISOString();
+
+  const { error: bookingError } = await supabase
+    .from("bookings")
+    .update({
+      final_amount: ruling.amount,
+      amount_mismatch_resolved_at: resolvedAt,
+      amount_mismatch_resolved_by: input.adminId,
+      amount_mismatch_note: ruling.note?.slice(0, 600) ?? null,
+      amount_settled_source: ruling.source,
+    })
+    .eq("id", booking.id)
+    // The open-mismatch predicate again, in the write. Two reviewers deciding
+    // at once is settled here rather than by the read above: the second
+    // updates zero rows.
+    .is("amount_mismatch_resolved_at", null);
+
+  if (bookingError) {
+    console.error(`[payments] mismatch resolve failed — ${describeError(bookingError)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  const { error: amountError } = await supabase
+    .from("payments")
+    .update({ amount: ruling.amount })
+    .eq("id", payment.id)
+    .in("status", ["pending", "initiated"]);
+
+  if (amountError) {
+    console.error(`[payments] mismatch amount failed — ${describeError(amountError)}`);
+    return { ok: false, reason: "saveFailed" };
+  }
+
+  const settled = await settlePaid(payment, `cash:${payment.ourReference}`, {
+    resolvedBy: input.adminId,
+    at: resolvedAt,
+    source: ruling.source,
+    recorded: booking.final_amount,
+    reported: booking.customer_reported_amount,
+  });
+  if (!settled.ok) return { ok: false, reason: settled.reason };
+
+  /*
+   * THE CUSTOMER'S TIMELINE, IN WORDS. A notification leaf is not a timeline —
+   * somebody opening the booking weeks later should be able to read what was
+   * settled and that a person settled it, without having kept a message.
+   */
+  await supabase.from("booking_status_history").insert({
+    booking_id: booking.id,
+    from_status: booking.status,
+    to_status: booking.status,
+    changed_by: input.adminId,
+    changed_by_role: "admin",
+    note: `amount settled at ${ruling.amount} (${ruling.source}) — professional recorded ${booking.final_amount}, customer reported ${booking.customer_reported_amount ?? "nothing"}${ruling.note ? `; ${ruling.note}` : ""}`,
+  });
+
+  const recipients = [booking.customer_id];
+  if (booking.provider_id) {
+    const { data } = await supabase
+      .from("providers")
+      .select("profile_id")
+      .eq("id", booking.provider_id)
+      .maybeSingle();
+    const profileId = (data?.profile_id as string | null) ?? null;
+    if (profileId) recipients.push(profileId);
+  }
+
+  await notifyAll(
+    recipients.map((recipientId) => ({
+      recipientId,
+      kind: "payment.mismatchResolved" as const,
+      params: { reference: booking.reference, amount: String(ruling.amount) },
+      bookingId: booking.id,
+    })),
+  );
+
+  await recordSecurityEvent({
+    kind: "payment.mismatchResolved",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "booking",
+    subjectId: booking.id,
+    detail: {
+      settled: ruling.amount,
+      source: ruling.source,
+      recorded: booking.final_amount,
+      reported: booking.customer_reported_amount,
+      note: ruling.note,
+    },
+  });
 
   return { ok: true };
 }

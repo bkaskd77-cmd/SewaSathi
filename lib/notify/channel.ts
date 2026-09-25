@@ -35,6 +35,15 @@ export type NotificationKind =
   | "payment.receipt"
   /** The two figures for a cash job disagreed. Nothing settles until a person looks. */
   | "payment.mismatch"
+  /**
+   * A person looked, and the job settled at a figure.
+   *
+   * BOTH SIDES GET IT, and it names the amount. The one who was told their
+   * number was not the one used should hear that from us rather than work it
+   * out from a receipt — and the professional waiting to be paid should know
+   * the hold has started.
+   */
+  | "payment.mismatchResolved"
   /** First refusal lapsed; the job is now open to other professionals. */
   | "booking.widened"
   /** Nobody took it. The booking has ended rather than waiting for ever. */
@@ -194,6 +203,7 @@ const LIST_NOTES: Partial<Record<NotificationKind, string>> = {
   "booking.priceCorrectionDeclined": "priceCorrectionDeclined",
   "payment.receipt": "receipt",
   "payment.mismatch": "mismatch",
+  "payment.mismatchResolved": "mismatchResolved",
   "review.published": "reviewPublished",
   "claim.refundApproved": "refundApproved",
   "claim.refundSent": "refundSent",

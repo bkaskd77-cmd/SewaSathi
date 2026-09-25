@@ -772,7 +772,8 @@
       },
       "paid": {
         "title": "Paid",
-        "body": "Thank you — this job is settled."
+        "body": "Thank you — this job is settled.",
+        "settledByPerson": "The two amounts did not match on this job, so a member of our team looked at it and settled the figure above."
       },
       "receipt": {
         "method": "Method",
@@ -813,6 +814,7 @@
       "assigned": "Professional chosen",
       "receipt": "Receipt: {amount}",
       "mismatch": "Amounts do not match",
+      "mismatchResolved": "Amount settled: {amount}",
       "quoteReady": "Your price is ready",
       "quoteExpired": "That price has expired",
       "quoteApproved": "Price accepted",

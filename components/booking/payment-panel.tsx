@@ -81,8 +81,24 @@ export type PaymentPanelProps = {
    * theatre.
    */
   blind?: boolean;
-  /** Set once the two figures disagreed. Nothing settles until a person looks. */
+  /**
+   * The two figures disagreed AND nobody has settled it yet.
+   *
+   * THE OPEN CONDITION, NOT THE STAMP. This was `Boolean(amountMismatchAt)`,
+   * which never becomes false — so once a person had settled the job the
+   * screen went on telling the customer it was paused and they owed nothing.
+   * The caller passes `amountMismatchAt && !amountMismatchResolvedAt`.
+   */
   mismatch?: boolean;
+  /**
+   * Whose figure a settled disagreement settled on, once one did.
+   *
+   * A PERSON DECIDED AND THE CUSTOMER SHOULD BE ABLE TO READ THAT, weeks
+   * later, without having kept a notification. The receipt already carries the
+   * amount; this is the sentence saying the amount was arrived at rather than
+   * simply recorded.
+   */
+  settledSource?: "customer" | "provider" | "adjudicated" | null;
   /**
    * Which guarantee window this job's trade carries — "30-day", "48-hour".
    *
@@ -317,6 +333,11 @@ export function PaymentPanel(props: PaymentPanelProps) {
             <p className="mt-1 text-body-sm text-muted-foreground">
               {t("paid.body")}
             </p>
+            {props.settledSource ? (
+              <p className="mt-2 text-body-sm text-muted-foreground">
+                {t("paid.settledByPerson")}
+              </p>
+            ) : null}
 
             <dl className="mt-4 space-y-1.5 text-caption">
               <ReceiptRow label={t("receipt.method")}>

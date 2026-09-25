@@ -700,7 +700,12 @@ export default async function BookingDetailPage({
               finalAmount: booking.finalAmount,
               quotedMax: booking.quotedMax,
             })}
-            mismatch={Boolean(booking.amountMismatchAt)}
+            // Open, not merely ever-flagged: a settled disagreement must stop
+            // telling the customer their job is paused.
+            mismatch={Boolean(
+              booking.amountMismatchAt && !booking.amountMismatchResolvedAt,
+            )}
+            settledSource={booking.amountSettledSource}
             failureReason={lastFailed?.failureReason ?? null}
             inFlightSince={inFlight?.initiatedAt ?? null}
             supportPhone={site.supportPhone}

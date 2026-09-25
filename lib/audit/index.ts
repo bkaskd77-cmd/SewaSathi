@@ -45,6 +45,8 @@ export type SecurityEventKind =
   | "payment.amountDisputed"
   | "payment.settled"
   | "payment.mismatch"
+  /** A person settled that disagreement, and which figure they settled on. */
+  | "payment.mismatchResolved"
   | "commission.appealResolved"
   /* Identity documents — Phase 10 */
   | "document.uploaded"

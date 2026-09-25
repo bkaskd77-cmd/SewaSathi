@@ -34,8 +34,12 @@ export {
   blindCashEntry,
   canSettle,
   judgeFinalAmount,
+  judgeMismatchResolution,
   PRICE_RULES,
+  type MismatchChoice,
+  type MismatchRuling,
   type PriceVerdict,
+  type SettledSource,
 } from "./pricing";
 
 export {

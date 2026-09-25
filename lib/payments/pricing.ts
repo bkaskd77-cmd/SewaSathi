@@ -173,3 +173,87 @@ export function blindCashEntry(input: {
   if (input.quotedMax === null) return true;
   return input.finalAmount <= input.quotedMax;
 }
+
+/** Whose number a settled mismatch used. Mirrors `bookings.amount_settled_source`. */
+export type SettledSource = "customer" | "provider" | "adjudicated";
+
+export type MismatchChoice =
+  | { source: "customer" | "provider" }
+  | { source: "adjudicated"; amount: number; note: string };
+
+export type MismatchRuling =
+  | { ok: true; amount: number; source: SettledSource; note: string | null }
+  | {
+      ok: false;
+      reason:
+        | "reasonRequired"
+        | "noCustomerFigure"
+        | "blocked"
+        | "tooLow"
+        | "notANumber"
+        | "notSurveyed";
+    };
+
+/**
+ * Which figure a settled mismatch settles at, and whether it may.
+ *
+ * A PERSON DECIDES, BUT NOT ARBITRARILY. The customer typed one number, the
+ * professional recorded another, and the truth is sometimes a third: 2,000
+ * against 1,500, and a phone call establishes 1,800. Forcing a choice between
+ * two numbers when neither is right records a lie, so a third is allowed — and
+ * because it is, it needs a reason and a ceiling. The reason is stored on the
+ * booking rather than only in the audit log, because a figure somebody has to
+ * defend later belongs beside the money it decided.
+ *
+ * THE CEILING IS `judgeFinalAmount`, THE SAME ONE THE PROFESSIONAL FACES, and
+ * it is applied to WHICHEVER figure is chosen rather than only to the third.
+ * The professional's number passed it when it was recorded; the customer's
+ * never has — nothing checks what somebody types into the blind cash box, and
+ * without this an admin picking "the customer's figure" could settle a job at
+ * any amount at all. Two times the quoted max is a customer protection, so it
+ * cannot be escaped by choosing a party rather than naming a number.
+ *
+ * `needs-approval` is allowed through. That verdict means "a human must agree",
+ * and a human is what this function is being called on behalf of; refusing it
+ * would make the adjudication screen unable to settle the exact overrun it
+ * exists for.
+ *
+ * Pure, so the rule is exhaustively testable without a database — the same
+ * reason `judgeFinalAmount` takes a band rather than reading a booking.
+ */
+export function judgeMismatchResolution(input: {
+  choice: MismatchChoice;
+  /** The professional's recorded figure. */
+  recorded: number;
+  /** What the customer said they paid. Null if they never typed one. */
+  reported: number | null;
+  quote: { min: number | null; max: number | null };
+}): MismatchRuling {
+  let amount: number;
+  let note: string | null = null;
+
+  if (input.choice.source === "adjudicated") {
+    // Mandatory, and checked before the amount: "why is this number neither of
+    // ours" is the whole justification for allowing a third one.
+    note = input.choice.note.trim();
+    if (note.length === 0) return { ok: false, reason: "reasonRequired" };
+    amount = input.choice.amount;
+  } else if (input.choice.source === "customer") {
+    if (input.reported === null) return { ok: false, reason: "noCustomerFigure" };
+    amount = input.reported;
+  } else {
+    amount = input.recorded;
+  }
+
+  const verdict = judgeFinalAmount(amount, input.quote);
+  if (verdict.outcome === "blocked") return { ok: false, reason: "blocked" };
+  if (verdict.outcome === "not-surveyed") return { ok: false, reason: "notSurveyed" };
+  if (verdict.outcome === "invalid") {
+    return {
+      ok: false,
+      reason: verdict.reason === "too-low" ? "tooLow" : "notANumber",
+    };
+  }
+
+  return { ok: true, amount, source: input.choice.source, note };
+}
