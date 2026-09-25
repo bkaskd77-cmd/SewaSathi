@@ -1786,6 +1786,36 @@
       "falseAddresses": "Address was wrong",
       "tripDebt": "Owed for wasted trips"
     },
+    "signals": {
+      "title": "Signals",
+      "lead": "Two questions the product can answer about itself: where our published prices are wrong, and how much money is moving in cash.",
+      "unreadable": "That could not be read. This is not the same as there being nothing — do not read it as a zero.",
+      "unrecorded": "Not recorded",
+      "pricing": {
+        "title": "Where our prices are wrong",
+        "lead": "A job settled under the published floor is not evidence about the professional — the fee is charged on the floor, so reporting less earns them nothing. A whole trade bunching under it is our mispricing. Flagged above {pct}%, and only once a trade has ten settled jobs.",
+        "empty": "No settled jobs yet, so there is nothing to read.",
+        "review": "Worth a look",
+        "settled": "Settled jobs",
+        "belowBand": "Under our floor",
+        "jobsAndPct": "{n} ({pct}%)",
+        "published": "Published band",
+        "middle": "Middle of what was actually charged"
+      },
+      "mix": {
+        "title": "How much is paid in cash",
+        "lead": "By value first, because cash tends to be the big jobs and the job count alone would show half the real exposure. Never broken down by professional: the customer picks the method.",
+        "empty": "No settled jobs yet, so there is nothing to read.",
+        "tooEarly": "{n} settled jobs is not a baseline yet — {min} is the minimum before these percentages mean anything.",
+        "everything": "Everything",
+        "byTrade": "By trade",
+        "byWard": "By ward",
+        "byValue": "of the money",
+        "byCount": "of the jobs",
+        "settled": "Settled jobs",
+        "pct": "{pct}%"
+      }
+    },
     "guaranteeClaims": {
       "title": "Guarantee money",
       "lead": "Money we have agreed to pay a customer back, and claims where paying some back is still a decision. Agreeing a refund and sending it are two different things here: on eSewa and on cash, a person has to go and move it.",

@@ -25,6 +25,7 @@ import {
   unreadableQueue,
   type QueuePage,
 } from "@/lib/data/queue";
+import { unreadable, type Readable } from "@/lib/data/readable";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1660,8 +1661,8 @@ export async function resolveAmountMismatch(input: {
  * meaningless average. This is support's number, and it is meaningless unless
  * it is everybody's.
  */
-export async function listPricingSignals(): Promise<PricingSignal[]> {
-  if (!hasSupabaseConfig()) return [];
+export async function listPricingSignals(): Promise<Readable<PricingSignal>> {
+  if (!hasSupabaseConfig()) return unreadable();
 
   try {
     const { data, error } = await createAdminClient()
@@ -1672,10 +1673,10 @@ export async function listPricingSignals(): Promise<PricingSignal[]> {
       if (error) {
         console.error(`[pricing] signals failed — ${describeError(error)}`);
       }
-      return [];
+      return unreadable();
     }
 
-    return (data as Array<Record<string, unknown>>)
+    const rows = (data as Array<Record<string, unknown>>)
       .map((row) => ({
         categorySlug: row.category_slug as string,
         settledJobs: Number(row.settled_jobs ?? 0),
@@ -1690,9 +1691,10 @@ export async function listPricingSignals(): Promise<PricingSignal[]> {
         p75Final: Number(row.p75_final ?? 0),
       }))
       .sort((a, b) => b.belowBandPct - a.belowBandPct);
+    return { ok: true, rows };
   } catch (thrown) {
     console.error(`[pricing] signals threw — ${describeError(thrown)}`);
-    return [];
+    return unreadable();
   }
 }
 
@@ -1706,8 +1708,8 @@ export async function listPricingSignals(): Promise<PricingSignal[]> {
  * with the caller's own policies, so anybody else reading it would get an
  * average of their own two rows.
  */
-export async function listPaymentMix(): Promise<PaymentMixRow[]> {
-  if (!hasSupabaseConfig()) return [];
+export async function listPaymentMix(): Promise<Readable<PaymentMixRow>> {
+  if (!hasSupabaseConfig()) return unreadable();
 
   try {
     const { data, error } = await createAdminClient()
@@ -1718,10 +1720,10 @@ export async function listPaymentMix(): Promise<PaymentMixRow[]> {
       if (error) {
         console.error(`[payments] mix failed — ${describeError(error)}`);
       }
-      return [];
+      return unreadable();
     }
 
-    return (data as Array<Record<string, unknown>>).map((row) => ({
+    const rows = (data as Array<Record<string, unknown>>).map((row) => ({
       categorySlug: row.category_slug as string,
       areaKey: row.area_key as string,
       month: String(row.month ?? ""),
@@ -1731,8 +1733,9 @@ export async function listPaymentMix(): Promise<PaymentMixRow[]> {
       gross: Number(row.gross ?? 0),
       cashGross: Number(row.cash_gross ?? 0),
     }));
+    return { ok: true, rows };
   } catch (thrown) {
     console.error(`[payments] mix threw — ${describeError(thrown)}`);
-    return [];
+    return unreadable();
   }
 }
