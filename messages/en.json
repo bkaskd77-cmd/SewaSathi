@@ -1587,6 +1587,21 @@
           "name": "Amounts that do not match",
           "what": "Cash jobs where the customer's figure and the professional's disagree."
         }
+      },
+      "toolsTitle": "Look things up",
+      "tools": {
+        "lookup": {
+          "name": "Look up a job",
+          "what": "By booking reference, payment reference or phone number."
+        },
+        "signals": {
+          "name": "Signals",
+          "what": "Where our published prices are wrong, and how much is being paid in cash."
+        },
+        "audit": {
+          "name": "Audit log",
+          "what": "Who looked at what, and who decided what."
+        }
       }
     },
     "extent": {
@@ -1740,6 +1755,36 @@
         "tooLow": "That is below the smallest amount anybody is billed.",
         "saveFailed": "That did not save. Try again."
       }
+    },
+    "lookup": {
+      "title": "Look up a job",
+      "lead": "Somebody has rung. Paste the booking reference they are reading out, the payment reference from their receipt, or their phone number.",
+      "label": "Booking reference, payment reference or phone number",
+      "placeholder": "SK-4F2K9",
+      "submit": "Find it",
+      "accepts": "Booking references have no 0, O, 1 or I in them — the case and the SK- do not matter. A phone number matches with or without the country code.",
+      "notFound": "Nothing matches that.",
+      "unreadable": "That is not a reference or a phone number.",
+      "impossible": "A booking reference never contains {characters}. Those characters are left out of the alphabet on purpose, so one of them is a misread — ask them to read it again.",
+      "status": "Status",
+      "band": "Quoted",
+      "finalAmount": "Final amount",
+      "unrecorded": "Not recorded",
+      "customer": "Customer",
+      "professional": "Professional",
+      "where": "Where",
+      "ward": "Ward",
+      "wardNumber": "ward {n}",
+      "tole": "Tole",
+      "landmark": "Landmark",
+      "directions": "Directions",
+      "history": "What happened",
+      "noHistory": "Nothing recorded yet.",
+      "customerRecord": "This customer's record",
+      "completedJobs": "Jobs completed",
+      "noShows": "Nobody there on arrival",
+      "falseAddresses": "Address was wrong",
+      "tripDebt": "Owed for wasted trips"
     },
     "guaranteeClaims": {
       "title": "Guarantee money",

@@ -146,6 +146,38 @@ function in the product, with no caller.
   file by file in this phase. One violation found (`addressId`), fixed in the
   database.
 
+### The support lookup reads across everybody, and says so in the log
+
+`/admin/lookup` resolves a booking reference, a payment reference or a phone
+number to one booking and shows the customer, the professional, the address,
+the history and the customer's risk record. **It widens nothing.** Every field
+was already readable by an admin straight through PostgREST or the Supabase
+dashboard, with no trace — the hole `lib/audit` names at its own top. What this
+adds is the record.
+
+- **`lookup.searched` is written on every search, including the ones that find
+  nothing.** Six phone numbers tried in a row and none of them ours is a
+  pattern worth being able to see later; a log that recorded only hits would
+  hide exactly that.
+- **`detail` carries the handle KIND, never the string typed.** A phone number
+  in the audit log would make it a second copy of the thing it exists to
+  protect — and one readable by every admin, which is a wider circle than the
+  person who searched. Same rule as `recordContactAccess` carrying a count
+  rather than the numbers.
+- **`recordContactAccess` counts the numbers that reached the screen**, and the
+  call sits inside `lookup()` before it returns, so a page cannot render them
+  without it having run.
+- **The address is read with the service role rather than by adding a policy.**
+  `addresses` is admin-`none` in `docs/rls-matrix.md` and stays that way: an
+  `Admins read every address` policy would have widened the untraceable
+  PostgREST route to include everybody's home. Reading it inside a function
+  that logs is the same trade `customerHistory` and `applicationForReview`
+  already make.
+- **The risk record is shown, never scored.** The numbers are what happened. A
+  verdict computed on this screen would be a judgement about a person rendered
+  beside their phone number, which is the shape of thing that gets acted on
+  without anybody deciding to.
+
 ### RLS is a floor, not a filter
 
 **A read for a screen that belongs to one person names that person in the

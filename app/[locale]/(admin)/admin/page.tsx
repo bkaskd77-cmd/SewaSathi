@@ -6,6 +6,7 @@ import { ArrowRight, CircleAlert, CircleCheck } from "lucide-react";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
+import { ADMIN_TOOLS } from "@/lib/data/admin-tools";
 import { adminQueueCounts } from "@/lib/data/admin-queues";
 import { queuesState } from "@/lib/data/queue";
 
@@ -147,6 +148,46 @@ export default async function AdminIndexPage() {
       <p className="animate-rise mt-6 text-caption text-muted-foreground">
         {t("capNote")}
       </p>
+
+      {/*
+        * THE SECOND GROUP: everything that is not work waiting.
+        *
+        * Quieter than the queues on purpose — no counts, no numbers, smaller
+        * type. A full queue has to stand out from these, and it cannot if a
+        * row saying "1,482 audit events" sits beside it looking equally
+        * urgent. These cost no queries at all, so the one screen that should
+        * open instantly still does.
+        */}
+      <h2 className="animate-rise mt-10 font-display text-heading-sm">
+        {t("toolsTitle")}
+      </h2>
+      <ul className="mt-3 space-y-2">
+        {ADMIN_TOOLS.map((tool, index) => (
+          <li
+            key={tool.key}
+            className="animate-rise"
+            style={{ animationDelay: `${Math.min((index + 7) * 0.05, 0.25)}s` }}
+          >
+            <Link
+              href={tool.href}
+              className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3 transition-colors hover:border-primary/50"
+            >
+              <span>
+                <span className="text-body-md text-foreground">
+                  {t(`tools.${tool.key}.name`)}
+                </span>
+                <span className="mt-0.5 block text-caption text-muted-foreground">
+                  {t(`tools.${tool.key}.what`)}
+                </span>
+              </span>
+              <ArrowRight
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

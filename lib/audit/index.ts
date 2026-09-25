@@ -55,6 +55,17 @@ export type SecurityEventKind =
   | "customerRisk.viewed"
   /* Somebody's phone number was put on an admin's screen */
   | "contact.viewed"
+  /**
+   * An admin searched the support lookup, whether or not it found anything.
+   *
+   * THE MISSES MATTER AS MUCH AS THE HITS. Six phone numbers tried in a row and
+   * none of them ours is a pattern worth being able to see later, and a log
+   * that recorded only successful reads would hide exactly that. `detail`
+   * carries the KIND of handle and never the string typed — a phone number in
+   * here would make the audit log a second copy of the thing it exists to
+   * protect, readable by every admin rather than by the one who searched.
+   */
+  | "lookup.searched"
   | "document.reviewed"
   /* Anything an admin does at all */
   | "admin.action";
