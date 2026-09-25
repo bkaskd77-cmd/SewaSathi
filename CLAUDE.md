@@ -534,14 +534,27 @@ verify`, and any can be changed by somebody not looking at this code.
   check the reason actually renders before shipping; a half-opened channel
   reads exactly like a closed one and costs another round trip through a
   deploy.
-- **Phone-only means fields other products rely on are empty here, forever.**
-  That same bug was GoTrue building `otpauth://totp/{issuer}:{label}` for the
-  authenticator QR, where the label is normally the user's **email** — and
-  every account in this product has `email = null`, because phone + OTP is the
-  only way in. `lib/auth/mfa.ts` passes `issuer: site.name` explicitly for
-  exactly that reason. Before using any provider feature that takes an identity
-  for granted, ask which column it reads: `email` is null on every row and
-  always will be.
+- **Phone-only means fields other products rely on are empty here, forever —
+  and one of them had to be filled in, which is a footnote to that rule and
+  not an exception to it.** That same bug was GoTrue building
+  `otpauth://totp/{issuer}:{label}` for the authenticator QR, where the label
+  is normally the user's **email** — and every account in this product has
+  `email = null`, because phone + OTP is the only way in.
+  `lib/auth/mfa.ts` passes `issuer: site.name` explicitly, and that was only
+  half of it: the **label** was the empty half, and enrolment answered
+  `500 Error generating QR Code` for every account through four deploys.
+  `authenticatorLabel` writes `{phone}@phone.invalid` onto the row the first
+  time somebody enrols, and leaves a real address alone.
+  **`.invalid` is reserved by RFC 2606 and can never resolve**, which is the
+  whole reason for that domain: the address is a label inside a QR code, never
+  a way in. No password exists on any account, and a magic link sent there
+  could not arrive even with the Email provider switched on — so phone + OTP
+  stays the only authentication path in fact and not only in intent. The write
+  is service-role, because `auth.updateUser({ email })` starts an email-CHANGE
+  flow that confirms to an address which by construction cannot receive
+  anything. Before using any provider feature that takes an identity for
+  granted, ask which column it reads: `email` is null on every row until
+  somebody enrols a second factor.
 - **`site.supportPhone` is one constant.** It appears on five screens and one
   of them is that fallback — the screen somebody reaches when nothing else in
   the product is working for them.

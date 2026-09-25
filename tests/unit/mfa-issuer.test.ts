@@ -13,6 +13,9 @@ import { describe, expect, it, vi } from "vitest";
  * The failure itself lives inside Supabase and cannot be raised from here, so
  * this pins the contract rather than the outcome: whatever else changes about
  * enrolment, the call goes out with an issuer on it.
+ *
+ * The LABEL is the other half and it is the half that was actually empty —
+ * `tests/unit/mfa-label.test.ts` covers it.
  */
 
 const enroll = vi.fn();
@@ -20,6 +23,13 @@ const enroll = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({
     auth: {
+      // Already labelled, so enrolment leaves the address alone and this test
+      // stays about the issuer. See tests/unit/mfa-label.test.ts for the
+      // other half.
+      getUser: async () => ({
+        data: { user: { id: "u1", email: "u1@phone.invalid", phone: "977" } },
+        error: null,
+      }),
       mfa: {
         listFactors: async () => ({ data: { totp: [] }, error: null }),
         enroll,

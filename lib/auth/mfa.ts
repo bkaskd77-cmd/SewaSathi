@@ -2,6 +2,7 @@ import "server-only";
 
 import { describeEnrollError } from "@/lib/auth/mfa-error";
 import { site } from "@/lib/config/site";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -109,6 +110,71 @@ export type EnrollResult =
     };
 
 /**
+ * RFC 2606 reserves `.invalid`, so nothing can ever be delivered to it.
+ *
+ * That is the whole reason this domain and not a real one. The address is a
+ * LABEL INSIDE A QR CODE, never a way in: no password exists on any account
+ * here, and a magic link sent to `.invalid` could not arrive even if somebody
+ * switched the Email provider on. Phone + OTP remains the only authentication
+ * path this product has, in fact and not only in intent.
+ */
+const LABEL_DOMAIN = "phone.invalid";
+
+/**
+ * The address GoTrue needs to put in the authenticator's label, or null.
+ *
+ * PHONE-ONLY MEANS FIELDS OTHER PRODUCTS RELY ON ARE EMPTY HERE, FOREVER, and
+ * this is what that cost. Enrolment answered `500 Error generating QR Code`
+ * for every account in the product, through four deploys. GoTrue builds
+ * `otpauth://totp/{issuer}:{label}` behind that image and takes the label from
+ * `auth.users.email` — null on every row, because phone + OTP is the only way
+ * in. Passing `issuer` was half the fix and changed nothing on its own.
+ *
+ * The lesson is larger than the bug: before using any provider feature that
+ * takes an identity for granted, ask which column it reads.
+ *
+ * Pure, so the rule is testable without a provider. Null means "already has
+ * one, leave it alone" — this must never overwrite a real address.
+ */
+export function authenticatorLabel(user: {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+}): string | null {
+  if (user.email && user.email.trim().length > 0) return null;
+  // The phone is the thing a person recognises in their authenticator app.
+  // Digits only: a `+` or a space in the local part is not a valid address and
+  // GoTrue would reject the write, putting us back at the 500 we came from.
+  const digits = (user.phone ?? "").replace(/\D/g, "");
+  return `${digits || user.id}@${LABEL_DOMAIN}`;
+}
+
+/**
+ * Give this account a label if it has none. Returns why not, never throws.
+ *
+ * The write is service-role on purpose: `auth.updateUser({ email })` starts an
+ * email-CHANGE flow, which sends a confirmation to an address that by
+ * construction cannot receive one and leaves the column unset. This sets it.
+ */
+async function ensureAuthenticatorLabel(): Promise<string | null> {
+  try {
+    const { data, error } = await createClient().auth.getUser();
+    if (error || !data?.user) return describeEnrollError(error);
+
+    const label = authenticatorLabel(data.user);
+    if (!label) return null;
+
+    const { error: writeError } = await createAdminClient().auth.admin.updateUserById(
+      data.user.id,
+      { email: label },
+    );
+    return writeError ? describeEnrollError(writeError) : null;
+  } catch (thrown) {
+    return describeEnrollError(thrown);
+  }
+}
+
+/**
  * Begin enrolment: a factor, a QR code and the secret behind it.
  *
  * THE SECRET IS SHOWN AS TEXT BESIDE THE QR CODE ON PURPOSE. A reviewer on a
@@ -135,6 +201,15 @@ export type EnrollResult =
  * re-enrolling.
  */
 export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
+  /*
+   * Before the QR is asked for, not after: the label has to be on the row when
+   * GoTrue builds the URI. A failure here is carried rather than thrown —
+   * enrolment still goes ahead, because the label may be the only thing wrong
+   * and the provider's own sentence about what actually happened is a better
+   * answer than one we guessed at.
+   */
+  const labelProblem = await ensureAuthenticatorLabel();
+
   try {
     const supabase = createClient();
 
@@ -155,7 +230,7 @@ export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
       return {
         ok: false,
         reason: "enrollFailed",
-        detail: describeEnrollError(error),
+        detail: withLabelProblem(describeEnrollError(error), labelProblem),
       };
     }
 
@@ -171,9 +246,22 @@ export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
     return {
       ok: false,
       reason: "enrollFailed",
-      detail: describeEnrollError(thrown),
+      detail: withLabelProblem(describeEnrollError(thrown), labelProblem),
     };
   }
+}
+
+/**
+ * Both sentences, when there are two.
+ *
+ * SWALLOWS COME IN PAIRS — this flow had two, and it took three commits to get
+ * the provider's words onto a screen because the second was missed while the
+ * comment about the first was being written. If the label could not be
+ * written, that is very likely WHY the QR failed, and dropping it would leave
+ * whoever is debugging staring at the same opaque 500 as before.
+ */
+function withLabelProblem(detail: string, labelProblem: string | null): string {
+  return labelProblem ? `${detail} (label: ${labelProblem})` : detail;
 }
 
 export type VerifyResult = { ok: true } | { ok: false; reason: string };
