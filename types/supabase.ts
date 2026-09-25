@@ -224,6 +224,15 @@ export type Database = {
           commission_bps: number | null;
           final_amount_reason: string | null;
           final_amount_approved_at: string | null;
+          /**
+           * What the parts cost, as the professional stated it.
+           *
+           * NULL IS "NOBODY SAID", NEVER ZERO — rule 6. A job with no parts
+           * records 0; every booking from before the column, and every one
+           * where the box was left blank, is null. Only a stated figure can
+           * come off a guarantee refund ceiling.
+           */
+          materials_rupees: number | null;
           /** Phase 10: protect the trip, not the booking. */
           confirmation_required: boolean;
           confirmed_at: string | null;
@@ -347,6 +356,7 @@ export type Database = {
           commission_bps?: number | null;
           final_amount_reason?: string | null;
           final_amount_approved_at?: string | null;
+          materials_rupees?: number | null;
           confirmation_required?: boolean;
           confirmed_at?: string | null;
           confirmation_hold_until?: string | null;
@@ -1174,6 +1184,14 @@ export type Database = {
           attending_provider_id: string | null;
           verdict: ClaimVerdictName | null;
           verdict_note: string | null;
+          /**
+           * Did the parts themselves fail, rather than the workmanship?
+           *
+           * Recorded by the attending professional. Null is "not asked or not
+           * answered" and is NOT false: only an explicit false lets the parts
+           * cost come off the refund ceiling.
+           */
+          parts_failed: boolean | null;
           payer: "provider" | "customer" | null;
           refund_rupees: number;
           /** A refund requires a person. No verdict fills this in. */
@@ -1198,6 +1216,7 @@ export type Database = {
           attending_provider_id?: string | null;
           verdict?: ClaimVerdictName | null;
           verdict_note?: string | null;
+          parts_failed?: boolean | null;
           payer?: "provider" | "customer" | null;
           refund_rupees?: number;
           refund_decided_by?: string | null;

@@ -27,7 +27,7 @@ const settled = {
 
 describe("what a booking can ever pay back", () => {
   it("is the recorded amount when both figures agree", () => {
-    expect(refundCeiling(settled)).toEqual({ ok: true, ceiling: 3000 });
+    expect(refundCeiling(settled)).toMatchObject({ ok: true, ceiling: 3000 });
   });
 
   /*
@@ -51,10 +51,10 @@ describe("what a booking can ever pay back", () => {
   it("is the settled figure even when the customer typed a different one", () => {
     expect(
       refundCeiling({ ...settled, customerReportedAmount: 1800 }),
-    ).toEqual({ ok: true, ceiling: 3000 });
+    ).toMatchObject({ ok: true, ceiling: 3000 });
     expect(
       refundCeiling({ ...settled, finalAmount: 1800, customerReportedAmount: 3000 }),
-    ).toEqual({ ok: true, ceiling: 1800 });
+    ).toMatchObject({ ok: true, ceiling: 1800 });
   });
 
   it("refuses entirely while the two figures are in dispute", () => {

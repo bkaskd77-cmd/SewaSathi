@@ -207,13 +207,58 @@ export default async function GuaranteeClaimsPage() {
                     refuses a rupee over it whatever this screen sends, and a
                     reviewer should meet that as a rule here rather than as a
                     failed save. */}
-                <li>
-                  {claim.ceiling === null
-                    ? t(`blocked.${claim.blocked ?? "no-amount"}`)
-                    : t("ceiling", {
+                {claim.ceiling === null ? (
+                  <li>{t(`blocked.${claim.blocked ?? "no-amount"}`)}</li>
+                ) : (
+                  <>
+                    {/*
+                        THE SUBTRACTION, NOT ONLY ITS ANSWER.
+
+                        "Rs 4,000" on a Rs 6,000 job is a number with no story,
+                        and the story is the entire reason it is not 6,000. So
+                        the settled figure and the parts line are printed above
+                        the ceiling whenever a parts figure exists, and the
+                        ceiling is the last line because it is the one the
+                        amount box is judged against.
+                     */}
+                    {claim.materials && claim.settled !== null ? (
+                      <>
+                        <li>
+                          {t("settled", {
+                            amount: formatNpr(claim.settled, { locale }),
+                          })}
+                        </li>
+                        <li>
+                          {t(`materials.${claim.materials.why}`, {
+                            amount: formatNpr(claim.materials.entered, {
+                              locale,
+                            }),
+                          })}
+                        </li>
+                        {/*
+                            THE CAP, SAID OUT LOUD WHEN IT BITES. Quietly
+                            showing the clamped figure would hide the one
+                            signal that says a parts line may be inflated —
+                            which is the thing this reviewer is here to weigh.
+                         */}
+                        {claim.materials.capped ? (
+                          <li className="text-warning-ink">
+                            {t("materialsCapped", {
+                              amount: formatNpr(claim.materials.deducted, {
+                                locale,
+                              }),
+                            })}
+                          </li>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <li>
+                      {t("ceiling", {
                         amount: formatNpr(claim.ceiling, { locale }),
                       })}
-                </li>
+                    </li>
+                  </>
+                )}
                 {claim.daysLeft !== null ? (
                   <li className={claim.daysLeft < 0 ? "text-warning-ink" : undefined}>
                     {claim.daysLeft < 0

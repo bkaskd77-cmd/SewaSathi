@@ -163,6 +163,15 @@ export async function recordVerdictAction(
   claimId: string,
   verdict: string,
   note: string,
+  /**
+   * Whether the parts themselves failed.
+   *
+   * Null when the job had no parts figure and the screen never asked. It is
+   * not defaulted to false anywhere on the way down: only an explicit false
+   * lets a refund ceiling lose the parts, and a question nobody was asked is
+   * not an answer of no.
+   */
+  partsFailed: boolean | null = null,
 ): Promise<ProviderSettingResult> {
   const me = await requireProvider();
   if (!me) return { ok: false, error: "notSignedIn" };
@@ -176,6 +185,7 @@ export async function recordVerdictAction(
     providerId: me,
     verdict: verdict as ClaimVerdict,
     note,
+    partsFailed,
   });
   if (!result.ok) return { ok: false, error: result.reason };
 

@@ -708,6 +708,28 @@ follows from that.
   job. A customer claim-rate signal is Phase 11 and triggers **review, not
   punishment** — never a ban and never a ranking, for the same reason
   `category_pricing_signals` is never grouped by person.
+- **The guarantee is on the workmanship, so the parts come off the refund
+  ceiling — but only on a recorded answer, and never by more than half.**
+  `bookings.materials_rupees` is stated by the professional at settlement;
+  `guarantee_claims.parts_failed` is recorded by the **attending** professional
+  with the verdict, because a compressor that died and one fitted badly are
+  different claims and only somebody in the room can tell them apart. Both are
+  null by default and **null is "nobody said", never zero** — an unanswered
+  parts question deducts nothing, because the answer reduces what a customer
+  can be paid and a column nobody filled in must not act like one somebody did.
+  `materialsRead` in `lib/payments/refund.ts` is the rule and
+  `enforce_claim_refund` is the same rule in SQL; one fixture in
+  `tests/db/guarantee-claims.test.ts` runs both and compares them, which is
+  what was missing when those two last diverged.
+  **The half cap is an anti-inflation gate and it was needed the moment
+  materials touched the ceiling, not when the commission question is settled.**
+  Nothing evidences that figure — there are no receipts here — and it now
+  reduces what somebody can be asked to pay back, so it is worth inflating.
+  What weakens that is only that the line is entered before any claim exists;
+  that is a mitigation, not a control, and it disappears the day materials
+  affect anything seen more often than a guarantee claim. The cap is never
+  silent: the adjudicator sees what was entered beside what came off, because
+  hiding the clamped figure would hide the one signal worth weighing.
 - **A receipt goes to both sides on every settlement**, carrying the recorded
   amount. Somebody who paid 2,000 and receives a receipt for 1,000 notices —
   afterwards, when the professional has left and saying so costs nothing. It is
@@ -921,6 +943,19 @@ to empty on all six and revokes `execute` from `public` on the trigger
 functions. Firing a trigger does not re-check `execute` against the caller —
 Postgres checks that when the trigger is created — and
 `tests/db/booking-rls.test.ts` asserts both halves rather than trusting either.
+
+**`= false` and `is false` are the same thing inside a PL/pgSQL `IF`, and a
+comment claiming otherwise is worse than no comment.** `enforce_claim_refund`
+gates its parts deduction on `new.parts_failed is false`, and the migration
+first claimed that spelling is what stops an unanswered question deducting
+anything. It is not: PL/pgSQL takes a NULL condition as false, so both forms
+branch identically — proven by rewriting the SQL to `= false` and watching all
+52 db cases stay green, which is exactly the "break it on purpose" step
+catching a claim rather than a bug. `is false` is kept because it says what is
+meant and because it keeps behaving that way if the condition is ever lifted
+into a WHERE clause, where a NULL from `= false` propagates instead of
+collapsing. The guarantee that an unanswered question costs nothing is asserted
+as **behaviour**, never as a text match.
 
 **Revoking a function grant on Supabase means three roles, not one.** Supabase
 grants `execute` directly to `anon` and `authenticated` through a default

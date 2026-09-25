@@ -50,12 +50,12 @@ subject and decides.
 | `recordSurveyQuoteAction` | the assigned professional | the surveyed range on one survey-priced booking of theirs | `getMyProvider` from session; RLS read proves the job is theirs; `enforce_survey_quote` refuses a rewrite after the customer has answered and refuses `in_progress` without an approval |
 | `declineJobAction` | the assigned professional | releasing that one booking | RLS read proves ownership, then a server write (an UPDATE may not make a row invisible to its writer) |
 | `claimJobAction` | any professional who covers it | one open, unassigned booking | the claim policy's `using` clause settles the race; refusals excluded |
-| `recordAmountAction` | the assigned professional | the final amount on their job | `recordFinalAmount` re-reads; band clamp; ceiling; `security_events` |
+| `recordAmountAction` | the assigned professional | the final amount and the parts figure on their job | `recordFinalAmount` re-reads; band clamp; ceiling; materials bounded to `0..amount` here and by `bookings_materials_within_amount`; both in `security_events`, because the parts line later reduces a refund they may be asked to fund |
 | `appealCommissionAction` | the professional who did the job | one appeal on that booking | `openCommissionAppeal` re-reads and refuses an appeal against a floor never applied |
 | `setAvailabilityAction` | any professional with a listing | the `available_until` stamp on their own listing | listing resolved from the session; the expiry is computed server-side by `availableUntil`, never passed in |
 | `setRateAction` | any professional with a listing | `base_rate` and `base_rate_requested` on their own listing | listing resolved from the session; `clampRate` against the published band for their trades |
 | `acceptClaimAction` / `releaseClaimAction` | the professional a claim names | taking or giving back one return visit | provider id from the session; `acceptClaim` re-reads the claim; the claim transition trigger |
-| `recordVerdictAction` | the professional who attended | the verdict on one claim | verdict validated against `CLAIM_VERDICTS` here and by the column check; `resolved` is reachable only from `attended` |
+| `recordVerdictAction` | the professional who attended | the verdict and the parts answer on one claim | verdict validated against `CLAIM_VERDICTS` here and by the column check; `resolved` is reachable only from `attended`; `parts_failed` is theirs alone to state — the adjudicator was not in the room — and is written on both the attend and resolve moves so an already-attended claim cannot lose it |
 
 **Customer side, added this phase.** `openClaimAction` and
 `withdrawClaimAction` take a booking or claim id and nothing else; the actor is

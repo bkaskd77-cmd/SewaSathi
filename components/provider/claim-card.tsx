@@ -33,6 +33,14 @@ export type ProviderClaim = {
   /** True when they are the one who went, or is going, to look. */
   attending: boolean;
   verdict: string | null;
+  /**
+   * Did the original job have a parts figure on it?
+   *
+   * The parts question is asked only when there were parts. On a pure-labour
+   * job it has no true answer, and a required box with no true answer teaches
+   * people to tick whichever one submits the form.
+   */
+  hadMaterials: boolean;
 };
 
 const VERDICTS = [
@@ -48,6 +56,9 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
   const [failed, setFailed] = React.useState(false);
   const [verdict, setVerdict] = React.useState<string>("");
   const [note, setNote] = React.useState("");
+  // Three states, not two, and the third is the one that matters: unanswered.
+  // It travels as null and deducts nothing from the refund ceiling.
+  const [partsFailed, setPartsFailed] = React.useState<boolean | null>(null);
 
   async function run(work: () => Promise<{ ok: boolean }>) {
     if (busy) return;
@@ -123,6 +134,47 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
             ))}
           </fieldset>
 
+          {/*
+              THE PARTS, ONLY WHERE THERE WERE PARTS.
+
+              Their answer decides whether the parts cost comes off a refund
+              this professional may later be asked to fund, so it is asked of
+              the person who saw the failure rather than of the adjudicator
+              reading about it weeks later.
+
+              NO DEFAULT SELECTION. Leaving it unanswered is allowed and costs
+              the customer nothing — an unanswered question deducts nothing.
+              Pre-selecting "the parts were fine" would put a deduction behind
+              a box nobody consciously ticked.
+           */}
+          {claim.hadMaterials ? (
+            <fieldset className="animate-pop-in space-y-2">
+              <legend className="text-caption font-medium text-foreground">
+                {t("parts.question")}
+              </legend>
+              {(
+                [
+                  ["failed", true],
+                  ["sound", false],
+                ] as const
+              ).map(([key, value]) => (
+                <label
+                  key={key}
+                  className="flex items-start gap-2 text-caption text-muted-foreground"
+                >
+                  <input
+                    type="radio"
+                    name={`parts-${claim.id}`}
+                    checked={partsFailed === value}
+                    onChange={() => setPartsFailed(value)}
+                    className="mt-1"
+                  />
+                  <span>{t(`parts.${key}`)}</span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
+
           <div className="space-y-1">
             <Label htmlFor={`note-${claim.id}`}>{t("noteLabel")}</Label>
             <Input
@@ -143,7 +195,12 @@ export function ClaimCard({ claim }: { claim: ProviderClaim }) {
                   const { recordVerdictAction } = await import(
                     "@/app/[locale]/(work)/provider/actions"
                   );
-                  return recordVerdictAction(claim.id, verdict, note);
+                  return recordVerdictAction(
+                    claim.id,
+                    verdict,
+                    note,
+                    claim.hadMaterials ? partsFailed : null,
+                  );
                 })
               }
             >

@@ -38,6 +38,9 @@ export const REVIEW_SCOPE = [
   { tier: "safety", prefix: "triage", why: "The first thing a stranger reads, and the path a hazard is described down." },
   { tier: "legal", prefix: "legal", why: "Labels around the terms a customer agrees to at sign-in. The prose itself is a document, not a key — see PROSE_DOCUMENTS." },
   { tier: "staff", prefix: "admin.mismatches", why: "A reviewer settling a disputed cash amount." },
+  { tier: "staff", prefix: "admin.guaranteeClaims", why: "A reviewer deciding how much of a customer's money goes back, against a ceiling and a parts deduction they have to read correctly to weigh. Same room as admin.mismatches and a larger consequence: this one moves money out." },
+  { tier: "money", prefix: "provider.jobs.materials", why: "A figure the professional types at settlement that later reduces what they can be asked to refund. Wrong wording here reads as 'what did the job cost', which is a different number." },
+  { tier: "money", prefix: "provider.dashboard.claims.parts", why: "Their answer decides whether the parts cost comes off a refund they may fund. A mistranslated option is somebody answering the opposite of what they meant about their own money." },
 ];
 
 /**

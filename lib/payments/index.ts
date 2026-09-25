@@ -60,6 +60,24 @@ export type {
 export { readCallback, type CallbackRead } from "./callback";
 
 /*
+ * The refund rule's shapes, on the public entry where callers may reach them.
+ *
+ * TYPES ONLY, DELIBERATELY. The functions stay behind the dynamic
+ * `await import("@/lib/payments/refund")` that `lib/data/claims.ts` already
+ * uses — this module's registry reaches `node:crypto` through eSewa, and
+ * pulling it into a static import chain is what the module boundary exists to
+ * stop. A type erases at compile time and costs the bundle nothing, but it
+ * still has to come through the front door: the linter caught the first
+ * attempt reaching into `./refund` directly, which is the rule working.
+ */
+export type {
+  MaterialsRead,
+  RefundCeiling,
+  RefundSubject,
+  RefundVerdict,
+} from "./refund";
+
+/*
  * Everything a Client Component may also have. Re-exported rather than moved,
  * so server code has one import for the whole module and nobody has to
  * remember which half a symbol lives in.

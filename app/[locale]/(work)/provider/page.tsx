@@ -286,6 +286,7 @@ export default async function ProviderDashboardPage() {
                     attending:
                       claim.attendingProviderId === dashboard.providerId,
                     verdict: claim.verdict,
+                    hadMaterials: claim.hadMaterials,
                   }}
                 />
               ))}

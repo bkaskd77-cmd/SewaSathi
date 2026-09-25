@@ -44,11 +44,129 @@ export type RefundSubject = {
   amountMismatchResolvedAt?: string | null;
   /** `paid` or otherwise. There is nothing to refund from an unpaid job. */
   paymentStatus: string;
+  /**
+   * What the professional said the parts cost, entered beside the final
+   * amount. **Null is "nobody said", never zero** — rule 6. Every booking
+   * taken before this column existed is null, and so is every job where the
+   * professional left the field blank.
+   */
+  materialsRupees?: number | null;
+  /**
+   * Did the parts themselves fail?
+   *
+   * Recorded by the attending professional with the verdict, because they are
+   * the one who saw it — a compressor that died is not the same claim as a
+   * compressor fitted badly, and only somebody standing in the room can tell
+   * them apart. **Null is "not asked or not answered"** and is not the same as
+   * `false`; see `materialsRead` for why the two behave differently.
+   */
+  partsFailed?: boolean | null;
+};
+
+/**
+ * The most of a settled job a materials line may ever take off a refund.
+ *
+ * WHY THERE IS A CAP AT ALL. Nothing evidences this figure. It is typed by the
+ * professional at settlement, there are no receipts in this product, and it
+ * now reduces what they can be asked to pay back — so it is a number worth
+ * inflating, by exactly the arithmetic that makes under-reporting worth doing
+ * on the settlement side. Uncapped, "materials Rs 5,999 on a Rs 6,000 job"
+ * reduces a full refund to one rupee and every guard in this file waves it
+ * through, because each of them is about the total.
+ *
+ * WHAT WEAKENS THAT INCENTIVE, AND WHAT DOES NOT. The line is entered at
+ * settlement, before any claim exists and usually before one ever will, so the
+ * pressure is a diffuse "always type something" rather than a targeted answer
+ * to a claim somebody has just made. That is a real mitigation and it is not a
+ * control: it disappears the moment materials affect anything a professional
+ * sees more often than a guarantee claim — which is precisely what the
+ * deferred labour-only commission question would do.
+ *
+ * WHY HALF. A job where the parts are more than half the money is a parts sale
+ * with some fitting, not a service we guaranteed the workmanship of, and the
+ * honest version of that case belongs in a conversation rather than in a
+ * silent deduction. Half bounds the manipulation at halving the exposure
+ * instead of erasing it, and leaves the genuinely material-heavy trades — a
+ * compressor, a tank, a room's worth of paint — under the cap in the ordinary
+ * case.
+ *
+ * IT IS NEVER A SILENT CLAMP. `materialsRead` reports what was entered as well
+ * as what came off, so the adjudicator sees the whole line and the cap biting;
+ * a screen that quietly showed the capped figure would hide the one signal
+ * that says somebody may be inflating it.
+ */
+export const MATERIALS_CEILING_SHARE_BPS = 5000;
+
+/**
+ * What a materials line does to this booking's ceiling, and why.
+ *
+ * `why` is one discriminator rather than two booleans because the three cases
+ * are genuinely different sentences on the screen, and a reviewer reading
+ * "nothing was deducted" needs to know which of them it was.
+ */
+export type MaterialsRead = {
+  /** The figure on the booking, exactly as it was entered. */
+  entered: number;
+  /** What actually comes off the ceiling. Zero in two of the three cases. */
+  deducted: number;
+  /** The share cap bit: `deducted` is less than `entered`. */
+  capped: boolean;
+  why:
+    /** The parts were sound, so their cost is not labour and comes off. */
+    | "deducted"
+    /** The parts themselves failed. Refunding them is the point of the claim. */
+    | "partsFailed"
+    /** Nobody recorded whether the parts failed, so nothing is assumed. */
+    | "notRecorded";
 };
 
 export type RefundCeiling =
-  | { ok: true; ceiling: number }
+  | {
+      ok: true;
+      /** What may actually be paid back: the settled figure less materials. */
+      ceiling: number;
+      /** The settled figure itself, before any materials came off. */
+      settled: number;
+      /** Null when no materials figure was ever entered on this booking. */
+      materials: MaterialsRead | null;
+    }
   | { ok: false; reason: "not-settled" | "amount-disputed" | "no-amount" };
+
+/**
+ * What the parts cost does to the ceiling.
+ *
+ * THE GUARANTEE IS ON THE WORKMANSHIP, so refunding a professional's material
+ * cost as though it were their labour charges them for a tap they bought and
+ * fitted correctly. The parts are the customer's; they are still in the wall.
+ *
+ * UNRECORDED IS NOT "NO". The deduction requires a positive statement that the
+ * parts were sound — `partsFailed === false` — and never happens on `null`.
+ * That is rule 6 pointing the only way it can point here: the question is
+ * asked of the attending professional, the answer reduces what a customer can
+ * be paid, and a column nobody filled in must not act like an answer somebody
+ * gave. Every claim from before this question existed reads `null`, and each
+ * of them keeps the whole settled figure as its ceiling rather than silently
+ * losing the parts.
+ */
+export function materialsRead(
+  settled: number,
+  materialsRupees: number | null | undefined,
+  partsFailed: boolean | null | undefined,
+): MaterialsRead | null {
+  if (materialsRupees == null || !Number.isFinite(materialsRupees)) return null;
+  const entered = Math.max(0, Math.round(materialsRupees));
+
+  if (partsFailed == null) {
+    return { entered, deducted: 0, capped: false, why: "notRecorded" };
+  }
+  if (partsFailed) {
+    return { entered, deducted: 0, capped: false, why: "partsFailed" };
+  }
+
+  const cap = Math.floor((settled * MATERIALS_CEILING_SHARE_BPS) / 10000);
+  const deducted = Math.min(entered, cap);
+  return { entered, deducted, capped: deducted < entered, why: "deducted" };
+}
 
 /**
  * The most this booking can ever pay back: the SETTLED figure, one number.
@@ -75,6 +193,14 @@ export type RefundCeiling =
  * never becomes false, so reading it alone refuses every future claim on a job
  * somebody settled weeks ago — the same permanence the resolution exists to
  * end, moved one file along. Both columns, or neither.
+ *
+ * AND THEN THE PARTS COME OFF IT, when somebody has said they were sound. The
+ * guarantee is on the workmanship; see `materialsRead`, which is where all the
+ * reasoning about that deduction and its cap lives. `enforce_claim_refund`
+ * computes the same subtraction in SQL, in the same order and with the same
+ * integer truncation, and `tests/db/guarantee-claims.test.ts` asserts the two
+ * agree on one fixture — because a money rule implemented twice is the fault
+ * this function was last rebuilt for.
  */
 export function refundCeiling(subject: RefundSubject): RefundCeiling {
   const disputeOpen =
@@ -84,11 +210,23 @@ export function refundCeiling(subject: RefundSubject): RefundCeiling {
   if (subject.paymentStatus !== "paid") return { ok: false, reason: "not-settled" };
   if (subject.finalAmount == null) return { ok: false, reason: "no-amount" };
 
-  const ceiling = subject.finalAmount;
-  if (!Number.isFinite(ceiling) || ceiling <= 0) {
+  const settled = subject.finalAmount;
+  if (!Number.isFinite(settled) || settled <= 0) {
     return { ok: false, reason: "no-amount" };
   }
-  return { ok: true, ceiling };
+
+  const materials = materialsRead(
+    settled,
+    subject.materialsRupees,
+    subject.partsFailed,
+  );
+
+  return {
+    ok: true,
+    ceiling: settled - (materials?.deducted ?? 0),
+    settled,
+    materials,
+  };
 }
 
 export type RefundVerdict =

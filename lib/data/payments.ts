@@ -175,6 +175,15 @@ export async function recordFinalAmount(input: {
   amount: number;
   reason: string | null;
   actorId: string;
+  /**
+   * What the parts cost, if they said.
+   *
+   * OPTIONAL, AND NULL IS NOT ZERO — rule 6. A blank box means nobody stated a
+   * figure; a typed 0 means "no parts on this job". The two are different
+   * facts and only one of them lets a guarantee refund lose the parts, so they
+   * must stay tellable apart all the way down to the column.
+   */
+  materials?: number | null;
 }): Promise<{ ok: true; verdict: string } | { ok: false; reason: string }> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
 
@@ -216,12 +225,36 @@ export async function recordFinalAmount(input: {
     return { ok: false, reason: "reasonRequired" };
   }
 
+  /*
+   * THE PARTS LINE, BOUNDED BEFORE IT IS WRITTEN.
+   *
+   * `bookings_materials_within_amount` refuses the same two cases in Postgres,
+   * so this is the second guard rather than the only one — but a constraint
+   * violation reaches the professional as "try again", and somebody standing
+   * in a customer's kitchen deserves to be told which number is wrong.
+   *
+   * A parts figure above the bill is an entry error every time: it would drive
+   * the refund ceiling below zero, and there is no honest reading where the
+   * materials cost more than the job was charged at.
+   */
+  const materials =
+    input.materials == null ? null : Math.round(input.materials);
+  if (materials !== null) {
+    if (!Number.isFinite(materials) || materials < 0) {
+      return { ok: false, reason: "invalidMaterials" };
+    }
+    if (materials > input.amount) {
+      return { ok: false, reason: "materialsOverAmount" };
+    }
+  }
+
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("bookings")
     .update({
       final_amount: input.amount,
       final_amount_reason: input.reason?.trim().slice(0, 300) || null,
+      materials_rupees: materials,
       // Within the band is already agreed; over it waits for the customer.
       final_amount_approved_at:
         verdict.outcome === "within-band" ? new Date().toISOString() : null,
@@ -255,6 +288,9 @@ export async function recordFinalAmount(input: {
       quotedMin: booking.quoted_min,
       quotedMax: booking.quoted_max,
       reasonGiven: Boolean(input.reason?.trim()),
+      // Logged because it reduces a guarantee refund ceiling, which makes it a
+      // figure somebody may later be asked about.
+      materials,
     },
   });
 

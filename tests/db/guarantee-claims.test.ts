@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { refundCeiling } from "@/lib/payments/refund";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -383,6 +384,141 @@ describe("money back needs a person", () => {
     // The settled figure, not the 1,800 the customer originally typed.
     await expect(pay(claim, 3001)).rejects.toThrow(/more than the amount recorded/i);
     await pay(claim, 3000);
+  });
+
+  /* ---------------------------------------------------------------- *
+   * The parts are not the labour
+   * ---------------------------------------------------------------- */
+
+  /**
+   * THE SAME FIXTURE, JUDGED BY BOTH HALVES OF THE RULE.
+   *
+   * `enforce_claim_refund` and `refundCeiling` are two implementations of one
+   * money rule, and the last time that was true they diverged — silently, for
+   * weeks, with both halves green, because nothing ever put them side by side.
+   * So every case below states a ceiling in SQL and asserts `refundCeiling`
+   * reaches the same number on the same inputs. Change one and this goes red.
+   */
+  async function agreesWithTypeScript(
+    bookingId: string,
+    claimId: string,
+    partsFailed: boolean | null,
+  ): Promise<number> {
+    if (partsFailed !== null) {
+      await pg.admin.query(
+        "update public.guarantee_claims set parts_failed = $2 where id = $1",
+        [claimId, partsFailed],
+      );
+    }
+    const { rows } = await pg.admin.query(
+      `select payment_status, final_amount, customer_reported_amount,
+              amount_mismatch_at, amount_mismatch_resolved_at, materials_rupees
+         from public.bookings where id = $1`,
+      [bookingId],
+    );
+    const b = rows[0];
+    const verdict = refundCeiling({
+      finalAmount: Number(b.final_amount),
+      customerReportedAmount:
+        b.customer_reported_amount == null
+          ? null
+          : Number(b.customer_reported_amount),
+      amountMismatchAt: b.amount_mismatch_at ?? null,
+      amountMismatchResolvedAt: b.amount_mismatch_resolved_at ?? null,
+      paymentStatus: b.payment_status as string,
+      materialsRupees:
+        b.materials_rupees == null ? null : Number(b.materials_rupees),
+      partsFailed,
+    });
+    if (!verdict.ok) throw new Error(`refundCeiling refused: ${verdict.reason}`);
+    return verdict.ceiling;
+  }
+
+  it("takes the parts off when the attending professional says they were sound", async () => {
+    const booking = await settledBooking("SK-MAT01", 6000, {
+      materials_rupees: 2000,
+    });
+    const claim = await openClaim(booking);
+    const ceiling = await agreesWithTypeScript(booking, claim, false);
+
+    expect(ceiling).toBe(4000);
+    // A rupee over what TypeScript showed the adjudicator is refused here too.
+    await expect(pay(claim, ceiling + 1)).rejects.toThrow(
+      /more than the amount recorded/i,
+    );
+    await pay(claim, ceiling);
+  });
+
+  it("leaves the whole figure when the parts themselves failed", async () => {
+    // Deducting them would refuse to pay back the one thing that went wrong.
+    const booking = await settledBooking("SK-MAT02", 6000, {
+      materials_rupees: 2000,
+    });
+    const claim = await openClaim(booking);
+    const ceiling = await agreesWithTypeScript(booking, claim, true);
+
+    expect(ceiling).toBe(6000);
+    await expect(pay(claim, 6001)).rejects.toThrow(
+      /more than the amount recorded/i,
+    );
+    await pay(claim, 6000);
+  });
+
+  /**
+   * RULE 6, IN THE DATABASE. `is false` is a positive test, so a claim from
+   * before the question existed — `parts_failed` null — keeps the whole
+   * settled figure. An unanswered question must not quietly cost a customer
+   * the price of the parts, and `= false` would have done exactly that.
+   */
+  it("deducts nothing when nobody recorded whether the parts failed", async () => {
+    const booking = await settledBooking("SK-MAT03", 6000, {
+      materials_rupees: 2000,
+    });
+    const claim = await openClaim(booking);
+    const ceiling = await agreesWithTypeScript(booking, claim, null);
+
+    expect(ceiling).toBe(6000);
+    await pay(claim, 6000);
+  });
+
+  /**
+   * THE ANTI-INFLATION GATE, AND THE ROUNDING THAT HAS TO MATCH.
+   *
+   * `(final_amount * 5000) / 10000` truncates on integers; `Math.floor` does
+   * the same in TypeScript. An odd settled figure is the case where a
+   * disagreement would show up as exactly one rupee, which is small enough to
+   * survive a long time unnoticed — so the fixture is deliberately odd.
+   */
+  it("never lets a parts line take more than half, rounding the same way", async () => {
+    const booking = await settledBooking("SK-MAT04", 4001, {
+      materials_rupees: 4000,
+    });
+    const claim = await openClaim(booking);
+    const ceiling = await agreesWithTypeScript(booking, claim, false);
+
+    expect(ceiling).toBe(2001);
+    await expect(pay(claim, 2002)).rejects.toThrow(
+      /more than the amount recorded/i,
+    );
+    await pay(claim, 2001);
+  });
+
+  /**
+   * A parts line above the bill is an entry error every time — it would drive
+   * the ceiling below zero. `recordFinalAmount` says which figure is wrong;
+   * this is the floor under it.
+   */
+  it("refuses a parts figure larger than the job", async () => {
+    const id = await completedBooking("SK-MAT05");
+    await expect(
+      pg.admin.query(
+        `update public.bookings
+            set payment_status = 'paid', final_amount = 3000,
+                materials_rupees = 3001, completed_at = now()
+          where id = $1`,
+        [id],
+      ),
+    ).rejects.toThrow(/bookings_materials_within_amount/i);
   });
 
   it("never pays out of a job nobody settled", async () => {

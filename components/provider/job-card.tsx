@@ -48,6 +48,8 @@ const KNOWN_JOB_ERRORS = [
   "aboveCeiling",
   "illegalTransition",
   "invalidAmount",
+  "invalidMaterials",
+  "materialsOverAmount",
   "network",
   "notAProvider",
   "notStarted",
@@ -190,6 +192,10 @@ export function JobCard(props: JobCardProps) {
   const [declineReason, setDeclineReason] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [amountReason, setAmountReason] = React.useState("");
+  // Deliberately a string, and deliberately not defaulted to "0". An empty
+  // field must reach the server as null: "nobody said" and "no parts" are
+  // different facts and only the second lets a refund ceiling lose the parts.
+  const [materials, setMaterials] = React.useState("");
   const [quoteMin, setQuoteMin] = React.useState("");
   const [quoteMax, setQuoteMax] = React.useState("");
   const [appealing, setAppealing] = React.useState(false);
@@ -271,7 +277,12 @@ export function JobCard(props: JobCardProps) {
       const { recordAmountAction } = await import(
         "@/app/[locale]/(work)/provider/jobs/actions"
       );
-      return recordAmountAction(props.id, Number(amount), amountReason);
+      return recordAmountAction(
+        props.id,
+        Number(amount),
+        amountReason,
+        materials.trim() === "" ? null : Number(materials),
+      );
     });
 
   return (
@@ -587,6 +598,36 @@ export function JobCard(props: JobCardProps) {
               />
             </div>
           ) : null}
+          {/*
+              THE PARTS, SEPARATELY FROM THE LABOUR.
+
+              Optional and never pre-filled. A number typed into a box that
+              already had one in it is a number nobody chose, and this figure
+              reduces what this professional can be asked to pay back on a
+              guarantee claim — so it has to be something they actually stated.
+
+              Blank is not zero. The field sends null when it is empty, which
+              is what keeps "nobody said" tellable apart from "no parts" all
+              the way down to the column.
+           */}
+          <div className="space-y-1 pt-1">
+            <Label htmlFor={`materials-${props.id}`}>
+              {t("materials.label")}
+            </Label>
+            <Input
+              id={`materials-${props.id}`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={amount ? Number(amount) : undefined}
+              value={materials}
+              onChange={(event) => setMaterials(event.target.value)}
+            />
+            <p className="text-caption text-muted-foreground">
+              {t("materials.help")}
+            </p>
+          </div>
+
           <Button
             className="btn-tactile mt-1 w-full"
             onClick={submitAmount}

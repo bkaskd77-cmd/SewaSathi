@@ -21,6 +21,11 @@ import {
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
+// Type-only, and through the module's public entry rather than into its
+// internals — `no-restricted-imports` caught the first attempt at the latter.
+// The runtime halves stay behind the dynamic imports the functions below
+// already use, because the registry reaches node:crypto through eSewa.
+import type { MaterialsRead } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,6 +77,17 @@ export type ClaimRow = {
   refundRupees: number;
   openedAt: string;
   closedAt: string | null;
+  /**
+   * Did the original job carry a parts figure at all?
+   *
+   * The attending professional is only asked whether the parts failed when
+   * there were parts. Asking it on a job that was pure labour is a question
+   * with no true answer, and a screen that asks one teaches people to pick
+   * whichever box makes the form submit.
+   */
+  hadMaterials: boolean;
+  /** Their answer, once given. Null until asked and answered. */
+  partsFailed: boolean | null;
 };
 
 export type ClaimWriteResult =
@@ -82,7 +98,11 @@ function toStatus(value: unknown): ClaimStatus {
   return typeof value === "string" && isClaimStatus(value) ? value : "open";
 }
 
-function toRow(raw: Record<string, unknown>, reference = ""): ClaimRow {
+function toRow(
+  raw: Record<string, unknown>,
+  reference = "",
+  hadMaterials = false,
+): ClaimRow {
   return {
     id: raw.id as string,
     bookingId: raw.booking_id as string,
@@ -99,6 +119,8 @@ function toRow(raw: Record<string, unknown>, reference = ""): ClaimRow {
     refundRupees: Number(raw.refund_rupees ?? 0),
     openedAt: raw.opened_at as string,
     closedAt: (raw.closed_at as string | null) ?? null,
+    hadMaterials,
+    partsFailed: (raw.parts_failed as boolean | null) ?? null,
   };
 }
 
@@ -591,6 +613,20 @@ export async function recordVerdict(input: {
   providerId: string;
   verdict: ClaimVerdict;
   note?: string;
+  /**
+   * Did the parts themselves fail, rather than the workmanship?
+   *
+   * ASKED OF THIS PERSON BECAUSE THEY WERE THERE. A compressor that died and a
+   * compressor fitted badly are different claims and only somebody standing in
+   * the room can tell them apart; the adjudicator deciding the refund weeks
+   * later cannot, which is why this is not a box on their screen.
+   *
+   * `undefined` when the job carried no parts figure and the question was
+   * never put — it lands as null, and null deducts nothing. See
+   * `materialsRead` in lib/payments/refund.ts for why an unanswered question
+   * must not behave like a "no".
+   */
+  partsFailed?: boolean | null;
 }): Promise<ClaimWriteResult> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
 
@@ -620,6 +656,7 @@ export async function recordVerdict(input: {
           status: "attended",
           verdict: input.verdict,
           verdict_note: input.note?.slice(0, 1000) ?? null,
+          parts_failed: input.partsFailed ?? null,
         })
         .eq("id", input.claimId)
         .eq("status", "dispatched");
@@ -638,6 +675,12 @@ export async function recordVerdict(input: {
         status: "resolved",
         verdict: input.verdict,
         payer: outcome.payer,
+        /*
+         * WRITTEN ON BOTH MOVES, because a claim can arrive here already
+         * `attended` — the update above is skipped then, and the answer would
+         * be lost on exactly the path where somebody answered it second.
+         */
+        parts_failed: input.partsFailed ?? null,
       })
       .eq("id", input.claimId)
       .eq("status", "attended");
@@ -1014,7 +1057,7 @@ export async function claimsForProvider(
     const { data, error } = await admin
       .from("guarantee_claims")
       .select(
-        "id, booking_id, status, description, category_slug, provider_id, attending_provider_id, verdict, verdict_note, payer, refund_rupees, opened_at, closed_at",
+        "id, booking_id, status, description, category_slug, provider_id, attending_provider_id, verdict, verdict_note, payer, refund_rupees, parts_failed, opened_at, closed_at",
       )
       .or(
         `provider_id.eq.${providerId},attending_provider_id.eq.${providerId}`,
@@ -1030,19 +1073,35 @@ export async function claimsForProvider(
     const rows = (data ?? []) as Record<string, unknown>[];
     if (rows.length === 0) return [];
 
+    /*
+     * The parts figure comes along for the ride on a read that was already
+     * happening. It decides ONE thing on the screen — whether the attending
+     * professional is asked if the parts failed — and asking that on a job
+     * that was pure labour is a question with no true answer.
+     */
     const { data: bookings } = await admin
       .from("bookings")
-      .select("id, reference")
+      .select("id, reference, materials_rupees")
       .in("id", Array.from(new Set(rows.map((r) => r.booking_id as string))));
 
     const byId = new Map(
-      ((bookings ?? []) as { id: string; reference: string }[]).map((b) => [
-        b.id,
-        b.reference,
+      ((bookings ?? []) as Record<string, unknown>[]).map((b) => [
+        b.id as string,
+        b,
       ]),
     );
 
-    return rows.map((row) => toRow(row, byId.get(row.booking_id as string) ?? ""));
+    return rows.map((row) => {
+      const booking = byId.get(row.booking_id as string);
+      return toRow(
+        row,
+        (booking?.reference as string | undefined) ?? "",
+        // Zero is a figure somebody entered and still means no parts, so the
+        // question is worth asking only above it. Null never reaches here as
+        // anything but false.
+        Number(booking?.materials_rupees ?? 0) > 0,
+      );
+    });
   } catch (thrown) {
     console.error(`[claims] provider read threw — ${describeError(thrown)}`);
     return [];
@@ -1119,7 +1178,7 @@ export async function issueRefund(input: {
 
     const { data: claim } = await admin
       .from("guarantee_claims")
-      .select("id, booking_id, provider_id, status, refund_rupees")
+      .select("id, booking_id, provider_id, status, refund_rupees, parts_failed")
       .eq("id", input.claimId)
       .maybeSingle();
     if (!claim) return { ok: false, reason: "notFound" };
@@ -1127,7 +1186,7 @@ export async function issueRefund(input: {
     const { data: booking } = await admin
       .from("bookings")
       .select(
-        "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, platform_fee, provider_earning",
+        "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, materials_rupees, platform_fee, provider_earning",
       )
       .eq("id", claim.booking_id as string)
       .maybeSingle();
@@ -1144,6 +1203,18 @@ export async function issueRefund(input: {
         amountMismatchResolvedAt:
           (booking.amount_mismatch_resolved_at as string | null) ?? null,
         paymentStatus: booking.payment_status as string,
+        /*
+         * BOTH COLUMNS, OR THE RULE IS INERT HERE AND ENFORCED IN POSTGRES.
+         *
+         * `refundCeiling` deducts materials only when handed both, so a call
+         * site that forgets one silently gets the old ceiling with every unit
+         * test still green — which is exactly how the ceiling and the trigger
+         * came apart the first time. `enforce_claim_refund` reads the same two
+         * columns, so a miss here surfaces as a save that fails rather than as
+         * money leaving; that is the safe direction, and still a bug.
+         */
+        materialsRupees: (booking.materials_rupees as number | null) ?? null,
+        partsFailed: (claim.parts_failed as boolean | null) ?? null,
       },
       alreadyRefunded: Number(claim.refund_rupees ?? 0),
     });
@@ -1325,6 +1396,17 @@ export type RefundableClaim = {
   /** The most this booking could ever pay back, or why it can pay nothing. */
   ceiling: number | null;
   blocked: string | null;
+  /**
+   * What the job settled at, before any parts came off.
+   *
+   * Carried BESIDE the ceiling rather than instead of it, because a reviewer
+   * deciding a refund needs to see the subtraction and not only its answer —
+   * "Rs 4,000" alone on a Rs 6,000 job is a number with no story, and the
+   * story is the whole reason the figure is not 6,000.
+   */
+  settled: number | null;
+  /** The parts line and what it did, or null when nobody recorded one. */
+  materials: MaterialsRead | null;
   /** Days left in the trade's window. Negative is past it. */
   daysLeft: number | null;
 };
@@ -1393,7 +1475,7 @@ export async function refundQueue(): Promise<RefundQueue> {
       admin
         .from("guarantee_claims")
         .select(
-          "id, booking_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, closed_at",
+          "id, booking_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, parts_failed, closed_at",
           { count: "exact" },
         )
         .eq("status", "resolved")
@@ -1440,7 +1522,7 @@ export async function refundQueue(): Promise<RefundQueue> {
       ? await admin
           .from("bookings")
           .select(
-            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, completed_at",
+            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, materials_rupees, completed_at",
           )
           .in("id", bookingIds)
       : { data: [] as Record<string, unknown>[] };
@@ -1529,6 +1611,8 @@ export async function refundQueue(): Promise<RefundQueue> {
         amountMismatchResolvedAt:
           (booking?.amount_mismatch_resolved_at as string | null) ?? null,
         paymentStatus: (booking?.payment_status as string) ?? "unpaid",
+        materialsRupees: (booking?.materials_rupees as number | null) ?? null,
+        partsFailed: (claim.parts_failed as boolean | null) ?? null,
       });
 
       const completedAt = (booking?.completed_at as string | null) ?? null;
@@ -1553,6 +1637,8 @@ export async function refundQueue(): Promise<RefundQueue> {
         completedAt,
         ceiling: ceiling.ok ? ceiling.ceiling : null,
         blocked: ceiling.ok ? null : ceiling.reason,
+        settled: ceiling.ok ? ceiling.settled : null,
+        materials: ceiling.ok ? ceiling.materials : null,
         daysLeft,
       };
     });

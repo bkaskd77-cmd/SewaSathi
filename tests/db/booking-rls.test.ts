@@ -1602,6 +1602,15 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["quoted_max", "999999", /not editable from a browser/i],
     ["final_amount", "1234", /not editable from a browser/i],
     ["final_amount_approved_at", "now()", /not editable from a browser/i],
+    /*
+     * The parts line, because it is a refund ceiling in disguise. A customer
+     * who could write it would type 0 and recover the parts cost on a
+     * guarantee claim; a professional who could would type half the bill and
+     * halve what they can ever be asked to pay back. Neither of them is who
+     * states it — the professional enters it through the server at settlement,
+     * with `bookings_materials_within_amount` bounding it against the bill.
+     */
+    ["materials_rupees", "0", /not editable from a browser/i],
     ["platform_fee", "1", /not editable from a browser/i],
     ["provider_earning", "1", /not editable from a browser/i],
     ["commission_bps", "1", /not editable from a browser/i],

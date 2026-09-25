@@ -1285,6 +1285,10 @@
         "reasonPlaceholder": "The pipe under the sink had to be replaced",
         "submit": "Send this to the customer"
       },
+      "materials": {
+        "label": "Of that, what did parts cost?",
+        "help": "Optional. Leave it blank if you did not buy anything."
+      },
       "empty": {
         "title": "No jobs yet",
         "body": "When a customer books you, the job appears here."
@@ -1297,6 +1301,8 @@
         "aboveCeiling": "That is more than twice the price the customer was quoted. It cannot be agreed in the app — call us and we will sort it out.",
         "illegalTransition": "This job has already moved on. Refresh the page.",
         "invalidAmount": "Enter a whole amount of at least Rs 100.",
+        "invalidMaterials": "That parts figure is not a number we can use.",
+        "materialsOverAmount": "Parts cannot come to more than the whole bill. Check both figures.",
         "network": "We couldn't reach the server. Check your connection and try again.",
         "notAProvider": "This account isn't linked to a listing.",
         "notStarted": "You can only enter an amount once the work is done.",
@@ -1470,6 +1476,11 @@
         "accept": "I will go",
         "cannotGo": "I cannot go",
         "whatDidYouFind": "What did you find?",
+        "parts": {
+          "question": "Did the parts themselves fail?",
+          "failed": "Yes — the part was faulty or had gone",
+          "sound": "No — the parts were fine, it was the work"
+        },
         "noteLabel": "Anything to add",
         "notePlaceholder": "The washer had worn through",
         "record": "Record this",
@@ -1860,6 +1871,13 @@
       "decideEmpty": "Nothing to decide.",
       "sameFault": "Same fault again on a {trade} job.",
       "found": "What they found: {note}",
+      "settled": "The job settled at {amount}",
+      "materials": {
+        "deducted": "Parts {amount} — not covered, the guarantee is on the work",
+        "partsFailed": "Parts {amount} — the parts themselves failed, so they stay covered",
+        "notRecorded": "Parts {amount} — nobody recorded whether the parts failed, so nothing has come off"
+      },
+      "materialsCapped": "Only {amount} of that has come off: a parts line never takes more than half the job.",
       "ceiling": "The most that can go back is {amount}",
       "windowOpen": "{days} days left in the guarantee window",
       "windowClosed": "The guarantee window closed {days} days ago",

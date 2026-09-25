@@ -170,10 +170,43 @@ const GUARDS: Record<string, Guard[]> = {
     },
     {
       protects:
+        "The parts a professional bought and fitted correctly are not refunded as though they were labour, and an unevidenced parts line cannot erase a refund.",
+      ifMissing:
+        "Either the guarantee pays back a tap that never failed, or — with the cap gone — a professional types materials one rupee under the bill and owes nothing on any claim.",
+      clauses: [
+        // The deduction itself.
+        "b.materials_rupees is not null",
+        /*
+         * The deduction's second half: it happens only on a recorded answer.
+         *
+         * NOT PINNED BECAUSE THE SPELLING IS load-bearing — it is not. Inside
+         * an IF, `= false` branches the same way, since PL/pgSQL takes a NULL
+         * condition as false; a test written to tell the two apart passes
+         * under both, which is how that was found. What this pins is that the
+         * deduction is still gated on `parts_failed` at all. Delete the gate
+         * and every claim silently loses the parts.
+         */
+        "new.parts_failed is false",
+        // The share cap. Without it the line above is worth inflating, and
+        // nothing in this product evidences the figure.
+        "(b.final_amount * 5000) / 10000",
+      ],
+    },
+    {
+      protects:
         "The refund ceiling is the SETTLED figure — one number, not the lower of two.",
       ifMissing:
         "The cap was `least(final_amount, coalesce(customer_reported_amount, final_amount))`, which after a mismatch is adjudicated would quietly re-impose the customer's own mistyped figure as their cover, undoing what a person had just established. The typed amount is a floor on cover, never a cap: the confirmation screen says so in both languages.",
-      clauses: ["new.refund_rupees > b.final_amount"],
+      /*
+       * THE CAP MOVED, IT DID NOT GO. It was one line comparing against
+       * `b.final_amount`; the materials migration introduced a `ceiling`
+       * variable so the parts can be subtracted from it. Both halves are
+       * pinned, because either alone still reads correctly while the rule is
+       * broken: initialising `ceiling` to something other than the settled
+       * figure, or comparing against some other variable, each defeats the
+       * other's clause silently.
+       */
+      clauses: ["ceiling := b.final_amount;", "new.refund_rupees > ceiling"],
     },
     {
       protects:

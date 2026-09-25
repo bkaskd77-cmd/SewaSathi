@@ -74,6 +74,15 @@ export async function recordAmountAction(
   bookingId: string,
   amount: number,
   reason: string,
+  /**
+   * What the parts cost. `null` when the box was left blank.
+   *
+   * The screen sends null rather than 0 for an empty field, because "nobody
+   * said" and "no parts" are different facts and only the second one lets a
+   * guarantee refund lose the parts. `recordFinalAmount` and the column's own
+   * constraint both bound it against `amount`.
+   */
+  materials: number | null = null,
 ): Promise<{ ok: boolean; verdict?: string; reason?: string }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "notSignedIn" };
@@ -83,6 +92,7 @@ export async function recordAmountAction(
     amount,
     reason: reason.trim() || null,
     actorId: profile.id,
+    materials,
   });
 
   if (result.ok) {

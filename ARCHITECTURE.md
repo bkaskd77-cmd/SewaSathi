@@ -187,6 +187,24 @@ Where a change on one side cannot reach the other.
   `npm run check:transitions` now parses three pairs rather than two. A refund
   needs a person on top of that: `refund_rupees > 0` without
   `refund_decided_by` is refused for every caller, service role included.
+- **The refund ceiling is the settled figure less the parts, and it is one rule
+  written twice — so the two copies are asserted against each other.**
+  `refundCeiling` (`lib/payments/refund.ts`) and `enforce_claim_refund` compute
+  the same arithmetic in TypeScript and SQL: cap at `final_amount`, subtract
+  `materials_rupees` only when the attending professional recorded
+  `parts_failed = false`, and never let that subtraction exceed half the
+  settled figure (`MATERIALS_CEILING_SHARE_BPS`). They round the same way —
+  `Math.floor` against Postgres integer division — because an odd amount is
+  where a one-rupee disagreement would hide. `tests/db/guarantee-claims.test.ts`
+  runs both halves over one fixture and compares them, which is the thing that
+  was missing the last time these two diverged in production.
+- **The parts figure is unevidenced, so it is capped rather than trusted.**
+  There are no receipts in this product and `materials_rupees` reduces what a
+  professional can be asked to refund, which makes it worth inflating. The half
+  cap bounds that at halving the exposure instead of erasing it, and the
+  adjudicator is shown what was entered beside what came off — a silent clamp
+  would hide the signal. **Null is "nobody said" and never zero**, on both
+  columns: an unanswered parts question deducts nothing.
 - **Whether a window is already taken is the database's answer, not a
   screen's.** `enforce_slot_capacity` is a BEFORE trigger because a booking
   gains a professional five ways — the customer choosing one, `claimJob`,
