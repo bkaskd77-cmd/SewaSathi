@@ -146,6 +146,36 @@ function in the product, with no caller.
   file by file in this phase. One violation found (`addressId`), fixed in the
   database.
 
+### The audit log is readable, and reading it is logged
+
+Nothing had ever read `security_events`. Events have been written since Phase
+10 — every admin document view, every contact read, every settlement — and the
+only way to see one was the Supabase dashboard, itself an untraceable read. A
+log nobody can open proves nothing.
+
+- **`audit.viewed` is written on every open**, before the read rather than
+  after: if the read fails the person still asked, and a log that recorded only
+  successful looks is one somebody could probe by making it fail.
+- **One level, never recursive.** `audit.viewed` is written by
+  `recordLogAccess` and by nothing else, and reading an `audit.viewed` row
+  writes nothing.
+- **The filter is stored as evidence, as ids only.** "An admin opened the log"
+  is nearly worthless; "an admin pulled this customer's whole trail" is the
+  thing worth being able to answer later. A name or a searched string in
+  `detail` would make this table a second, searchable copy of what it exists to
+  protect.
+- **`detail` is never rendered.** It is written by twenty-odd call sites and one
+  plpgsql function; a screen printing whatever is in a jsonb blob leaks the
+  first time somebody puts something careless in one. The screen shows the
+  shape — who, what kind, which record, when.
+- **`recordRiskAccess` now has callers**, having had none since it was written.
+  `lib/data/lookup.ts` uses it where it fits exactly: one named customer, their
+  no-shows and false addresses beside their phone number. The wasted-trip queue
+  shows several customers' histories at once and therefore has no single
+  subject, so it writes the same `customerRisk.viewed` kind through
+  `recordSecurityEvent` with a **count** — naming one of the several would put
+  a wrong id in a permanent record.
+
 ### The support lookup reads across everybody, and says so in the log
 
 `/admin/lookup` resolves a booking reference, a payment reference or a phone

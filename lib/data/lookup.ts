@@ -1,6 +1,10 @@
 import "server-only";
 
-import { recordContactAccess, recordSecurityEvent } from "@/lib/audit";
+import {
+  recordContactAccess,
+  recordRiskAccess,
+  recordSecurityEvent,
+} from "@/lib/audit";
 import type { Booking } from "@/lib/data/bookings";
 import {
   getBooking,
@@ -218,6 +222,26 @@ export async function lookup(input: {
       subjectId: customerId,
       count: shown,
       reason: `Support lookup on booking ${booking.reference}.`,
+    });
+  }
+
+  /*
+   * THE RISK RECORD IS ITS OWN ACCESS, AND THIS IS THE FIRST CALLER
+   * `recordRiskAccess` HAS EVER HAD. It was written in Phase 10, documented,
+   * and never wired — a helper that records nothing is the same as not having
+   * one. This screen fits it exactly: one customer, named, and the no-shows and
+   * false addresses beside their phone number.
+   *
+   * `action` is "nothing" because a lookup usually ends in a conversation
+   * rather than a decision, and the docstring names that as a real answer. The
+   * decisions that DO follow are logged where they happen.
+   */
+  if (customerId) {
+    await recordRiskAccess({
+      adminId: input.adminId,
+      customerId,
+      reason: `Support lookup on booking ${booking.reference}.`,
+      action: "nothing",
     });
   }
 

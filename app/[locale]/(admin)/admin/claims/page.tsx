@@ -51,7 +51,9 @@ export default async function ClaimsQueuePage() {
   }
 
   const [queue, messages] = await Promise.all([
-    openNoShowClaims(),
+    // Passed so the queue can log that it put customer risk on screen —
+    // see `recordRiskAccess` and the note in `openNoShowClaims`.
+    openNoShowClaims({ adminId: gate.profile.id }),
     getMessages(),
   ]);
 

@@ -1816,6 +1816,27 @@
         "pct": "{pct}%"
       }
     },
+    "audit": {
+      "title": "Audit log",
+      "lead": "Who looked at what, and who decided what. Newest first. Opening this page is itself recorded — that is the point of it.",
+      "unreadable": "The log could not be read. This is not the same as it being empty.",
+      "empty": "Nothing recorded yet.",
+      "noneMatching": "Nothing matches that.",
+      "filtered": "Showing one trail.",
+      "clear": "Show everything",
+      "by": "by {role}",
+      "theirTrail": "everything they did",
+      "thisRecord": "everything on this record",
+      "older": "Older",
+      "end": "That is the end of the log.",
+      "roles": {
+        "customer": "a customer",
+        "provider": "a professional",
+        "admin": "an admin",
+        "system": "the system",
+        "anonymous": "somebody signed out"
+      }
+    },
     "guaranteeClaims": {
       "title": "Guarantee money",
       "lead": "Money we have agreed to pay a customer back, and claims where paying some back is still a decision. Agreeing a refund and sending it are two different things here: on eSewa and on cash, a person has to go and move it.",

@@ -66,6 +66,16 @@ export type SecurityEventKind =
    * protect, readable by every admin rather than by the one who searched.
    */
   | "lookup.searched"
+  /**
+   * An admin opened the audit log, and what they filtered it to.
+   *
+   * THE ONE ENTRY AN INSIDER WOULD WANT MISSING. This table records who read
+   * whose documents and whose numbers; reading it shows one admin what another
+   * has been doing. Written once per open, never recursively — reading an
+   * `audit.viewed` row writes nothing — and the filter is stored as ids, never
+   * as a name or a searched string.
+   */
+  | "audit.viewed"
   | "document.reviewed"
   /* Anything an admin does at all */
   | "admin.action";

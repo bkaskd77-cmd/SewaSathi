@@ -597,8 +597,26 @@ export const NO_SHOW_QUEUE_CAP = QUEUE_CAP;
 /** The statuses this queue is. Shared with the count so the two cannot drift. */
 const UNDECIDED = ["open", "needs_person"] as const;
 
-/** Claims a person still has to decide, oldest first. */
-export async function openNoShowClaims(): Promise<QueuePage<OpenClaim>> {
+/**
+ * Claims a person still has to decide, oldest first.
+ *
+ * IT TAKES THE ADMIN BECAUSE IT READS CUSTOMER RISK. Every row here calls
+ * `customerHistory` — no-shows, false addresses, trip debt, whether somebody is
+ * banned — and puts the result on screen. `recordRiskAccess` was written for
+ * exactly that and had **no call sites at all** until this one: the function
+ * existed, was documented, and recorded nothing, which is the same as not
+ * having it.
+ *
+ * ONE EVENT FOR THE LOAD, NOT ONE PER ROW. The docstring on `recordRiskAccess`
+ * insists `action` is what FOLLOWED rather than that a page opened, and a
+ * render can only honestly say "nothing" — writing that per row on every load
+ * would recreate precisely the noise that made document access useless before
+ * `signDocumentForReview` moved the logging to the moment a URL was minted. The
+ * real outcome is logged where it happens, in `settleNoShowClaim`.
+ */
+export async function openNoShowClaims(input?: {
+  adminId?: string | null;
+}): Promise<QueuePage<OpenClaim>> {
   if (!hasSupabaseConfig()) return unreadableQueue(NO_SHOW_QUEUE_CAP);
   const db = createAdminClient();
 
@@ -685,6 +703,37 @@ export async function openNoShowClaims(): Promise<QueuePage<OpenClaim>> {
           effectiveStrikesBefore: ladder.effectiveStrikes,
           depositStep: CUSTOMER_LADDER.depositAt,
         }) === 0,
+    });
+  }
+
+  /*
+   * Logged before the return, so the page cannot render these histories
+   * without it having happened — the shape `applicationForReview` settled.
+   * Counted rather than named: which customers is answerable from the claims
+   * themselves, and a list of profile ids in `detail` would put a second copy
+   * of who-was-looked-at in a blob nobody filters on.
+   */
+  if (input?.adminId && claims.length > 0) {
+    /*
+     * `recordSecurityEvent` rather than `recordRiskAccess`, and the difference
+     * is honesty rather than convenience. That helper takes ONE `customerId`
+     * and writes it as the subject; a queue load has no single subject, and
+     * naming one of the several would put a wrong id in the permanent record.
+     * The kind is the same, so both show up in one filter. `recordRiskAccess`
+     * is used where it fits exactly — `lib/data/lookup.ts`, one customer.
+     */
+    await recordSecurityEvent({
+      kind: "customerRisk.viewed",
+      actorId: input.adminId,
+      actorRole: "admin",
+      detail: {
+        reason: "Opened the wasted-trip queue.",
+        // Counted, not named: which customers is answerable from the claims
+        // themselves, and a list of profile ids here would be a second copy of
+        // who-was-looked-at inside a blob nobody filters on.
+        customers: claims.length,
+        action: "nothing",
+      },
     });
   }
 
