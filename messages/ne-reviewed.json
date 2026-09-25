@@ -1,0 +1,4 @@
+{
+  "_": "Nepali keys a native speaker has actually read and signed off. Derived scope lives in scripts/ne-review-scope.mjs; this is the hand-kept half, because 'somebody read it' is not something a rule can infer. Add a key here only after a native speaker has seen it in place on the screen — not after a careful translation. `npm run ne:review` prints what is left; LAUNCH-BLOCKERS.md § nepali-native-read is what stops a launch while any remain.",
+  "keys": []
+}

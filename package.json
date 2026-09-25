@@ -15,6 +15,7 @@
     "check:paint": "node scripts/check-paint.mjs",
     "check:flows": "node scripts/check-flows.mjs",
     "check:messages": "node scripts/check-messages.mjs",
+    "ne:review": "node scripts/ne-review.mjs",
     "check:keys": "node scripts/check-keys.mjs",
     "check:blockers": "node scripts/check-launch-blockers.mjs",
     "check:transitions": "node scripts/check-status-transitions.mjs",

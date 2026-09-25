@@ -347,8 +347,25 @@ this mean the English" — it is "would anyone say this". Concretely:
   native reader flags something new.
 
 Where a line genuinely needs a native ear rather than care — trade terms, the
-safety copy, anything a frightened person reads — say so in the handover rather
-than shipping it silently.
+safety copy, anything a frightened person reads — **the tooling counts it, the
+handover does not carry the list.** The pass happens once before launch, not
+per phase, and a backlog living in handovers is a backlog that is complete
+until somebody forgets. `scripts/ne-review-scope.mjs` derives the scope from
+namespace rules, so a string added under `booking.payment` tomorrow is in scope
+the moment it exists; `npm run check:messages` prints the outstanding count on
+every run, `npm run ne:review` prints the strings English-beside-Nepali grouped
+by what getting them wrong would cost, and `LAUNCH-BLOCKERS.md §
+nepali-native-read` refuses a launch build while any remain. A key leaves the
+backlog by being added to `messages/ne-reviewed.json` — by hand, because no
+rule can know whether somebody actually read something.
+
+**Not everything in Nepali is a message key**, and assuming it was is how the
+first version of that scope reported the enforcement ladder as reviewed when
+nobody had opened it. `lib/content/pages/standards.ts` and the three files
+under `lib/content/legal/` are long-form `{ en, ne }` documents; they are
+listed as documents in the same module, because a section of prose is reviewed
+or it is not and pretending it is forty strings makes the number meaningless in
+both directions.
 
 **The interface word and the search word are different words.** The interface
 says प्राविधिक and सिकर्मी काम; people type मिस्त्री, कालिगड, plumber, धारा,

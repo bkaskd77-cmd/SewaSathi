@@ -16,6 +16,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { inScope } from "./ne-review-scope.mjs";
+
 const ROOT = process.cwd();
 const LOCALES = ["en", "ne"];
 const REFERENCE = "en";
@@ -147,4 +149,36 @@ if (failures.length > 0) {
 }
 
 console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.`);
-console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.\n`);
+console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.`);
+
+/*
+ * THE BACKLOG, PRINTED RATHER THAN REMEMBERED.
+ *
+ * The traps above catch mistakes that have already shipped once. They cannot
+ * catch a line that is correct Nepali and still not what anybody would say —
+ * only a native speaker can, and that happens once before launch rather than
+ * per phase. So the number is printed on every run: the scope is derived from
+ * namespace rules (`ne-review-scope.mjs`), which means a string added under
+ * `booking.payment` tomorrow raises this count on its own and nobody has to
+ * remember to write it down.
+ *
+ * Not a failure. `npm run check:blockers` is what refuses a launch build while
+ * any of them are unread — see LAUNCH-BLOCKERS.md § nepali-native-read.
+ */
+let reviewed = [];
+try {
+  reviewed =
+    JSON.parse(readFileSync(path.join(ROOT, "messages", "ne-reviewed.json"), "utf8"))
+      .keys ?? [];
+} catch {
+  // Missing or malformed reads as nothing reviewed, which is the safe
+  // direction: it over-reports the backlog rather than hiding it.
+}
+const scope = inScope(catalogues.ne, reviewed);
+const waiting = scope.filter((entry) => !entry.reviewed).length;
+console.log(
+  waiting === 0
+    ? `  ${scope.length} money, safety and legal strings, all read by a native speaker.`
+    : `  ${waiting} of ${scope.length} money, safety and legal strings await a native read — npm run ne:review`,
+);
+console.log("");
