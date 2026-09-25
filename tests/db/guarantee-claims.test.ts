@@ -356,6 +356,35 @@ describe("money back needs a person", () => {
     await pay(claim, 2500);
   });
 
+  /*
+   * THE TWO HALVES OF ONE RULE, ON ONE FIXTURE.
+   *
+   * `refundCeiling` in TypeScript and `enforce_claim_refund` in Postgres both
+   * decide the most a booking can pay back, and they disagreed: the migration
+   * that let a person settle a disputed amount changed the trigger to cap at
+   * `final_amount` and left the TypeScript capping at the lower of two figures.
+   * The screen showed the adjudicator one number and the database would have
+   * taken a larger one. Neither side's own tests caught it, because the missing
+   * thing was never either half — it was the comparison.
+   *
+   * `tests/unit/refund-ceiling.test.ts` asserts the same numbers in TypeScript.
+   * Change one without the other and one of the two goes red.
+   */
+  it("agrees with refundCeiling on a settled disagreement", async () => {
+    const claim = await openClaim(
+      await settledBooking("SK-REF07", 3000, {
+        customer_reported_amount: 1800,
+        amount_mismatch_at: new Date(),
+        amount_mismatch_resolved_at: new Date(),
+        amount_settled_source: "adjudicated",
+      }),
+    );
+
+    // The settled figure, not the 1,800 the customer originally typed.
+    await expect(pay(claim, 3001)).rejects.toThrow(/more than the amount recorded/i);
+    await pay(claim, 3000);
+  });
+
   it("never pays out of a job nobody settled", async () => {
     const claim = await openClaim(await completedBooking("SK-REF04"));
     await expect(pay(claim, 500)).rejects.toThrow(/has not been settled/i);

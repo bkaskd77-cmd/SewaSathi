@@ -1127,7 +1127,7 @@ export async function issueRefund(input: {
     const { data: booking } = await admin
       .from("bookings")
       .select(
-        "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, platform_fee, provider_earning",
+        "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, platform_fee, provider_earning",
       )
       .eq("id", claim.booking_id as string)
       .maybeSingle();
@@ -1141,6 +1141,8 @@ export async function issueRefund(input: {
         customerReportedAmount:
           (booking.customer_reported_amount as number | null) ?? null,
         amountMismatchAt: (booking.amount_mismatch_at as string | null) ?? null,
+        amountMismatchResolvedAt:
+          (booking.amount_mismatch_resolved_at as string | null) ?? null,
         paymentStatus: booking.payment_status as string,
       },
       alreadyRefunded: Number(claim.refund_rupees ?? 0),
@@ -1438,7 +1440,7 @@ export async function refundQueue(): Promise<RefundQueue> {
       ? await admin
           .from("bookings")
           .select(
-            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, completed_at",
+            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, completed_at",
           )
           .in("id", bookingIds)
       : { data: [] as Record<string, unknown>[] };
@@ -1524,6 +1526,8 @@ export async function refundQueue(): Promise<RefundQueue> {
         customerReportedAmount:
           (booking?.customer_reported_amount as number | null) ?? null,
         amountMismatchAt: (booking?.amount_mismatch_at as string | null) ?? null,
+        amountMismatchResolvedAt:
+          (booking?.amount_mismatch_resolved_at as string | null) ?? null,
         paymentStatus: (booking?.payment_status as string) ?? "unpaid",
       });
 

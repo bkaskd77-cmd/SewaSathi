@@ -30,15 +30,28 @@ describe("what a booking can ever pay back", () => {
     expect(refundCeiling(settled)).toEqual({ ok: true, ceiling: 3000 });
   });
 
-  it("takes the lower figure when they differ", () => {
-    /*
-     * The cash screen promises "up to the amount you enter", so the customer's
-     * own number is part of the ceiling — but taking the HIGHER of the two
-     * would let somebody name a figure and be refunded it.
-     */
+  /*
+   * THE RULE REVERSED, AND THIS TEST IS WHY IT SURVIVED SO LONG. It used to
+   * assert the LOWER of the two figures, on the reading that the cash screen's
+   * "up to the amount you enter" was a ceiling. It is a floor: somebody who
+   * handed over 3,000 and mistyped 1,800 is covered for what was actually paid
+   * once a person has established it.
+   *
+   * The database was changed to cap at `final_amount` and this file was not.
+   * A green assertion of the old rule is exactly what let the two diverge
+   * unnoticed — the test agreed with the code and neither agreed with Postgres.
+   * `tests/unit/refund-ceiling.test.ts` now pins the rule and
+   * `tests/db/guarantee-claims.test.ts` pins the same numbers against the
+   * trigger, so the comparison exists rather than being nobody's job.
+   *
+   * What stops somebody naming a figure and being refunded it is unchanged and
+   * lives elsewhere: a customer's typed amount reaches `final_amount` only
+   * when an admin adjudicates, and no browser can write that column.
+   */
+  it("is the settled figure even when the customer typed a different one", () => {
     expect(
       refundCeiling({ ...settled, customerReportedAmount: 1800 }),
-    ).toEqual({ ok: true, ceiling: 1800 });
+    ).toEqual({ ok: true, ceiling: 3000 });
     expect(
       refundCeiling({ ...settled, finalAmount: 1800, customerReportedAmount: 3000 }),
     ).toEqual({ ok: true, ceiling: 1800 });

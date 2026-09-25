@@ -32,8 +32,16 @@ export type RefundSubject = {
    * enter", so their own figure is part of the ceiling rather than a footnote.
    */
   customerReportedAmount: number | null;
-  /** Set when the two figures disagreed and nobody has settled it yet. */
+  /** Set when the two figures disagreed, whether or not anybody has settled it. */
   amountMismatchAt: string | null;
+  /**
+   * Set once a person has settled that disagreement.
+   *
+   * BOTH, NEVER THE STAMP ALONE. `amount_mismatch_at` never becomes false, so a
+   * rule reading it by itself refuses a refund for ever on a job somebody
+   * already adjudicated — the same permanence the resolution exists to end.
+   */
+  amountMismatchResolvedAt?: string | null;
   /** `paid` or otherwise. There is nothing to refund from an unpaid job. */
   paymentStatus: string;
 };
@@ -43,28 +51,40 @@ export type RefundCeiling =
   | { ok: false; reason: "not-settled" | "amount-disputed" | "no-amount" };
 
 /**
- * The most this booking can ever pay back.
+ * The most this booking can ever pay back: the SETTLED figure, one number.
  *
- * THE LOWER OF THE TWO FIGURES WHEN THEY DIFFER, which is the same number
- * whenever they agree — and they agree on every job where nobody mistyped.
- * Taking the higher would let a customer name a figure and be refunded it; the
- * recorded amount is what the platform has evidence of.
+ * THIS USED TO BE `min(finalAmount, customerReportedAmount)` AND IT DISAGREED
+ * WITH THE DATABASE. `enforce_claim_refund` caps at `final_amount`; this file
+ * capped at the lower of two, so the screen showed the adjudicator one ceiling
+ * and the trigger would have accepted a larger one. Two implementations of a
+ * money rule, and nothing compared them — the migration that let a person
+ * settle a disputed amount changed one half and left this one.
  *
- * A STANDING MISMATCH REFUSES OUTRIGHT. When the customer's figure and the
- * professional's disagree, `amount_mismatch_at` is stamped and a person
- * decides; nothing settles while it stands. Refunding against a number that is
- * itself in dispute would be picking a side by accident — and picking it
- * silently, in the direction of whoever happened to be written down.
+ * THE DIRECTION MATTERS MORE THAN THE MISMATCH. `min()` re-imposes the
+ * customer's own typed figure as their cover, including after a person has
+ * established they really paid more. The cash screen's promise is a FLOOR on
+ * what they are covered for, never a cap: somebody who handed over 3,000 and
+ * mistyped 1,800 is covered for what was actually paid, once somebody has
+ * established it. `customerReportedAmount` stays on this type as evidence — a
+ * professional whose figures are confirmed by hundreds of customers has a
+ * record worth something — and is no longer arithmetic.
+ *
+ * AN OPEN MISMATCH STILL REFUSES OUTRIGHT, and only an open one. Refunding
+ * against a number that is itself in dispute picks a side by accident, in
+ * whichever direction happened to be written down. But `amount_mismatch_at`
+ * never becomes false, so reading it alone refuses every future claim on a job
+ * somebody settled weeks ago — the same permanence the resolution exists to
+ * end, moved one file along. Both columns, or neither.
  */
 export function refundCeiling(subject: RefundSubject): RefundCeiling {
-  if (subject.amountMismatchAt) return { ok: false, reason: "amount-disputed" };
+  const disputeOpen =
+    Boolean(subject.amountMismatchAt) && !subject.amountMismatchResolvedAt;
+  if (disputeOpen) return { ok: false, reason: "amount-disputed" };
+
   if (subject.paymentStatus !== "paid") return { ok: false, reason: "not-settled" };
   if (subject.finalAmount == null) return { ok: false, reason: "no-amount" };
 
-  const reported = subject.customerReportedAmount;
-  const ceiling =
-    reported == null ? subject.finalAmount : Math.min(subject.finalAmount, reported);
-
+  const ceiling = subject.finalAmount;
   if (!Number.isFinite(ceiling) || ceiling <= 0) {
     return { ok: false, reason: "no-amount" };
   }
