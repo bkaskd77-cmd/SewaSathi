@@ -1,6 +1,7 @@
 import "server-only";
 
 import { describeEnrollError } from "@/lib/auth/mfa-error";
+import { site } from "@/lib/config/site";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -118,6 +119,20 @@ export type EnrollResult =
  * An unverified factor left behind by an abandoned attempt is cleaned up
  * first. Supabase refuses a second enrolment while one is pending, and a
  * person who closed the tab should not have to ask somebody to unstick them.
+ *
+ * THE ISSUER IS PASSED EXPLICITLY, AND WITHOUT IT THIS FAILS FOR EVERY USER
+ * THIS PRODUCT HAS. Supabase answered `500 Error generating QR Code` — GoTrue
+ * failing to build the `otpauth://` URI behind the QR image. That URI is
+ * `otpauth://totp/{issuer}:{label}`, and the label is normally the user's
+ * EMAIL. Every account here has `email = null`, because phone + OTP is the
+ * only way in and always will be, so GoTrue was left deriving the whole URI
+ * from a record with nothing on it to use.
+ *
+ * `site.name` rather than a hostname: the issuer is what an authenticator app
+ * prints above the code, so it should be the brand. A hostname would read
+ * `sewasathi.vercel.app` today and something else the day the domain moves —
+ * and an authenticator entry cannot be renamed after the fact without
+ * re-enrolling.
  */
 export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
   try {
@@ -133,6 +148,7 @@ export async function enrollTotp(friendlyName: string): Promise<EnrollResult> {
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       friendlyName,
+      issuer: site.name,
     });
 
     if (error || !data) {

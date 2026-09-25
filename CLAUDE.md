@@ -522,6 +522,26 @@ verify`, and any can be changed by somebody not looking at this code.
   form. Same rule as the triage and data badges: dev, or the query param
   anywhere. Finding this the first time meant reading a network response in
   DevTools, which nobody does on a phone.
+- **A debug channel is only as good as the narrowest swallow between the
+  provider and the screen, and swallows come in pairs.** MFA enrolment failed
+  in production showing "That did not start. Try again." and nothing else. It
+  took three commits to get Supabase's actual sentence onto a screen: the
+  server-side `catch` discarded it, and after that was fixed the CLIENT-side
+  `catch` in the same flow discarded it too — missed while writing the comment
+  about the server one. The sentence was `500 Error generating QR Code`, and it
+  had been available from the provider the entire time. So when a failure is
+  opaque, fix **every** catch between the provider and the pixel in one go and
+  check the reason actually renders before shipping; a half-opened channel
+  reads exactly like a closed one and costs another round trip through a
+  deploy.
+- **Phone-only means fields other products rely on are empty here, forever.**
+  That same bug was GoTrue building `otpauth://totp/{issuer}:{label}` for the
+  authenticator QR, where the label is normally the user's **email** — and
+  every account in this product has `email = null`, because phone + OTP is the
+  only way in. `lib/auth/mfa.ts` passes `issuer: site.name` explicitly for
+  exactly that reason. Before using any provider feature that takes an identity
+  for granted, ask which column it reads: `email` is null on every row and
+  always will be.
 - **`site.supportPhone` is one constant.** It appears on five screens and one
   of them is that fallback — the screen somebody reaches when nothing else in
   the product is working for them.
