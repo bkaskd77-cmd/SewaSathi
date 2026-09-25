@@ -1878,6 +1878,26 @@
         "notRecorded": "Parts {amount} — nobody recorded whether the parts failed, so nothing has come off"
       },
       "materialsCapped": "Only {amount} of that has come off: a parts line never takes more than half the job.",
+      "signals": {
+        "heading": "What is already on the record",
+        "priorRefundsValue": "{n} on {jobs} finished jobs · {amount} in total",
+        "priorRefundsNoJobs": "{n} · {amount} in total (job count unavailable)",
+        "outstanding": "Still owed to us",
+        "claimRate": "This customer has claimed",
+        "claimRateValue": "{n} times on {jobs} finished jobs",
+        "claimRateNoJobs": "{n} times (job count unavailable)",
+        "unknown": "Could not be read",
+        "reviewNotPunishment": "Worth a person looking at, and nothing more. A high claim rate is not a reason to refuse somebody money they are owed — they may be unlucky, or may have had genuinely bad jobs. Never a ban, never a ranking.",
+        "footnote": "None of this changes what can be paid back. Below {min} finished jobs there is no rate to read.",
+        "priorRefunds": "Refunds agreed on their work"
+      },
+      "preview": {
+        "customer": "The customer receives",
+        "commission": "We return in commission",
+        "provider": "The professional owes",
+        "recovery": "Recovered at {share}% of each payout, that is about {n} jobs of this size.",
+        "recoveryUnknown": "We hold no earning figure for this job, so how long it would take to recover cannot be said."
+      },
       "ceiling": "The most that can go back is {amount}",
       "windowOpen": "{days} days left in the guarantee window",
       "windowClosed": "The guarantee window closed {days} days ago",

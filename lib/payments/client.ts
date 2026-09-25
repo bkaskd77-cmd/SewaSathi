@@ -73,10 +73,13 @@ export {
 export {
   isRefundStale,
   judgeRefund,
+  materialsRead,
+  MATERIALS_CEILING_SHARE_BPS,
   refundCeiling,
   refundFunding,
   refundRail,
   REFUND_PAYMENT_DAYS,
+  type MaterialsRead,
   type RefundCeiling,
   type RefundRail,
   type RefundSubject,

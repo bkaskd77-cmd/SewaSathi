@@ -780,6 +780,25 @@ follows from that.
   It is not a ranking input and not a signal in the enforcement ladder.
 - Ranking is deliberately **not** a payout lever — list position must not
   depend on how the customer chose to pay.
+- **The refund screen shows signals and a consequence, and neither decides
+  anything.** `/admin/guarantee-claims` used to print one number — the ceiling
+  — while the button behind it did three things: pay the customer, return our
+  commission in proportion, and write the rest as a debt against a
+  professional's future earnings. Two of those were invisible at the moment
+  somebody decided. `refundFunding` is now run on the screen over the split
+  frozen on the booking, which is the same pure function `agreeRefund` runs
+  server-side on the same columns — a preview, never a second opinion that can
+  drift. Beside it sit three signals: refunds already agreed on this
+  professional's own work (never on visits they attended for somebody else,
+  which would punish the person who turned up to help), their outstanding
+  `redo_debt`, and this customer's claim rate. **Every count carries its
+  denominator** — two refunds out of two jobs and out of two hundred are
+  different facts — and an unreadable denominator prints as unreadable rather
+  than as zero. `claimRateWorthReading` is the rule, in `lib/config/guarantee.ts`
+  with the other pure guarantee judgements, and it is **review, not
+  punishment**: the sentence is on the screen, below three finished jobs there
+  is no rate at all, and nothing here is an input to the ceiling, the verdict
+  or the ladder.
 - **The enforcement ladder is public** — `/providers/standards`, both
   languages, linked from `/providers/join` before anybody signs up. Five steps,
   each naming what triggered it and how it lifts, with what is *never* a signal

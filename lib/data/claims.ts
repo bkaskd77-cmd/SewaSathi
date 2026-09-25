@@ -18,6 +18,7 @@ import {
   unreadableQueue,
   type QueuePage,
 } from "@/lib/data/queue";
+import { claimSignals, type ClaimSignals } from "@/lib/data/claim-signals";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
@@ -1409,6 +1410,26 @@ export type RefundableClaim = {
   materials: MaterialsRead | null;
   /** Days left in the trade's window. Negative is past it. */
   daysLeft: number | null;
+  /**
+   * The split frozen on this booking when it settled.
+   *
+   * CARRIED SO THE CONSEQUENCE CAN BE SHOWN BEFORE THE BUTTON, not so it can
+   * be recomputed. `agreeRefund` reads these same columns server-side and
+   * `refundFunding` decides the real numbers there; the screen runs the same
+   * pure function on the same frozen figures purely to say out loud what
+   * pressing the button will do.
+   */
+  platformFee: number;
+  providerEarning: number;
+  /**
+   * What already exists about the two people involved.
+   *
+   * SIGNALS, AND NOTHING READS THEM BUT A HUMAN. No ceiling, verdict or
+   * arithmetic anywhere consults this field; it is carried so the reviewer can
+   * see what is on the record before they decide, which is the opposite of
+   * automating the decision on it.
+   */
+  signals: ClaimSignals;
 };
 
 /**
@@ -1475,7 +1496,7 @@ export async function refundQueue(): Promise<RefundQueue> {
       admin
         .from("guarantee_claims")
         .select(
-          "id, booking_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, parts_failed, closed_at",
+          "id, booking_id, customer_id, category_slug, description, verdict_note, provider_id, attending_provider_id, refund_rupees, parts_failed, closed_at",
           { count: "exact" },
         )
         .eq("status", "resolved")
@@ -1522,7 +1543,7 @@ export async function refundQueue(): Promise<RefundQueue> {
       ? await admin
           .from("bookings")
           .select(
-            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, materials_rupees, completed_at",
+            "id, reference, payment_status, final_amount, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, materials_rupees, platform_fee, provider_earning, completed_at",
           )
           .in("id", bookingIds)
       : { data: [] as Record<string, unknown>[] };
@@ -1600,6 +1621,27 @@ export async function refundQueue(): Promise<RefundQueue> {
         .filter((id): id is string => Boolean(id)),
     );
 
+    /*
+     * ONE ROUND TRIP PER CLAIM RATHER THAN PER SIGNAL, and the queue is capped
+     * at 50 — so this is bounded work on a screen a person opens, not a loop
+     * over a table. `sin1` puts the database 28ms away; the alternative, a
+     * sequential read inside the map below, would be three waves per row.
+     */
+    const signalsByClaim = new Map<string, ClaimSignals>(
+      await Promise.all(
+        claims.map(
+          async (claim) =>
+            [
+              claim.id as string,
+              await claimSignals({
+                providerId: (claim.provider_id as string | null) ?? null,
+                customerId: (claim.customer_id as string | null) ?? null,
+              }),
+            ] as const,
+        ),
+      ),
+    );
+
     const now = Date.now();
     const decidable: RefundableClaim[] = claims.map((claim) => {
       const booking = bookings.get(claim.booking_id as string);
@@ -1639,6 +1681,12 @@ export async function refundQueue(): Promise<RefundQueue> {
         blocked: ceiling.ok ? null : ceiling.reason,
         settled: ceiling.ok ? ceiling.settled : null,
         materials: ceiling.ok ? ceiling.materials : null,
+        platformFee: Number(booking?.platform_fee ?? 0),
+        providerEarning: Number(booking?.provider_earning ?? 0),
+        signals: signalsByClaim.get(claim.id as string) ?? {
+          provider: null,
+          customer: null,
+        },
         daysLeft,
       };
     });

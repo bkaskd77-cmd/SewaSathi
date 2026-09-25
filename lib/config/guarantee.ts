@@ -239,6 +239,70 @@ export function whoPays(verdict: ClaimVerdict): ClaimPayer {
 }
 
 /* ------------------------------------------------------------------ *
+ * How often somebody claims, which is a signal and never a rule
+ * ------------------------------------------------------------------ */
+
+/**
+ * The share of finished jobs claimed on that is worth a person reading.
+ *
+ * REVIEW, NOT PUNISHMENT. This is the same shape of number as
+ * `category_pricing_signals`, which is never grouped by person for exactly
+ * this reason: read one way it says "look at this", read the other it becomes
+ * a list of people to refuse money to. A customer who claims often may be
+ * unlucky, may live somewhere with old pipes, or may have had three genuinely
+ * bad jobs — none of which is grounds for withholding what they are owed. It
+ * is never a ban and never a ranking input.
+ *
+ * It lives here rather than beside the query because it is a policy judgement,
+ * pure and testable, and the query is not.
+ */
+export const CLAIM_RATE_ATTENTION = 0.5;
+
+/**
+ * Below this many finished jobs there is no rate, only a small sample.
+ *
+ * RULE 6, AND THE DENOMINATOR IS THE WHOLE RULE. A first-ever job that went
+ * wrong is a 100% claim rate and means nothing at all. Reporting it as a rate
+ * is how a signal starts crying wolf — and a signal that cries wolf gets
+ * skimmed, taking the real ones with it. Same reasoning as `bayesianRating`'s
+ * prior, one screen over.
+ */
+export const CLAIM_RATE_MIN_JOBS = 3;
+
+/**
+ * Is this claim rate worth a person's attention?
+ *
+ * Returns the rate and a boolean, and deliberately nothing else — no score, no
+ * band, no label that could be mistaken for a verdict. `null` is "no rate",
+ * never a low one.
+ */
+export function claimRateWorthReading(input: {
+  claims: number;
+  /** Finished bookings. Null when the count could not be read. */
+  completedBookings: number | null;
+}): { rate: number | null; worthReading: boolean } {
+  /*
+   * BOTH CONDITIONS, AND THE FIRST IS NOT REDUNDANT TODAY BY LUCK RATHER THAN
+   * BY DESIGN. `null < 3` coerces to `0 < 3` in JavaScript, so while the floor
+   * is above zero the second clause happens to exclude a null as well —
+   * removing the explicit check changes nothing and a test written to catch it
+   * stays green, which is how this was found. Lower `CLAIM_RATE_MIN_JOBS` to 0
+   * and the coercion stops helping: `claims / null` is Infinity, and a screen
+   * would print an infinite claim rate beside a decision about somebody's
+   * money. The check is what makes the floor a product choice rather than a
+   * load-bearing accident.
+   */
+  if (
+    input.completedBookings == null ||
+    input.completedBookings < CLAIM_RATE_MIN_JOBS
+  ) {
+    return { rate: null, worthReading: false };
+  }
+  const rate = input.claims / input.completedBookings;
+  return { rate, worthReading: rate >= CLAIM_RATE_ATTENTION };
+}
+
+/* ------------------------------------------------------------------ *
  * What it never covers
  * ------------------------------------------------------------------ */
 

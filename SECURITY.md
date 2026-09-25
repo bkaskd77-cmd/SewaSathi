@@ -56,6 +56,7 @@ subject and decides.
 | `setRateAction` | any professional with a listing | `base_rate` and `base_rate_requested` on their own listing | listing resolved from the session; `clampRate` against the published band for their trades |
 | `acceptClaimAction` / `releaseClaimAction` | the professional a claim names | taking or giving back one return visit | provider id from the session; `acceptClaim` re-reads the claim; the claim transition trigger |
 | `recordVerdictAction` | the professional who attended | the verdict and the parts answer on one claim | verdict validated against `CLAIM_VERDICTS` here and by the column check; `resolved` is reachable only from `attended`; `parts_failed` is theirs alone to state — the adjudicator was not in the room — and is written on both the attend and resolve moves so an already-attended claim cannot lose it |
+| `claimSignals` (read, no action) | admins, through `/admin/guarantee-claims` behind `adminGate` | counts across one professional and one customer | service role; counts only (`head: true`), never rows — the screen needs "how many", never "which"; nothing it returns is read by `refundCeiling`, `judgeRefund` or `enforce_claim_refund` |
 
 **Customer side, added this phase.** `openClaimAction` and
 `withdrawClaimAction` take a booking or claim id and nothing else; the actor is

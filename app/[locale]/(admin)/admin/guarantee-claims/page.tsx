@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { AlertTriangle, Clock } from "lucide-react";
 
+import { ClaimSignalsPanel } from "@/components/admin/claim-signals";
 import { RefundDecision } from "@/components/admin/refund-decision";
 import { RefundPayment } from "@/components/admin/refund-payment";
 import { QueueExtent } from "@/components/admin/queue-extent";
@@ -268,6 +269,12 @@ export default async function GuaranteeClaimsPage() {
                 ) : null}
               </ul>
 
+              {/* Signals before the form, because they are context for the
+                  decision rather than a result of it. A server component: it
+                  reads counts and renders words, and none of it is client
+                  state. */}
+              <ClaimSignalsPanel signals={claim.signals} locale={locale} />
+
               <NextIntlClientProvider
                 locale={locale}
                 messages={{ admin: messages.admin }}
@@ -275,6 +282,9 @@ export default async function GuaranteeClaimsPage() {
                 <RefundDecision
                   claimId={claim.claimId}
                   ceiling={claim.ceiling}
+                  platformFee={claim.platformFee}
+                  providerEarning={claim.providerEarning}
+                  locale={locale}
                 />
               </NextIntlClientProvider>
             </li>
