@@ -692,10 +692,20 @@ follows from that.
   paid to anybody; **or** somebody else attends, is paid in full for real work,
   and that amount becomes a debt netted off the first professional's *future*
   earnings by `applyRedoRecovery` at **at most a quarter of any one payout**
-  (`redoRecoveryCapBps` 2500), so no week goes to zero; **or** they never work
+  (`redoRecoveryCapBps` 2500), so no week goes to zero — **though as of today
+  that netting is a tested pure function with no caller: `applyRedoRecovery`
+  is referenced only in comments, no `recovery` or `write_off` row is ever
+  written, and there is no payout run at all, so `provider_outstanding` only
+  ever goes up**; **or** they never work
   for us again and it is **written off**. The write-off is the real cost of
-  offering a guarantee and it is bounded — roughly the commission from three or
-  four jobs each time. **We never ring a paid-out professional for cash.**
+  offering a guarantee and it is bounded, but **the bound is 5.7 jobs' worth of
+  commission, not the three or four this line used to claim** — and the ratio
+  is a constant rather than an estimate. A full refund returns our whole fee,
+  so what is left as debt is exactly the professional's share: at 15% that is
+  0.85/0.15 = **5.67× the fee we earned on that job**, and on digital's 13% it
+  is 0.87/0.13 = **6.7×**. It does not vary with the size of the job, which is
+  why it is worth stating as an identity: every full refund costs the
+  commission from between five and seven jobs of the same kind. **We never ring a paid-out professional for cash.**
   There is no card on file, no direct debit and no wage to garnish, so backward
   recovery selects against the wrong people: the honest ones feel robbed and
   leave, the rest stop taking our jobs and keep the money. Half a payout was
