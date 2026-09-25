@@ -34,13 +34,14 @@ export const dynamic = "force-dynamic";
  * told anybody they had filled up — which is the same failure the cap silence
  * produced one level down, and the reason both were fixed together.
  *
- * COUNTS ARE THE WHOLE CONTENT. Not a dashboard: six numbers and six links,
+ * COUNTS ARE THE WHOLE CONTENT. Not a dashboard: a number and a link per
+ * queue,
  * ordered so the thing that costs us most if ignored sits at the top.
  * Applications lead for the reason the queue itself is sorted by waiting — a
  * good tradesperson who waits three weeks has already signed up elsewhere, and
  * that loss appears in no metric anybody looks at.
  *
- * NO CLIENT JAVASCRIPT. It is six links and a heading. That also means it is
+ * NO CLIENT JAVASCRIPT. It is links and a heading. That also means it is
  * correct on a connection that never finishes loading a bundle, which is the
  * state somebody is in when they are checking on a phone whether anything
  * needs them.
@@ -141,7 +142,7 @@ export default async function AdminIndexPage() {
         ))}
       </ul>
 
-      {/* Said once here rather than repeated on six cards. The per-queue line
+      {/* Said once here rather than repeated on every card. The per-queue line
           on each screen carries the exact numbers. */}
       <p className="animate-rise mt-6 text-caption text-muted-foreground">
         {t("capNote")}

@@ -1220,6 +1220,104 @@ export async function openCommissionAppeals(): Promise<QueuePage<OpenAppeal>> {
   }
 }
 
+/** One cash job whose two figures disagree and nobody has settled. */
+export type OpenMismatch = {
+  bookingId: string;
+  reference: string;
+  categorySlug: string;
+  providerName: string | null;
+  /** The professional's figure. Null only on a survey job nobody priced. */
+  recorded: number | null;
+  /** What the customer said they paid. Null if they declined to say. */
+  reported: number | null;
+  quotedMin: number | null;
+  quotedMax: number | null;
+  flaggedAt: string;
+};
+
+/**
+ * The cash jobs waiting on a person, oldest first.
+ *
+ * OLDEST FIRST LIKE EVERY OTHER QUEUE, and here it is the whole point: nothing
+ * settles while a mismatch stands, so the professional at the top of this list
+ * has been unpaid the longest and the customer has been reading "we are
+ * looking at it" the longest.
+ *
+ * THE OPEN SET IS BOTH COLUMNS. `amount_mismatch_at` alone never becomes
+ * false, so a queue filtered on it would re-offer every job it had already
+ * settled — the same permanence this whole phase exists to end.
+ * `bookings_open_mismatch_idx` is the partial index over exactly this pair.
+ *
+ * Service role, because `bookings` grants no admin update and the admin check
+ * lives in the action and again in `resolveAmountMismatch`.
+ */
+export const MISMATCH_QUEUE_CAP = QUEUE_CAP;
+
+export async function openAmountMismatches(): Promise<QueuePage<OpenMismatch>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(MISMATCH_QUEUE_CAP);
+
+  try {
+    const { data, error, count } = await createAdminClient()
+      .from("bookings")
+      .select(
+        "id, reference, category_slug, final_amount, customer_reported_amount, quoted_min, quoted_max, amount_mismatch_at, providers (display_name)",
+        { count: "exact" },
+      )
+      .not("amount_mismatch_at", "is", null)
+      .is("amount_mismatch_resolved_at", null)
+      .order("amount_mismatch_at", { ascending: true })
+      .limit(MISMATCH_QUEUE_CAP);
+
+    if (error) {
+      console.error(`[payments] mismatch queue failed — ${describeError(error)}`);
+      return unreadableQueue(MISMATCH_QUEUE_CAP);
+    }
+
+    const rows = ((data ?? []) as Record<string, unknown>[]).map((row) => {
+      const provider = (row.providers ?? null) as Record<string, unknown> | null;
+      const number = (value: unknown) => (value == null ? null : Number(value));
+      return {
+        bookingId: row.id as string,
+        reference: row.reference as string,
+        categorySlug: (row.category_slug as string | null) ?? "",
+        providerName: (provider?.display_name as string | null) ?? null,
+        recorded: number(row.final_amount),
+        reported: number(row.customer_reported_amount),
+        quotedMin: number(row.quoted_min),
+        quotedMax: number(row.quoted_max),
+        flaggedAt: row.amount_mismatch_at as string,
+      };
+    });
+
+    return { rows, total: count ?? null, cap: MISMATCH_QUEUE_CAP };
+  } catch (thrown) {
+    console.error(`[payments] mismatch queue threw — ${describeError(thrown)}`);
+    return unreadableQueue(MISMATCH_QUEUE_CAP);
+  }
+}
+
+/** How many cash jobs are waiting on a person, without fetching any. */
+export async function openAmountMismatchesCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const { count, error } = await createAdminClient()
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .not("amount_mismatch_at", "is", null)
+      .is("amount_mismatch_resolved_at", null);
+
+    if (error) {
+      console.error(`[payments] mismatch count failed — ${describeError(error)}`);
+      return null;
+    }
+    return count ?? null;
+  } catch (thrown) {
+    console.error(`[payments] mismatch count threw — ${describeError(thrown)}`);
+    return null;
+  }
+}
+
 /** How many appeals are waiting, without fetching any. */
 export async function openCommissionAppealsCount(): Promise<number | null> {
   if (!hasSupabaseConfig()) return null;

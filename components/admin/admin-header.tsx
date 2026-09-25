@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import {
   BadgeCheck,
   Banknote,
+  EqualNot,
   LogOut,
   Scale,
   ShieldCheck,
@@ -34,14 +35,14 @@ import { cn } from "@/lib/utils";
  * the most dangerous permissions in the product had no way to tell which half
  * they were in.
  *
- * SIX DESTINATIONS, WHICH IS MORE THAN THE WORK HEADER ALLOWS ITSELF, and the
+ * MORE DESTINATIONS THAN THE WORK HEADER ALLOWS ITSELF, and the
  * difference is the job. A professional between two jobs needs two tabs and no
  * reading. Working queues IS the admin's job, so the queues are the navigation;
  * hiding them behind an index would add a click to every crossing.
  *
- * NO COUNTS IN THE NAV, deliberately. `adminQueueCounts` is six `head: true`
- * queries, and putting them here would run all six on every admin page view to
- * decorate a link the person is already looking at. The index shows them, one
+ * NO COUNTS IN THE NAV, deliberately. `adminQueueCounts` is a `head: true`
+ * query per queue, and putting them here would run every one of them on every
+ * admin page view to decorate a link the person is already looking at. The index shows them, one
  * click away, and that is where the question "does anything need me" belongs.
  *
  * THE WORDMARK GOES TO THE PUBLIC SITE, the same rule the work header settled:
@@ -62,6 +63,7 @@ export function AdminHeader({ name }: { name: string }) {
     },
     { href: "/admin/survey-fees", label: t("surveyFees"), icon: Wallet },
     { href: "/admin/appeals", label: t("appeals"), icon: Scale },
+    { href: "/admin/mismatches", label: t("mismatches"), icon: EqualNot },
   ];
 
   return (
@@ -85,7 +87,7 @@ export function AdminHeader({ name }: { name: string }) {
           aria-label={t("navLabel")}
           className="ml-auto flex flex-wrap items-center gap-1"
         >
-          {/* The index is the wordmark's neighbour rather than a sixth tab:
+          {/* The index is the wordmark's neighbour rather than one more tab:
               it answers "does anything need me", which is a different question
               from "take me to this queue". */}
           <Link

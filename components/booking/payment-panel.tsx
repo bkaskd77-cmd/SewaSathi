@@ -552,6 +552,15 @@ export function PaymentPanel(props: PaymentPanelProps) {
         {props.blind ? (
           <>
             <p className="text-body-md">{t("cashPending.blindBody")}</p>
+            {/* A FLOOR, NOT A CAP, AND IT BELONGS BESIDE THE BOX. The
+                guarantee used to be capped at the lower of the two figures,
+                so somebody who paid 2,000 and mistyped 1,500 was covered for
+                their own slip. It follows the settled figure now, and a
+                promise about the customer's money is the kind of sentence
+                that goes on the screen rather than in the terms. */}
+            <p className="mt-2 text-body-sm text-muted-foreground">
+              {t("cashPending.blindFloor")}
+            </p>
 
             <div className="mt-4 space-y-2">
               <Label htmlFor="amount-paid">{t("cashPending.blindLabel")}</Label>

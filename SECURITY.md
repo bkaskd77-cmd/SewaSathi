@@ -80,6 +80,7 @@ public POST endpoint like any other.
 | `decideClaimAction` | admins | one wasted-trip claim | role re-read in the action; `settleNoShowClaim` re-reads the claim |
 | `decideSurveyFeeAction` | admins | one pending survey visit fee | role re-read in the action **and** again in `decideSurveyVisitFee`; the update is guarded on `status = 'pending'` so two reviewers produce one decision; `enforce_survey_visit_fee` refuses an approval with no `decided_by` and the fifth approved fee in a month, on the UPDATE as well as the INSERT |
 | `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
+| `resolveMismatchAction` | admins | one cash job whose two figures disagree | role re-read in the action **and** again in `resolveAmountMismatch`; refuses a booking with no open mismatch, and the UPDATE repeats `amount_mismatch_resolved_at is null` so two reviewers produce one settlement; the settled amount is judged by `judgeMismatchResolution` against the same 2× quoted-max ceiling the professional faces — including when the customer's own figure is chosen, which nothing had ever checked; only a *third* figure arrives from the form, because the two party figures are re-read from the booking; written to `security_events` as `payment.mismatchResolved` |
 | `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess`, and the applicant's and referees' phone numbers by `recordContactAccess` on every load of the review screen |
 
 **Every admin endpoint above now goes through `adminActor()`**, which is
@@ -213,9 +214,11 @@ What we hold, why, who can read it, how long.
 
 ## 3. The admin model
 
-Four admin screens now exist — `/admin/applications`, `/admin/claims`,
-`/admin/survey-fees` and `/admin/appeals`, each listed above. The rules below
-were written before any of them and every one of them holds today:
+Six admin screens now exist — `/admin/applications`, `/admin/claims`,
+`/admin/guarantee-claims`, `/admin/survey-fees`, `/admin/appeals` and
+`/admin/mismatches`, each listed above, reachable from the `/admin` index and
+framed by their own `(admin)` layout. The rules below were written before any
+of them and every one of them holds today:
 
 1. **Role in the database, not in a token.** `profiles.role` and `is_admin()`,
    which six policies already call. A role claim in a JWT is a role claim the

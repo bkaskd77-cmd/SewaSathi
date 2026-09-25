@@ -53,14 +53,15 @@ export function unreadableQueue<T>(cap: number): QueuePage<T> {
  * ------------------------------------------------------------------ */
 
 /**
- * The six queues, as a closed union.
+ * The queues, as a closed union.
  *
  * Closed on purpose: the index renders its labels as `queues.<key>.name`,
  * which `check:keys` can only report as a dynamic key rather than resolve. The
  * union is what lets `tests/unit/admin-queues.test.ts` check both catalogues
- * exhaustively instead — a seventh queue fails that test until both languages
- * have words for it, which is stronger than an allow-list because it cannot be
- * added to without being noticed.
+ * exhaustively instead — a new queue fails that test until both languages have
+ * words for it, which is stronger than an allow-list because it cannot be
+ * added to without being noticed. `mismatches` was added that way and the test
+ * refused it twice on the way in, exactly as intended.
  */
 export type AdminQueueKey =
   | "applications"
@@ -68,7 +69,8 @@ export type AdminQueueKey =
   | "refunds"
   | "verdicts"
   | "surveyFees"
-  | "appeals";
+  | "appeals"
+  | "mismatches";
 
 export type AdminQueueCount = {
   key: AdminQueueKey;

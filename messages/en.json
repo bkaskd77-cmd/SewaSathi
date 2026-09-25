@@ -753,6 +753,7 @@
         "body": "Hand {final} to your professional. Tap below once you have, and we'll close the job.",
         "confirm": "I've paid in cash",
         "blindBody": "Tell us what you actually handed over. Your professional records their own figure separately and we check the two match.",
+        "blindFloor": "Whatever you enter is the least your guarantee covers — never the most.",
         "blindLabel": "How much did you pay?",
         "blindPlaceholder": "Rs",
         "guarantee": "Your {window} guarantee covers up to the amount you enter. <link>What the guarantee covers</link>"
@@ -1535,6 +1536,7 @@
       "guaranteeClaims": "Guarantee",
       "surveyFees": "Survey fees",
       "appeals": "Appeals",
+      "mismatches": "Mismatches",
       "signedInAs": "Signed in as {name}",
       "logOut": "Log out",
       "unnamed": "this account",
@@ -1580,6 +1582,10 @@
         "appeals": {
           "name": "Commission appeals",
           "what": "Professionals saying a job was genuinely smaller than the band."
+        },
+        "mismatches": {
+          "name": "Amounts that do not match",
+          "what": "Cash jobs where the customer's figure and the professional's disagree."
         }
       }
     },
@@ -1697,6 +1703,41 @@
         "notAdmin": "You cannot decide this.",
         "notFound": "That appeal could not be found.",
         "notConfigured": "That is unavailable right now.",
+        "saveFailed": "That did not save. Try again."
+      }
+    },
+    "mismatches": {
+      "title": "Amounts that do not match",
+      "lead": "For cash the customer types what they handed over without seeing the professional's figure — the only independent witness a cash handover has. When the two disagree nothing settles, so every job here has a professional waiting to be paid and a customer who was told we would look. Take either figure, or set a third and say why.",
+      "empty": "Nothing waiting.",
+      "trade": "{trade}",
+      "since": "Flagged {when}",
+      "customerSaid": "Customer entered",
+      "professionalSaid": "Professional recorded",
+      "published": "Published band",
+      "unrecorded": "Not recorded",
+      "saidNothing": "Did not say",
+      "takeReported": "Settle at {amount} — the customer's",
+      "takeRecorded": "Settle at {amount} — the professional's",
+      "thirdLead": "Or a figure neither of them named, if that is what actually changed hands.",
+      "thirdAmount": "Amount",
+      "thirdNote": "Why",
+      "takeThird": "Settle at this figure",
+      "errors": {
+        "alreadyResolved": "Somebody has already settled this one.",
+        "blocked": "That is more than twice the published maximum. Nothing that far over can be settled here.",
+        "noChoice": "Choose which figure to settle at.",
+        "noCustomerFigure": "The customer never entered an amount, so there is nothing to take.",
+        "noFigure": "No final amount was ever recorded for this job.",
+        "noMismatch": "The amounts on that job do not disagree.",
+        "noPayment": "There is no payment waiting on that job.",
+        "notAdmin": "You cannot decide this.",
+        "notANumber": "Enter a whole number of rupees.",
+        "notConfigured": "That is unavailable right now.",
+        "notFound": "That job could not be found.",
+        "notSurveyed": "That job has no published band to judge an amount against.",
+        "reasonRequired": "Say why. This is the only record of how the figure was arrived at.",
+        "tooLow": "That is below the smallest amount anybody is billed.",
         "saveFailed": "That did not save. Try again."
       }
     },

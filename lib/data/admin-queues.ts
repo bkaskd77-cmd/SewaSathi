@@ -7,6 +7,8 @@ import {
 } from "@/lib/data/claims";
 import {
   APPEAL_QUEUE_CAP,
+  MISMATCH_QUEUE_CAP,
+  openAmountMismatchesCount,
   openCommissionAppealsCount,
 } from "@/lib/data/payments";
 import type { AdminQueueCount } from "@/lib/data/queue";
@@ -18,7 +20,7 @@ import {
 import { REVIEW_QUEUE_CAP, reviewQueueCount } from "@/lib/data/verification";
 
 /**
- * The six numbers the admin index exists to show, and nothing else.
+ * The numbers the admin index exists to show, and nothing else.
  *
  * WHY THE INDEX NEEDED BUILDING AT ALL. There were five admin screens and no
  * way to reach them: `/admin` itself did not exist, so an admin typing it got
@@ -27,15 +29,15 @@ import { REVIEW_QUEUE_CAP, reviewQueueCount } from "@/lib/data/verification";
  * nothing told anybody they had filled up.
  *
  * COUNTS, NOT ROWS. Each of these is `head: true` — the count comes back and
- * no row does. Calling the six queue functions instead would fetch up to 550
- * rows and every join behind them to print six integers, several waves deep,
- * on the one screen that should open instantly. The filters are defined beside
+ * no row does. Calling the queue functions instead would fetch hundreds of
+ * rows and every join behind them to print a handful of integers, several
+ * waves deep, on the one screen that should open instantly. The filters are defined beside
  * their own queue function and shared with it, so a count and its list cannot
  * come to disagree.
  *
- * ONE WAVE. None of the six depends on another, so they go in one
- * `Promise.all` — the standing latency rule, and the difference between one
- * round trip to Singapore and seven.
+ * ONE WAVE. None depends on another, so they go in one `Promise.all` — the
+ * standing latency rule, and the difference between one round trip to
+ * Singapore and one per queue.
  *
  * NULL IS NOT ZERO, EVERYWHERE HERE. A count that failed is null and the
  * screen says it could not be read. An admin index that prints "0 waiting"
@@ -44,13 +46,14 @@ import { REVIEW_QUEUE_CAP, reviewQueueCount } from "@/lib/data/verification";
  */
 
 export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
-  const [applications, claims, refunds, surveyFees, appeals] =
+  const [applications, claims, refunds, surveyFees, appeals, mismatches] =
     await Promise.all([
       reviewQueueCount(),
       openNoShowClaimsCount(),
       refundQueueCounts(),
       pendingSurveyFeesCount(),
       openCommissionAppealsCount(),
+      openAmountMismatchesCount(),
     ]);
 
   return [
@@ -89,6 +92,17 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/appeals",
       total: appeals,
       cap: APPEAL_QUEUE_CAP,
+    },
+    /*
+     * Last in the list and first in urgency, which the index's own ordering
+     * does not try to express: every row here is a job that cannot settle, so
+     * a professional is unpaid and a customer has been told we are looking.
+     */
+    {
+      key: "mismatches",
+      href: "/admin/mismatches",
+      total: mismatches,
+      cap: MISMATCH_QUEUE_CAP,
     },
   ];
 }

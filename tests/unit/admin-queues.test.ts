@@ -83,10 +83,11 @@ describe("every queue on the index has words in both languages", () => {
     "verdicts",
     "surveyFees",
     "appeals",
+    "mismatches",
   ];
 
   for (const file of ["messages/en.json", "messages/ne.json"]) {
-    it(`${file} names and describes all six`, () => {
+    it(`${file} names and describes every one`, () => {
       const messages = JSON.parse(readFileSync(file, "utf8"));
       const queues = messages.admin.index.queues;
 
