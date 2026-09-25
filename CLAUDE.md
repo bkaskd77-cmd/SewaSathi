@@ -778,6 +778,16 @@ call it, what it may act on and where that is enforced; the data inventory;
 and the admin model. It is updated in the same commit as anything that adds an
 endpoint or stores a new kind of personal data.
 
+- **RLS is a floor, not a filter.** A read for a screen that belongs to one
+  person names that person in the query. A Postgres policy is permissive, so
+  adding an `Admins read every X` policy silently widens every unscoped read of
+  X and nothing fails. `listBookings()` named nobody and showed an admin every
+  customer's bookings on the customer dashboard — found by a person looking at
+  it, months after the policy landed; nine reads had the same shape. Where the
+  filter is a function rather than a column, write it once in SQL and have the
+  policy and the application call it (`open_job_ids()`). Before leaving a read
+  to RLS, ask which admin policy is on that table — `docs/rls-matrix.md` lists
+  them.
 - **The actor comes from the session, never from the caller.** Every action
   re-reads `getSessionProfile()` and passes the id down as `actorId`; the data
   layer re-reads the subject and decides. Three holes have been found this way

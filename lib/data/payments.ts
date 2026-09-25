@@ -979,7 +979,15 @@ export async function reconcileStuckPayments(
   return { checked: data?.length ?? 0, settled };
 }
 
-/** The payments on a booking, through RLS — a customer sees only their own. */
+/**
+ * The payments on a booking.
+ *
+ * THE CALLER PASSES A BOOKING ID ALREADY PROVEN TO BE THE ACTOR'S, and
+ * `getBooking({ customerId })` is what proves it. RLS is the floor here, not
+ * the filter: the admin policy on this table is permissive and carries no
+ * owner clause, so "through RLS" alone would answer for everybody. See the
+ * note at the top of `lib/data/bookings.ts`.
+ */
 export async function listPaymentsForBooking(
   bookingId: string,
 ): Promise<Payment[]> {

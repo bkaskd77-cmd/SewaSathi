@@ -145,6 +145,41 @@ function in the product, with no caller.
   file by file in this phase. One violation found (`addressId`), fixed in the
   database.
 
+### RLS is a floor, not a filter
+
+**A read for a screen that belongs to one person names that person in the
+query.** Adding an `Admins read every X` policy silently widens every unscoped
+read of X, because a Postgres policy is permissive: the new one ORs alongside
+the owner's, and nothing fails.
+
+This is the fourth hole of the family above and the first of its kind. The
+other three were *an id arrived from the browser and nothing asked whose it
+was*; here **no id arrived at all**. `listBookings()` selected from `bookings`
+with no owner predicate and left the filtering to RLS, which was correct until
+`"Admins read every booking"` was added for the admin queues. From that day an
+admin opening the customer dashboard at `/bookings` saw every customer's jobs,
+amounts and professional. Read-only — there is no admin UPDATE policy and every
+write path re-checks `customer_id` — but it was the whole product's booking
+history on a screen that is not the admin surface. It was found by a person
+looking at it, months later.
+
+Nine reads carried the same shape. They are scoped now, and two guards hold the
+rule:
+
+- `tests/unit/personal-reads.test.ts` records the filters each personal read
+  applies against a recording client, so deleting an `.eq` goes red.
+- `tests/db/open-jobs.test.ts` fixtures an admin who is *also* a linked
+  professional — the account that made the open-job board leak — and asserts
+  `open_job_ids()` gives them their own trade and ward and nothing more.
+
+Where the filter is a function rather than a column, it is written once in SQL
+and called by both the policy and the application: `open_job_ids()`, in
+`20260925000001_open_job_ids.sql`. Two copies of a rule diverge, and the
+divergence stays invisible until somebody is shown a job three wards away.
+
+**Before leaving a read to RLS, ask which admin policy is on that table.**
+`docs/rls-matrix.md` lists every one of them.
+
 ---
 
 ## 2. Data inventory

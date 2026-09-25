@@ -658,10 +658,15 @@ export async function decideSurveyVisitFee(input: {
  * A FEE NOBODY CAN SEE IS A PROMISE NOBODY HAS BEEN MADE. The policy says we
  * pay for the trip when a survey comes to nothing; until this read existed,
  * the row was written, held pending, and never mentioned to the person it was
- * written for. Through RLS — "Providers read their own survey fees" exists for
- * exactly this.
+ * written for.
+ *
+ * IT TAKES THE PROFESSIONAL. "Providers read their own survey fees" exists,
+ * and it is the floor rather than the filter — `"Admins read every survey
+ * fee"` sits permissively beside it, so a read naming nobody hands every
+ * professional's fees to an admin who also works here. Same shape as
+ * `listBookings`; see the note at the top of `lib/data/bookings.ts`.
  */
-export async function mySurveyFees(): Promise<
+export async function mySurveyFees(providerId: string): Promise<
   Array<{ id: string; outcome: string; amount: number; status: string; createdAt: string }>
 > {
   if (!hasSupabaseConfig()) return [];
@@ -670,6 +675,7 @@ export async function mySurveyFees(): Promise<
     const { data, error } = await createClient()
       .from("survey_visit_fees")
       .select("id, outcome, amount, status, created_at")
+      .eq("provider_id", providerId)
       .order("created_at", { ascending: false })
       .limit(20);
 

@@ -547,23 +547,46 @@ export async function declineJob(input: {
 }
 
 /**
+ * A number on `provider_contacts` is only ever released while a job is live.
+ *
+ * `providers` is readable by `anon` — it is the public directory — which is
+ * why the number is not on it. The window is the whole point: somebody has
+ * agreed to come, so the customer may ring them; the job ends and the number
+ * goes away again.
+ */
+const PHONE_IS_RELEASED: ReadonlySet<string> = new Set([
+  "accepted",
+  "en_route",
+  "in_progress",
+]);
+
+/**
  * The professional's phone, for the customer's call button.
  *
- * Read through RLS, which is the whole security model here: the policy on
- * `provider_contacts` hands it out only while a job of theirs is accepted, on
- * the way or under way. Null therefore means "not yours to see" and "not
- * recorded" alike, and the caller shows the support line for both — which is
- * the right answer to both.
+ * THE WINDOW IS CHECKED HERE AS WELL AS IN THE POLICY, and that is not
+ * belt-and-braces — it is the same rule this whole file learned the hard way.
+ * The policy on `provider_contacts` releases the number only while a job of
+ * theirs is accepted, on the way or under way; `"Admins read every contact"`
+ * sits permissively beside it and has no such clause. So an admin reading this
+ * through RLS alone got a professional's private number on a job nobody had
+ * agreed to yet. Asking for the status makes the window the same whoever is
+ * asking, and costs no round trip — every caller already has the booking.
+ *
+ * Null means "not yours to see", "not yet" and "not recorded" alike, and the
+ * caller shows the support line for all three — which is the right answer to
+ * all three.
  */
-export async function getProviderPhone(
-  providerId: string,
-): Promise<string | null> {
+export async function getProviderPhone(input: {
+  providerId: string;
+  bookingStatus: string;
+}): Promise<string | null> {
   if (!hasSupabaseConfig()) return null;
+  if (!PHONE_IS_RELEASED.has(input.bookingStatus)) return null;
   try {
     const { data } = await createClient()
       .from("provider_contacts")
       .select("phone")
-      .eq("provider_id", providerId)
+      .eq("provider_id", input.providerId)
       .maybeSingle();
     return (data?.phone as string | null) ?? null;
   } catch {
@@ -574,12 +597,22 @@ export async function getProviderPhone(
 /**
  * Jobs nobody has taken yet, that this professional could do.
  *
- * RLS does the whole filter — "Providers see open jobs they can do" limits it
- * to unassigned, still-pending bookings in a category they work and a ward
- * they serve. Deliberately no admin client anywhere in here: an open job list
- * is a list of strangers' addresses, and the policy is what keeps it honest.
- * The customer's name and phone are NOT joined in for the same reason — nobody
- * has agreed to anything yet.
+ * IT ASKS THE DATABASE WHICH ONES ARE ITS OWN, rather than leaving the whole
+ * filter to RLS. This used to say "RLS does the whole filter", and the filter
+ * that matters is the trade and the ward — `provider_can_serve` inside
+ * "Providers see open jobs they can do". A policy is permissive, though, and
+ * `"Admins read every booking"` ORs straight past it, so an admin who also
+ * works here would have been handed every pending job in the country, with the
+ * ward of each resolved by the service role twenty lines down. An open job
+ * list is a list of strangers' addresses.
+ *
+ * `open_job_ids()` is that predicate, written once in SQL, and the policy
+ * calls the same function — see `20260925000001_open_job_ids.sql` for why the
+ * rule could not simply become an `.eq()`. The RLS-scoped client is still what
+ * reads the rows: the ids narrow the answer, the policy remains the floor.
+ *
+ * The customer's name and phone are NOT joined in — nobody has agreed to
+ * anything yet.
  */
 export async function listOpenJobs(
   profileId: string,
@@ -589,11 +622,22 @@ export async function listOpenJobs(
   if (!me) return [];
 
   try {
-    const { data, error } = await createClient()
+    const supabase = createClient();
+
+    const { data: mine, error: idsError } = await supabase.rpc("open_job_ids");
+    if (idsError) {
+      console.error(`[provider-jobs] open ids failed — ${describeError(idsError)}`);
+      return [];
+    }
+    const ids = ((mine ?? []) as Array<{ id: string }>).map((row) => row.id);
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
       .from("bookings")
       .select(
         "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, customer_id, address_id, created_at",
       )
+      .in("id", ids)
       .is("provider_id", null)
       .eq("status", "pending")
       .order("created_at", { ascending: true })

@@ -1425,6 +1425,16 @@ export type Database = {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      /**
+       * The open jobs this professional's trade and wards cover.
+       *
+       * The same function the open-jobs policy calls, so the board and the
+       * policy cannot drift — see 20260925000001_open_job_ids.sql.
+       */
+      open_job_ids: {
+        Args: Record<string, never>;
+        Returns: { id: string }[];
+      };
       /** Redo debt still owed, netted and floored at zero. */
       provider_outstanding: {
         Args: { target: string };

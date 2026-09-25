@@ -856,7 +856,10 @@ async function notifyProvider(
  * coming to look" are different facts to somebody waiting, and collapsing them
  * into "claim open" would be the list answering a question nobody asked.
  *
- * Through RLS, so this is the customer's own claims and nobody else's.
+ * THE IDS COME FROM `listBookings(customerId)`, which is what makes them the
+ * reader's own. RLS is the floor: the admin policy on `guarantee_claims` is
+ * permissive, so a list of ids gathered any other way would be answered in
+ * full. See the note at the top of `lib/data/bookings.ts`.
  */
 export async function liveClaimsByBooking(
   bookingIds: string[],
@@ -890,7 +893,15 @@ export async function liveClaimsByBooking(
   }
 }
 
-/** Claims on one booking, for the customer looking at it. Through RLS. */
+/**
+ * Claims on one booking, for the customer looking at it.
+ *
+ * THE CALLER PASSES A BOOKING ID ALREADY PROVEN TO BE THE ACTOR'S, and
+ * `getBooking({ customerId })` is what proves it. RLS is the floor here, not
+ * the filter: the admin policy on this table is permissive and carries no
+ * owner clause, so "through RLS" alone would answer for everybody. See the
+ * note at the top of `lib/data/bookings.ts`.
+ */
 export async function claimsForBooking(bookingId: string): Promise<ClaimRow[]> {
   if (!hasSupabaseConfig()) return [];
   try {
@@ -1860,8 +1871,15 @@ export async function sendRefundToGateway(input: {
  * would tell somebody their money was refunded while it sat in a queue. So the
  * booking page reads the refund row and says which of the two is true.
  *
- * Through RLS — "Customers read refunds on their payments" — so this is their
- * own and nobody else's.
+ * "Customers read refunds on their payments" is the policy, and it is the
+ * floor rather than the filter — the admin policies on `payments` and
+ * `refunds` are permissive and carry no owner clause.
+ *
+ * THE CALLER PASSES A BOOKING ID ALREADY PROVEN TO BE THE ACTOR'S, and
+ * `getBooking({ customerId })` is what proves it. RLS is the floor here, not
+ * the filter: the admin policy on this table is permissive and carries no
+ * owner clause, so "through RLS" alone would answer for everybody. See the
+ * note at the top of `lib/data/bookings.ts`.
  */
 export type CustomerRefund = {
   id: string;
@@ -1915,7 +1933,9 @@ export async function refundsForBooking(
  * ONE QUERY FOR THE WHOLE LIST, the same rule as `liveClaimsByBooking` and for
  * the same reason: `/bookings` ships no client JavaScript on purpose, and a
  * read per row would undo that on exactly the connection the page exists to
- * serve. Through RLS, so it is the reader's own.
+ * serve. The ids come from `listBookings(customerId)`, which is what makes
+ * them the reader's own — RLS is the floor, and the admin policies on
+ * `payments` and `refunds` carry no owner clause.
  *
  * WHAT IT IS FOR. A booking with money owed on it is not history. Without this
  * the card dropped into "Earlier", quiet and small, while the customer waited

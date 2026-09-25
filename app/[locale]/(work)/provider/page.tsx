@@ -90,9 +90,10 @@ export default async function ProviderDashboardPage() {
      * A FEE NOBODY CAN SEE IS A PROMISE NOBODY HAS BEEN MADE. We say we pay
      * for the trip when a survey comes to nothing; until this read existed the
      * row was written, held pending, and never mentioned to the person it was
-     * written for. Through RLS — the policy exists for exactly this.
+     * written for. It names the professional: the policy exists for exactly
+     * this, but a policy is a floor and the admin one sits beside it.
      */
-    mySurveyFees(),
+    mySurveyFees(dashboard.providerId),
   ]);
   const live = claims.filter((claim) =>
     ["open", "dispatched", "attended"].includes(claim.status),

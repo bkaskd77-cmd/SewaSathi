@@ -84,7 +84,7 @@ export default async function BookingsPage() {
   }
 
   const [bookings, categories, unread] = await Promise.all([
-    listBookings(),
+    listBookings(profile!.id),
     getCategories(),
     unreadByBooking(),
   ]);

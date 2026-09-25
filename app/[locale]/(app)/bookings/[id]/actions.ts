@@ -67,7 +67,7 @@ export async function startPaymentAction(
   if (!profile) return { ok: false, reason: "notSignedIn" };
   if (!isPaymentMethod(method)) return { ok: false, reason: "unknownMethod" };
 
-  const booking = await getBooking(bookingId);
+  const booking = await getBooking(bookingId, { customerId: profile.id });
   if (!booking) return { ok: false, reason: "bookingNotFound" };
   const category = await getCategory(booking.categorySlug);
 

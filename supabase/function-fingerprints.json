@@ -103,6 +103,10 @@
     "sha": "c79ef77e6acefaef",
     "file": "20260827000001_profiles.sql"
   },
+  "open_job_ids": {
+    "sha": "e7353505146d14bf",
+    "file": "20260925000001_open_job_ids.sql"
+  },
   "payment_transition_allowed": {
     "sha": "3f977d7ea1e0cb88",
     "file": "20260902000001_payments.sql"

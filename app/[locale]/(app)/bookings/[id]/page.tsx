@@ -105,9 +105,13 @@ export default async function BookingDetailPage({
   }
 
   const messages = await getMessages();
-  const booking = await getBooking(params.id);
-  // RLS already limits this to the customer's own rows, so "not found" and
-  // "not yours" are the same answer here — which is the right answer to give.
+  const booking = await getBooking(params.id, { customerId: profile!.id });
+  /*
+   * NAMING THE CUSTOMER IS WHAT MAKES "not found" AND "not yours" THE SAME
+   * ANSWER — which is the right answer to give. This used to say RLS did it,
+   * and RLS is the floor rather than the filter: `"Admins read every booking"`
+   * is permissive, so without the predicate an admin opened anybody's job here.
+   */
   if (!booking) notFound();
 
   /*
@@ -147,10 +151,15 @@ export default async function BookingDetailPage({
         : Promise.resolve(null),
       signBookingPhoto(booking.photoUrl),
       listPaymentsForBooking(booking.id),
-      // RLS releases this only while the job is live, so an unassigned or
-      // finished booking simply gets null and the card falls back to support.
+      // Released only while the job is live, so an unassigned or finished
+      // booking simply gets null and the card falls back to support. The
+      // status goes with the id because the policy's window and ours have to
+      // be the same window — see the note on `getProviderPhone`.
       booking.providerId
-        ? getProviderPhone(booking.providerId)
+        ? getProviderPhone({
+            providerId: booking.providerId,
+            bookingStatus: booking.status,
+          })
         : Promise.resolve(null),
       booking.status === "completed"
         ? myReviewState(booking.id)

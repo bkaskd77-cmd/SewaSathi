@@ -33,9 +33,21 @@ import { createClient } from "@/lib/supabase/server";
  * Bookings.
  *
  * Everything here goes through the RLS-scoped client, never the service role.
- * The policies on `bookings` are what actually guarantee a customer touches
- * only their own; repeating that check in TypeScript would be a second source
- * of truth that can drift from the first.
+ *
+ * RLS IS A FLOOR, NOT A FILTER, AND THIS FILE IS WHERE THAT WAS LEARNED. This
+ * comment used to say the policies on `bookings` were what guaranteed a
+ * customer touched only their own, and that repeating the check here would be
+ * a second source of truth that could drift. Every word of it was true when it
+ * was written and the conclusion was wrong. `"Admins read every booking"` was
+ * added later for the admin queues — permissive, as every Postgres policy is —
+ * and from that day `listBookings` returned EVERY customer's bookings to an
+ * admin, on the customer's own dashboard, because it named nobody in the
+ * query. Nothing failed. It was found by a person looking at the screen.
+ *
+ * So the rule, and it is in `SECURITY.md` now: a read for a screen that
+ * belongs to one person names that person. The policy is the floor that stops
+ * a stranger; the predicate is what makes the answer the right one. That is
+ * not a second source of truth — the two answer different questions.
  *
  * What this module is responsible for that the database cannot be:
  *
@@ -620,18 +632,23 @@ export async function createBooking(
 }
 
 /**
- * The signed-in customer's bookings, newest first.
+ * One customer's bookings, newest first.
+ *
+ * TAKES THE CUSTOMER RATHER THAN ASSUMING THEM. It used to take nothing and
+ * let RLS decide, which is how an admin came to see fourteen jobs belonging to
+ * somebody else on their own `/bookings`. See the note at the top of the file.
  *
  * No seed fallback, unlike categories and providers: an empty list is a real
  * and correct answer for a new customer.
  */
-export async function listBookings(): Promise<Booking[]> {
+export async function listBookings(customerId: string): Promise<Booking[]> {
   if (!hasSupabaseConfig()) return [];
 
   try {
     const { data, error } = await createClient()
       .from("bookings")
       .select(COLUMNS)
+      .eq("customer_id", customerId)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -648,9 +665,18 @@ export async function listBookings(): Promise<Booking[]> {
   }
 }
 
-/** One booking, by id or by the reference a customer reads off a screen. */
+/**
+ * One booking, by id or by the reference a customer reads off a screen.
+ *
+ * `customerId` IS HOW A PERSONAL SCREEN ASKS. Pass it from a customer surface
+ * and "not found" and "not yours" become the same answer, which is the right
+ * answer to give. Leave it out only where reading any booking is the point —
+ * the dispatch sweep, the admin queues — and the call site then says so in one
+ * word rather than by omission.
+ */
 export async function getBooking(
   idOrReference: string,
+  options?: { customerId?: string },
 ): Promise<Booking | null> {
   if (!hasSupabaseConfig()) return null;
 
@@ -660,11 +686,16 @@ export async function getBooking(
     );
 
   try {
-    const { data, error } = await createClient()
+    let query = createClient()
       .from("bookings")
       .select(COLUMNS)
-      .eq(isUuid ? "id" : "reference", idOrReference)
-      .maybeSingle();
+      .eq(isUuid ? "id" : "reference", idOrReference);
+
+    if (options?.customerId) {
+      query = query.eq("customer_id", options.customerId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       console.error(`[bookings] read failed — ${describeError(error)}`);
@@ -680,10 +711,13 @@ export async function getBooking(
 /**
  * Who has already said no to this booking.
  *
- * Read through RLS — "Customers read refusals on their bookings" — so a
- * customer sees the refusals on their own job and nobody else's. Used for two
- * things that must agree: the screen that says a professional pulled out, and
- * the suggestion list that must not offer that professional back.
+ * THE CALLER PASSES A BOOKING ID ALREADY PROVEN TO BE THE ACTOR'S, and
+ * `getBooking({ customerId })` is what proves it. `booking_refusals` carries
+ * no customer column, so there is nothing here to filter on — and the RLS
+ * policy is a floor rather than the whole answer, because
+ * `"Admins read every refusal"` widens it. Used for two things that must
+ * agree: the screen that says a professional pulled out, and the suggestion
+ * list that must not offer that professional back.
  */
 export async function listRefusals(
   bookingId: string,
