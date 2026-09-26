@@ -21,12 +21,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * sentence becoming true.
  *
  * WHAT A PAYOUT IS HERE, BECAUSE THE CAP HAS TO BE MEASURED AGAINST SOMETHING.
- * There is no payout table and no payout run: `payoutDueAt` stamps
- * `payout_due_at` on the booking when it settles and that is the whole of the
- * mechanism. So the unit is **one settled booking whose payout has come due**,
- * and at most a quarter of its `provider_earning` comes off the debt. That
- * reading matches the published sentence, invents no batch, and makes a payout
- * mean a job — which here it does.
+ * There is no payout table and no payout run: settlement stamps dates on the
+ * booking and that is the whole of the mechanism. The unit used to be **one
+ * settled booking whose payout had come due**, because a booking paid once.
+ *
+ * IT IS NOW A TRANCHE, and that is not a refinement — it is the unit changing.
+ * Where the guarantee window runs long, `payoutPlan` holds a quarter back to
+ * `payout_holdback_until`, so one booking has TWO payable dates. Each is a
+ * payout, and the published sentence — never more than a quarter of any one
+ * payout — is measured against each of them separately, on the money actually
+ * arriving that day. A quarter of the whole earning taken out of the smaller
+ * first tranche would be a third of what lands in their account, while the page
+ * promised a quarter.
  *
  * NOTHING IS CHASED BACKWARD. This only ever reduces a payout that has not
  * been made. There is no card on file, no direct debit and no wage to garnish,
@@ -37,11 +43,26 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * report rather than quietly built here.
  */
 
+/**
+ * One payable tranche of one booking.
+ *
+ * `earning` is the money actually arriving on that date, not the whole
+ * settlement — which is the entire point: the published quarter is a quarter of
+ * what lands, and on a held-back job the two tranches land a month apart.
+ */
+type Tranche = {
+  bookingId: string;
+  reference: string | null;
+  providerId: string;
+  tranche: "main" | "holdback";
+  earning: number;
+};
+
 /** What one sweep did. Counted, because a cron that says nothing proves nothing. */
 export type RecoverySweep = {
-  /** Due payouts looked at, including ones that recovered nothing. */
+  /** Payable tranches looked at, including ones that recovered nothing. */
   considered: number;
-  /** Bookings that produced a recovery row. */
+  /** Tranches that produced a recovery row. */
   recovered: number;
   /** Rupees taken off outstanding debt across the whole sweep. */
   rupees: number;
@@ -58,15 +79,23 @@ const EMPTY: RecoverySweep = { considered: 0, recovered: 0, rupees: 0 };
 const SWEEP_LIMIT = 200;
 
 /**
- * Recover what is due, once per booking.
+ * Recover what is due, once per tranche.
  *
  * IDEMPOTENT BY CONSTRUCTION AND NOT BY THE FILTER BELOW. The filter skips
- * bookings already recovered against, but a second sweep overlapping the first
+ * tranches already recovered against, but a second sweep overlapping the first
  * would pass that filter with stale data and insert again. What actually stops
- * it is `provider_ledger_recovery_once_idx` — a partial unique index the
- * second insert violates. The filter is an optimisation; the index is the
- * rule. This is the same arrangement `our_reference` has on `payments`, for
- * the same reason.
+ * it is `provider_ledger_recovery_tranche_idx` — a partial unique index on
+ * `(booking_id, tranche)` that the second insert violates. The filter is an
+ * optimisation; the index is the rule. Same arrangement `our_reference` has on
+ * `payments`, for the same reason.
+ *
+ * THE FILTER IS ALSO WHY THE INDEX HAD TO CHANGE RATHER THAN JUST WIDEN. It
+ * used to be unique on `booking_id` alone, and the filter below keyed on
+ * booking id alone to match. A released holdback on a booking whose first
+ * tranche had already been recovered would have been dropped by the filter
+ * BEFORE any insert was attempted — paid in full, no row, no unique violation,
+ * nothing logged. A guard that has quietly stopped guarding looks exactly like
+ * one that is working.
  */
 export async function sweepRedoRecovery(
   options: { limit?: number } = {},
@@ -77,18 +106,22 @@ export async function sweepRedoRecovery(
   try {
     const admin = createAdminClient();
 
+    const now = new Date().toISOString();
+
     /*
-     * Every payout that has come due and could carry a recovery. Ordered
-     * oldest first so a backlog is worked through in the order the money was
-     * owed, which is also the order a professional would expect to see it.
+     * Every settled booking that has a payable tranche by now. One read rather
+     * than two: a booking can have both its dates in the past, and asking twice
+     * would fetch the same row twice on a database that is not local.
      */
     const { data: dueRows, error } = await admin
       .from("bookings")
-      .select("id, reference, provider_id, provider_earning, payout_due_at")
+      .select(
+        "id, reference, provider_id, provider_earning, payout_due_at, payout_holdback_rupees, payout_holdback_until",
+      )
       .eq("payment_status", "paid")
       .not("provider_id", "is", null)
       .gt("provider_earning", 0)
-      .lte("payout_due_at", new Date().toISOString())
+      .lte("payout_due_at", now)
       .order("payout_due_at", { ascending: true })
       .limit(limit);
 
@@ -97,31 +130,77 @@ export async function sweepRedoRecovery(
       return EMPTY;
     }
 
-    const due = (dueRows ?? []) as Record<string, unknown>[];
-    if (due.length === 0) return EMPTY;
+    const rows = (dueRows ?? []) as Record<string, unknown>[];
+    if (rows.length === 0) return EMPTY;
+
+    /*
+     * ONE BOOKING BECOMES ONE OR TWO PAYOUTS, and each carries its own earning
+     * — the money actually reaching the professional on that date. The main
+     * tranche is the earning LESS whatever is held back; the holdback tranche
+     * is that held amount, once its own date has passed. They sum to the whole
+     * earning, so a quarter of each is never more than a quarter of anything
+     * that lands.
+     */
+    const candidates: Tranche[] = [];
+    for (const row of rows) {
+      const earning = Number(row.provider_earning ?? 0);
+      const held = Number(row.payout_holdback_rupees ?? 0);
+      const until = row.payout_holdback_until as string | null;
+
+      const main = earning - (Number.isFinite(held) ? held : 0);
+      if (main > 0) {
+        candidates.push({
+          bookingId: row.id as string,
+          reference: (row.reference as string | null) ?? null,
+          providerId: row.provider_id as string,
+          tranche: "main",
+          earning: main,
+        });
+      }
+
+      // Held money is not a payout until its date passes — recovering against
+      // it early takes a quarter of something nobody has been paid.
+      if (held > 0 && until && until <= now) {
+        candidates.push({
+          bookingId: row.id as string,
+          reference: (row.reference as string | null) ?? null,
+          providerId: row.provider_id as string,
+          tranche: "holdback",
+          earning: held,
+        });
+      }
+    }
+
+    if (candidates.length === 0) return EMPTY;
 
     /*
      * Which of these have already been recovered against. Read in one query
      * rather than per booking: this is a cron on a database a Pacific away
      * from nothing, but a round trip per row is still a round trip per row.
+     *
+     * KEYED ON BOOKING **AND** TRANCHE. Keying on the booking alone is the
+     * silent failure described above: a released holdback would be filtered out
+     * by its own first tranche and never attempted.
      */
     const { data: doneRows } = await admin
       .from("provider_ledger")
-      .select("booking_id")
+      .select("booking_id, tranche")
       .eq("kind", "recovery")
       .in(
         "booking_id",
-        due.map((b) => b.id as string),
+        Array.from(new Set(candidates.map((c) => c.bookingId))),
       );
 
     const alreadyDone = new Set(
-      ((doneRows ?? []) as { booking_id: string | null }[])
-        .map((r) => r.booking_id)
-        .filter((id): id is string => Boolean(id)),
+      ((doneRows ?? []) as { booking_id: string | null; tranche: string | null }[])
+        .filter((r) => Boolean(r.booking_id))
+        .map((r) => `${r.booking_id}:${r.tranche ?? "main"}`),
     );
 
-    const pending = due.filter((b) => !alreadyDone.has(b.id as string));
-    if (pending.length === 0) return { ...EMPTY, considered: due.length };
+    const pending = candidates.filter(
+      (c) => !alreadyDone.has(`${c.bookingId}:${c.tranche}`),
+    );
+    if (pending.length === 0) return { ...EMPTY, considered: candidates.length };
 
     /*
      * GROUPED BY PROFESSIONAL, AND THE BALANCE IS CARRIED ACROSS THE GROUP.
@@ -134,12 +213,11 @@ export async function sweepRedoRecovery(
      * balances. So the balance is read once per professional and decremented
      * as each booking takes its share.
      */
-    const byProvider = new Map<string, Record<string, unknown>[]>();
-    for (const booking of pending) {
-      const id = booking.provider_id as string;
-      const list = byProvider.get(id);
-      if (list) list.push(booking);
-      else byProvider.set(id, [booking]);
+    const byProvider = new Map<string, Tranche[]>();
+    for (const item of pending) {
+      const list = byProvider.get(item.providerId);
+      if (list) list.push(item);
+      else byProvider.set(item.providerId, [item]);
     }
 
     const { applyRedoRecovery } = await import("@/lib/payments/payout");
@@ -167,28 +245,39 @@ export async function sweepRedoRecovery(
       // out. No rows are written and nothing is logged for it.
       if (!Number.isFinite(outstanding) || outstanding <= 0) continue;
 
-      for (const booking of bookings) {
+      for (const item of bookings) {
         // THE DEBT CLEARING MID-SWEEP. Once the balance is gone the remaining
         // payouts of this professional are untouched — no zero-rupee rows, and
         // the `amount_rupees > 0` check would refuse them anyway.
         if (outstanding <= 0) break;
 
-        const earning = Number(booking.provider_earning ?? 0);
-        const step = applyRedoRecovery({ earning, outstanding });
+        /*
+         * The SAME `applyRedoRecovery` for both tranches, deliberately. "A
+         * quarter" is published, and two implementations of it would take
+         * different amounts depending on which date the money arrived on.
+         */
+        const step = applyRedoRecovery({ earning: item.earning, outstanding });
         if (step.recovered <= 0) continue;
 
         const { error: insertError } = await admin
           .from("provider_ledger")
           .insert({
             provider_id: providerId,
-            booking_id: booking.id as string,
+            booking_id: item.bookingId,
+            tranche: item.tranche,
             kind: "recovery",
             amount_rupees: step.recovered,
             // A sentence they can read. An unexplained row is money off
-            // somebody's earnings with no account of why.
-            note: `Recovered from the payout on ${
-              (booking.reference as string | null) ?? "a job"
-            } — a quarter of it, against what is owed`,
+            // somebody's earnings with no account of why — and it says WHICH
+            // payout, because two of them can come from one job.
+            note:
+              item.tranche === "holdback"
+                ? `Recovered from the held part of ${
+                    item.reference ?? "a job"
+                  } — a quarter of it, against what is owed`
+                : `Recovered from the payout on ${
+                    item.reference ?? "a job"
+                  } — a quarter of it, against what is owed`,
           });
 
         if (insertError) {
@@ -201,7 +290,7 @@ export async function sweepRedoRecovery(
             continue;
           }
           console.error(
-            `[recovery] insert failed on ${booking.id as string} — ${describeError(insertError)}`,
+            `[recovery] insert failed on ${item.bookingId}/${item.tranche} — ${describeError(insertError)}`,
           );
           continue;
         }
@@ -212,7 +301,7 @@ export async function sweepRedoRecovery(
       }
     }
 
-    return { considered: due.length, recovered, rupees };
+    return { considered: candidates.length, recovered, rupees };
   } catch (thrown) {
     console.error(`[recovery] sweep threw — ${describeError(thrown)}`);
     return EMPTY;

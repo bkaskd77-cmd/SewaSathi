@@ -119,6 +119,17 @@ export type JobCardProps = {
   /** Pre-formatted date this settlement becomes payable. */
   payoutLabel: string | null;
   /**
+   * The part of this earning that waits, pre-formatted, with its release date.
+   *
+   * BOTH NUMBERS OR NEITHER. A professional shown a smaller figure and no
+   * explanation has been quietly short-changed as far as they can tell — this
+   * is their own money arriving 30 days later, not a fee, and the card has to
+   * say so on the same line as the amount. Null on every job that holds
+   * nothing, which is most of them, and no second date is rendered for it.
+   */
+  holdbackAmountLabel: string | null;
+  holdbackDateLabel: string | null;
+  /**
    * An open job, offered to everybody who can do it rather than assigned.
    * The only action is to take it, and the customer's details are absent
    * until somebody has.
@@ -425,6 +436,19 @@ export function JobCard(props: JobCardProps) {
           {props.payoutLabel ? (
             <p className="mt-1 text-caption text-muted-foreground">
               {t("payment.payout", { date: props.payoutLabel })}
+            </p>
+          ) : null}
+
+          {/* THE HELD QUARTER, WHERE THE GUARANTEE RUNS LONG. Said as a
+              deferral and never as a deduction, because that is what it is:
+              the two parts add up to the whole earning above. Published in the
+              same terms on /providers/standards before anybody signs up. */}
+          {props.holdbackAmountLabel && props.holdbackDateLabel ? (
+            <p className="mt-1 text-caption text-muted-foreground">
+              {t("payment.holdback", {
+                amount: props.holdbackAmountLabel,
+                date: props.holdbackDateLabel,
+              })}
             </p>
           ) : null}
 

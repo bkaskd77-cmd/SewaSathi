@@ -25,7 +25,7 @@ export const standards: LocalisedDocument = {
     title: "Our standards, and what happens if they are broken",
     lead:
       "How SajiloKaam handles under-reported jobs and money taken off the platform — what we count, what we never count, and exactly what each step costs.",
-    updated: "2026-09-25",
+    updated: "2026-09-26",
     sections: [
       {
         id: "why",
@@ -189,6 +189,15 @@ export const standards: LocalisedDocument = {
           {
             p: "A digital payment is confirmed by eSewa or Khalti themselves, so we can pay it out quickly. Cash has to be reconciled against a confirmation the customer types, so it waits longer. That difference is an operational fact, not a punishment — and it is the reason we would rather grow digital payments than inspect cash for ever.",
           },
+          {
+            p: "On work with a long guarantee — 90 days or more — a quarter of your earning arrives 30 days after the rest. It is held, not taken: the two parts add up to everything you earned on that job, and nothing about it changes what you are paid. We do it because a guarantee that runs for three months outlives a payout that clears in a week, so on those jobs a fault can appear long after the money has gone.",
+          },
+          {
+            p: "The rule is the length of the guarantee, not the name of the trade. Any work we list with a guarantee of 90 days or more is held this way, so if we add a trade with a long guarantee later, it will be held too — you will not find out from a smaller number in your account. Today that is painting.",
+          },
+          {
+            p: "If you are carrying a balance from a refund, a quarter of each of those two payments can go towards it — a quarter of what actually arrives on the day, never a quarter of the whole job taken out of the first part. Your job screen shows both amounts, both dates, and what is left owing.",
+          },
         ],
       },
     ],
@@ -198,7 +207,7 @@ export const standards: LocalisedDocument = {
     title: "हाम्रा मापदण्ड, र उल्लङ्घन भए के हुन्छ",
     lead:
       "कम रकम लेखिएका काम र प्लेटफर्म बाहिर गएको पैसालाई सजिलोकामले कसरी हेर्छ — के गनिन्छ, के कहिल्यै गनिँदैन, र हरेक चरणले के खर्च गराउँछ।",
-    updated: "2026-09-25",
+    updated: "2026-09-26",
     sections: [
       {
         id: "why",
@@ -361,6 +370,15 @@ export const standards: LocalisedDocument = {
         blocks: [
           {
             p: "डिजिटल भुक्तानी इसेवा वा खल्तीले आफैँ पुष्टि गर्छन्, त्यसैले हामी छिटो पठाउन सक्छौँ। नगदचाहिँ ग्राहकले लेखेको पुष्टिसँग मिलाउनुपर्ने हुनाले ढिलो हुन्छ। यो फरक कामको प्रकृतिले आएको हो, सजाय होइन — र यही कारणले नगदलाई सधैँ जाँचिरहनुभन्दा डिजिटल भुक्तानी बढाउन हामी रुचाउँछौँ।",
+          },
+          {
+            p: "लामो ग्यारेन्टी हुने काममा — ९० दिन वा बढी — तपाईंले कमाएको रकमको एक चौथाइ बाँकी रकमभन्दा ३० दिनपछि आउँछ। यो रोकिएको हो, काटिएको होइन: दुवै भाग जोड्दा त्यो काममा तपाईंले कमाएको पूरै रकम हुन्छ, र तपाईंले पाउने रकममा कुनै फरक पर्दैन। तीन महिना चल्ने ग्यारेन्टी एक हप्तामा सकिने भुक्तानीभन्दा लामो हुन्छ, त्यसैले त्यस्ता काममा पैसा गइसकेपछि मात्र खोट देखिन सक्छ — त्यही कारण हामी यसो गर्छौं।",
+          },
+          {
+            p: "नियम ग्यारेन्टी कति लामो छ भन्नेमा आधारित छ, कामको नाममा होइन। हामीकहाँ सूचीबद्ध ९० दिन वा बढी ग्यारेन्टी भएको जुनसुकै काममा यसरी रोकिन्छ, त्यसैले पछि लामो ग्यारेन्टी भएको नयाँ काम थपियौँ भने त्यसमा पनि रोकिनेछ — खातामा कम रकम देखेर मात्र थाहा पाउनुपर्ने छैन। अहिलेलाई त्यो रङरोगन हो।",
+          },
+          {
+            p: "फिर्ताबाट आएको बाँकी रकम तपाईंमाथि छ भने, ती दुई भुक्तानी प्रत्येकबाट एक चौथाइसम्म त्यसैमा जान सक्छ — त्यो दिन साँच्चै आउने रकमको एक चौथाइ, पहिलो भागबाटै पूरै कामको एक चौथाइ कहिल्यै होइन। तपाईंको कामको पर्दामा दुवै रकम, दुवै मिति र अझै कति बाँकी छ, सबै देखिन्छ।",
           },
         ],
       },

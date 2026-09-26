@@ -54,9 +54,13 @@ export {
   applyRedoRecovery,
   commissionBpsFor,
   daysSoonerWithDigital,
+  holdbackTrades,
+  holdsBack,
   isDigital,
   payoutDueAt,
+  payoutPlan,
   PAYOUT_RULES,
+  type PayoutPlan,
 } from "./payout";
 
 export {

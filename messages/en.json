@@ -1327,7 +1327,8 @@
           "khalti": "Khalti"
         },
         "floor": "Our fee is charged on {basis}, the published minimum for this service.",
-        "payout": "Reaches you by {date}."
+        "payout": "Reaches you by {date}.",
+        "holdback": "Of that, {amount} arrives {date} — held while your guarantee runs, not a fee."
       },
       "claim": "Take this job",
       "openNow": "Open — first to accept",
@@ -1832,6 +1833,12 @@
         "byCount": "of the jobs",
         "settled": "Settled jobs",
         "pct": "{pct}%"
+      },
+      "holdback": {
+        "title": "Which trades hold part of a payout",
+        "lead": "Where a guarantee runs {window} days or more, {pct}% of the professional's earning waits {days} days before it reaches them. It is deferred, never deducted — the two parts are the whole earning. The rule is the length of the window, so a trade added with a long guarantee starts holding without anybody choosing it. That is why this list is here.",
+        "window": "{n}-day guarantee",
+        "none": "No trade currently has a guarantee window long enough to hold anything."
       }
     },
     "audit": {

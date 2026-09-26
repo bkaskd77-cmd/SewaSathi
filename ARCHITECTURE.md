@@ -198,6 +198,38 @@ Where a change on one side cannot reach the other.
   where a one-rupee disagreement would hide. `tests/db/guarantee-claims.test.ts`
   runs both halves over one fixture and compares them, which is the thing that
   was missing the last time these two diverged in production.
+- **A payout is a tranche, and it used to be a booking.** Where the guarantee
+  window runs 90 days or more, `payoutPlan` holds a quarter back for 30 days, so
+  one booking has two payable dates and each is a payout in its own right. The
+  published quarter is measured against **the money actually arriving on that
+  date** — a quarter of the whole earning taken out of the smaller first tranche
+  would be a third of what lands, beside a page promising a quarter.
+  **That change broke an index and it would have failed silently.**
+  `provider_ledger_recovery_once_idx` was unique on `booking_id` alone, and
+  `sweepRedoRecovery` reads existing recovery rows into a filter that drops
+  matching bookings *before attempting any insert* — so a released holdback on a
+  booking already recovered against would have been paid whole, with no row, no
+  unique violation and nothing logged. The index is
+  `(booking_id, tranche)` now and the filter keys on the pair;
+  `tests/db/redo-recovery.test.ts` proves it by restoring the old index and
+  watching the second tranche go unrecovered.
+- **The holdback's trigger is the guarantee window, not the trade.** `holdsBack`
+  reads `GUARANTEE_WINDOWS`, so the rule is "where the guarantee outlives the
+  payout, hold a portion" and a future long-window trade is covered the day it is
+  added. The cost is that a trade can acquire a hold with nobody deciding to give
+  it one, so `holdbackTrades()` enumerates the derived rule and `/admin/signals`
+  prints it — a rule nobody can read back is one we guess about later.
+  `/providers/standards` publishes it **in those terms** for the same reason: a
+  professional in a future 90-day trade should not learn it from a smaller number
+  in their account.
+- **It defers, it does not deduct, and every surface has to say so.** The two
+  tranches sum to the whole earning; nothing is taken and the customer's price is
+  untouched. `bookings_holdback_shape` keeps the pair both-null or both-set, and
+  **null is "no hold here" while 0 would be "held, and it rounded to nothing"** —
+  rule 6, which is why `payoutPlan` returns null rather than creating a second
+  date for zero rupees. The job card shows the held amount, its release date and
+  any outstanding balance together: a smaller figure with no explanation is the
+  worst version of this.
 - **A redo debt is recovered by a sweep, and a payout is a booking.** There is
   no payout table and no payout run in this product: `payout_due_at` is stamped
   on the booking at settlement and that is the whole mechanism. So
@@ -1185,6 +1217,7 @@ Where a change on one side cannot reach the other.
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
 | Dispatch windows | `npm run test` | First refusal, widening and giving up, per urgency — including that no window gives up before it opens |
 | Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
+| Payout holdback | `npm run test`, `npm run test:db` | That a 90-day guarantee holds a quarter and a 30-day one holds nothing; that the pair is both-null or both-set; that a quarter is taken from each tranche and never a quarter of the whole from one — proven by restoring the old single-column index and watching the released holdback go unrecovered |
 | Triage reason | `npm run test`, `npm run test:db` | That a 401 is not recorded as a model blip, that the SDK's real error shapes classify correctly (`error.name` is `"Error"` on all of them), and that `LOGGABLE_REASONS` and the column's check constraint are the same list — proven by widening the SQL and watching two tests go red |
 | Triage accuracy | `npm run test`, `npm run test:db` | That a booking can be joined back to the triage that produced it; that a booking with no triage counts as unmeasurable rather than as the AI being wrong; and that the two hazard detectors are read from their own columns rather than from the winner — proven by pointing the comparison at `hazard` and watching the agreement case go red |
 

@@ -309,6 +309,17 @@ export type Database = {
           amount_settled_source: "customer" | "provider" | "adjudicated" | null;
           payout_due_at: string | null;
           /**
+           * The professional's own money, deferred rather than deducted.
+           *
+           * NULL is "no hold applies" — a short guarantee window, or a job
+           * settled before the column existed. `0` would mean held and rounded
+           * to nothing, which is a different fact. Both holdback columns are
+           * null together or set together; `bookings_holdback_shape` enforces
+           * it.
+           */
+          payout_holdback_rupees: number | null;
+          payout_holdback_until: string | null;
+          /**
            * The customer stopped waiting and opened the job to everybody.
            * NOT a refusal: nothing is counted against the professional and
            * they may still claim it.
@@ -399,6 +410,8 @@ export type Database = {
           amount_mismatch_note?: string | null;
           amount_settled_source?: "customer" | "provider" | "adjudicated" | null;
           payout_due_at?: string | null;
+          payout_holdback_rupees?: number | null;
+          payout_holdback_until?: string | null;
           widened_by_customer_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
@@ -1258,6 +1271,16 @@ export type Database = {
           provider_id: string;
           claim_id: string | null;
           booking_id: string | null;
+          /**
+           * Which part of a payout this row is about.
+           *
+           * A booking pays once unless its guarantee window runs long, in which
+           * case a quarter waits 30 days and it pays twice — so a recovery is
+           * unique per `(booking_id, tranche)`, not per booking. Every row
+           * written before the column is `'main'`, which is a record of what
+           * happened rather than an inference: payouts were undivided then.
+           */
+          tranche: "main" | "holdback";
           kind: "redo_debt" | "recovery" | "write_off";
           amount_rupees: number;
           note: string | null;
@@ -1268,6 +1291,7 @@ export type Database = {
           provider_id: string;
           claim_id?: string | null;
           booking_id?: string | null;
+          tranche?: "main" | "holdback";
           kind: "redo_debt" | "recovery" | "write_off";
           amount_rupees: number;
           note?: string | null;

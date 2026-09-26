@@ -299,6 +299,8 @@ export default async function ProviderJobsPage() {
                     floorLabel={null}
                     appealStatus={null}
                     payoutLabel={null}
+                    holdbackAmountLabel={null}
+                    holdbackDateLabel={null}
                   />
                 </div>
               ))}
@@ -384,6 +386,20 @@ export default async function ProviderJobsPage() {
                   noShowClaimed={job.noShowClaimed}
                   payoutLabel={
                     job.payoutDueAt ? formatInstant(job.payoutDueAt, locale) : null
+                  }
+                  /* Both or neither — the pair is written together at
+                     settlement and `bookings_holdback_shape` refuses anything
+                     else, so a half-rendered version would be a bug upstream
+                     rather than a state to design for. */
+                  holdbackAmountLabel={
+                    job.payoutHoldbackRupees !== null
+                      ? formatNpr(job.payoutHoldbackRupees, { locale })
+                      : null
+                  }
+                  holdbackDateLabel={
+                    job.payoutHoldbackUntil
+                      ? formatInstant(job.payoutHoldbackUntil, locale)
+                      : null
                   }
                 />
               </div>

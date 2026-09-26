@@ -50,14 +50,20 @@ async function duePayout(
   providerId: string,
   earning: number,
   dueDaysAgo = 1,
+  /**
+   * A held-back quarter and how long ago it was released, for the trades whose
+   * guarantee outlives the payout. `null` is the ordinary case — no hold here,
+   * which is not the same fact as a hold of zero.
+   */
+  holdback: { rupees: number; releasedDaysAgo: number | null } | null = null,
 ): Promise<string> {
   const { rows } = await pg.admin.query(
     `insert into public.bookings
        (reference, customer_id, provider_id, category_slug, address_id,
         description, quoted_min, quoted_max)
-     values ($1, $2, $3, 'plumbing', $4, 'Kitchen tap drips', 900, 4500)
+     values ($1, $2, $3, $5, $4, 'Kitchen tap drips', 900, 4500)
      returning id`,
-    [reference, ANITA, providerId, anitaAddress],
+    [reference, ANITA, providerId, anitaAddress, holdback ? "painting" : "plumbing"],
   );
   const id = rows[0].id as string;
 
@@ -77,6 +83,28 @@ async function duePayout(
       where id = $1`,
     [id, earning, String(dueDaysAgo)],
   );
+
+  if (holdback) {
+    /*
+     * A RELEASE DATE IN THE FUTURE IS THE NORMAL CASE for the first 30 days,
+     * and the sweep must leave that money alone: recovering against it early
+     * takes a quarter of something nobody has been paid.
+     */
+    await pg.admin.query(
+      `update public.bookings
+          set payout_holdback_rupees = $2,
+              payout_holdback_until = case
+                when $3::text is null then now() + interval '30 days'
+                else now() - ($3 || ' days')::interval
+              end
+        where id = $1`,
+      [
+        id,
+        holdback.rupees,
+        holdback.releasedDaysAgo === null ? null : String(holdback.releasedDaysAgo),
+      ],
+    );
+  }
   return id;
 }
 
@@ -111,22 +139,56 @@ async function outstanding(providerId: string): Promise<number> {
  * running against the live database when a genuine refund happens.
  */
 async function sweep(): Promise<{ recovered: number; rupees: number }> {
+  /*
+   * ONE ROW PER PAYABLE TRANCHE, not per booking. A booking pays once unless
+   * its guarantee window runs long, in which case a quarter waits 30 days and
+   * it pays twice — and each of those is a payout the published quarter is
+   * measured against.
+   *
+   * `earning` is the money actually arriving on that date. The main tranche is
+   * the settlement LESS whatever is held; the holdback tranche is that held
+   * amount, and only once its own date has passed.
+   */
   const { rows: due } = await pg.admin.query(
-    `select b.id, b.reference, b.provider_id, b.provider_earning
+    `select b.id, b.reference, b.provider_id, 'main' as tranche,
+            b.provider_earning - coalesce(b.payout_holdback_rupees, 0) as earning,
+            b.payout_due_at as payable_at
        from public.bookings b
       where b.payment_status = 'paid'
         and b.provider_id is not null
         and b.provider_earning > 0
         and b.payout_due_at <= now()
-        and not exists (
-          select 1 from public.provider_ledger l
-           where l.booking_id = b.id and l.kind = 'recovery'
-        )
-      order by b.payout_due_at asc`,
+        and b.provider_earning - coalesce(b.payout_holdback_rupees, 0) > 0
+     union all
+     select b.id, b.reference, b.provider_id, 'holdback' as tranche,
+            b.payout_holdback_rupees as earning,
+            b.payout_holdback_until as payable_at
+       from public.bookings b
+      where b.payment_status = 'paid'
+        and b.provider_id is not null
+        and coalesce(b.payout_holdback_rupees, 0) > 0
+        and b.payout_holdback_until <= now()
+      order by payable_at asc`,
   );
 
-  const byProvider = new Map<string, typeof due>();
-  for (const row of due) {
+  /*
+   * KEYED ON BOOKING **AND** TRANCHE, and this is the whole reason the index
+   * had to change. Keying on the booking alone would drop a released holdback
+   * whose first tranche had already been recovered — paid in full, no row
+   * written, no unique violation raised and nothing logged.
+   */
+  const { rows: doneRows } = await pg.admin.query(
+    `select booking_id, tranche from public.provider_ledger where kind = 'recovery'`,
+  );
+  const alreadyDone = new Set(
+    doneRows.map((r) => `${r.booking_id}:${r.tranche}`),
+  );
+  const pending = due.filter(
+    (r) => !alreadyDone.has(`${r.id}:${r.tranche}`),
+  );
+
+  const byProvider = new Map<string, typeof pending>();
+  for (const row of pending) {
     const list = byProvider.get(row.provider_id);
     if (list) list.push(row);
     else byProvider.set(row.provider_id, [row]);
@@ -135,27 +197,30 @@ async function sweep(): Promise<{ recovered: number; rupees: number }> {
   let recovered = 0;
   let rupees = 0;
 
-  for (const [providerId, bookings] of Array.from(byProvider)) {
+  for (const [providerId, tranches] of Array.from(byProvider)) {
     let balance = await outstanding(providerId);
     if (balance <= 0) continue;
 
-    for (const booking of bookings) {
+    for (const item of tranches) {
       if (balance <= 0) break;
+      // The same `applyRedoRecovery` for both tranches: "a quarter" is
+      // published, and two implementations of it would differ by date.
       const step = applyRedoRecovery({
-        earning: Number(booking.provider_earning),
+        earning: Number(item.earning),
         outstanding: balance,
       });
       if (step.recovered <= 0) continue;
 
       await pg.admin.query(
         `insert into public.provider_ledger
-           (provider_id, booking_id, kind, amount_rupees, note)
-         values ($1, $2, 'recovery', $3, $4)`,
+           (provider_id, booking_id, tranche, kind, amount_rupees, note)
+         values ($1, $2, $3, 'recovery', $4, $5)`,
         [
           providerId,
-          booking.id,
+          item.id,
+          item.tranche,
           step.recovered,
-          `Recovered from the payout on ${booking.reference} — a quarter of it, against what is owed`,
+          `Recovered from ${item.tranche === "holdback" ? "the held part of" : "the payout on"} ${item.reference} — a quarter of it, against what is owed`,
         ],
       );
 
@@ -166,6 +231,32 @@ async function sweep(): Promise<{ recovered: number; rupees: number }> {
   }
 
   return { recovered, rupees };
+}
+
+/**
+ * A professional nobody else's test has touched.
+ *
+ * The two fixture providers carry balances from the cases above, and a tranche
+ * test that inherited one would measure a quarter of the wrong debt. Cheaper to
+ * make a new one than to reason about the order tests run in.
+ */
+let freshCount = 0;
+async function freshProvider(name: string): Promise<string> {
+  freshCount += 1;
+  const userId = `eeeeeeee-9${String(freshCount).padStart(3, "0")}-4555-8555-eeeeeeeeeeee`;
+  await pg.admin.query("insert into auth.users (id) values ($1)", [userId]);
+  await pg.admin.query(
+    `insert into public.profiles (id, full_name, phone, role)
+     values ($1, $2, $3, 'provider')
+     on conflict (id) do update set role = excluded.role`,
+    [userId, name, `+97798130000${freshCount}`],
+  );
+  const { rows } = await pg.admin.query(
+    `insert into public.providers (profile_id, display_name, base_rate)
+     values ($1, $2, 1000) returning id`,
+    [userId, name],
+  );
+  return rows[0].id as string;
 }
 
 beforeAll(async () => {
@@ -263,7 +354,7 @@ describe("a quarter of one payout, and no more", () => {
          values ($1, $2, 'recovery', 1)`,
         [krishnaProvider, rows[0].id],
       ),
-    ).rejects.toThrow(/provider_ledger_recovery_once_idx|duplicate key/i);
+    ).rejects.toThrow(/provider_ledger_recovery_tranche_idx|duplicate key/i);
   });
 
   /**
@@ -346,5 +437,196 @@ describe("the cap is the published one", () => {
     // /providers/standards says "at most a quarter of any one payout". Half
     // was considered and refused: no week should go to zero.
     expect(PAYOUT_RULES.redoRecoveryCapBps).toBe(2500);
+  });
+});
+
+/**
+ * A booking that pays twice, because its guarantee outlives its payout.
+ *
+ * THE UNIT CHANGED AND THE INDEX HAD TO CHANGE WITH IT.
+ * `provider_ledger_recovery_once_idx` was unique on `booking_id` alone, and its
+ * own comment said a booking IS what a payout is here. With a quarter held back
+ * for 30 days that is false: one booking, two payable dates, two payouts.
+ *
+ * AND IT WOULD HAVE FAILED SILENTLY. The sweep reads existing recovery rows
+ * into a filter and drops matching bookings BEFORE attempting any insert — so
+ * under the old index the released holdback would have been paid whole, with no
+ * row written, no unique violation raised and nothing logged at all.
+ */
+let trancheProvider: string;
+
+describe("a payout is a tranche, not a booking", () => {
+  it("recovers a quarter of what lands now, leaving the held part alone", async () => {
+    const provider = await freshProvider('Tranche One');
+    trancheProvider = provider;
+    await owe(provider, 50_000);
+
+    // Rs 40,000 earned on a painting job: 30,000 now, 10,000 in 30 days.
+    await duePayout("SK-TR01", provider, 40_000, 1, {
+      rupees: 10_000,
+      releasedDaysAgo: null, // still held
+    });
+
+    const result = await sweep();
+    expect(result.recovered).toBe(1);
+    // A quarter of the 30,000 arriving, NOT of the 40,000 settled. The
+    // published sentence is about what lands in their account.
+    expect(result.rupees).toBe(7_500);
+
+    const { rows } = await pg.admin.query(
+      `select l.tranche from public.provider_ledger l
+         join public.bookings b on b.id = l.booking_id
+        where l.kind = 'recovery' and b.reference = 'SK-TR01'`,
+    );
+    expect(rows.map((r) => r.tranche)).toEqual(["main"]);
+  });
+
+  it("recovers again when the held part is released, which the old index forbade", async () => {
+    // 30 days on. The same booking, its second payout now payable.
+    await pg.admin.query(
+      `update public.bookings
+          set payout_holdback_until = now() - interval '1 day'
+        where reference = 'SK-TR01'`,
+    );
+
+    const result = await sweep();
+    expect(result.recovered).toBe(1);
+    // A quarter of the 10,000 released.
+    expect(result.rupees).toBe(2_500);
+
+    const { rows } = await pg.admin.query(
+      `select l.tranche, l.amount_rupees from public.provider_ledger l
+         join public.bookings b on b.id = l.booking_id
+        where l.kind = 'recovery' and b.reference = 'SK-TR01'
+        order by l.tranche`,
+    );
+    expect(rows.map((r) => r.tranche)).toEqual(["holdback", "main"]);
+    // 7,500 + 2,500 = a quarter of the whole 40,000 job, taken across two
+    // payouts rather than a third of one of them.
+    expect(rows.reduce((sum, r) => sum + Number(r.amount_rupees), 0)).toBe(10_000);
+  });
+
+  it("is idempotent across both tranches", async () => {
+    const before = await outstanding(trancheProvider);
+    const again = await sweep();
+    expect(again.recovered).toBe(0);
+    expect(await outstanding(trancheProvider)).toBe(before);
+  });
+
+  /*
+   * THE INDEX IS THE RULE, THE FILTER IS AN OPTIMISATION. Proven by going
+   * around the filter entirely and inserting straight into the ledger.
+   */
+  it("refuses a second recovery on the same tranche at the database", async () => {
+    const { rows } = await pg.admin.query(
+      "select id, provider_id from public.bookings where reference = 'SK-TR01'",
+    );
+    await expect(
+      pg.admin.query(
+        `insert into public.provider_ledger
+           (provider_id, booking_id, tranche, kind, amount_rupees, note)
+         values ($1, $2, 'holdback', 'recovery', 1, 'a second bite')`,
+        [rows[0].provider_id, rows[0].id],
+      ),
+    ).rejects.toThrow(/provider_ledger_recovery_tranche_idx|duplicate key/i);
+  });
+
+  it("allows the two tranches of one booking to differ, which is the point", async () => {
+    // Same booking id, both tranches present, and the index permits exactly
+    // that — it is unique on the pair, not on the booking.
+    const { rows } = await pg.admin.query(
+      `select count(distinct tranche) as kinds, count(*) as total
+         from public.provider_ledger l
+         join public.bookings b on b.id = l.booking_id
+        where l.kind = 'recovery' and b.reference = 'SK-TR01'`,
+    );
+    expect(Number(rows[0].kinds)).toBe(2);
+    expect(Number(rows[0].total)).toBe(2);
+  });
+});
+
+describe("held money is not payable until its date", () => {
+  it("leaves a holdback alone while it is still held", async () => {
+    const provider = await freshProvider('Tranche Two');
+    await owe(provider, 50_000);
+
+    // 20,000 earned, 5,000 held and not yet released.
+    await duePayout("SK-TR02", provider, 20_000, 1, {
+      rupees: 5_000,
+      releasedDaysAgo: null,
+    });
+
+    const result = await sweep();
+    // Only the main tranche: a quarter of the 15,000 arriving.
+    expect(result.recovered).toBe(1);
+    expect(result.rupees).toBe(3_750);
+
+    const { rows } = await pg.admin.query(
+      `select l.tranche from public.provider_ledger l
+         join public.bookings b on b.id = l.booking_id
+        where l.kind = 'recovery' and b.reference = 'SK-TR02'`,
+    );
+    expect(rows.map((r) => r.tranche)).toEqual(["main"]);
+  });
+
+  /*
+   * THE BALANCE READ ONCE AND CARRIED, with a new way for the old bug to come
+   * back: two tranches of the SAME booking can now be payable in one sweep, so
+   * a balance read per tranche would take two quarters out of a debt that had
+   * one quarter left in it.
+   */
+  it("carries one balance across both tranches of one booking", async () => {
+    const provider = await freshProvider('Tranche Three');
+    // Exactly enough for one quarter of the first tranche and no more.
+    await owe(provider, 3_000);
+
+    // Both dates already past: the whole job is payable in this one sweep.
+    await duePayout("SK-TR03", provider, 40_000, 2, {
+      rupees: 10_000,
+      releasedDaysAgo: 1,
+    });
+
+    const result = await sweep();
+    // 3,000 is less than a quarter of the 30,000 main tranche, so the debt
+    // clears there and the holdback tranche takes nothing.
+    expect(result.rupees).toBe(3_000);
+    expect(await outstanding(provider)).toBe(0);
+
+    const { rows } = await pg.admin.query(
+      `select l.tranche from public.provider_ledger l
+         join public.bookings b on b.id = l.booking_id
+        where l.kind = 'recovery' and b.reference = 'SK-TR03'`,
+    );
+    expect(rows.map((r) => r.tranche)).toEqual(["main"]);
+  });
+});
+
+describe("the columns are shaped together", () => {
+  it("refuses a held amount with no release date", async () => {
+    const { rows } = await pg.admin.query(
+      "select id from public.bookings where reference = 'SK-TR02'",
+    );
+    await expect(
+      pg.admin.query(
+        `update public.bookings
+            set payout_holdback_rupees = 500, payout_holdback_until = null
+          where id = $1`,
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/bookings_holdback_shape/i);
+  });
+
+  it("refuses a release date with nothing held", async () => {
+    const { rows } = await pg.admin.query(
+      "select id from public.bookings where reference = 'SK-TR02'",
+    );
+    await expect(
+      pg.admin.query(
+        `update public.bookings
+            set payout_holdback_rupees = null, payout_holdback_until = now()
+          where id = $1`,
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/bookings_holdback_shape/i);
   });
 });

@@ -1626,6 +1626,14 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["amount_mismatch_note", "'agreed on the phone'", /not editable from a browser/i],
     ["amount_settled_source", "'customer'", /not editable from a browser/i],
     ["payout_due_at", "now()", /not editable from a browser/i],
+    /*
+     * The held quarter and its release date. A browser that could move either
+     * would be a professional paying themselves early, or a customer deferring
+     * somebody else's money — and the pair also has a shape constraint, so a
+     * half-written change is refused twice.
+     */
+    ["payout_holdback_rupees", "0", /not editable from a browser/i],
+    ["payout_holdback_until", "now()", /not editable from a browser/i],
     ["payment_status", "'paid'", /not editable from a browser/i],
 
     // The surveyed price and its approval — the 2x overcharge ceiling hangs

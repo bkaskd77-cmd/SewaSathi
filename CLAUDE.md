@@ -825,6 +825,34 @@ follows from that.
   job. A customer claim-rate signal is Phase 11 and triggers **review, not
   punishment** — never a ban and never a ranking, for the same reason
   `category_pricing_signals` is never grouped by person.
+- **A payout is a tranche now, and it was a booking.** The guarantee outlives
+  the payout: `GUARANTEE_WINDOWS` gives painting 90 days, `PAYOUT_RULES` holds a
+  payout for 24 hours to 7 days, so on the trades where a defect surfaces late
+  every rupee is gone before anybody can claim. `payoutPlan` holds
+  `guaranteeHoldbackBps` (2500) back for `holdbackDays` (30) wherever the window
+  is `holdbackWhenGuaranteeDays` (90) or more. **It is a narrow version of
+  something this file records as refused** — extending the hold to cover the
+  window, because nobody works for a platform that pays in a month — and it
+  differs on all three counts that refusal turned on: a quarter not everything,
+  30 days not 90, one group of trades not every job.
+  **The trigger is the window, not the trade**, so a future long-window trade is
+  covered the day it is added; `holdbackTrades()` enumerates the derived rule and
+  `/admin/signals` prints it, because a rule nobody can read back is one we guess
+  about later. `/providers/standards` publishes it in those terms too.
+  **It defers, it never deducts**: the two tranches sum to the whole earning and
+  the customer's price is untouched. Null means "no hold here" and 0 would mean
+  "held, and it rounded to nothing" — rule 6 — so `payoutPlan` returns null
+  rather than creating a second date for zero rupees, and
+  `bookings_holdback_shape` keeps the pair together.
+  **The published quarter is a quarter of each tranche**, measured on the money
+  arriving that day; taking a quarter of the whole earning out of the smaller
+  first tranche would be a third of what lands beside a page promising a quarter.
+  **Changing the unit broke an index silently.**
+  `provider_ledger_recovery_once_idx` was unique on `booking_id` alone and
+  `sweepRedoRecovery` filters bookings out *before* attempting an insert — so a
+  released holdback would have been paid whole with no row, no unique violation
+  and nothing logged. It is `(booking_id, tranche)` now, the filter keys on the
+  pair, and the test proves it by restoring the old index.
 - **The guarantee is on the workmanship, so the parts come off the refund
   ceiling — but only on a recorded answer, and never by more than half.**
   `bookings.materials_rupees` is stated by the professional at settlement;

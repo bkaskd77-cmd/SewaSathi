@@ -9,7 +9,7 @@ import {
   gatewayFor,
   judgeFinalAmount,
   judgeMismatchResolution,
-  payoutDueAt,
+  payoutPlan,
   settleSplit,
   COMMISSION_BPS,
   type MismatchChoice,
@@ -101,7 +101,7 @@ async function readBooking(bookingId: string) {
   const { data } = await createAdminClient()
     .from("bookings")
     .select(
-      "id, reference, customer_id, provider_id, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at",
+      "id, reference, customer_id, provider_id, category_slug, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -110,6 +110,13 @@ async function readBooking(bookingId: string) {
     reference: string;
     customer_id: string;
     provider_id: string | null;
+    /*
+     * WHICH TRADE, because the payout shape depends on it. `payoutPlan` holds a
+     * quarter back where the guarantee window runs long, and the window is read
+     * from the category — so a settlement that did not know its own trade would
+     * silently hold nothing on every job.
+     */
+    category_slug: string;
     status: string;
     // Null only on a survey booking nobody has priced yet. Typed that way so
     // every judgement below has to say what it does about it, rather than
@@ -713,6 +720,19 @@ async function settlePaid(
 
   const settledAt = new Date(settled.settledAt ?? new Date().toISOString());
 
+  /*
+   * The whole payout shape in one call, because these three columns have to
+   * agree and computing the date here while deciding the holdback somewhere
+   * else is how they stop agreeing. The category is what decides it — the rule
+   * is the guarantee window, not the trade name, and `holdsBack` owns that.
+   */
+  const plan = payoutPlan({
+    settledAt,
+    method: settled.method,
+    categorySlug: booking?.category_slug ?? "",
+    providerEarning: split.providerEarning,
+  });
+
   await supabase
     .from("bookings")
     .update({
@@ -722,8 +742,18 @@ async function settlePaid(
       commission_bps: split.commissionBps,
       commission_basis: split.basis,
       // Stored, never recomputed on read: a professional told Thursday is paid
-      // on Thursday even if the hold times move on Wednesday.
-      payout_due_at: payoutDueAt(settledAt, settled.method).toISOString(),
+      // on Thursday even if the hold times move on Wednesday. Same for the
+      // holdback — both dates are promises, not derivations.
+      payout_due_at: plan.dueAt.toISOString(),
+      /*
+       * WHERE THE GUARANTEE OUTLIVES THE PAYOUT, a quarter waits 30 days.
+       * Null on every short-window trade and on any job too small for the
+       * quarter to come to a rupee — and null means "no hold here", which is
+       * not the same fact as a hold of zero. The pair is written together or
+       * not at all, and `bookings_holdback_shape` refuses anything else.
+       */
+      payout_holdback_rupees: plan.holdbackRupees,
+      payout_holdback_until: plan.holdbackUntil?.toISOString() ?? null,
     })
     .eq("id", settled.bookingId);
 

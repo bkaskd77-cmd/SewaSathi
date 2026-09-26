@@ -28,8 +28,8 @@
     "file": "20260906000001_address_ownership.sql"
   },
   "enforce_booking_immutability": {
-    "sha": "7e42d161bc11ad72",
-    "file": "20260925000003_materials.sql"
+    "sha": "481ab795fc4eacac",
+    "file": "20260926000003_payout_holdback.sql"
   },
   "enforce_booking_transition": {
     "sha": "14a4e17195bb7f3f",

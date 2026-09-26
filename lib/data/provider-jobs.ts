@@ -105,6 +105,18 @@ export type ProviderJob = {
   /** When this settlement becomes payable. Digital is days sooner than cash. */
   payoutDueAt: string | null;
   /**
+   * The part of this earning that waits, and when it arrives.
+   *
+   * ON THE CARD BECAUSE A SMALLER NUMBER WITH NO EXPLANATION IS THE WORST
+   * VERSION OF THIS. Where the guarantee window runs long a quarter is deferred
+   * 30 days — it is their own money, not a fee — and a professional who sees
+   * only the first figure has been quietly short-changed as far as they can
+   * tell. Null on every job that holds nothing, which is most of them, and the
+   * card renders no second date for it.
+   */
+  payoutHoldbackRupees: number | null;
+  payoutHoldbackUntil: string | null;
+  /**
    * When they marked themselves as arrived.
    *
    * Carried on the list rather than fetched by the card, because the wait
@@ -149,7 +161,7 @@ export async function listProviderJobs(
     const { data, error } = await createClient()
       .from("bookings")
       .select(
-        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, customer_id, address_id, created_at, band_slug, provider_band_slug, provider_band_at, band_change_approved_at, band_change_declined_at",
+        "id, reference, status, category_slug, description, urgency, scheduled_for, quoted_min, quoted_max, quote_model, surveyed_at, quote_expires_at, quote_approved_at, quote_declined_at, overbook_offered_by, provider_visit_reviewed_at, final_amount, payment_status, payment_method, provider_earning, commission_basis, payout_due_at, payout_holdback_rupees, payout_holdback_until, customer_id, address_id, created_at, band_slug, provider_band_slug, provider_band_at, band_change_approved_at, band_change_declined_at",
       )
       .eq("provider_id", me.providerId)
       .order("created_at", { ascending: false })
@@ -288,6 +300,8 @@ export async function listProviderJobs(
       providerEarning: (row.provider_earning as number | null) ?? null,
       commissionBasis: (row.commission_basis as number | null) ?? null,
       payoutDueAt: (row.payout_due_at as string | null) ?? null,
+      payoutHoldbackRupees: (row.payout_holdback_rupees as number | null) ?? null,
+      payoutHoldbackUntil: (row.payout_holdback_until as string | null) ?? null,
       appealStatus: appealByBooking.get(row.id as string) ?? null,
       arrivedAt: arrivalByBooking.get(row.id as string) ?? null,
       noShowClaimed: claimedBookings.has(row.id as string),
@@ -702,6 +716,8 @@ export async function listOpenJobs(
         providerEarning: null,
         commissionBasis: null,
         payoutDueAt: null,
+        payoutHoldbackRupees: null,
+        payoutHoldbackUntil: null,
         appealStatus: null,
         // An open job has nobody assigned, so nobody can have arrived at it.
         arrivedAt: null,

@@ -17,6 +17,7 @@ import {
   overallMix,
 } from "@/lib/data/payment-mix";
 import { BAND_REVIEW_THRESHOLD_PCT, needsBandReview } from "@/lib/data/pricing-signals";
+import { PAYOUT_RULES, holdbackTrades } from "@/lib/payments/client";
 import { formatBand, formatNpr } from "@/lib/utils";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -146,6 +147,48 @@ export default async function SignalsPage() {
           ))}
         </ul>
       )}
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise mt-12 font-display text-heading-md">
+        {t("holdback.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("holdback.lead", {
+          pct: String(PAYOUT_RULES.guaranteeHoldbackBps / 100),
+          days: String(PAYOUT_RULES.holdbackDays),
+          window: String(PAYOUT_RULES.holdbackWhenGuaranteeDays),
+        })}
+      </p>
+      {/*
+        * A DERIVED RULE, ENUMERATED. Which trades hold is computed from
+        * `GUARANTEE_WINDOWS` rather than listed, which is right — the reason is
+        * the window, not the trade name, so a future long-window trade is
+        * covered the day it is added. The cost is that a trade can acquire a
+        * holdback with nobody deciding to give it one, and a rule nobody can
+        * read back is one we end up guessing about. So it is printed.
+        */}
+      <div className="animate-rise mt-4 rounded-lg border border-border p-5">
+        <ul className="space-y-1.5 text-body-sm text-muted-foreground">
+          {holdbackTrades().map((trade) => (
+            <li
+              key={trade.slug}
+              className="flex items-baseline justify-between gap-4"
+            >
+              <span>{tradeName(trade.slug)}</span>
+              <span className="tabular-nums text-foreground">
+                {t("holdback.window", { n: String(trade.guaranteeDays) })}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {/* Not a warning: nothing is wrong when no trade holds. It is the
+            honest reading of a window list that happens to be all short. */}
+        {holdbackTrades().length === 0 ? (
+          <p className="text-body-sm text-muted-foreground">
+            {t("holdback.none")}
+          </p>
+        ) : null}
+      </div>
 
       {/* ---------------------------------------------------------------- */}
       <h2 className="animate-rise mt-12 font-display text-heading-md">

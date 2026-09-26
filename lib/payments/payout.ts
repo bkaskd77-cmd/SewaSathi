@@ -1,3 +1,5 @@
+import { GUARANTEE_WINDOWS, guaranteeFor } from "@/lib/config/guarantee";
+
 /**
  * When the professional actually gets paid, and why digital is faster.
  *
@@ -190,6 +192,60 @@ export const PAYOUT_RULES = {
    * with no caller while that same page promised what it would have done.
    */
   writeOffAfterMonths: 12,
+  /**
+   * The share of a payout held back where the guarantee runs long. 2500 = a
+   * quarter.
+   *
+   * THIS TAKES NOTHING. Every other number in this file moves money between us
+   * and the professional; this one moves none. It is **their** money, arriving
+   * in two parts instead of one, and nothing about it reduces what they are
+   * finally paid. `digitalDiscountBps` was misread as a customer discount by
+   * the person who set it, and a holdback misread as a deduction is that same
+   * mistake with more at stake — so the name says holdback and this paragraph
+   * says deferred, not deducted.
+   *
+   * WHY IT EXISTS. The guarantee outlives the payout. `GUARANTEE_WINDOWS` gives
+   * painting 90 days because peeling and blistering take weeks to appear; the
+   * hold above is 24 hours to 7 days. So on exactly the trades where a defect
+   * shows up late, every rupee has already gone by the time anybody can claim,
+   * and the only remaining answer is `applyRedoRecovery` netting forward — which
+   * works if they keep working and is a write-off if they do not.
+   *
+   * WHY IT IS NOT THE THING THIS FILE ALREADY REFUSES. Extending the hold to
+   * cover the window was refused, and rightly: nobody works for a platform that
+   * pays in a month, and it would punish the many who never generate a claim.
+   * That objection is about a LONG hold on ALL the money for EVERY trade. This
+   * is a quarter, for 30 days, only where the window is long — three
+   * differences, each of which the refusal turned on.
+   */
+  guaranteeHoldbackBps: 2500,
+  /**
+   * How long the held quarter waits, in days.
+   *
+   * Not the whole 90. A hold matched to the window would be the refused version
+   * wearing a smaller number, and most claims that arrive at all arrive early —
+   * a bad paint job is obvious. Thirty days buys the period where a real defect
+   * is most likely to surface without making the professional wait a season for
+   * money they have already earned.
+   */
+  holdbackDays: 30,
+  /**
+   * The guarantee window, in days, at which a trade starts holding back.
+   *
+   * THE RULE IS THE WINDOW, NOT THE TRADE. Painting is the only 90-day entry in
+   * `GUARANTEE_WINDOWS` today, so a literal list of trades would behave
+   * identically and read more simply — and would quietly stop being right the
+   * day somebody adds another long-window trade with the same exposure and no
+   * hold. Deriving it means the rule is "where the guarantee outlives the payout
+   * by this much, hold a portion", which is the actual reason, and it is
+   * published in those terms so a professional in a future 90-day trade is not
+   * surprised by it.
+   *
+   * The cost of deriving is that a trade can acquire a holdback without anybody
+   * deciding to give it one. `holdbackTrades()` exists so that is visible rather
+   * than buried: `/admin/signals` lists every trade currently holding.
+   */
+  holdbackWhenGuaranteeDays: 90,
 } as const;
 
 /** Cash is the only method we do not hear about from a gateway. */
@@ -267,6 +323,101 @@ export function applyRedoRecovery({
     paid: earning - recovered,
     recovered,
     remaining: outstanding - recovered,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The holdback
+ * ------------------------------------------------------------------ */
+
+/** Does this trade's guarantee run long enough to hold a portion back? */
+export function holdsBack(categorySlug: string): boolean {
+  return (
+    guaranteeFor(categorySlug).days >= PAYOUT_RULES.holdbackWhenGuaranteeDays
+  );
+}
+
+/**
+ * Every trade currently holding back, derived rather than listed.
+ *
+ * EXISTS SO THE DERIVED RULE CAN BE READ. A rule computed from another table is
+ * correct and invisible: nothing anywhere would answer "which trades hold?"
+ * without somebody opening `GUARANTEE_WINDOWS` and doing the comparison in their
+ * head. `/admin/signals` prints this, because a rule nobody can enumerate is one
+ * we end up guessing about later.
+ */
+export function holdbackTrades(): Array<{ slug: string; guaranteeDays: number }> {
+  return Object.entries(GUARANTEE_WINDOWS)
+    .filter(([, g]) => g.days >= PAYOUT_RULES.holdbackWhenGuaranteeDays)
+    .map(([slug, g]) => ({ slug, guaranteeDays: g.days }))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+export type PayoutPlan = {
+  /** When the first part becomes payable. */
+  dueAt: Date;
+  /**
+   * What is held, and when it is released. **Both null or both set** — null is
+   * "no hold applies here", which is a different fact from a hold that computed
+   * to zero, and the column's shape constraint says the same thing in SQL.
+   */
+  holdbackRupees: number | null;
+  holdbackUntil: Date | null;
+};
+
+/**
+ * When this settlement's money actually reaches the professional, in full.
+ *
+ * ONE FUNCTION RATHER THAN A DATE AND A RULE APPLIED SEPARATELY, because the
+ * settlement writes all three columns and they have to agree. `payoutDueAt` is
+ * still the only place the hold times live; this wraps it.
+ *
+ * Computed at settlement and stored, never recomputed on read — the same reason
+ * `payoutDueAt` is: somebody told a date must be paid on that date even if these
+ * numbers move the next day.
+ */
+export function payoutPlan({
+  settledAt,
+  method,
+  categorySlug,
+  providerEarning,
+}: {
+  settledAt: Date;
+  method: string;
+  categorySlug: string;
+  providerEarning: number;
+}): PayoutPlan {
+  const dueAt = payoutDueAt(settledAt, method);
+
+  if (!holdsBack(categorySlug) || providerEarning <= 0) {
+    return { dueAt, holdbackRupees: null, holdbackUntil: null };
+  }
+
+  /*
+   * FLOORED, so the held part can never exceed the quarter published. The
+   * rounding remainder goes to the professional in the first tranche, which is
+   * the direction that needs no explaining to them.
+   */
+  const holdbackRupees = Math.floor(
+    (providerEarning * PAYOUT_RULES.guaranteeHoldbackBps) / 10_000,
+  );
+
+  /*
+   * A JOB SO SMALL THE QUARTER ROUNDS TO NOTHING holds nothing, and says so with
+   * null rather than 0. Zero would mean "held, and it came to nothing"; null
+   * means "no hold here". Splitting a payout to defer zero rupees would be a
+   * second date on a screen for no money at all.
+   */
+  if (holdbackRupees <= 0) {
+    return { dueAt, holdbackRupees: null, holdbackUntil: null };
+  }
+
+  return {
+    dueAt,
+    holdbackRupees,
+    holdbackUntil: new Date(
+      dueAt.getTime() + PAYOUT_RULES.holdbackDays * 24 * 3_600_000,
+    ),
   };
 }
 
