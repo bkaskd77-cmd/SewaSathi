@@ -7,63 +7,57 @@
  * build. Nothing in the repo could tell the difference, so it was caught by
  * reading the HTML by hand. This is that reading, automated.
  *
- * It answers three questions, in order of how much they matter:
+ * It answers five questions, in order of how much they matter:
  *
  *   1. Which commit is serving?  — from the <meta name="x-build-commit"> that
  *      app/[locale]/layout.tsx stamps into every page.
  *   2. Do the routes exist?      — a page that 404s is the loudest possible
  *      signal that a deploy did not land.
- *   3. Is og:url the real host?  — the one thing that is wrong on a page that
+ *   3. Are the guarded ones guarded? — a signed-in screen answering 200 to
+ *      nobody is an admin panel on the open internet. See `deployed-routes.mjs`
+ *      for why an anonymous request can prove that and what it cannot prove.
+ *   4. Is og:url the real host?  — the one thing that is wrong on a page that
  *      otherwise looks perfect.
+ *   5. Is anything unchecked?    — a page that shipped without being added to a
+ *      list gets no request made to it, and that looks exactly like success.
  *
  *   npm run check:deployed
  *   npm run check:deployed -- https://some-preview.vercel.app
+ *   npm run check:deployed -- --self-test    (no network at all)
+ *
+ * THE RULES SELF-TEST ON EVERY RUN, before any request is made, so a checker
+ * that has quietly stopped checking says so rather than printing a tick — the
+ * same arrangement as `check:contacts` and `check:secrets`. That matters more
+ * here than anywhere: this script cannot run in CI or in an agent sandbox, so
+ * the only thing exercising its judgements between one human run and the next is
+ * the self-test and `tests/unit/deploy-check.test.ts`.
  *
  * Note for anyone running this from an agent sandbox: outbound HTTPS to
- * *.vercel.app is blocked by the network policy there, so this check can only
- * be run from a machine with real internet. It exits 2 (not 1) when it cannot
- * reach the site at all, so "unreachable" is never mistaken for "verified".
+ * *.vercel.app is blocked by the network policy there, so the walk can only be
+ * run from a machine with real internet. It exits 2 (not 1) when it cannot reach
+ * the site at all, so "unreachable" is never mistaken for "verified" — and the
+ * self-test and the coverage pass still run, because neither needs a network.
  */
 import { execSync } from "node:child_process";
+import { readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
+
+import {
+  GONE_ROUTES,
+  GUARDED_ROUTES,
+  LOCALE_PREFIXES,
+  NOT_WALKABLE,
+  OPEN_ROUTES,
+  coverageGaps,
+  judgeGone,
+  judgeGuarded,
+  judgeOpen,
+} from "./deployed-routes.mjs";
 
 const DEFAULT_ORIGIN = "https://sewasathi.vercel.app";
 const TIMEOUT_MS = 20_000;
-
-/**
- * Routes that must exist, with the status they must answer.
- *
- * Both locales, because a page that only shipped in English is a page half
- * the audience gets a 404 from. Add a route here in the phase that ships it —
- * the list is the contract, and a page missing from it is a page nobody is
- * checking.
- */
-const ROUTES = [
-  "/",
-  "/services",
-  "/services/plumbing",
-  "/login",
-  "/providers/join",
-  "/providers/standards",
-  "/book",
-  "/about",
-  "/contact",
-  "/help",
-  "/help/complaint",
-  "/legal/terms",
-  "/legal/privacy",
-  "/legal/refunds",
-  "/ne",
-  "/ne/services",
-  "/ne/providers/join",
-  "/ne/providers/standards",
-  "/ne/book",
-  "/ne/about",
-  "/ne/legal/terms",
-];
-
-/** Routes that must NOT exist — links removed rather than shipped. */
-const GONE = ["/careers", "/ne/careers"];
+const PAGES_ROOT = "app/[locale]";
 
 function localHead() {
   try {
@@ -105,7 +99,11 @@ async function get(url, method = "GET") {
       headers: { "user-agent": "sajilokaam-deploy-check" },
     });
     const body = method === "GET" ? await response.text() : "";
-    return { status: response.status, body };
+    return {
+      status: response.status,
+      location: response.headers.get("location"),
+      body,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -128,15 +126,152 @@ function ogUrl(html) {
 }
 
 function line(ok, label, detail) {
-  console.log(`  ${ok ? "ok  " : "FAIL"}  ${label.padEnd(26)} ${detail}`);
+  console.log(`  ${ok ? "ok  " : "FAIL"}  ${label.padEnd(30)} ${detail}`);
+}
+
+/** Every page file under the locale tree, repository-relative. */
+function pageFiles(dir = PAGES_ROOT, out = []) {
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    // A tree we cannot read is not a tree with nothing in it.
+    return out;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) pageFiles(full, out);
+    else if (/^page\.tsx?$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Proven by breaking it, not by passing once
+ * ------------------------------------------------------------------ */
+
+function selfTest() {
+  const cases = [
+    // [label, judgement, mustPass]
+    [
+      "a guarded route redirecting to its own login",
+      () => judgeGuarded({ route: "/admin/signals", status: 307, location: "https://x.test/login?next=%2Fadmin%2Fsignals" }),
+      true,
+    ],
+    [
+      "a guarded Nepali route redirecting to the Nepali login",
+      () => judgeGuarded({ route: "/admin/signals", prefix: "/ne", status: 307, location: "https://x.test/ne/login?next=%2Fne%2Fadmin%2Fsignals" }),
+      true,
+    ],
+    [
+      "an admin screen open to anybody",
+      () => judgeGuarded({ route: "/admin/signals", status: 200 }),
+      false,
+    ],
+    [
+      "a guarded route that did not deploy",
+      () => judgeGuarded({ route: "/admin/signals", status: 404 }),
+      false,
+    ],
+    [
+      "a Nepali reader dropped at the English login",
+      () => judgeGuarded({ route: "/account", prefix: "/ne", status: 307, location: "https://x.test/login?next=%2Faccount" }),
+      false,
+    ],
+    [
+      "a redirect somewhere else entirely",
+      () => judgeGuarded({ route: "/account", status: 307, location: "https://x.test/" }),
+      false,
+    ],
+    [
+      "a redirect with no Location to read",
+      () => judgeGuarded({ route: "/account", status: 307, location: null }),
+      false,
+    ],
+    ["an open route answering 200", () => judgeOpen({ route: "/", status: 200 }), true],
+    ["an open route answering 404", () => judgeOpen({ route: "/", status: 404 }), false],
+    ["a removed route staying removed", () => judgeGone({ route: "/careers", status: 404 }), true],
+    ["a removed route still served", () => judgeGone({ route: "/careers", status: 200 }), false],
+  ];
+
+  let bad = 0;
+  for (const [label, run, mustPass] of cases) {
+    const verdict = run();
+    if (verdict.ok !== mustPass) {
+      console.error(
+        `  self-test FAILED — ${label}: judged ${verdict.ok ? "ok" : "a failure"}, expected the opposite`,
+      );
+      bad += 1;
+    }
+    // A failure with no sentence is a failure nobody can act on.
+    if (!verdict.ok && !verdict.failure) {
+      console.error(`  self-test FAILED — ${label}: no failure sentence`);
+      bad += 1;
+    }
+  }
+
+  // And the coverage rule itself must bite: a page nobody listed is a gap.
+  const invented = coverageGaps(["app/[locale]/(admin)/admin/payouts/page.tsx"]);
+  if (invented.length !== 1 || invented[0].route !== "/admin/payouts") {
+    console.error(
+      "  self-test FAILED — coverageGaps did not report an unlisted admin page",
+    );
+    bad += 1;
+  }
+
+  if (bad > 0) {
+    console.error(`\nDeploy check: ${bad} self-test failure${bad === 1 ? "" : "s"}.\n`);
+    process.exit(1);
+  }
+  console.log(
+    `  self-test passed — ${cases.length} verdicts and the coverage rule still bite.`,
+  );
+}
+
+/** Nothing here needs a network, so it runs even when the walk cannot. */
+function coverage() {
+  const files = pageFiles();
+  const gaps = coverageGaps(files);
+  line(
+    gaps.length === 0,
+    "every page is on a list",
+    `${files.length} page files · ${NOT_WALKABLE.length} not walkable`,
+  );
+  if (gaps.length === 0) return [];
+  return gaps.map(
+    ({ route, file }) =>
+      `${route} (${file}) is served in production and is on neither OPEN_ROUTES nor GUARDED_ROUTES in scripts/deployed-routes.mjs, so no request is ever made to it. Add it in the phase that shipped it.`,
+  );
 }
 
 async function main() {
-  const origin = (process.argv[2] || process.env.DEPLOY_URL || DEFAULT_ORIGIN)
+  const selfTestOnly = process.argv.includes("--self-test");
+  const origin = (
+    process.argv.slice(2).find((a) => !a.startsWith("--")) ||
+    process.env.DEPLOY_URL ||
+    DEFAULT_ORIGIN
+  )
     .trim()
     .replace(/\/+$/, "");
 
-  console.log(`\nDeploy check — ${origin}`);
+  console.log(`\nDeploy check — ${selfTestOnly ? "rules only" : origin}`);
+
+  console.log("\nRules");
+  selfTest();
+
+  console.log("\nCoverage");
+  const coverageFailures = coverage();
+
+  if (selfTestOnly) {
+    if (coverageFailures.length > 0) {
+      console.error("\nUnchecked pages:");
+      for (const failure of coverageFailures) console.error(`  - ${failure}`);
+      console.error("");
+      process.exit(1);
+    }
+    console.log("\n  Rules and coverage only — the site was not contacted.\n");
+    return;
+  }
 
   let home;
   try {
@@ -144,9 +279,10 @@ async function main() {
   } catch (error) {
     console.error(
       `\n  Could not reach ${origin}: ${error.message}\n\n` +
-        `  This is NOT a pass and NOT a failure of the site — the check could not run.\n` +
+        `  This is NOT a pass and NOT a failure of the site — the walk could not run.\n` +
         `  If you are in an agent sandbox, outbound HTTPS to *.vercel.app is blocked by\n` +
-        `  policy; run this from your own machine instead.\n`,
+        `  policy; run this from your own machine instead. The rules and coverage above\n` +
+        `  did run, and needed no network.\n`,
     );
     process.exit(2);
   }
@@ -163,12 +299,12 @@ async function main() {
         `  an agent sandbox blocks outbound HTTPS to *.vercel.app by policy and\n` +
         `  answers 403 to every request. Run this from your own machine to tell\n` +
         `  the two apart.\n\n` +
-        `  This is NOT a pass and NOT a verified failure. The check did not run.\n`,
+        `  This is NOT a pass and NOT a verified failure. The walk did not run.\n`,
     );
     process.exit(2);
   }
 
-  const failures = [];
+  const failures = [...coverageFailures];
 
   // 1. Which commit is serving. /api/version is the same answer without
   // viewing source, so it is what a human is told to open; prefer it here too
@@ -226,30 +362,61 @@ async function main() {
     );
   }
 
-  // 3. The routes exist.
-  console.log("\nRoutes");
-  for (const route of ROUTES) {
-    let status;
+  // 3. The open routes exist.
+  console.log("\nOpen routes");
+  for (const route of OPEN_ROUTES) {
+    let answer;
     try {
-      ({ status } = await get(`${origin}${route}`, "HEAD"));
+      answer = await get(`${origin}${route}`, "HEAD");
     } catch (error) {
-      status = `error: ${error.message}`;
+      answer = { status: `error: ${error.message}` };
     }
-    const ok = status === 200;
-    line(ok, route, String(status));
-    if (!ok) failures.push(`${route} answered ${status}, expected 200.`);
+    const verdict = judgeOpen({ route, status: answer.status });
+    line(verdict.ok, route, verdict.detail);
+    if (verdict.failure) failures.push(verdict.failure);
   }
 
-  for (const route of GONE) {
-    let status;
-    try {
-      ({ status } = await get(`${origin}${route}`, "HEAD"));
-    } catch (error) {
-      status = `error: ${error.message}`;
+  /*
+   * 4. The guarded routes are deployed AND guarded, in both languages.
+   *
+   * WITH NO SESSION, ON PURPOSE. There is no way for a script to sign in here —
+   * the only door is a phone OTP — and that fact was silently treated as "so
+   * these screens cannot be checked". What a signed-out request proves is the
+   * deploy landed, the guard is on, and the redirect keeps the reader's
+   * language. What it cannot prove is the body, which is `npm run verify`'s job.
+   */
+  console.log("\nGuarded routes (no session)");
+  for (const route of GUARDED_ROUTES) {
+    for (const prefix of LOCALE_PREFIXES) {
+      let answer;
+      try {
+        answer = await get(`${origin}${prefix}${route}`, "HEAD");
+      } catch (error) {
+        answer = { status: `error: ${error.message}`, location: null };
+      }
+      const verdict = judgeGuarded({
+        route,
+        prefix,
+        status: answer.status,
+        location: answer.location,
+      });
+      line(verdict.ok, `${prefix}${route}`, verdict.detail);
+      if (verdict.failure) failures.push(verdict.failure);
     }
-    const ok = status === 404;
-    line(ok, `${route} (should 404)`, String(status));
-    if (!ok) failures.push(`${route} answered ${status}, expected 404.`);
+  }
+
+  // 5. And the removed ones stay removed.
+  console.log("\nRemoved");
+  for (const route of GONE_ROUTES) {
+    let answer;
+    try {
+      answer = await get(`${origin}${route}`, "HEAD");
+    } catch (error) {
+      answer = { status: `error: ${error.message}` };
+    }
+    const verdict = judgeGone({ route, status: answer.status });
+    line(verdict.ok, `${route} (should 404)`, verdict.detail);
+    if (verdict.failure) failures.push(verdict.failure);
   }
 
   if (failures.length === 0) {

@@ -1384,11 +1384,37 @@ Numbers in a summary are not a guard. Two things run automatically:
 - **Deploy check** — `npm run check:deployed` (optionally with a URL) asks the
   live site which commit it is serving, via the `x-build-commit` meta that
   `next.config.mjs` stamps and `app/[locale]/layout.tsx` renders, then walks
-  every route in `ROUTES` and checks `og:url` matches the host. Add a route to
-  that list in the phase that ships it; a page missing from it is a page nobody
-  is checking. It is not in `next build` — it tests the thing the build
-  produces, which does not exist yet at build time — and it cannot run from the
-  agent sandbox at all.
+  every route and checks `og:url` matches the host. The lists live in
+  `scripts/deployed-routes.mjs`. It is not in `next build` — it tests the thing
+  the build produces, which does not exist yet at build time — and it cannot
+  run from the agent sandbox at all.
+  **It walked public pages only for four phases, and "we cannot sign in" had
+  quietly become "we check nothing".** There is no way for a script to
+  authenticate here — the one door is a phone OTP and that gateway is a launch
+  blocker — so twelve admin screens, `/provider/jobs`, `/bookings` and
+  `/account` shipped with no live check of any kind and could have 404ed in
+  production without anything noticing. **A signed-out request proves three
+  things and they are worth having**: the page deployed (a 404 is a 404 with or
+  without a session), the guard is on (a 200 to nobody is an admin panel on the
+  open internet, and nothing else in the repository can see that), and the
+  redirect keeps the reader's language — the `/ne` half of every guard, which
+  `lib/auth/routes.ts` exists for and which nothing had ever checked against a
+  deployment. What it cannot see is the body, so a guarded route gets no
+  `og:url` and no commit stamp; that costs nothing, because one deployment
+  serves one build and the stamp read off `/` is every route's stamp.
+  **`/verify` is judged as guarded although it is a public route**: it redirects
+  from inside the page when it arrives without a number, and from outside that
+  is the same fact. The classification is the observable contract, never the
+  layer that answered.
+  **`coverageGaps` is what stops the list going stale**: it reads the page files
+  and fails on any static route on neither list, because a route nobody listed
+  gets no request made to it and that looks exactly like success. The other
+  direction needs no rule — a deleted route 404s on the walk.
+  **The rules self-test on every run and again in
+  `tests/unit/deploy-check.test.ts`**, which matters more here than anywhere
+  else: this script runs in neither CI nor the sandbox, so between one human run
+  and the next nothing else exercises it. `--self-test` runs the rules and the
+  coverage pass with no network at all.
 
 All are proven by breaking them on purpose, not by passing once. Lighthouse
 is still the periodic check — the bar and the median-of-3 rule are unchanged.
