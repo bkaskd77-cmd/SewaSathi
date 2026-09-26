@@ -17,6 +17,10 @@ import {
 import { getTriagePrompt } from "@/lib/ai/prompt";
 import { getPriceBands } from "@/lib/ai/price-bands";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
+import {
+  classifyProviderError,
+  type LoggableReason,
+} from "@/lib/ai/reason";
 import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
@@ -73,19 +77,6 @@ const requestSchema = z
   });
 
 type TriageSource = "claude" | "cache" | "fallback";
-
-/**
- * Why the answer came from where it did. Returned to the client and shown by
- * the dev-only badge — "the product looks like it works but no AI is running"
- * should be one glance to diagnose, not a log dive.
- */
-type TriageReason =
-  | "ok"
-  | "cache-hit"
-  | "no-api-key"
-  | "timeout"
-  | "provider-error"
-  | "unparseable";
 
 function badRequest(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -237,7 +228,15 @@ export async function POST(request: NextRequest) {
   const cached = !image && text ? readTriageCache(text, locale) : null;
 
   let source: TriageSource = cached ? "cache" : "fallback";
-  let reason: TriageReason = cached ? "cache-hit" : "no-api-key";
+  /*
+   * TYPED AS THE LOGGABLE SUBSET, not the full `TriageReason`, and the compiler
+   * is what keeps that honest: `unreachable` and `rejected` are produced by the
+   * BROWSER when it never reached us or got a 4xx, so this route cannot
+   * legitimately hold one. Widening it here would let a value the column's
+   * check constraint refuses reach an insert, where it would fail the whole row
+   * — losing the log, its id, and the attribution of whatever booking followed.
+   */
+  let reason: LoggableReason = cached ? "cache-hit" : "no-api-key";
   let result = cached;
   let visionHazard: Hazard | null = null;
 
@@ -253,14 +252,20 @@ export async function POST(request: NextRequest) {
         if (!image && text) writeTriageCache(text, locale, answer.result);
       }
     } catch (error) {
-      // Timeout, rate limit at the provider, a 500, a network blip — all the
-      // same from here: the keyword matcher answers instead. The reason is
-      // kept only so the dev badge can say which one it was.
+      /*
+       * The keyword matcher answers either way, but WHICH failure it was is not
+       * a detail — it is the difference between a credential to rotate, a
+       * volume to throttle and a blip to ignore. That used to be a regex here
+       * that collapsed a 401 and a 500 into one `provider-error`, so a key that
+       * would never work read exactly like a model having a bad minute.
+       * `classifyProviderError` reads the SDK's own error classes instead.
+       */
+      reason = classifyProviderError(error);
       const message = error instanceof Error ? error.message : String(error);
-      reason = /timeout|timed out|aborted/i.test(message)
-        ? "timeout"
-        : "provider-error";
-      console.error("[triage] Claude call failed, falling back:", message);
+      console.error(
+        `[triage] Claude call failed (${reason}), falling back:`,
+        message,
+      );
     }
   }
 
@@ -313,6 +318,15 @@ export async function POST(request: NextRequest) {
     hazard: hazard ? `${via}:${hazard}` : cautioned ? "unseen-photo" : null,
     textHazard: readTextHazard,
     visionHazard: readVisionHazard,
+    /*
+     * WHY THIS ANSWER CAME FROM WHERE IT DID, and it was computed and thrown
+     * away until now. It went to the browser for the dev badge — one developer,
+     * one card, one request — and never to the row, so nothing could COUNT how
+     * often the matcher stood in or say why. With a key live that is the
+     * question that matters: a fallback with no key is a setup step, and a
+     * fallback WITH one looks like a working product.
+     */
+    reason,
   });
 
   return NextResponse.json(

@@ -9,6 +9,7 @@ import { adminGate } from "@/lib/auth/admin-gate";
 import {
   triageAccuracy,
   type Counted,
+  type FallbackCause,
   type Middle,
   type TriageSourceKey,
 } from "@/lib/data/triage-accuracy";
@@ -240,6 +241,41 @@ export default async function TriageAccuracyPage() {
               label={t("hazard.notRecorded")}
               value={rate(value.notRecorded, value.total)}
             />
+          </dl>
+        )}
+      </Panel>
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise mt-12 font-display text-heading-md">
+        {t("fallbackWhy.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("fallbackWhy.lead")}
+      </p>
+      <Panel counted={accuracy.fallback} unreadable={t("unreadable")}>
+        {(value) => (
+          <dl className="space-y-1.5 text-body-sm text-muted-foreground">
+            {/*
+              * ORDERED BY WHAT IT WOULD TAKE TO FIX, not by size. A rejected key
+              * leads because it is the one that looks like success: present,
+              * green on every configuration check, and answering from the
+              * matcher every single time until somebody rotates it.
+              */}
+            {(
+              [
+                "keyRejected",
+                "providerFailed",
+                "answerRejected",
+                "noKey",
+                "notRecorded",
+              ] as FallbackCause[]
+            ).map((cause) => (
+              <Row
+                key={cause}
+                label={t(`fallbackWhy.${cause}`)}
+                value={rate(value[cause], value.total)}
+              />
+            ))}
           </dl>
         )}
       </Panel>

@@ -5,6 +5,7 @@ import { useLocale, useMessages, useTranslations } from "next-intl";
 import { ArrowRight, Camera, Search, Sparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { fallbackCause, firedDespiteKey } from "@/lib/ai/accuracy";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
@@ -696,6 +697,24 @@ function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
         ? t(`reason.${outcome.reason}`)
         : outcome.reason;
 
+  /*
+   * WHETHER A KEY WAS IN PLACE, SAID RATHER THAN IMPLIED.
+   *
+   * The badge already printed the reason, and that was enough while there was
+   * no key: every fallback was `no-api-key` and the sentence told the whole
+   * story. With a key live the important half became inferential — a reader has
+   * to already know that `provider-error` and `unparseable` can only happen
+   * AFTER a key was accepted, and that `auth-rejected` means one is set and
+   * wrong. Those are different problems with different fixes, and "the key is
+   * set" is the clause that separates them from the setup step.
+   *
+   * `firedDespiteKey` is the same judgement `/admin/triage-accuracy` counts, so
+   * the card and the screen cannot disagree about what counts as a live key.
+   */
+  const despiteKey =
+    outcome.source === "fallback" &&
+    firedDespiteKey(fallbackCause({ reason: outcome.reason, recorded: true }));
+
   return (
     <p
       data-testid="triage-path"
@@ -711,6 +730,7 @@ function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
         {t("servedBy", { path: t(outcome.source) })}
         {outcome.model ? ` (${outcome.model})` : ""}
       </span>
+      {despiteKey ? <span>· {t("despiteKey")}</span> : null}
       {reason ? <span>· {reason}</span> : null}
       {/*
         WHICH PRODUCT IT NAMED, or that it named none.

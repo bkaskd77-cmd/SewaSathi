@@ -465,6 +465,56 @@ Where a change on one side cannot reach the other.
   recorded**, never "no hazard": every row written before the columns is silent,
   and reading that silence as a clean safety record is the worst direction for
   this particular number to be wrong in.
+- **A silent fallback is five failures and only one of them is "nobody set the
+  key".** That distinction did not exist while there was no key — every fallback
+  had the same cause, so "fallback" and "no key" were one fact. With a key live
+  the case worth catching is the one that looks like success: present, green on
+  every configuration check, and answering from the keyword matcher every time.
+  `fallbackCause` in `lib/ai/accuracy.ts` groups a logged reason into `noKey`,
+  `keyRejected`, `providerFailed`, `answerRejected` or `notRecorded` — ordered by
+  what it would take to fix — and `firedDespiteKey` is the flag. The badge on the
+  card and the count on `/admin/triage-accuracy` both read those two functions,
+  so they cannot disagree about what counts as a live key.
+- **`triage_logs.reason` exists because the route computed it and threw it
+  away.** It went to the browser for the dev badge — one developer, one card, one
+  request — and never to the row, so nothing could count how often the matcher
+  stood in or say why. Null is "not recorded", and the fifteen rows predating the
+  column are **not backfilled**: they almost certainly were `no-api-key`, and
+  "almost certainly" is not a measurement. The column's check constraint and
+  `LOGGABLE_REASONS` are the same list written twice, so
+  `tests/unit/triage-reason.test.ts` reads the migration and compares them — a
+  constraint and a union that drift apart fail on the first production request
+  that produces the new value, by losing the whole log row to a refused insert,
+  and with it the id that attributes the booking.
+- **`lib/ai/reason.ts` is the one reason taxonomy, and it was two.**
+  `TriageReason` was declared in `lib/ai/triage.ts` and again inside
+  `app/api/triage/route.ts`, and the copies had already drifted — the route's was
+  missing `unreachable` and `rejected`. Nothing broke, because the route cannot
+  produce those, which is exactly what made it dangerous: invisible drift, and
+  the next value goes into whichever file is open. These strings cross the wire
+  and the badge looks up copy by them, so they are a contract, not a detail.
+- **A thrown provider error is classified by its prototype chain and its status,
+  never by `instanceof` and never by `error.name`.** Every Anthropic SDK error
+  instance reports `name: "Error"` — the SDK sets `constructor` and leaves `name`
+  alone — so the first version of `classifyProviderError` was dead code on every
+  real error and survived only on status codes, with the timeout (which carries
+  **no** status) resting entirely on a message regex. Found by constructing a
+  genuine `AuthenticationError` in the test. `instanceof` is refused for a
+  different reason: two copies of the SDK in one tree have two class identities
+  and it is quietly false across them. A 401 or 403 is `auth-rejected` — a
+  credential to rotate, and the case that reads as configured — where a 500 is
+  `provider-error`; conflating them said "the model had a blip" about a key that
+  would never work.
+- **`/api/health` no longer calls a present key a working one.** `checkTriage`
+  was `Boolean(process.env.ANTHROPIC_API_KEY)`, so a revoked, mistyped or
+  out-of-credit key reported green while every triage was the matcher — the same
+  shape as the OTP outage: a dependency in somebody else's dashboard, a check
+  looking at the wrong thing, and a product that kept answering. It stays `ok`
+  rather than `unknown` because `ok` decides the endpoint's 200 or 503 and the
+  product serves customers fine without a key; the detail names what is unproven,
+  which is `sms.gateway`'s existing idiom. `triage.model` behind `?deep=1` is the
+  only thing that asks the model, and `triage.fallback` counts the last hour —
+  the only check that can catch a key working for a probe and failing under load.
 - **Measurement comes before tuning, and the measuring screen is forbidden a
   threshold.** `/admin/signals` has one judgement — `needsBandReview` — because
   a published band has a floor to be wrong against. `/admin/triage-accuracy` has
@@ -1135,6 +1185,7 @@ Where a change on one side cannot reach the other.
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
 | Dispatch windows | `npm run test` | First refusal, widening and giving up, per urgency — including that no window gives up before it opens |
 | Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
+| Triage reason | `npm run test`, `npm run test:db` | That a 401 is not recorded as a model blip, that the SDK's real error shapes classify correctly (`error.name` is `"Error"` on all of them), and that `LOGGABLE_REASONS` and the column's check constraint are the same list — proven by widening the SQL and watching two tests go red |
 | Triage accuracy | `npm run test`, `npm run test:db` | That a booking can be joined back to the triage that produced it; that a booking with no triage counts as unmeasurable rather than as the AI being wrong; and that the two hazard detectors are read from their own columns rather than from the winner — proven by pointing the comparison at `hazard` and watching the agreement case go red |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up

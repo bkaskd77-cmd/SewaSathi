@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { bandOutcome, categoryAgrees, hazardCase } from "@/lib/ai/accuracy";
+import {
+  bandOutcome,
+  categoryAgrees,
+  fallbackCause,
+  hazardCase,
+} from "@/lib/ai/accuracy";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -34,13 +39,15 @@ async function logTriage(over: {
   textHazard?: string | null;
   visionHazard?: string | null;
   hazard?: string | null;
+  reason?: string | null;
 }): Promise<string> {
   const { rows } = await pg.admin.query(
     `insert into public.triage_logs
        (user_id, input_text, had_photo, category, urgency,
-        price_low, price_high, source, text_hazard, vision_hazard, hazard)
+        price_low, price_high, source, text_hazard, vision_hazard, hazard,
+        reason)
      values ($1, 'the tap is dripping', false, $2, 'soon',
-             $3, $4, $5, $6, $7, $8)
+             $3, $4, $5, $6, $7, $8, $9)
      returning id`,
     [
       ANITA,
@@ -51,6 +58,7 @@ async function logTriage(over: {
       over.textHazard ?? null,
       over.visionHazard ?? null,
       over.hazard ?? null,
+      over.reason ?? null,
     ],
   );
   return rows[0].id as string;
@@ -292,5 +300,104 @@ describe("what each hazard detector said, from the real columns", () => {
         recorded: false,
       }),
     ).toBe("notRecorded");
+  });
+});
+
+describe("why the keyword matcher answered, against the real column", () => {
+  /**
+   * THE CONSTRAINT IS THE HALF A TYPE CANNOT ENFORCE. `LoggableReason` stops a
+   * bad value being written by code that typechecks; the check constraint stops
+   * one written by anything else — a migration, a backfill, a hand-typed UPDATE
+   * in the dashboard. Both exist because the cost of a wrong value is not a
+   * wrong count: `reason` is written in the same insert as the row itself, so a
+   * refused value loses the log row, its id, and therefore the attribution of
+   * whatever booking followed.
+   */
+  it("refuses a reason the loggable set does not name", async () => {
+    await expect(
+      logTriage({
+        category: "plumbing",
+        priceLow: 900,
+        priceHigh: 4500,
+        source: "fallback",
+        // The browser fallback's own reason: by construction no server ever
+        // sees one, so no row may carry it.
+        reason: "unreachable",
+      }),
+    ).rejects.toThrow(/triage_logs_reason_known/);
+  });
+
+  it("accepts each reason a server can actually produce", async () => {
+    for (const reason of [
+      "ok",
+      "cache-hit",
+      "no-api-key",
+      "timeout",
+      "auth-rejected",
+      "rate-limited",
+      "provider-error",
+      "unparseable",
+    ]) {
+      const id = await logTriage({
+        category: "plumbing",
+        priceLow: 900,
+        priceHigh: 4500,
+        source: reason === "ok" ? "claude" : "fallback",
+        reason,
+      });
+      expect(id).toBeTruthy();
+    }
+  });
+
+  it("groups a refused key apart from a model that merely failed", async () => {
+    const refused = await logTriage({
+      category: "plumbing",
+      priceLow: 900,
+      priceHigh: 4500,
+      source: "fallback",
+      reason: "auth-rejected",
+    });
+    const blipped = await logTriage({
+      category: "plumbing",
+      priceLow: 900,
+      priceHigh: 4500,
+      source: "fallback",
+      reason: "provider-error",
+    });
+
+    const { rows } = await pg.admin.query(
+      "select id, reason from public.triage_logs where id = any($1)",
+      [[refused, blipped]],
+    );
+    const byId = new Map(rows.map((r) => [r.id, r.reason as string]));
+
+    expect(
+      fallbackCause({ reason: byId.get(refused)!, recorded: true }),
+    ).toBe("keyRejected");
+    expect(
+      fallbackCause({ reason: byId.get(blipped)!, recorded: true }),
+    ).toBe("providerFailed");
+  });
+
+  /*
+   * THE FIFTEEN ROWS LIVE RIGHT NOW. They have no reason, because the column
+   * did not exist when they were written, and they are deliberately not
+   * backfilled — so this is the ordinary case rather than an edge one.
+   */
+  it("reads a row written before the column as undiagnosed, not as a missing key", async () => {
+    const old = await logTriage({
+      category: "plumbing",
+      priceLow: 900,
+      priceHigh: 4500,
+      source: "fallback",
+    });
+    const { rows } = await pg.admin.query(
+      "select reason from public.triage_logs where id = $1",
+      [old],
+    );
+    expect(rows[0].reason).toBeNull();
+    expect(fallbackCause({ reason: rows[0].reason, recorded: false })).toBe(
+      "notRecorded",
+    );
   });
 });

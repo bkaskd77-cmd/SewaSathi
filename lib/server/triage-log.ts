@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { TriageResult } from "@/lib/ai/mockTriage";
+import { isLoggableReason, type LoggableReason } from "@/lib/ai/reason";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -58,6 +59,22 @@ export type TriageLogEntry = {
    * went unread, which is the one a customer is told about.
    */
   visionHazard: string | null;
+  /**
+   * Why this answer came from the path it did.
+   *
+   * WRITTEN NOW, AND COMPUTED-THEN-DISCARDED BEFORE. The route worked this out
+   * on every request and sent it to the browser for the dev badge, so the only
+   * reader was a developer with one card open. Nothing could count it, which
+   * meant nothing could tell "the matcher answered because there is no key"
+   * from "the matcher answered although there is one" — and the second is the
+   * expensive failure, because every configuration check in the product reports
+   * a present key as fine.
+   *
+   * Only reasons a server can produce are accepted: `unreachable` and
+   * `rejected` come from the browser fallback and no row can carry one. The
+   * column's check constraint says the same thing in SQL.
+   */
+  reason: LoggableReason;
 };
 
 export function canLogTriage(): boolean {
@@ -106,6 +123,14 @@ export async function logTriage(entry: TriageLogEntry): Promise<string | null> {
       hazard: entry.hazard,
       text_hazard: entry.textHazard,
       vision_hazard: entry.visionHazard,
+      /*
+       * Guarded rather than trusted. A value outside the loggable set would be
+       * refused by `triage_logs_reason_known` and take the whole insert with it
+       * — losing the row, the id, and therefore the attribution of whatever
+       * booking followed, to record a diagnostic. Null is already "not
+       * recorded", so falling back to it costs a count and nothing else.
+       */
+      reason: isLoggableReason(entry.reason) ? entry.reason : null,
     })
     // The id is what lets a booking point back at the triage that produced
     // it. Without it `bookings.triage_log_id` stays null for ever and the

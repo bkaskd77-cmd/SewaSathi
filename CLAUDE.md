@@ -251,6 +251,56 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   `Counted<T>` is `Readable<T>` at arity one, because a failed read rendering as
   "0% agreed" is bad news nobody measured. Tuning — the prompt, the bands, the
   keyword rules — comes as a proposal once there are rows to make one from.
+- **A silent fallback is five failures, and until today only one of them could
+  happen.** With no key every fallback was `no-api-key`, so "the matcher
+  answered" and "nobody set the key" were the same fact. With a key live the
+  expensive case is the one that looks like success: the key is present, every
+  configuration check in the product reports it as fine, and every answer is
+  still the matcher. `lib/ai/reason.ts` is the one `TriageReason` — it was
+  declared twice and the copies had already drifted — and `fallbackCause` /
+  `firedDespiteKey` in `lib/ai/accuracy.ts` group a reason into `noKey`,
+  `keyRejected`, `providerFailed`, `answerRejected` or `notRecorded`. The card
+  and `/admin/triage-accuracy` both read those two functions, so they cannot
+  disagree about what counts as a live key.
+  **`triage_logs.reason` is written now and was computed-then-discarded before**:
+  it reached the browser for the badge and never the row, so nothing could count
+  it. Null is "not recorded" and the fifteen pre-column rows are **not
+  backfilled** — they almost certainly were `no-api-key`, and "almost certainly"
+  is not a measurement. `LOGGABLE_REASONS` and the column's check constraint are
+  one list written twice, so a test reads the migration and compares them: they
+  would otherwise drift silently and fail on the first production request that
+  produced the new value, losing the log row and the id that attributes the
+  booking.
+- **A provider error is classified by its prototype chain and its status code,
+  never by `error.name` and never by `instanceof`.** Every Anthropic SDK error
+  instance reports `name: "Error"` — the SDK sets `constructor` and leaves `name`
+  alone — so the first `classifyProviderError` was dead code on every real error
+  and survived only on status codes, with the timeout, which carries **no**
+  status, resting entirely on a message regex. Found by constructing a genuine
+  `AuthenticationError` in the test rather than a hand-rolled one; a fake sets
+  `name` and would have proved a branch the real error never reaches.
+  `instanceof` is refused separately: two copies of the SDK in one dependency
+  tree have two class identities and it is quietly false across them. **A 401 or
+  403 is `auth-rejected`** — a credential to rotate, and the one failure that
+  reads as configured — where a 500 is `provider-error`. Collapsing them, which
+  the old regex did, said "the model had a blip" about a key that will never work
+  until somebody changes it.
+- **"Present" is not "working", and `/api/health` said otherwise for months.**
+  `checkTriage` was `Boolean(process.env.ANTHROPIC_API_KEY)`, so a revoked,
+  mistyped or out-of-credit key reported `ok` while every triage was the
+  matcher — the same shape as the sign-in outage: a dependency in somebody else's
+  dashboard, a check looking at the wrong thing, and a product that kept
+  answering so nobody noticed. It stays `ok` rather than `unknown`, deliberately:
+  `ok` is computed across every check to decide 200 or 503, and the product
+  serves customers perfectly well with no key at all, so `unknown` would 503 a
+  working product. `sms.gateway` had already solved it the same way — report
+  `ok`, and name in the detail what is unproven and which call would prove it.
+  **`triage.model` behind `?deep=1` is the only thing that asks the model**, one
+  token each way, behind `CRON_SECRET` exactly like the OTP send; it reports the
+  provider's own refusal sentence, and it uses `classifyProviderError` rather
+  than a second opinion so it cannot disagree with what the rows say.
+  **`triage.fallback` counts the last hour**, because a key can work for a probe
+  and fail under load, and no configuration check can see that.
 - **The dev badge.** A silent fallback is indistinguishable from a working
   product — with no API key every triage still answers. The card carries a
   small line saying which path served it and why (`no ANTHROPIC_API_KEY`,
@@ -1188,8 +1238,13 @@ Numbers in a summary are not a guard. Two things run automatically:
 
 - **Bundle budget** — `npm run build` is `scripts/check-bundle-budget.mjs`,
   which runs `next build` and then fails on the printed route table. Ceilings
-  live in `scripts/perf-budget.mjs`: `/[locale]` 155 kB, `/[locale]/login`
-  205 kB, any route 210 kB, shared 95 kB. Vercel runs `npm run build`, so a
+  live in `scripts/perf-budget.mjs` **and are not repeated here** — the two
+  copies had already drifted, this file still saying `/[locale]` 155 kB and
+  `/[locale]/login` 205 kB when the script had moved to 158 and 140. Nothing
+  failed, because the script is what runs; the cost is that a number in the
+  standing notes read as authoritative and was wrong by 65 kB in one direction
+  and 3 in the other. One place, and `npm run build` prints every ceiling beside
+  what was measured. Vercel runs `npm run build`, so a
   regression cannot deploy. Raising a ceiling is a decision — move it in the
   commit that needs it and say why. They moved once, for next-intl: its client
   runtime is ~18 kB on the landing page and 5-6 kB elsewhere, and it is not

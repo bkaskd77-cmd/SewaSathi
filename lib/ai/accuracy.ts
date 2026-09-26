@@ -155,3 +155,107 @@ export function middleOf(samples: number[]): Middle {
       : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
   return { medianMs, total: sorted.length };
 }
+
+/* ------------------------------------------------------------------ *
+ * Why the keyword matcher answered
+ * ------------------------------------------------------------------ */
+
+/**
+ * A silent fallback is not one failure, it is five, and only one of them is
+ * "nobody set the key".
+ *
+ * WHY THIS GROUPING EXISTS. For the whole life of this product every triage was
+ * a fallback and the cause was always the same missing environment variable, so
+ * "fallback" and "no key" were the same fact and nothing needed to tell them
+ * apart. The moment a key is live that stops being true, and the interesting
+ * case becomes the one that looks like success: the key is set, the presence
+ * check is green, and every answer is still the matcher.
+ *
+ * Each of these has a different fix, which is the test for whether a
+ * distinction is worth a name:
+ *
+ * - `noKey` — add an environment variable.
+ * - `keyRejected` — rotate a credential. The key is *present*, so every
+ *   configuration check in this product reports it as fine.
+ * - `providerFailed` — usually nothing; it recovers. Worth counting because a
+ *   rate that stops recovering is the signal.
+ * - `answerRejected` — ours. The model replied and our own validation threw the
+ *   reply away, which is a prompt or schema problem and the only one of the
+ *   five fixed in this repository.
+ * - `notRecorded` — rule 6. Written before the column existed.
+ */
+export type FallbackCause =
+  | "notRecorded"
+  | "noKey"
+  | "keyRejected"
+  | "providerFailed"
+  | "answerRejected";
+
+export type FallbackTally = Record<FallbackCause, number> & {
+  /** Fallback rows considered, so every count above has its denominator. */
+  total: number;
+};
+
+/**
+ * Group a logged reason into its cause.
+ *
+ * `recorded` tells an old row from a new one, exactly as `hazardCase` does, and
+ * for the same reason: a null `reason` on a row written before the column is
+ * silence, and reading it as `noKey` would invent a diagnosis. Those fifteen
+ * rows almost certainly WERE `noKey` — there was no key — but "almost certainly"
+ * is not a measurement, and a screen that prints it as one is the thing rule 6
+ * exists to stop.
+ *
+ * Returns null for a reason that is not a fallback at all (`ok`, `cache-hit`):
+ * those rows were served by the model and have no cause to explain.
+ */
+export function fallbackCause(row: {
+  reason: string | null;
+  recorded: boolean;
+}): FallbackCause | null {
+  if (!row.recorded) return "notRecorded";
+  switch (row.reason) {
+    // Not a fallback. The model answered, or a model answer was replayed.
+    case "ok":
+    case "cache-hit":
+      return null;
+    case "no-api-key":
+      return "noKey";
+    case "auth-rejected":
+      return "keyRejected";
+    case "timeout":
+    case "rate-limited":
+    case "provider-error":
+      return "providerFailed";
+    case "unparseable":
+      return "answerRejected";
+    /*
+     * A reason we do not recognise, or none on a row that should have one. Not
+     * `noKey` and not `providerFailed`: a value this function has never seen is
+     * something nobody has diagnosed, which is what `notRecorded` means.
+     */
+    default:
+      return "notRecorded";
+  }
+}
+
+/**
+ * Did the fallback fire with a key in place?
+ *
+ * THE FLAG, AND THE WHOLE POINT OF THE GROUPING ABOVE. "No key" is a setup step
+ * nobody has done. Anything else on this list means the product is configured,
+ * looks configured to every check we have, and is still answering from the
+ * keyword matcher — which is a different failure and a more expensive one,
+ * because nothing about it looks wrong.
+ *
+ * `notRecorded` is false: not knowing is not evidence of a key. Saying "this
+ * fired despite a key" about a row nobody diagnosed would raise an alarm out of
+ * an absence.
+ */
+export function firedDespiteKey(cause: FallbackCause | null): boolean {
+  return (
+    cause === "keyRejected" ||
+    cause === "providerFailed" ||
+    cause === "answerRejected"
+  );
+}

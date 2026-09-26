@@ -1421,6 +1421,14 @@ export type Database = {
           source: TriageSource;
           model: string | null;
           latency_ms: number | null;
+          /**
+           * Why the answer came from the path it did.
+           *
+           * NULL IS "NOT RECORDED", never "no reason": every row written before
+           * the column has it, and `fallbackCause` reports those as
+           * `notRecorded` rather than inferring the key was missing.
+           */
+          reason: string | null;
           hazard: string | null;
           /**
            * What each detector independently said, before one of them won.
@@ -1447,6 +1455,7 @@ export type Database = {
           source: TriageSource;
           model?: string | null;
           latency_ms?: number | null;
+          reason?: string | null;
           hazard?: string | null;
           text_hazard?: string | null;
           vision_hazard?: string | null;

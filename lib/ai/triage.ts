@@ -4,6 +4,7 @@ import {
   triageProblem as keywordTriage,
   type TriageResult,
 } from "@/lib/ai/mockTriage";
+import type { TriageReason } from "@/lib/ai/reason";
 import { applySafetyFloor } from "@/lib/ai/safety";
 
 /**
@@ -36,18 +37,18 @@ export type TriageImage = {
 export type TriageSource = "claude" | "cache" | "fallback";
 
 /**
- * Why this answer came from where it did. Server reasons come back in the
- * response; the two below it are the ones only the browser can know.
+ * Why this answer came from where it did.
+ *
+ * RE-EXPORTED, NOT DECLARED. This union used to be written out here AND again
+ * inside `app/api/triage/route.ts`, and the two had already drifted — the
+ * route's copy was missing `unreachable` and `rejected`. Nothing broke, because
+ * the route cannot produce those two, and that is exactly what makes the
+ * duplication dangerous: the drift was invisible and the next value would have
+ * gone into whichever file somebody had open. `lib/ai/reason.ts` is the one
+ * declaration, and it is a contract rather than an internal detail — the route
+ * sends these strings over the wire and the badge looks up copy by them.
  */
-export type TriageReason =
-  | "ok"
-  | "cache-hit"
-  | "no-api-key"
-  | "timeout"
-  | "provider-error"
-  | "unparseable"
-  | "unreachable"
-  | "rejected";
+export type { TriageReason };
 
 /** One product inside the trade, as a customer reads it. */
 export type SubBandChoice = {

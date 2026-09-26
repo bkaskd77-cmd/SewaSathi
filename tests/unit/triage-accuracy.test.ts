@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   bandOutcome,
   categoryAgrees,
+  fallbackCause,
+  firedDespiteKey,
   hazardCase,
   middleOf,
 } from "@/lib/ai/accuracy";
@@ -154,5 +156,83 @@ describe("how long a path took", () => {
       medianMs: 1000,
       total: 1,
     });
+  });
+});
+
+/**
+ * Why the keyword matcher answered — the distinction that only matters now.
+ *
+ * Until a key was live every fallback had the same cause, so "fallback" and "no
+ * key" were one fact. The expensive case is the one that appears the moment a
+ * key is set and looks like nothing is wrong: the key is present, every
+ * configuration check in the product reports it as fine, and every answer is
+ * still the matcher.
+ */
+describe("why the keyword matcher answered", () => {
+  const cause = (reason: string | null) => fallbackCause({ reason, recorded: true });
+
+  it("separates a missing key from a refused one", () => {
+    // Different fixes: one is an environment variable to add, the other a
+    // credential to rotate — and only the second reads as configured.
+    expect(cause("no-api-key")).toBe("noKey");
+    expect(cause("auth-rejected")).toBe("keyRejected");
+  });
+
+  it("groups the three failures that mean the key worked", () => {
+    expect(cause("timeout")).toBe("providerFailed");
+    expect(cause("rate-limited")).toBe("providerFailed");
+    expect(cause("provider-error")).toBe("providerFailed");
+  });
+
+  it("keeps our own rejection of a model answer separate", () => {
+    // The only cause on this list fixed in this repository rather than in
+    // somebody's dashboard: the model replied and our schema threw it away.
+    expect(cause("unparseable")).toBe("answerRejected");
+  });
+
+  it("has no cause for a row the model actually served", () => {
+    // Not a failure, so not in the denominator. Counting these would turn "how
+    // much of the fallback was a rejected key" into a share of all traffic.
+    expect(cause("ok")).toBeNull();
+    expect(cause("cache-hit")).toBeNull();
+  });
+
+  /*
+   * RULE 6, THIRD TIME ON THIS SCREEN. The fifteen rows written before the
+   * column almost certainly WERE `no-api-key` — there was no key. "Almost
+   * certainly" is not a measurement, and a screen that prints an inference as a
+   * count is the thing the rule exists to stop.
+   */
+  it("never guesses a reason for a row written before the column", () => {
+    expect(fallbackCause({ reason: null, recorded: false })).toBe("notRecorded");
+    expect(fallbackCause({ reason: null, recorded: false })).not.toBe("noKey");
+  });
+
+  it("treats an unrecognised reason as undiagnosed, not as a guess", () => {
+    expect(cause("something-new")).toBe("notRecorded");
+    expect(cause(null)).toBe("notRecorded");
+  });
+});
+
+describe("did the fallback fire with a key in place", () => {
+  it("is true for every cause that implies a key was accepted or present", () => {
+    expect(firedDespiteKey("keyRejected")).toBe(true);
+    expect(firedDespiteKey("providerFailed")).toBe(true);
+    expect(firedDespiteKey("answerRejected")).toBe(true);
+  });
+
+  it("is false with no key, which is a setup step rather than a fault", () => {
+    expect(firedDespiteKey("noKey")).toBe(false);
+  });
+
+  /*
+   * NOT KNOWING IS NOT EVIDENCE OF A KEY. Reporting "this fired despite a key"
+   * about a row nobody diagnosed would raise an alarm out of an absence — and
+   * this is the value the badge and the health check both read, so a wrong
+   * answer here would show a warning on a card that has nothing behind it.
+   */
+  it("is false for an undiagnosed row and for a model answer", () => {
+    expect(firedDespiteKey("notRecorded")).toBe(false);
+    expect(firedDespiteKey(null)).toBe(false);
   });
 });

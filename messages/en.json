@@ -192,10 +192,13 @@
         "provider-error": "the API returned an error",
         "unparseable": "the reply failed validation",
         "unreachable": "the request never arrived",
-        "rejected": "rate limited or refused"
+        "rejected": "rate limited or refused",
+        "auth-rejected": "the key was refused — rotate it",
+        "rate-limited": "the API rate limited us"
       },
       "band": "product {band}",
-      "noBand": "no product"
+      "noBand": "no product",
+      "despiteKey": "the key is set"
     }
   },
   "services": {
@@ -1990,6 +1993,15 @@
       "latency": {
         "path": "{path}, middle",
         "ms": "{ms}ms over {count, plural, one {{n} request} other {{n} requests}}"
+      },
+      "fallbackWhy": {
+        "title": "Why the keyword matcher answered",
+        "lead": "Counted over the fallback answers only, not over all traffic. Until a key was set every one of these had the same cause, so the distinction that matters now is whether a key was in place: without one this is a setup step, with one the product is configured, reads as healthy everywhere, and is still not using the model.",
+        "keyRejected": "The key is set and was refused",
+        "providerFailed": "The key works; the model timed out, errored or throttled us",
+        "answerRejected": "The model answered and we rejected the answer",
+        "noKey": "No key was set",
+        "notRecorded": "Written before we kept the reason"
       }
     }
   }

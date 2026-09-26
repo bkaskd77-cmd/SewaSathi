@@ -5,9 +5,11 @@ import { hasSupabaseConfig } from "@/lib/env";
 import {
   bandOutcome,
   categoryAgrees,
+  fallbackCause,
   hazardCase,
   middleOf,
   type BandOutcome,
+  type FallbackTally,
   type HazardComparison,
   type Middle,
 } from "@/lib/ai/accuracy";
@@ -62,9 +64,13 @@ export function uncounted<T>(): Counted<T> {
 export {
   bandOutcome,
   categoryAgrees,
+  fallbackCause,
+  firedDespiteKey,
   hazardCase,
   middleOf,
   type BandOutcome,
+  type FallbackCause,
+  type FallbackTally,
   type HazardCase,
   type HazardComparison,
   type Middle,
@@ -123,6 +129,17 @@ export type TriageAccuracy = {
    * means anything without the other.
    */
   latency: Counted<BySource<Middle>>;
+  /**
+   * Why the keyword matcher answered, when it did.
+   *
+   * THE SECTION THAT EXISTS BECAUSE A KEY IS NOW LIVE. Until today every
+   * fallback had the same cause — there was no key — so "how many fallbacks"
+   * and "why" were the same number. They come apart the moment a key is set,
+   * and the case worth catching is the one that looks like success: the key is
+   * present, every configuration check reports it as fine, and the matcher is
+   * still answering. `firedDespiteKey` is that distinction.
+   */
+  fallback: Counted<FallbackTally>;
 };
 
 export async function triageAccuracy(): Promise<TriageAccuracy> {
@@ -133,6 +150,7 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
     hazard: uncounted(),
     mix: uncounted(),
     latency: uncounted(),
+    fallback: uncounted(),
   };
   if (!hasSupabaseConfig()) return blank;
 
@@ -159,7 +177,7 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
         admin
           .from("triage_logs")
           .select(
-            "id, source, category, price_low, price_high, had_photo, latency_ms, hazard, text_hazard, vision_hazard, created_at",
+            "id, source, category, price_low, price_high, had_photo, latency_ms, reason, hazard, text_hazard, vision_hazard, created_at",
           )
           .order("created_at", { ascending: false })
           .limit(5_000),
@@ -205,6 +223,31 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
         null,
       );
 
+    /*
+     * A SECOND CUTOVER, DERIVED THE SAME WAY AND SEPARATELY. `reason` and the
+     * two hazard columns arrived in different migrations, so one date cannot
+     * answer for both — using the hazard cutover here would report rows as
+     * having an unrecorded reason when they have one, or worse the reverse.
+     * Same rule, same direction of error: it can only ever call LESS measured
+     * than truly was.
+     */
+    const firstReasonAt = logs
+      .filter((r) => r.reason != null)
+      .map((r) => Date.parse(r.created_at as string))
+      .reduce<number | null>(
+        (oldest, at) => (oldest === null || at < oldest ? at : oldest),
+        null,
+      );
+
+    const fallback: FallbackTally = {
+      notRecorded: 0,
+      noKey: 0,
+      keyRejected: 0,
+      providerFailed: 0,
+      answerRejected: 0,
+      total: 0,
+    };
+
     const hazard: HazardComparison = {
       notRecorded: 0,
       neither: 0,
@@ -236,6 +279,27 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
       const recorded =
         firstRecordedAt !== null &&
         Date.parse(row.created_at as string) >= firstRecordedAt;
+
+      /*
+       * ONLY THE FALLBACK ROWS HAVE A CAUSE TO EXPLAIN. A model answer and a
+       * cache replay are not failures, and counting them in the denominator
+       * would make "how much of the fallback was a rejected key" read as a
+       * share of all traffic — which is a smaller, more comforting number about
+       * a different question.
+       */
+      if (row.source === "fallback") {
+        fallback.total += 1;
+        const cause = fallbackCause({
+          reason: (row.reason as string | null) ?? null,
+          recorded:
+            firstReasonAt !== null &&
+            Date.parse(row.created_at as string) >= firstReasonAt,
+        });
+        // Null means the row was not a fallback after all, which `source`
+        // already ruled out — so it cannot happen here, and if it ever does it
+        // is counted as undiagnosed rather than silently dropped.
+        fallback[cause ?? "notRecorded"] += 1;
+      }
 
       hazard[
         hazardCase({
@@ -290,6 +354,7 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
       band: { ok: true, value: band },
       hazard: { ok: true, value: hazard },
       mix: { ok: true, value: mix },
+      fallback: { ok: true, value: fallback },
       latency: {
         ok: true,
         value: {

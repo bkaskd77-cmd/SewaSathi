@@ -7,6 +7,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 import { smsGateway } from "@/lib/sms";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
 import FINGERPRINTS from "@/supabase/function-fingerprints.json";
 
@@ -511,16 +512,174 @@ function checkSmsGateway(): Check {
   };
 }
 
-/** Triage falls back to the keyword matcher without a key, so this is a warning. */
+/**
+ * Is there a key, and has anything proved it works?
+ *
+ * "PRESENT" IS NOT "WORKING", AND THIS LINE USED TO SAY OTHERWISE. It read
+ * `Boolean(process.env.ANTHROPIC_API_KEY)` and reported `Claude key present.` —
+ * so a key that is mistyped, revoked or out of credit came back green while
+ * every single triage was answered by the keyword matcher. That is the exact
+ * shape of the failure that took sign-in down for a day: a dependency in
+ * somebody else's dashboard, a check that looked at the wrong thing, and a
+ * product that kept answering so nobody noticed.
+ *
+ * The state stays `ok` rather than becoming `unknown`, and that is deliberate
+ * rather than a dodge. `ok` here is computed across every check to decide a 200
+ * or a 503, so `unknown` would take the whole endpoint down for a product that
+ * serves customers perfectly well without a key. `sms.gateway` already solved
+ * this the same way: report `ok`, and name in the detail what is still unproven
+ * and which call would prove it.
+ */
 function checkTriage(): Check {
-  return process.env.ANTHROPIC_API_KEY
-    ? { name: "triage", state: "ok", detail: "Claude key present." }
-    : {
-        name: "triage",
-        state: "unknown",
-        detail:
-          "No ANTHROPIC_API_KEY. Triage still answers — the keyword matcher covers it — but every answer is the fallback.",
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return {
+      name: "triage",
+      state: "unknown",
+      detail:
+        "No ANTHROPIC_API_KEY. Triage still answers — the keyword matcher covers it — but every answer is the fallback.",
+    };
+  }
+  return {
+    name: "triage",
+    state: "ok",
+    detail:
+      "ANTHROPIC_API_KEY present. Present is not working: a revoked, mistyped " +
+      "or out-of-credit key looks exactly like this and every answer is still " +
+      "the keyword matcher. Only deep=1 asks the model.",
+  };
+}
+
+/**
+ * Ask the model one real question, which is the only proof a key works.
+ *
+ * BEHIND deep=1 BECAUSE IT COSTS MONEY, exactly like the OTP send. One token
+ * out, one token back, no prompt caching to disturb — a fraction of a cent per
+ * run, and the only thing in this product that can tell a good key from a bad
+ * one before a customer does.
+ *
+ * A REFUSAL IS REPORTED IN THE PROVIDER'S OWN WORDS. The MFA bug cost three
+ * deploys because two separate catches each discarded the sentence Anthropic had
+ * been returning the whole time; the fix is to pass it through, and this is a
+ * private endpoint behind a secret so there is no reason not to.
+ */
+async function checkTriageModel(): Promise<Check> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return {
+      name: "triage.model",
+      state: "skipped",
+      detail: "No ANTHROPIC_API_KEY to test.",
+    };
+  }
+  try {
+    const { getAnthropic, TRIAGE_MODEL } = await import("@/lib/ai");
+    const started = Date.now();
+    await getAnthropic().messages.create(
+      {
+        model: TRIAGE_MODEL,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { timeout: 10_000, maxRetries: 0 },
+    );
+    return {
+      name: "triage.model",
+      state: "ok",
+      detail: `${TRIAGE_MODEL} answered in ${Date.now() - started}ms. The key works.`,
+    };
+  } catch (error) {
+    /*
+     * `classifyProviderError` rather than a second opinion written here. It is
+     * the same function the triage route uses to decide what a failure was, so
+     * this line and the reason written onto every `triage_logs` row cannot
+     * disagree about whether a key was refused or a model merely blipped.
+     */
+    const { classifyProviderError } = await import("@/lib/ai/reason");
+    const reason = classifyProviderError(error);
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      name: "triage.model",
+      // A rejected key is down: it will not fix itself and every triage is the
+      // fallback until somebody rotates it. A blip or a throttle is not.
+      state: reason === "auth-rejected" ? "down" : "unknown",
+      detail: `${reason} — ${message}`,
+    };
+  }
+}
+
+/**
+ * Is the key set and the matcher answering anyway?
+ *
+ * THE FAULT NO CONFIGURATION CHECK CAN SEE. Everything above asks whether a key
+ * exists and whether it worked one second ago. This asks what actually happened
+ * to real customers in the last hour, which is the only question that catches a
+ * key that works for a health probe and fails under load, a model that has
+ * started refusing our prompt, or a schema of ours that rejects every reply.
+ *
+ * Cheap: one counted read on the partial index `triage_logs` carries for exactly
+ * this. `unknown` rather than `down` when it fires — the product answered every
+ * one of those people, which is the whole design, so nothing is broken for a
+ * customer and a 503 would be a lie.
+ */
+async function checkTriageFallback(): Promise<Check> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return {
+      name: "triage.fallback",
+      state: "skipped",
+      detail: "No key, so every fallback is expected.",
+    };
+  }
+  if (!hasSupabaseConfig()) {
+    return {
+      name: "triage.fallback",
+      state: "unknown",
+      detail: "Supabase not configured, so the triage log cannot be read.",
+    };
+  }
+  try {
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const admin = createAdminClient();
+    const [{ count: fell }, { count: all }] = await Promise.all([
+      admin
+        .from("triage_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "fallback")
+        .gte("created_at", since),
+      admin
+        .from("triage_logs")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since),
+    ]);
+    if (!all) {
+      return {
+        name: "triage.fallback",
+        state: "ok",
+        detail: "No triage in the last hour, so nothing fell back.",
       };
+    }
+    if (!fell) {
+      return {
+        name: "triage.fallback",
+        state: "ok",
+        detail: `0 of ${all} in the last hour fell back to the keyword matcher.`,
+      };
+    }
+    return {
+      name: "triage.fallback",
+      state: "unknown",
+      detail:
+        `${fell} of ${all} triages in the last hour were answered by the ` +
+        `keyword matcher despite a key being set. Customers all got an answer. ` +
+        `/admin/triage-accuracy says which cause.`,
+    };
+  } catch (error) {
+    return {
+      name: "triage.fallback",
+      state: "unknown",
+      detail: `Could not read the triage log: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
 }
 
 /**
@@ -637,12 +796,15 @@ export async function GET(request: Request) {
       checkFunctions(),
     ])),
     checkTriage(),
+    await checkTriageFallback(),
     checkSmsGateway(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];
 
-  if (deepAllowed) checks.push(await checkSmsDelivery());
+  if (deepAllowed) {
+    checks.push(...(await Promise.all([checkSmsDelivery(), checkTriageModel()])));
+  }
 
   // `unknown` is not healthy. The whole point of this endpoint is that an
   // unverifiable dependency is what broke sign-in in the first place.
