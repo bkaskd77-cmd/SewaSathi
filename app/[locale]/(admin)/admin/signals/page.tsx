@@ -18,6 +18,12 @@ import {
 } from "@/lib/data/payment-mix";
 import { BAND_REVIEW_THRESHOLD_PCT, needsBandReview } from "@/lib/data/pricing-signals";
 import { PAYOUT_RULES, holdbackTrades } from "@/lib/payments/client";
+import {
+  listConcentration,
+  listRankingEvidence,
+  topShare,
+} from "@/lib/data/concentration";
+import { RELEVANCE_WEIGHTS, weightEvidence } from "@/lib/data/ranking";
 import { formatBand, formatNpr } from "@/lib/utils";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -61,11 +67,26 @@ export default async function SignalsPage() {
     redirect({ href: "/account/security?next=/admin/signals", locale });
   }
 
-  const [pricing, mix, categories] = await Promise.all([
+  const [pricing, mix, categories, concentration] = await Promise.all([
     listPricingSignals(),
     listPaymentMix(),
     getCategories(),
+    listConcentration(),
   ]);
+
+  const stats = await listRankingEvidence();
+
+  /*
+   * EVERY LISTING, NOT A CATEGORY'S. The question is how much of the ranking is
+   * resting on a prior across the supply we have, and slicing it per trade would
+   * split an already tiny sample into pieces none of which could be read.
+   */
+  const evidence = stats.ok
+    ? weightEvidence(
+        stats.value.map((s) => ({ stats: s })),
+        RELEVANCE_WEIGHTS,
+      )
+    : [];
 
   const tradeName = (slug: string) => {
     const category = categories.find((c) => c.slug === slug);
@@ -145,6 +166,116 @@ export default async function SignalsPage() {
               </dl>
             </li>
           ))}
+        </ul>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise mt-12 font-display text-heading-md">
+        {t("weights.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("weights.lead")}
+      </p>
+      {/*
+        * WHICH WEIGHTS ARE SEPARATING ANYBODY. `rating` carries the largest
+        * share of the blend and `bayesianRating` returns the prior for every
+        * listing nobody has rated — so on this data it adds the same number to
+        * everybody. That is honest degradation working as designed, and it was
+        * invisible: the only way to know was to read the ranking and then go and
+        * count rows. Retuning is a product decision and it should start from a
+        * number rather than from somebody rediscovering this in six months.
+        */}
+      <div className="animate-rise mt-4 rounded-lg border border-border p-5">
+        <dl className="space-y-1.5 text-body-sm text-muted-foreground">
+          {evidence.map((row) => (
+            <Row
+              key={row.term}
+              label={t("weights.term", {
+                name: t(`weights.names.${row.term}`),
+                weight: row.weight.toFixed(2),
+              })}
+              value={
+                row.canBeUnmeasured
+                  ? t("weights.measured", {
+                      n: String(row.measured),
+                      total: String(row.total),
+                      count: row.total,
+                    })
+                  : t("weights.alwaysAFact")
+              }
+            />
+          ))}
+        </dl>
+      </div>
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise mt-12 font-display text-heading-md">
+        {t("concentration.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("concentration.lead")}
+      </p>
+      {!concentration.ok ? (
+        <Unreadable text={t("unreadable")} />
+      ) : concentration.value.length === 0 ? (
+        <p className="animate-rise mt-4 text-body-md text-muted-foreground">
+          {t("concentration.empty")}
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {concentration.value.map((row, index) => {
+            const offerShare = topShare(row.topOffers, row.offers);
+            const workShare = topShare(row.topCompletions, row.completions);
+            return (
+              <li
+                key={row.categorySlug}
+                className="animate-rise rounded-lg border border-border p-5"
+                style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-display text-heading-sm">
+                    {tradeName(row.categorySlug)}
+                  </span>
+                  <span className="text-caption text-muted-foreground">
+                    {t("concentration.professionals", {
+                      n: String(row.professionals),
+                      count: row.professionals,
+                    })}
+                  </span>
+                </div>
+                <dl className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
+                  {/* Offers concentrating only matters if the work follows, so
+                      both are shown and neither is shown alone. */}
+                  <Row
+                    label={t("concentration.ofOffers")}
+                    value={
+                      offerShare === null
+                        ? t("concentration.nothingYet")
+                        : t("concentration.share", {
+                            pct: String(Math.round(offerShare)),
+                            n: String(row.topOffers),
+                            total: String(row.offers),
+                            count: row.offers,
+                          })
+                    }
+                  />
+                  <Row
+                    label={t("concentration.ofWork")}
+                    value={
+                      workShare === null
+                        ? t("concentration.nothingYet")
+                        : t("concentration.share", {
+                            pct: String(Math.round(workShare)),
+                            n: String(row.topCompletions),
+                            total: String(row.completions),
+                            count: row.completions,
+                          })
+                    }
+                  />
+                </dl>
+              </li>
+            );
+          })}
         </ul>
       )}
 

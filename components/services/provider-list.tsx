@@ -14,6 +14,9 @@ import {
   type AvailabilityFilter,
 } from "@/lib/data/providers";
 import { sortProviders, type SortOption } from "@/lib/data/ranking";
+import { providerCapacity } from "@/lib/data/capacity";
+import { hasRoom } from "@/lib/booking";
+import { jobFit, servingWhen, showsInList } from "@/lib/provider";
 
 /**
  * The ranked list.
@@ -73,12 +76,74 @@ export async function ProviderList({
     maxRate: params.maxRate,
   });
 
+  /*
+   * CAN EACH OF THESE PEOPLE ACTUALLY DO THIS JOB?
+   *
+   * The catalogue never asked. `canServeAt`, `hasRoom` and `providerCapacity`
+   * all existed and all ran at claim time, so this list could put somebody
+   * whose window was already promised to another customer at the top — the
+   * customer taps, and `enforce_slot_capacity` refuses the insert. The list and
+   * the database disagreed about who was bookable and the customer found out at
+   * the confirm button.
+   *
+   * WHAT THIS PAGE DOES AND DOES NOT KNOW. There is no slot yet — it is picked
+   * later in the booking flow — so `when` is whatever the urgency implies and
+   * nothing more. `servingWhen` returns null for an emergency, which is the
+   * honest "as soon as possible", and the coarse answer is the right one here:
+   * can they come at all. The booking flow asks the exact question later.
+   */
+  const capacity = await providerCapacity(
+    providers.map((p) => p.id),
+    params.category,
+  );
+  const when = servingWhen({ urgency: params.urgency });
+
   const ranked = sortProviders(providers, params.sort ?? "relevance", {
     urgency: params.urgency,
     area: params.area,
+    fit: (provider) => {
+      const held = capacity[provider.id];
+      return jobFit({
+        provider: {
+          categories: [params.category],
+          availability: provider.availability,
+          busyUntil: provider.busyUntil,
+        },
+        job: {
+          categorySlug: params.category,
+          urgency: params.urgency,
+          when,
+          /*
+           * UNDEFINED WHERE WE DID NOT READ, never `false`. A listing missing
+           * from the capacity map is one nobody checked — Supabase unconfigured,
+           * or a read that came back empty — and reporting that as "there is
+           * room" would be the default doing the work of a measurement.
+           */
+          windowFull: held
+            ? !hasRoom({
+                jobs: held.held,
+                scheduledFor: when,
+                workingMinutes: null,
+                capacity: held.capacity,
+              })
+            : undefined,
+        },
+        providerId: provider.id,
+      });
+    },
   });
 
-  if (ranked.length === 0) {
+  /*
+   * ONE EXCLUSION IS SILENT AND IT IS THE ONLY ONE. Somebody who has already
+   * turned this exact job down cannot be reassigned — the immutability trigger
+   * refuses it — so offering them is a button that cannot work, and naming them
+   * to the customer as having refused is bruising to no purpose. Every other
+   * reason stays in the list carrying its explanation, because a list that
+   * quietly got shorter reads as a catalogue with nobody in it.
+   */
+  const visible = ranked.filter((provider) => showsInList(provider.fit));
+
+  if (visible.length === 0) {
     const area = params.area ? areaShortLabel(params.area, locale) : null;
 
     return (
@@ -106,8 +171,8 @@ export async function ProviderList({
         className="animate-rise mt-4 text-caption text-muted-foreground"
       >
         {t("resultCount", {
-          count: ranked.length,
-          n: String(ranked.length),
+          count: visible.length,
+          n: String(visible.length),
           where: params.area
             ? t("coveringArea", {
                 area: areaShortLabel(params.area, locale),
@@ -128,7 +193,7 @@ export async function ProviderList({
       ) : null}
 
       <ul className="mt-4 flex flex-col gap-4">
-        {ranked.map((provider, index) => (
+        {visible.map((provider, index) => (
           <li key={provider.id}>
             <ProviderCard
               provider={provider}
@@ -140,6 +205,7 @@ export async function ProviderList({
               asked={params.asked}
               q={params.q}
               index={index}
+              fit={provider.fit}
             />
           </li>
         ))}

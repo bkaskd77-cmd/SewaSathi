@@ -894,7 +894,19 @@ export type Database = {
           booking_id: string;
           provider_id: string;
           kind: string;
+          /** Free text, as the professional typed it. */
           reason: string | null;
+          /**
+           * The same refusal from a closed set, so it can be counted.
+           *
+           * NULL is "not recorded" — every row predating the column, and every
+           * professional who skipped the question — never "no reason". A stated
+           * preference rather than a judgement, and not a ranking input:
+           * `booking_refusals_reason_code_known` holds the set, and
+           * `REFUSAL_REASON_CODES` in lib/provider/fit.ts is the same list in
+           * TypeScript.
+           */
+          reason_code: string | null;
           created_at: string;
         };
         Insert: {
@@ -903,6 +915,7 @@ export type Database = {
           provider_id: string;
           kind?: string;
           reason?: string | null;
+          reason_code?: string | null;
           created_at?: string;
         };
         Update: Partial<
@@ -1338,6 +1351,15 @@ export type Database = {
           jobs_completed: number;
           completion_rate: number;
           avg_response_minutes: number;
+          /**
+           * How many replies have actually been TIMED.
+           *
+           * The denominator `hasResponse` reads, and the reason
+           * `avg_response_minutes` alone cannot be trusted: that column defaults
+           * to 120, which is exactly the scoring ceiling, so an untimed listing
+           * is indistinguishable from one measured at two hours without this.
+           */
+          response_samples: number;
           jobs_accepted: number;
           withdrawals: number;
           overbook_offers: number;

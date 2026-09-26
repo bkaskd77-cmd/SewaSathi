@@ -327,7 +327,15 @@
     "searchResults": "{n} of {total} services match “{query}”",
     "searchEmptyTitle": "Nothing matches “{query}”",
     "searchEmptyBody": "We may not cover it yet, or it may go by another name here. Describe the problem on the home page instead and we’ll work out who you need.",
-    "searchEmptyAction": "Describe the problem"
+    "searchEmptyAction": "Describe the problem",
+    "fit": {
+      "notThisTrade": "Doesn't do this work",
+      "alreadyRefused": "Turned this job down",
+      "onJobNow": "On a job right now",
+      "busyNow": "Not taking work right now",
+      "busyThen": "Busy at that time",
+      "full": "Fully booked then"
+    }
   },
   "auth": {
     "login": {
@@ -1839,6 +1847,31 @@
         "lead": "Where a guarantee runs {window} days or more, {pct}% of the professional's earning waits {days} days before it reaches them. It is deferred, never deducted — the two parts are the whole earning. The rule is the length of the window, so a trade added with a long guarantee starts holding without anybody choosing it. That is why this list is here.",
         "window": "{n}-day guarantee",
         "none": "No trade currently has a guarantee window long enough to hold anything."
+      },
+      "weights": {
+        "title": "Which weights are separating anybody",
+        "lead": "Each term's share of the ranking, and how many listings have something measured behind it. A weight resting on a prior for nearly everybody adds the same number to everybody and changes no order — that is the fallback working as designed, but it should be visible rather than something to rediscover by reading the code. Nothing here is a recommendation to retune; it is the number to retune from.",
+        "term": "{name} · {weight}",
+        "measured": "measured on {n} of {count, plural, one {{total} listing} other {{total} listings}}",
+        "alwaysAFact": "always measured — it is a fact, not an estimate",
+        "names": {
+          "rating": "Rating",
+          "volume": "Jobs done",
+          "completion": "Finished what they accepted",
+          "availability": "Availability",
+          "response": "How fast they reply",
+          "proximity": "How near they work"
+        }
+      },
+      "concentration": {
+        "title": "How concentrated the work is",
+        "lead": "The busiest professional's share, per trade. With few professionals a ranking tends to give the top one everything, and the ratings that follow confirm the ranking that caused them. Offers and finished work are both shown because offers piling up on one person only matters if the work follows. Counts only — nothing here changes an order.",
+        "empty": "No booking has named a professional yet, so there is nothing to read.",
+        "professionals": "{count, plural, one {{n} professional} other {{n} professionals}}",
+        "ofOffers": "Busiest one's share of offers",
+        "ofWork": "Busiest one's share of finished work",
+        "share": "{pct}% — {n} of {count, plural, one {{total} job} other {{total} jobs}}",
+        "nothingYet": "Nothing to read yet"
       }
     },
     "audit": {

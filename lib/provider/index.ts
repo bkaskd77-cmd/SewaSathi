@@ -38,6 +38,19 @@ export {
 } from "./measured";
 
 export {
+  REFUSAL_REASON_CODES,
+  isRefusalReasonCode,
+  type RefusalReasonCode,
+  fitRank,
+  isBookable,
+  jobFit,
+  showsInList,
+  type Fit,
+  type FitInput,
+  type FitReason,
+} from "./fit";
+
+export {
   blocksBooking,
   canServeAt,
   servingWhen,

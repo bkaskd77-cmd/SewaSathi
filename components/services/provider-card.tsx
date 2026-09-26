@@ -11,6 +11,7 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
+import type { Fit } from "@/lib/provider";
 import { isNewProvider } from "@/lib/data/ranking";
 import { bookingHref } from "@/lib/routes/booking";
 import { displayRating, hasRating, hasResponse } from "@/lib/provider";
@@ -53,6 +54,7 @@ export function ProviderCard({
   asked,
   q,
   index = 0,
+  fit = { fit: "ok" },
 }: {
   provider: Provider;
   categorySlug: string;
@@ -67,6 +69,21 @@ export function ProviderCard({
   /** What they typed into the hero, carried through so the profile keeps it. */
   q?: string | null;
   index?: number;
+  /**
+   * Whether this professional can take THIS job, and why not when they cannot.
+   *
+   * SHOWN RATHER THAN THE ROW BEING DROPPED. The catalogue never used to ask —
+   * somebody whose window was already promised to another customer could rank
+   * first, and the customer only found out at the confirm button. Removing them
+   * instead would be the opposite mistake: a list that quietly got shorter
+   * reads as a catalogue with nobody in it, and "nobody covers this" and
+   * "everybody is busy on the day you picked" are completely different problems
+   * with completely different next steps.
+   *
+   * Defaults to a plain yes, which is what every surface that does not know the
+   * job was already assuming silently.
+   */
+  fit?: Fit;
 }) {
   const t = useTranslations("services");
   const tc = useTranslations("common");
@@ -183,6 +200,19 @@ export function ProviderCard({
           <Clock aria-hidden="true" />
           {t(`availability.${provider.availability}`)}
         </Badge>
+        {/*
+          * WHY THIS ROW IS NOT A PLAIN YES, beside the availability badge
+          * rather than hidden in a tooltip. `blocked` is a booking the database
+          * would refuse; `caution` is one that works but is worth saying — a
+          * professional on a job now can still come on Thursday, and the
+          * difference between those two is the whole reason the gate has three
+          * answers instead of two.
+          */}
+        {fit.fit !== "ok" ? (
+          <Badge variant={fit.fit === "blocked" ? "muted" : "info"}>
+            {t(`fit.${fit.why}`)}
+          </Badge>
+        ) : null}
         {newHere ? (
           <Badge variant="info">{t("card.new")}</Badge>
         ) : null}

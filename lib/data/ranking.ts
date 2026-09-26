@@ -1,9 +1,12 @@
 import type { Provider } from "@/lib/data/providers";
 import {
   bayesianRating,
+  fitRank,
   hasCompletion,
   hasOverbookRecord,
+  hasRating,
   hasResponse,
+  type Fit,
 } from "@/lib/provider";
 
 /*
@@ -342,20 +345,67 @@ export function scoreProvider(
  * Rank a list. Stable: equal scores fall back to id, so the same query gives
  * the same order on every render and pagination cannot repeat a card.
  */
+export type RankOptions = {
+  urgency?: string | null;
+  area?: string | null;
+  /**
+   * Can each of these professionals do THIS job?
+   *
+   * A CALLBACK RATHER THAN DATA, because deciding it needs the windows each
+   * professional already holds and this module is pure — `lib/data/providers.ts`
+   * reads the rows, `jobFit` composes the answer, and this only orders by it.
+   *
+   * Omitted means nobody asked, and every row is treated as a plain yes. That
+   * is the honest default: the alternative is inventing a slot the caller does
+   * not have and getting a precise-looking answer about a guess.
+   */
+  fit?: (provider: Provider) => Fit;
+};
+
+export type RankedProvider = Provider & {
+  relevance: number;
+  /**
+   * Why this row is or is not a plain yes for the job in hand.
+   *
+   * ALWAYS PRESENT, so a card never has to decide what an absent fit means.
+   * Without a `fit` callback every row is `ok`, which is what the surfaces that
+   * do not know the job were already assuming silently.
+   */
+  fit: Fit;
+};
+
 export function rankProviders(
   providers: Provider[],
-  options: { urgency?: string | null; area?: string | null } = {},
-): Array<Provider & { relevance: number }> {
+  options: RankOptions = {},
+): RankedProvider[] {
   const ranked = providers
     .map((provider) => ({
       ...provider,
       relevance: scoreProvider(provider, options).score,
+      fit: options.fit?.(provider) ?? ({ fit: "ok" } as Fit),
     }))
-    .sort((a, b) =>
-      b.relevance === a.relevance
+    /*
+     * FIT FIRST, THEN RELEVANCE, AND NEITHER REPLACES THE OTHER.
+     *
+     * Somebody whose window is already sold cannot be the best match however
+     * well they score — the database refuses the insert, so ranking them first
+     * spends the customer's tap on a button that cannot succeed. But within a
+     * band the ordinary score still decides, so this never reorders two
+     * professionals who are equally bookable. It is a tiebreak above the score,
+     * not a replacement for it.
+     *
+     * NOT A FILTER. The row stays and carries its reason; a list that quietly
+     * got shorter reads as a catalogue with nobody in it, and the customer
+     * cannot tell "nobody covers this" from "everybody is busy on the day you
+     * picked" — different problems, different next steps.
+     */
+    .sort((a, b) => {
+      const byFit = fitRank(a.fit) - fitRank(b.fit);
+      if (byFit !== 0) return byFit;
+      return b.relevance === a.relevance
         ? a.id.localeCompare(b.id)
-        : b.relevance - a.relevance,
-    );
+        : b.relevance - a.relevance;
+    });
 
   /*
    * The newcomer slot is applied HERE, after scoring and before anybody reads
@@ -368,7 +418,16 @@ export function rankProviders(
    */
   return withNewcomerSlot({
     ranked,
-    isNew: (provider) => isNewProvider(provider.stats.jobsCompleted),
+    /*
+     * A BLOCKED NEWCOMER IS NOT PROMOTED, and this is the interaction that is
+     * easy to miss. The slot exists so somebody untested is SEEN; moving one
+     * into third place when they cannot take the job spends the reserved
+     * position on a row the customer cannot act on, and teaches them the slot
+     * is where the unbookable people are.
+     */
+    isNew: (provider) =>
+      isNewProvider(provider.stats.jobsCompleted) &&
+      provider.fit.fit !== "blocked",
     emergency: options.urgency === "emergency",
   });
 }
@@ -379,23 +438,41 @@ export type SortOption = "relevance" | "rating" | "price" | "jobs";
 export function sortProviders(
   providers: Provider[],
   sort: SortOption,
-  options: { urgency?: string | null; area?: string | null } = {},
-): Array<Provider & { relevance: number }> {
+  options: RankOptions = {},
+): RankedProvider[] {
   const ranked = rankProviders(providers, options);
+
+  /*
+   * THE FIT BAND SURVIVES AN EXPLICIT SORT, and that is a deliberate difference
+   * from the newcomer slot, which does not.
+   *
+   * The slot is OUR opinion about who deserves exposure, so a customer who asks
+   * for cheapest first is entitled to have it dropped — they asked for exactly
+   * that ordering. Fit is not an opinion: somebody whose window is already sold
+   * cannot be booked at any price, and "cheapest first" is a request about how
+   * to order the options, not a request to be shown ones that do not exist.
+   * Sorting them to the top would put the least bookable row in the position
+   * the customer just said they trust most.
+   */
+  const byFitThen = (
+    within: (a: RankedProvider, b: RankedProvider) => number,
+  ) =>
+    [...ranked].sort((a, b) => {
+      const byFit = fitRank(a.fit) - fitRank(b.fit);
+      return byFit !== 0 ? byFit : within(a, b);
+    });
 
   switch (sort) {
     case "rating":
-      return [...ranked].sort(
+      return byFitThen(
         (a, b) =>
           bayesianRating(b.stats.ratingAvg, b.stats.ratingCount) -
           bayesianRating(a.stats.ratingAvg, a.stats.ratingCount),
       );
     case "price":
-      return [...ranked].sort((a, b) => a.baseRate - b.baseRate);
+      return byFitThen((a, b) => a.baseRate - b.baseRate);
     case "jobs":
-      return [...ranked].sort(
-        (a, b) => b.stats.jobsCompleted - a.stats.jobsCompleted,
-      );
+      return byFitThen((a, b) => b.stats.jobsCompleted - a.stats.jobsCompleted);
     default:
       return ranked;
   }
@@ -489,4 +566,123 @@ export function withNewcomerSlot<T>(input: {
   const [newcomer] = list.splice(index, 1);
   list.splice(NEWCOMER_SLOT_INDEX, 0, newcomer);
   return list;
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Which weights are actually separating anybody
+ * ------------------------------------------------------------------ */
+
+/**
+ * A weight, and how many listings have evidence behind it.
+ *
+ * WHY THIS IS WORTH A SCREEN. `rating` carries 0.30 — the largest single term
+ * in the relevance blend — and `bayesianRating(0, 0)` returns the prior for
+ * every listing nobody has rated. On the live data that is 29 of 30, so the
+ * biggest weight in the product is currently a constant: it adds the same
+ * number to everybody and separates nobody. `completion` and `response` sit at
+ * their unmeasured sentinels for 27 of 30.
+ *
+ * None of that is a bug — it is what an honest degradation looks like, and it
+ * is exactly what `UNMEASURED_COMPLETION` and `UNMEASURED_RESPONSE` are for.
+ * What was missing is that it was invisible: the only way to know half the
+ * blend was inert was to read this file and then go and count rows. Retuning
+ * the weights is a product decision, and it should start from a number rather
+ * than from somebody rediscovering this in six months.
+ *
+ * REPORTED, NEVER ACTED ON. Nothing here changes a score, and there is no
+ * threshold at which a weight is "too unmeasured" — that judgement is the one
+ * this exists to inform.
+ */
+export type WeightEvidence = {
+  term: keyof RankingWeights;
+  /** Its share of the relevance blend. */
+  weight: number;
+  /** Listings where this term is computed from something somebody measured. */
+  measured: number;
+  /** Listings considered, so the count above has its denominator. */
+  total: number;
+  /**
+   * Can this term rest on a prior at all?
+   *
+   * FALSE FOR THE FACTS, and the distinction is the whole honesty of this
+   * report. `availability` and `proximity` are facts about a stated window and
+   * a ward — there is no "unmeasured" state for them, so reporting them as
+   * fully measured is true rather than flattering.
+   */
+  canBeUnmeasured: boolean;
+};
+
+/**
+ * Does this term have evidence behind it for this listing?
+ *
+ * ASKS `lib/provider/measured.ts`, NEVER ITS OWN TEST. `hasRating`,
+ * `hasResponse` and `hasCompletion` are precisely what `scoreParts` branches
+ * on, so this report cannot say "measured" about a term the scorer is
+ * defaulting. That divergence has already happened once in this product — the
+ * catalogue card gated the response time on `jobsCompleted` while `scoreParts`
+ * gated it on `responseSamples`, and a screen and the ranking behind it
+ * answered differently about the same person.
+ *
+ * `volume` IS ALWAYS MEASURED, AND THAT IS NOT A LOOPHOLE. Zero completed jobs
+ * is a fact about somebody — they have completed none — not an absence of one.
+ * `scoreParts` computes it straight from the count with no sentinel anywhere.
+ * Reporting it as missing would be reading a true zero as an unknown, which is
+ * rule 6 upside down.
+ */
+function termMeasured(
+  term: keyof RankingWeights,
+  stats: StatsOnly,
+): boolean {
+  switch (term) {
+    case "rating":
+      return hasRating(stats);
+    case "completion":
+      return hasCompletion(stats);
+    case "response":
+      return hasResponse(stats);
+    // Facts, and a real zero. See the note above.
+    case "volume":
+    case "availability":
+    case "proximity":
+      return true;
+  }
+}
+
+/** The three terms that have an unmeasured value to fall back to. */
+const CAN_BE_UNMEASURED: ReadonlySet<keyof RankingWeights> = new Set<
+  keyof RankingWeights
+>(["rating", "completion", "response"]);
+
+/**
+ * Only the stats, because that is all this needs.
+ *
+ * A FULL `Provider` WOULD MEAN A FULL READ. The evidence question is about
+ * `provider_stats` alone, and requiring the whole shape would force the caller
+ * to fetch names, photos and service areas — or, worse, to loop `listProviders`
+ * once per category, which is ten round trips to Singapore for a screen that
+ * needs one.
+ */
+export type StatsOnly = Pick<
+  Provider["stats"],
+  "ratingCount" | "jobsAccepted" | "responseSamples"
+>;
+
+export function weightEvidence(
+  providers: readonly { stats: StatsOnly }[],
+  weights: RankingWeights = RELEVANCE_WEIGHTS,
+): WeightEvidence[] {
+  const terms = Object.keys(weights) as Array<keyof RankingWeights>;
+
+  return terms
+    .map((term) => ({
+      term,
+      weight: weights[term],
+      measured: providers.filter((p) => termMeasured(term, p.stats)).length,
+      total: providers.length,
+      canBeUnmeasured: CAN_BE_UNMEASURED.has(term),
+    }))
+    // Heaviest first: the question being asked is "is the biggest weight
+    // doing anything", so the biggest weight goes at the top.
+    .sort((a, b) => b.weight - a.weight);
 }

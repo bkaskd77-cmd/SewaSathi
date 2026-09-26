@@ -198,6 +198,55 @@ Where a change on one side cannot reach the other.
   where a one-rupee disagreement would hide. `tests/db/guarantee-claims.test.ts`
   runs both halves over one fixture and compares them, which is the thing that
   was missing the last time these two diverged in production.
+- **The catalogue never asked whether anybody could do the job it was listing.**
+  `canServeAt`, `hasRoom` and `providerCapacity` all existed and all ran at claim
+  time — `chooseProvider`, `book/actions.ts`, the provider job list — and
+  `/services/[slug]` called none of them. So the list could rank first somebody
+  whose window was already promised to another customer; they tap, and
+  `enforce_slot_capacity` refuses the insert. The list and the database
+  disagreed about who was bookable and the customer found out at the confirm
+  button. `jobFit` in `lib/provider/fit.ts` is that question asked once, and
+  `tests/db/job-fit.test.ts` runs the gate and the database over the same rows —
+  a gate that is wrong in the same direction as the database is merely strict; a
+  gate that says yes where the database says no is the bug.
+- **Three answers, not two, and the middle one is why nobody is dropped.**
+  `blocksBooking` already knew the difference between "cannot be booked" and
+  "can be booked but say so" — being on a job at 11am says nothing about
+  Thursday. `jobFit` returns `ok`, `caution` or `blocked`, the row stays in the
+  list carrying its reason, and `fitRank` sorts it below the plain yeses. A list
+  that quietly got shorter reads as a catalogue with nobody in it, and "nobody
+  covers this" and "everybody is busy on the day you picked" are different
+  problems with different next steps. **One exclusion is silent and only one**:
+  somebody who already refused this job cannot be reassigned anyway, and naming
+  them to the customer as having refused is bruising to no purpose.
+- **Fit orders, it never filters, and it survives an explicit sort.** Within a
+  band the six weights still decide, so this never reorders two professionals
+  who are equally bookable. It does outrank a customer's own sort, which the
+  newcomer slot does not: "cheapest first" is a request about how to order the
+  options, not a request to be shown ones the database would refuse.
+  **Deliberately not a fit reason: being outside the ward.** Proximity is
+  already a score term and `recommendations.ts` already surfaces the same fact
+  as a visible `reach` tier; gating on it too would count it twice and shrink
+  the list for the customers with the fewest professionals near them.
+- **Half the relevance blend is currently a fixed offset, and now it says so.**
+  `rating` carries 0.30 and `bayesianRating(0, 0)` returns the prior for every
+  unrated listing — on the live data 29 of 30 — so the largest weight in the
+  product adds the same number to everybody and separates nobody. That is honest
+  degradation working as designed; what was wrong is that it took reading the
+  ranking and then counting rows to know. `weightEvidence` reports it on
+  `/admin/signals`, and it asks `lib/provider/measured.ts` rather than its own
+  test, so the report cannot call a term measured that `scoreParts` is
+  defaulting — the divergence that already happened once between the catalogue
+  card and the scorer. **`volume` at zero jobs reports as measured**: none
+  completed is a fact, and calling it an absence would be rule 6 upside down.
+- **Concentration is measured before any mechanism exists.**
+  `lib/data/concentration.ts` reports, per category, the busiest professional's
+  share of offers and of finished work, each with its denominator — offers
+  piling up on one person only matters if the work follows. No threshold and no
+  rotation: rotation among near-ties is the likely answer and the margin it
+  needs is a number nobody has. `topShare` lives in `lib/config/exposure.ts`
+  because the reader is `server-only` — the **fourth** pure function this
+  product has had to move out of a server module to be testable.
 - **A payout is a tranche, and it used to be a booking.** Where the guarantee
   window runs 90 days or more, `payoutPlan` holds a quarter back for 30 days, so
   one booking has two payable dates and each is a payout in its own right. The
@@ -1217,6 +1266,7 @@ Where a change on one side cannot reach the other.
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
 | Dispatch windows | `npm run test` | First refusal, widening and giving up, per urgency — including that no window gives up before it opens |
 | Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
+| Matching fit | `npm run test`, `npm run test:db` | That the catalogue and the database agree about who can take a job — proven by removing the capacity signal and watching four tests, including the db agreement case, go red; that nobody is filtered out except a refuser; and that `weightEvidence` cannot call a term measured which `scoreParts` defaulted |
 | Payout holdback | `npm run test`, `npm run test:db` | That a 90-day guarantee holds a quarter and a 30-day one holds nothing; that the pair is both-null or both-set; that a quarter is taken from each tranche and never a quarter of the whole from one — proven by restoring the old single-column index and watching the released holdback go unrecovered |
 | Triage reason | `npm run test`, `npm run test:db` | That a 401 is not recorded as a model blip, that the SDK's real error shapes classify correctly (`error.name` is `"Error"` on all of them), and that `LOGGABLE_REASONS` and the column's check constraint are the same list — proven by widening the SQL and watching two tests go red |
 | Triage accuracy | `npm run test`, `npm run test:db` | That a booking can be joined back to the triage that produced it; that a booking with no triage counts as unmeasurable rather than as the AI being wrong; and that the two hazard detectors are read from their own columns rather than from the winner — proven by pointing the comparison at `hazard` and watching the agreement case go red |

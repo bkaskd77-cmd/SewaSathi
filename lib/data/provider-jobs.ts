@@ -8,6 +8,7 @@ import {
 } from "@/lib/booking";
 import { canTransition } from "@/lib/booking";
 import { providerCapacity } from "@/lib/data/capacity";
+import { isRefusalReasonCode } from "@/lib/provider";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify, type NotificationKind } from "@/lib/notify";
@@ -436,6 +437,15 @@ export async function declineJob(input: {
   bookingId: string;
   actorId: string;
   reason: string | null;
+  /**
+   * The same refusal, from a closed set, so it can be counted.
+   *
+   * The free text above stays and is still what a person reads on one booking;
+   * this is what makes "they keep refusing work in that ward" a number rather
+   * than something somebody has to notice. Null is "not recorded" — the
+   * professional skipped it — never "no reason".
+   */
+  reasonCode?: string | null;
 }): Promise<AdvanceResult> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
 
@@ -540,7 +550,16 @@ export async function declineJob(input: {
     try {
       await createAdminClient()
         .from("booking_refusals")
-        .update({ reason })
+        .update({
+          reason,
+          // Guarded rather than trusted: a value outside the set would be
+          // refused by `booking_refusals_reason_code_known` and take the whole
+          // update with it, losing the prose as well. Null is already "not
+          // recorded", so falling back to it costs a count and nothing else.
+          reason_code: isRefusalReasonCode(input.reasonCode)
+            ? input.reasonCode
+            : null,
+        })
         .eq("booking_id", input.bookingId)
         .eq("provider_id", me.providerId);
     } catch (thrown) {

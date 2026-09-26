@@ -335,6 +335,48 @@ perfect. Every read records which path it took (`lib/data/source.ts`) and
 as the triage badge: dev, or the query param on any deployment. If you add a
 read to `lib/data/`, call `markDataSource` on both branches.
 
+**The catalogue never asked whether anybody could do the job.** `canServeAt`,
+`hasRoom` and `providerCapacity` all existed and ran at claim time only, so the
+list could rank first somebody whose window was already sold — the customer taps
+and `enforce_slot_capacity` refuses. `jobFit` (`lib/provider/fit.ts`) asks it
+once for every surface, composing those same functions rather than forming a
+second opinion. **Three answers**: `ok`, `caution`, `blocked`, because
+`blocksBooking` already knew that being on a job now says nothing about
+Thursday. **The row is never dropped** — it stays carrying its reason and sorts
+below the plain yeses, since a list that quietly got shorter reads as a
+catalogue with nobody in it. One exclusion is silent and only one: somebody who
+already refused this job, who cannot be reassigned anyway. **Being outside the
+ward is deliberately not a fit reason** — proximity is already a weight and
+`reach` already shows it, so gating on it would count it twice and shrink the
+list for whoever has fewest professionals nearby. Fit outranks a customer's own
+sort where the newcomer slot does not: "cheapest first" orders the options, it
+does not ask to be shown ones the database refuses.
+
+**Half the relevance blend separates nobody right now, and `/admin/signals` says
+so.** `rating` carries 0.30 and returns the prior for all 29 unrated listings of
+30; `completion` and `response` sit at their sentinels for 27. `weightEvidence`
+reports each weight beside how many listings have evidence, asking
+`lib/provider/measured.ts` rather than re-deriving the test — that divergence
+already happened once between the catalogue card and `scoreParts`. **`volume` at
+zero jobs is measured**: none completed is a fact, and calling it missing is rule
+6 upside down. Nothing there recommends a retune; it is the number to retune
+from.
+
+**Concentration is counted before any mechanism.** `lib/data/concentration.ts`
+gives the busiest professional's share of offers and of finished work per
+category, with denominators — offers concentrating only matters if the work
+follows. Rotation among near-ties is the likely answer later and its margin
+should come from real numbers, so there is no threshold and no rotation today.
+
+**A refusal reason is countable now, and the prose stays.** Both refusal paths
+already captured free text and `provider_stats.declines` already counted
+refusals; what was missing is that prose cannot be aggregated.
+`booking_refusals.reason_code` is a closed set beside the text. It is a **stated
+preference, not a judgement** — "too far" is somebody telling us where they will
+not travel, which the gate may act on later without anything being scored — and
+`price` is never a signal against anybody, for the same reason
+`category_pricing_signals` never is. Null is "not recorded", not backfilled.
+
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
 reasoning next to each number. Rating goes through a Bayesian average
