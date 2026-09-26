@@ -37,5 +37,10 @@ export declare function judgeGone(input: {
   route: string;
   status: number | string;
 }): Verdict;
+export declare function cronPaths(vercelJsonText: string): string[] | null;
+export declare function judgeCron(input: {
+  path: string;
+  status: number | string;
+}): Verdict;
 export declare function routeForPageFile(file: string): string | null;
 export declare function coverageGaps(pageFiles: readonly string[]): CoverageGap[];

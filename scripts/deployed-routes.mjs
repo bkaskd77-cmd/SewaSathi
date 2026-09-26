@@ -269,6 +269,100 @@ export function judgeGone({ route, status }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * The cron targets
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every path `vercel.json` schedules, read from the file rather than copied.
+ *
+ * WHY THIS IS HERE. A cron nobody calls looks identical to a cron with nothing
+ * to do. `/api/payments/reconcile` runs `sweepRedoRecovery`, which moves money
+ * between us and a professional, and the only two observable outcomes of a run
+ * with no debt outstanding are "wrote nothing" and "was never invoked" — the
+ * same silence. Nothing in this product could tell them apart.
+ *
+ * DERIVED, NEVER LISTED, for the same reason `coverageGaps` reads the page
+ * files: a cron added to `vercel.json` is checked the moment it exists, and a
+ * hand-kept copy is correct until the first person who forgets.
+ */
+export function cronPaths(vercelJsonText) {
+  try {
+    const parsed = JSON.parse(vercelJsonText);
+    const crons = Array.isArray(parsed?.crons) ? parsed.crons : [];
+    return crons
+      .map((c) => (typeof c?.path === "string" ? c.path : null))
+      .filter((p) => typeof p === "string" && p.startsWith("/"));
+  } catch {
+    // A vercel.json we cannot parse is not a vercel.json with no crons in it.
+    return null;
+  }
+}
+
+/**
+ * Judge a cron target, asked WITHOUT the secret.
+ *
+ * WHAT 401 PROVES: the route is deployed and it is refusing unauthenticated
+ * callers. Both halves matter — a 404 means the scheduler is firing into
+ * nothing every night and the log would show a successful invocation of a page
+ * that does not exist, and a 200 means anybody on the internet can make us
+ * hammer a payment gateway and run a money sweep.
+ *
+ * WHAT IT DELIBERATELY DOES NOT PROVE, said here so nobody reads more into a
+ * green line than it carries. Two things:
+ *
+ *   - **That `CRON_SECRET` is set.** The handler answers 401 both when the
+ *     offered secret is wrong and when no secret is configured at all — it
+ *     refuses rather than running open, which is the right behaviour and makes
+ *     the two indistinguishable from outside. `/api/health?deep=1` is what
+ *     tells you the secret works, because it needs the real one.
+ *   - **That the cron ever fired.** Reachability is a precondition, not
+ *     evidence. Only Vercel's own cron log says a schedule ran.
+ */
+export function judgeCron({ path, status }) {
+  if (status === 401) {
+    return { ok: true, detail: "401 — deployed and guarded", failure: null };
+  }
+
+  if (status === 404) {
+    return {
+      ok: false,
+      detail: "404 — the cron fires into nothing",
+      failure:
+        `${path} is scheduled in vercel.json and answers 404. The scheduler invokes it on ` +
+        `its cron and gets a missing page every time, which in Vercel's log reads as an ` +
+        `invocation that happened. Either the route did not deploy or the path in ` +
+        `vercel.json no longer matches the handler.`,
+    };
+  }
+
+  if (status === 200) {
+    return {
+      ok: false,
+      detail: "200 — OPEN TO ANYBODY",
+      failure:
+        `${path} ran for a request carrying no secret. This route reconciles payments and ` +
+        `sweeps money between us and professionals; open, it is a way for anybody to make ` +
+        `us hammer a gateway. CRON_SECRET must be required, and the handler must refuse ` +
+        `rather than run when it is unset.`,
+    };
+  }
+
+  if (status === 405) {
+    return {
+      ok: false,
+      detail: "405 — wrong method",
+      failure: `${path} answered 405. The check must ask the way the scheduler does; Vercel invokes a cron with GET.`,
+    };
+  }
+
+  return {
+    ok: false,
+    detail: String(status),
+    failure: `${path} answered ${status}, expected 401 from an unauthenticated caller.`,
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Is anything unchecked?
  * ------------------------------------------------------------------ */
 

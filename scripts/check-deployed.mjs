@@ -39,7 +39,7 @@
  * self-test and the coverage pass still run, because neither needs a network.
  */
 import { execSync } from "node:child_process";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -50,6 +50,8 @@ import {
   NOT_WALKABLE,
   OPEN_ROUTES,
   coverageGaps,
+  cronPaths,
+  judgeCron,
   judgeGone,
   judgeGuarded,
   judgeOpen,
@@ -192,6 +194,21 @@ function selfTest() {
     ["an open route answering 404", () => judgeOpen({ route: "/", status: 404 }), false],
     ["a removed route staying removed", () => judgeGone({ route: "/careers", status: 404 }), true],
     ["a removed route still served", () => judgeGone({ route: "/careers", status: 200 }), false],
+    [
+      "a cron target refusing an unauthenticated caller",
+      () => judgeCron({ path: "/api/payments/reconcile", status: 401 }),
+      true,
+    ],
+    [
+      "a cron firing into a 404 every night",
+      () => judgeCron({ path: "/api/payments/reconcile", status: 404 }),
+      false,
+    ],
+    [
+      "a money sweep open to anybody",
+      () => judgeCron({ path: "/api/payments/reconcile", status: 200 }),
+      false,
+    ],
   ];
 
   let bad = 0;
@@ -208,6 +225,22 @@ function selfTest() {
       console.error(`  self-test FAILED — ${label}: no failure sentence`);
       bad += 1;
     }
+  }
+
+  // The cron paths have to come out of vercel.json, or the walk below checks
+  // nothing while looking exactly as green as one that checked everything.
+  const parsed = cronPaths(readFileSync("vercel.json", "utf8"));
+  if (!parsed || parsed.length === 0) {
+    console.error(
+      "  self-test FAILED — no cron paths could be read from vercel.json",
+    );
+    bad += 1;
+  }
+  if (cronPaths("{ not json") !== null) {
+    console.error(
+      "  self-test FAILED — an unparseable vercel.json read as having no crons",
+    );
+    bad += 1;
   }
 
   // And the coverage rule itself must bite: a page nobody listed is a gap.
@@ -416,6 +449,29 @@ async function main() {
     }
     const verdict = judgeGone({ route, status: answer.status });
     line(verdict.ok, `${route} (should 404)`, verdict.detail);
+    if (verdict.failure) failures.push(verdict.failure);
+  }
+
+  /*
+   * 6. Every route vercel.json schedules is deployed and guarded.
+   *
+   * ASKED WITH GET, BECAUSE THAT IS HOW THE SCHEDULER ASKS. These handlers
+   * export GET only, so a HEAD would answer 405 and the check would be
+   * measuring its own request rather than the route. No secret is offered, so
+   * the handler refuses before doing any work — this walk reconciles nothing
+   * and sweeps nothing.
+   */
+  console.log("\nCron targets (no secret)");
+  const crons = cronPaths(readFileSync("vercel.json", "utf8")) ?? [];
+  for (const path of crons) {
+    let answer;
+    try {
+      answer = await get(`${origin}${path}`);
+    } catch (error) {
+      answer = { status: `error: ${error.message}` };
+    }
+    const verdict = judgeCron({ path, status: answer.status });
+    line(verdict.ok, path, verdict.detail);
     if (verdict.failure) failures.push(verdict.failure);
   }
 

@@ -1410,6 +1410,23 @@ Numbers in a summary are not a guard. Two things run automatically:
   and fails on any static route on neither list, because a route nobody listed
   gets no request made to it and that looks exactly like success. The other
   direction needs no rule — a deleted route 404s on the walk.
+  **It checks the cron targets too, because a cron nobody calls looks identical
+  to a cron with nothing to do.** `/api/payments/reconcile` runs
+  `sweepRedoRecovery`, and with no debt outstanding a correct run writes nothing
+  — so "ran and had nothing to do" and "was never invoked" produce byte-identical
+  evidence, which is `applyRedoRecovery`'s four-phase sin wearing a schedule.
+  The paths come out of `vercel.json` (`cronPaths`) rather than a copy, so a cron
+  added tomorrow is walked tomorrow, and an unparseable file reads as **null**
+  rather than as no crons — `[]` would walk nothing and print no failures at all.
+  Asked with **GET and no secret**: the handler refuses before doing any work, so
+  the check reconciles nothing. **401 is the pass** — deployed and guarded. A 404
+  is the failure worth having, because a scheduler firing at a missing page
+  appears in Vercel's cron log as an invocation that happened; a 200 means a
+  money sweep anybody can trigger. **It cannot prove `CRON_SECRET` is set** — the
+  handler answers 401 for a wrong secret and for no secret alike, which is
+  correct and makes them indistinguishable from outside, so `?deep=1` is what
+  proves the secret — **and reachability is never evidence that anything fired.**
+  Only Vercel's cron log says that.
   **The rules self-test on every run and again in
   `tests/unit/deploy-check.test.ts`**, which matters more here than anywhere
   else: this script runs in neither CI nor the sandbox, so between one human run

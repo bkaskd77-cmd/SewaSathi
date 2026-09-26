@@ -8,6 +8,8 @@ import {
   LOCALE_PREFIXES,
   OPEN_ROUTES,
   coverageGaps,
+  cronPaths,
+  judgeCron,
   judgeGone,
   judgeGuarded,
   judgeOpen,
@@ -306,3 +308,82 @@ function globPageFiles(dir: string, out: string[] = []): string[] {
   }
   return out;
 }
+
+/**
+ * A cron nobody calls looks identical to a cron with nothing to do.
+ *
+ * WHY THIS IS THE GAP WORTH CLOSING. `/api/payments/reconcile` runs
+ * `sweepRedoRecovery`, which nets a guarantee debt off a professional's future
+ * earnings. With no debt outstanding — which is today, 0 ledger rows — a correct
+ * run writes nothing at all. So "it ran and had nothing to do" and "it has never
+ * been invoked in the life of the product" produce byte-identical evidence, and
+ * nothing in this product could tell them apart. `applyRedoRecovery` already
+ * spent four phases as a tested function with no caller; a caller that is never
+ * invoked is the same failure wearing a schedule.
+ *
+ * WHAT A 401 PROVES AND WHAT IT DOES NOT. It proves the route is deployed and
+ * refuses unauthenticated callers. It does NOT prove `CRON_SECRET` is set — the
+ * handler answers 401 both for a wrong secret and for no secret at all, which is
+ * the right behaviour and makes them indistinguishable from outside — and it does
+ * not prove anything ever fired. Reachability is a precondition, not evidence.
+ */
+describe("the routes a schedule points at", () => {
+  it("reads the paths out of vercel.json rather than a copy", () => {
+    const paths = cronPaths(readFileSync("vercel.json", "utf8"));
+    expect(paths).toContain("/api/payments/reconcile");
+    expect(paths).toContain("/api/bookings/dispatch");
+  });
+
+  /*
+   * DERIVED, SO A CRON ADDED TOMORROW IS CHECKED TOMORROW. A hand-kept list is
+   * correct until the first person who forgets, and the thing it would stop
+   * checking is a schedule that moves money.
+   */
+  it("picks up a cron added to vercel.json with no other change", () => {
+    const withNew = JSON.stringify({
+      crons: [{ path: "/api/payouts/run", schedule: "0 5 * * *" }],
+    });
+    expect(cronPaths(withNew)).toEqual(["/api/payouts/run"]);
+  });
+
+  it("reads an unparseable file as unknown, never as no crons", () => {
+    expect(cronPaths("{ not json")).toBeNull();
+    // Which is the distinction that matters: null makes the self-test fail,
+    // where [] would have walked nothing and printed no failures at all.
+    expect(cronPaths(JSON.stringify({ crons: [] }))).toEqual([]);
+  });
+
+  it("passes a target that refuses an unauthenticated caller", () => {
+    const verdict = judgeCron({ path: "/api/payments/reconcile", status: 401 });
+    expect(verdict.ok).toBe(true);
+  });
+
+  /*
+   * THE FAILURE THIS EXISTS FOR. A scheduler firing at a 404 every night appears
+   * in Vercel's cron log as an invocation that happened — the schedule ran, the
+   * request was made, and the money sweep inside it never executed once.
+   */
+  it("fails a cron firing into a 404", () => {
+    const verdict = judgeCron({ path: "/api/payments/reconcile", status: 404 });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.failure).toMatch(/fires into nothing|missing page|did not deploy/i);
+  });
+
+  it("fails a money sweep that runs for anybody", () => {
+    const verdict = judgeCron({ path: "/api/payments/reconcile", status: 200 });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.detail).toMatch(/OPEN TO ANYBODY/);
+    expect(verdict.failure).toMatch(/hammer a gateway/);
+  });
+
+  /*
+   * ASKED WITH GET, BECAUSE THAT IS HOW VERCEL ASKS. These handlers export GET
+   * only, so a HEAD answers 405 — the check would then be measuring its own
+   * request rather than the route, and would be red on a perfectly good deploy.
+   */
+  it("names a 405 as the check asking the wrong way", () => {
+    const verdict = judgeCron({ path: "/api/payments/reconcile", status: 405 });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.failure).toMatch(/GET/);
+  });
+});
