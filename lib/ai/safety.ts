@@ -265,6 +265,25 @@ export type SafetyOutcome = {
   via: HazardVia | null;
   /** True when we added the "couldn't see your photo" line instead. */
   cautioned: boolean;
+  /**
+   * What each detector said on its own, before one of them won.
+   *
+   * RETURNED RATHER THAN RECOMPUTED BY THE CALLER. `hazard` and `via` describe
+   * the OUTCOME: text wins whenever both fire, so a `via: "text"` result says
+   * nothing about whether vision agreed, and that is what made the two
+   * impossible to compare from the log. The obvious fix at the call site was
+   * to run `detectHazard` a second time there — which is a second
+   * implementation of the same read, free to drift the moment this function
+   * ever normalises its input first. So the readings come out of the one
+   * place that takes them.
+   *
+   * `readTextHazard` is null when the guard found nothing. `readVisionHazard`
+   * is null for that reason OR because nobody looked — no photo, or the model
+   * never answered — and `cautioned` is what distinguishes the case a
+   * customer is told about.
+   */
+  readTextHazard: Hazard | null;
+  readVisionHazard: Hazard | null;
 };
 
 /**
@@ -328,6 +347,8 @@ export function applySafetyFloor(
       hazard,
       via,
       cautioned: false,
+      readTextHazard: textHazard,
+      readVisionHazard: options.visionHazard ?? null,
     };
   }
 
@@ -344,8 +365,17 @@ export function applySafetyFloor(
       hazard: null,
       via: null,
       cautioned: true,
+      readTextHazard: textHazard,
+      readVisionHazard: options.visionHazard ?? null,
     };
   }
 
-  return { result, hazard: null, via: null, cautioned: false };
+  return {
+    result,
+    hazard: null,
+    via: null,
+    cautioned: false,
+    readTextHazard: textHazard,
+    readVisionHazard: options.visionHazard ?? null,
+  };
 }

@@ -72,6 +72,16 @@ export type TriageOutcome = {
    * the ask must never appear as a row of nothing.
    */
   subBands: SubBandChoice[];
+  /**
+   * The `triage_logs` row this answer was written to, when it was written.
+   *
+   * Carried onto the booking link so a booking can point back at the triage
+   * that produced it — the join the accuracy loop reads. Null on every path
+   * that did not log: unconfigured, timed out, failed, or the local fallback
+   * that never reached the server at all. A null simply means this booking
+   * cannot be attributed, never that anything went wrong for the customer.
+   */
+  triageLogId: string | null;
   /** Present only when Claude answered. For the dev badge. */
   model?: string | null;
 };
@@ -91,6 +101,10 @@ function localFallback(
       photoUnseen,
     }).result,
     source: "fallback",
+    // Never reached the server, so nothing was logged and there is nothing to
+    // attribute a later booking to. The booking still works; it is simply not
+    // traceable back to a triage, which is the honest record of what happened.
+    triageLogId: null,
     reason,
     /*
      * NO ASK ON THIS PATH, and it is the honest answer rather than a gap.
@@ -140,6 +154,7 @@ export async function triageProblem(
       source?: TriageSource;
       reason?: TriageReason;
       subBands?: SubBandChoice[];
+      triageLogId?: string | null;
       model?: string | null;
     };
 
@@ -150,6 +165,7 @@ export async function triageProblem(
       source: payload.source ?? "claude",
       reason: payload.reason ?? "ok",
       subBands: payload.subBands ?? [],
+      triageLogId: payload.triageLogId ?? null,
       model: payload.model ?? null,
     };
   } catch (error) {

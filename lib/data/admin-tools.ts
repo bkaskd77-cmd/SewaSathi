@@ -17,7 +17,7 @@
  */
 
 export type AdminTool = {
-  key: "lookup" | "signals" | "audit";
+  key: "lookup" | "signals" | "triageAccuracy" | "audit";
   /** Unprefixed; the caller's `Link` adds the locale. */
   href: string;
 };
@@ -25,5 +25,11 @@ export type AdminTool = {
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "lookup", href: "/admin/lookup" },
   { key: "signals", href: "/admin/signals" },
+  /*
+   * Beside signals rather than in the queues, for the same reason as the rest
+   * of this group: it has no list that drains and no number that is a call to
+   * action. It answers "is the AI right", which is a standing question.
+   */
+  { key: "triageAccuracy", href: "/admin/triage-accuracy" },
   { key: "audit", href: "/admin/audit" },
 ];

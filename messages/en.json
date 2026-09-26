@@ -1612,6 +1612,10 @@
         "audit": {
           "name": "Audit log",
           "what": "Who looked at what, and who decided what."
+        },
+        "triageAccuracy": {
+          "name": "Was the triage right",
+          "what": "Whether the AI's answer matched what the customer booked and what the job came to."
         }
       }
     },
@@ -1937,6 +1941,55 @@
         "notConfigured": "That is unavailable right now.",
         "reasonRequired": "Say why. This is the only record of the decision.",
         "saveFailed": "That did not save. Try again."
+      }
+    },
+    "triageAccuracy": {
+      "title": "Was the triage right",
+      "lead": "The one AI answer in this product, measured against what the customer went on to do. Counts only: nothing here proposes a change to the prompt, the price bands or the keyword rules.",
+      "notAFinding": "These are counts, not findings. Every number carries the sample it came out of, because a rate over a dozen bookings is a number and a rate over a thousand is evidence — and they look identical without it. There is no threshold on this screen on purpose: nobody knows yet what a good agreement rate looks like here, and a line drawn now would freeze a guess into the product as a standard.",
+      "unreadable": "That could not be read. It is not the same as there being nothing — do not read it as a zero.",
+      "noSample": "Nothing to read yet",
+      "ofTotal": "{pct}% — {n} of {count, plural, one {{total} row} other {{total} rows}}",
+      "paths": {
+        "claude": "Claude answered",
+        "cache": "Served from the cache",
+        "fallback": "The keyword matcher stood in"
+      },
+      "coverage": {
+        "title": "How much of this is measurable",
+        "lead": "A booking can be compared only if it carries the triage that produced it. Somebody who came straight to the catalogue has no triage to attribute their booking to, and that is a fact rather than a gap.",
+        "attributed": "Bookings we can trace to a triage",
+        "bookings": "Bookings in total"
+      },
+      "category": {
+        "title": "Did they book what it said",
+        "lead": "Agreement between the trade the triage named and the trade the customer actually booked. A disagreement is not automatically a miss — somebody can read a correct answer and still book the other job they had been putting off."
+      },
+      "band": {
+        "title": "Where the final figure landed",
+        "lead": "Against the range the triage card printed, before the customer had chosen anybody. Above is a customer surprised by a bill; below is a quote that put somebody off for no reason. Unsettled jobs have no answer and are not counted.",
+        "inside": "Inside the range shown",
+        "above": "Over the top of it",
+        "below": "Under the bottom of it"
+      },
+      "hazard": {
+        "title": "What each safety detector said",
+        "lead": "The text guard reads what was typed; the photo read is the model's. Until now only the winner was recorded — the text guard beats the photo whenever both fire — so agreement between them has never been countable. These are each detector's own reading.",
+        "agreed": "Both fired, on the same hazard",
+        "disagreed": "Both fired, on different hazards",
+        "textOnly": "Only the text guard saw it",
+        "visionOnly": "Only the photo read saw it",
+        "neither": "Both looked, neither saw anything",
+        "unseenPhoto": "A photo arrived and nothing looked at it",
+        "notRecorded": "Written before we kept both readings"
+      },
+      "mix": {
+        "title": "Which path answered",
+        "lead": "The product always answers, which means a silent fallback looks exactly like a working model. This is the count that tells them apart."
+      },
+      "latency": {
+        "path": "{path}, middle",
+        "ms": "{ms}ms over {count, plural, one {{n} request} other {{n} requests}}"
       }
     }
   }

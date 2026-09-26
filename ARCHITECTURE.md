@@ -436,6 +436,46 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
+- **The triage is measured against what the customer did next, and the join
+  that makes it possible did not exist for the whole life of the product.**
+  `bookings.triage_log_id` had a column, a zod field, a flow-state slot, an
+  insert that wrote it and a `/book` page that read it off `?triage=` — every
+  link built, and the chain broken at the first one, because `logTriage`
+  returned `void` and `/api/triage` never sent the row's id back. Nothing ever
+  set the parameter, so every booking this product has taken carries a null
+  there and the answer was unmeasurable rather than wrong. The id now travels
+  the same URL the rest of the booking intent does, and
+  `tests/db/triage-accuracy.test.ts` asserts the **ends** rather than the
+  links, which is the only shape of test that would have caught it.
+- **`lib/ai/accuracy.ts` judges and `lib/data/triage-accuracy.ts` reads, and the
+  split is what makes the judgements testable.** The reader is `server-only`, so
+  a pure helper written inside it is a helper no unit test can reach — that has
+  now happened twice in this product (`claimRateWorthReading`, and these
+  classifications) and both times the fix was the move, never a mock. Same
+  split `lib/config/guarantee.ts` has from `lib/data/claim-signals.ts`.
+- **The two hazard detectors can finally be compared, and the old column could
+  never have done it.** `triage_logs.hazard` records the **winner** —
+  `applySafetyFloor` lets the deterministic text guard beat the photo read
+  whenever both fire — so `vision:*` appears only on rows where text found
+  nothing. Agreement, disagreement and "text caught what vision missed" were all
+  unmeasurable from it, and the code comment beside it claimed the opposite for
+  three phases. `text_hazard` and `vision_hazard` are each detector's own
+  reading, returned by `applySafetyFloor` so the caller never re-runs detection
+  and the two can never disagree with the outcome. Null in either is **not
+  recorded**, never "no hazard": every row written before the columns is silent,
+  and reading that silence as a clean safety record is the worst direction for
+  this particular number to be wrong in.
+- **Measurement comes before tuning, and the measuring screen is forbidden a
+  threshold.** `/admin/signals` has one judgement — `needsBandReview` — because
+  a published band has a floor to be wrong against. `/admin/triage-accuracy` has
+  none: no `GOOD_ENOUGH`, no colour for bad, no badge and no sentence proposing
+  a prompt change, because nobody knows yet what a good agreement rate looks
+  like here and a constant would freeze a guess into the codebase as a standard.
+  Every rate prints the sample it came from through one function, so no row is
+  given the option of rendering a bare percentage — `claimRateWorthReading`'s
+  rule minus the judgement. `Counted<T>` is `Readable<T>` at arity one, for the
+  one reason that matters: a failed read must not render as 0%, which on this
+  screen reads as total failure rather than as no data.
 - **The keyword matcher's trade misroutes are fixed, and both causes were
   mechanical rather than a question of which words were in the lists.** Found
   by `tests/unit/triage-corpus.test.ts`, which runs twelve jobs through it in
@@ -1095,6 +1135,7 @@ Where a change on one side cannot reach the other.
 | Callback reading | `npm run test` | Our reference is recovered from either gateway's return URL, and every customer-facing failure reason has copy in both languages |
 | Dispatch windows | `npm run test` | First refusal, widening and giving up, per urgency — including that no window gives up before it opens |
 | Cancellation windows | `npm run test` | Who may cancel at which status, exhaustively over every status and actor — so a new status fails here rather than defaulting into a branch |
+| Triage accuracy | `npm run test`, `npm run test:db` | That a booking can be joined back to the triage that produced it; that a booking with no triage counts as unmeasurable rather than as the AI being wrong; and that the two hazard detectors are read from their own columns rather than from the winner — proven by pointing the comparison at `hazard` and watching the agreement case go red |
 
 `npm run verify` runs all of it, database suite included — `vitest run` picks up
 `tests/unit` and `tests/db` together. The harness needs Postgres 16 binaries on

@@ -10,6 +10,19 @@
  * they were making, with the professional and the urgency they chose, not on
  * the homepage.
  */
+/**
+ * The query parameter the triage id travels under.
+ *
+ * ONE CONSTANT BECAUSE THIS IS THE SEAM THAT BROKE. `bookingHref` writes it and
+ * `/book` reads it, and for the whole life of the product nothing wrote it at
+ * all — the measurement was lost at a seam rather than in any one component,
+ * and a rename touching only one side would lose it again, silently and with
+ * every test still green. Both sides import this, so they cannot disagree; the
+ * literal string is pinned by `tests/unit/triage-attribution.test.ts`, so
+ * renaming the constant itself fails loudly.
+ */
+export const TRIAGE_PARAM = "triage";
+
 export function bookingHref(options: {
   category: string;
   providerId?: string | null;
@@ -28,6 +41,20 @@ export function bookingHref(options: {
   band?: string | null;
   /** Which path named it — see the note on `bandSource` in lib/data/bookings. */
   bandSource?: string | null;
+  /**
+   * The `triage_logs` row that produced this journey, when there was one.
+   *
+   * TRAVELS THE SAME WAY AND FOR A DIFFERENT REASON. Everything else in this
+   * URL is intent the customer would lose across a login round trip. This is
+   * not intent at all — it changes nothing about the booking — it is the join
+   * that lets us later ask whether the triage was right. It rides here because
+   * this is the path the customer takes and there is nowhere else to put it.
+   *
+   * Absent on every journey that did not start at a logged triage, which is
+   * most of them: somebody browsing /services directly has no triage to
+   * attribute their booking to, and that is a fact rather than a gap.
+   */
+  triageLogId?: string | null;
 }): string {
   const params = new URLSearchParams({ category: options.category });
   if (options.providerId) params.set("provider", options.providerId);
@@ -38,5 +65,6 @@ export function bookingHref(options: {
   if (options.band && options.bandSource) {
     params.set("bandSource", options.bandSource);
   }
+  if (options.triageLogId) params.set(TRIAGE_PARAM, options.triageLogId);
   return `/book?${params.toString()}`;
 }

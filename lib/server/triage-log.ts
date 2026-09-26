@@ -31,10 +31,33 @@ export type TriageLogEntry = {
   /**
    * How the safety floor fired, as "<detector>:<hazard>" — "text:gas",
    * "vision:burning" — or "unseen-photo" when a photo was attached and never
-   * looked at. Free text rather than an enum so the two detectors can be
-   * compared later without a schema change.
+   * looked at.
+   *
+   * THIS IS THE OUTCOME, NOT THE EVIDENCE, and the comment here used to claim
+   * otherwise: that the prefix let "the two detectors be compared later
+   * without a schema change". It does not. The text guard wins whenever both
+   * fire, so `vision:*` appears only on rows where the text guard found
+   * nothing — the column records which detector won. The two fields below are
+   * what each one actually said.
    */
   hazard: string | null;
+  /**
+   * What the deterministic text guard found, whether or not it won.
+   *
+   * Null is "found nothing" here, because this is written on every path. A
+   * null in the COLUMN can also mean the row predates it, which is a
+   * distinction only a reader of old rows has to make — see the migration.
+   */
+  textHazard: string | null;
+  /**
+   * What the model read from the photo, whether or not it won.
+   *
+   * Null covers two different things and neither is "no hazard": the model
+   * looked and saw nothing, or nobody looked at all — no photo, or the model
+   * never answered. `hazard: "unseen-photo"` records the case where a photo
+   * went unread, which is the one a customer is told about.
+   */
+  visionHazard: string | null;
 };
 
 export function canLogTriage(): boolean {
@@ -44,8 +67,18 @@ export function canLogTriage(): boolean {
   );
 }
 
-export async function logTriage(entry: TriageLogEntry): Promise<void> {
-  if (!canLogTriage()) return;
+/**
+ * Returns the row's id, or null.
+ *
+ * NULL IS ORDINARY AND MUST STAY CHEAP. Logging is unconfigured, or the write
+ * timed out, or it failed — in every one of those the person still gets their
+ * triage and the card still works. The id is what lets the booking they make
+ * point back at this row; it is an enhancement to the link, never a
+ * precondition for answering, and nothing downstream may treat its absence as
+ * an error.
+ */
+export async function logTriage(entry: TriageLogEntry): Promise<string | null> {
+  if (!canLogTriage()) return null;
 
   const write = createAdminClient()
     .from("triage_logs")
@@ -71,7 +104,14 @@ export async function logTriage(entry: TriageLogEntry): Promise<void> {
       model: entry.model,
       latency_ms: entry.latencyMs,
       hazard: entry.hazard,
-    });
+      text_hazard: entry.textHazard,
+      vision_hazard: entry.visionHazard,
+    })
+    // The id is what lets a booking point back at the triage that produced
+    // it. Without it `bookings.triage_log_id` stays null for ever and the
+    // accuracy loop has no join — which is exactly what it was doing.
+    .select("id")
+    .single();
 
   try {
     const outcome = await Promise.race([
@@ -83,8 +123,13 @@ export async function logTriage(entry: TriageLogEntry): Promise<void> {
 
     if (outcome && outcome.error) {
       console.error("[triage] log write failed:", outcome.error.message);
+      return null;
     }
+    // A timeout resolves null: the write may yet land, but we have no id to
+    // hand back and the answer is not waiting for one.
+    return (outcome?.data?.id as string | undefined) ?? null;
   } catch (error) {
     console.error("[triage] log write threw:", error);
+    return null;
   }
 }

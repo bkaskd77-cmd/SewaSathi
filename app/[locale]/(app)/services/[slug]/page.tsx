@@ -111,6 +111,10 @@ export default async function CategoryPage({
   // Whether the card put its product question, carried through so the booking
   // can tell "never asked" from "I am not sure". See band_ask_signals.
   const asked = first(searchParams.asked) === "1";
+  // The triage row this journey started from. Carried, never read here: it
+  // changes nothing on this page and exists only so the booking can point back
+  // at the triage that produced it.
+  const triageLogId = first(searchParams.triage);
 
   const listParams = {
     category: category.slug,
@@ -125,6 +129,7 @@ export default async function CategoryPage({
     band,
     bandSource,
     asked,
+    triageLogId,
   };
 
   /*

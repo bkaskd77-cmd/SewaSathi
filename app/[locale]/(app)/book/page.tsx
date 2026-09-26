@@ -12,6 +12,7 @@ import { listAddresses } from "@/lib/data/addresses";
 import { getCategories } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import { getProvider } from "@/lib/data/providers";
+import { TRIAGE_PARAM } from "@/lib/routes/booking";
 import { formatNpr } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -53,7 +54,9 @@ export default async function BookPage({
   const providerId = first(searchParams.provider);
   const urgency = first(searchParams.urgency);
   const q = first(searchParams.q);
-  const triageLogId = first(searchParams.triage);
+  // Same constant `bookingHref` writes, so the two ends of this seam cannot
+  // drift apart — which is how the attribution was lost in the first place.
+  const triageLogId = first(searchParams[TRIAGE_PARAM]);
   // Which product the triage narrowed to, so the booking can know its own
   // length. Absent for anybody who reached /book without going through the
   // hero, which is an ordinary case and not a failure.

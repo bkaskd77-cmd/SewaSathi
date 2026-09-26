@@ -44,6 +44,8 @@ export type ListParams = {
    */
   band?: string | null;
   bandSource?: string | null;
+  /** The triage row this journey began at, passed straight through. */
+  triageLogId?: string | null;
   asked?: boolean;
 };
 
@@ -134,6 +136,7 @@ export async function ProviderList({
               urgency={params.urgency}
               band={params.band}
               bandSource={params.bandSource}
+              triageLogId={params.triageLogId}
               asked={params.asked}
               q={params.q}
               index={index}

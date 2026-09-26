@@ -279,6 +279,8 @@ export async function POST(request: NextRequest) {
     hazard,
     via,
     cautioned,
+    readTextHazard,
+    readVisionHazard,
   } = applySafetyFloor(text, result, {
     copy: copy.safety,
     visionHazard: source === "claude" ? visionHazard : null,
@@ -287,7 +289,7 @@ export async function POST(request: NextRequest) {
 
   const latencyMs = Date.now() - startedAt;
 
-  await logTriage({
+  const triageLogId = await logTriage({
     userId,
     inputText: text,
     hadPhoto: Boolean(image),
@@ -295,9 +297,22 @@ export async function POST(request: NextRequest) {
     source,
     model: source === "claude" ? TRIAGE_MODEL : null,
     latencyMs,
-    // Prefixed with how it was spotted, so the text guard and the vision read
-    // can be audited apart later without a schema change.
+    /*
+     * THREE FIELDS, BECAUSE ONE CANNOT ANSWER THE QUESTION. `hazard` is the
+     * OUTCOME — what the customer was shown — and it carries the winner's
+     * prefix. The comment here used to claim that prefix let the two
+     * detectors "be audited apart later without a schema change"; it does
+     * not. The text guard wins whenever both fire, so a `text:*` row says
+     * nothing about whether vision agreed, and `vision:*` only ever appears
+     * where text found nothing. Agreement was unmeasurable.
+     *
+     * So each detector's own reading goes alongside it — taken from the
+     * safety floor, which already computes both, rather than re-running the
+     * text guard here and creating a second implementation of it.
+     */
     hazard: hazard ? `${via}:${hazard}` : cautioned ? "unseen-photo" : null,
+    textHazard: readTextHazard,
+    visionHazard: readVisionHazard,
   });
 
   return NextResponse.json(
@@ -308,6 +323,19 @@ export async function POST(request: NextRequest) {
       // The choices for the "which of these is it?" question, when there is
       // one to ask. Empty on every other path, which is what the card reads.
       subBands: await askableSubBands(safeResult, locale),
+      /*
+       * THE JOIN KEY, AND IT WAS THE MISSING LINK IN A CHAIN THAT WAS
+       * OTHERWISE COMPLETE. `bookings.triage_log_id` has a column, a zod
+       * field, a flow-state slot and an insert — and `/book` reads it off
+       * `?triage=`. Nothing ever set it, because the id never left this
+       * route, so every booking ever made has a null there and the accuracy
+       * loop had no join to make.
+       *
+       * Null whenever logging is off, timed out or failed. The card must
+       * treat that as ordinary: the link simply carries no id, and the
+       * booking is made exactly as before.
+       */
+      triageLogId,
       // For the dev-only badge. Nothing here is secret and nothing here is
       // rendered to an ordinary visitor.
       reason,

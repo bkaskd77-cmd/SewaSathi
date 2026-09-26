@@ -1422,6 +1422,16 @@ export type Database = {
           model: string | null;
           latency_ms: number | null;
           hazard: string | null;
+          /**
+           * What each detector independently said, before one of them won.
+           *
+           * `hazard` above is the OUTCOME — the text guard wins when both
+           * fire, so it cannot express agreement. Null in either of these is
+           * "not recorded", never "no hazard": a row written before the
+           * columns existed has null in both.
+           */
+          text_hazard: string | null;
+          vision_hazard: string | null;
           band: string | null;
         };
         Insert: {
@@ -1438,6 +1448,8 @@ export type Database = {
           model?: string | null;
           latency_ms?: number | null;
           hazard?: string | null;
+          text_hazard?: string | null;
+          vision_hazard?: string | null;
           band?: string | null;
         };
         Update: {

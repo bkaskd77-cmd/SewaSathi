@@ -49,6 +49,7 @@ export function ProviderCard({
   urgency,
   band,
   bandSource,
+  triageLogId,
   asked,
   q,
   index = 0,
@@ -59,6 +60,8 @@ export function ProviderCard({
   /** The product the triage named, carried from /services so /book keeps it. */
   band?: string | null;
   bandSource?: string | null;
+  /** The triage row this journey began at. Null when it began elsewhere. */
+  triageLogId?: string | null;
   /** The product question was put to this customer. See band_ask_signals. */
   asked?: boolean;
   /** What they typed into the hero, carried through so the profile keeps it. */
@@ -259,6 +262,7 @@ export function ProviderCard({
               q,
               band,
               bandSource,
+              triageLogId,
               ...(asked ? { asked: "1" } : {}),
             })}
           >

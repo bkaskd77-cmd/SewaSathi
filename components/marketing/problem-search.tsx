@@ -622,7 +622,13 @@ function TriageCard({
 
               `customer` outranks both of ours in the provenance: a statement
               is evidence, a guess is not. It is still a browser-supplied hint
-              and the column's comment says so. */}
+              and the column's comment says so.
+
+              `triage` is the log row this answer came from, and it is the one
+              parameter here that changes nothing about the booking. It is the
+              join the accuracy loop reads: without it every booking is
+              unattributable, which is what every booking made so far is.
+              Absent whenever nothing was logged. */}
           <Link
             href={`/services/${result.category}?urgency=${guarded.urgency}${
               chosen
@@ -632,7 +638,11 @@ function TriageCard({
                       outcome.source === "fallback" ? "matcher" : "model"
                     }`
                   : ""
-            }${wasAsked ? "&asked=1" : ""}`}
+            }${wasAsked ? "&asked=1" : ""}${
+              outcome.triageLogId
+                ? `&triage=${encodeURIComponent(outcome.triageLogId)}`
+                : ""
+            }`}
           >
             {t("findProfessionals", { category: ctaLabel })}
             <ArrowRight aria-hidden="true" />

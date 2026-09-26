@@ -218,9 +218,39 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   Streaming would mean showing fields we haven't finished checking.
 - **Every triage is logged** to `triage_logs` (text, photo yes/no, category,
   urgency, latency, source, hazard). The photo is never stored. `hazard` is
-  written as `text:gas`, `vision:burning` or `unseen-photo`, so the two
-  detectors can be compared later. This is the only record of whether the bands
-  are right — Phase 9 reads it.
+  written as `text:gas`, `vision:burning` or `unseen-photo`.
+  **That column records the winner, not the evidence, and this file claimed the
+  opposite for three phases** — "so the two detectors can be compared later" was
+  wrong the day it was written. `applySafetyFloor` lets the deterministic text
+  guard beat the photo read whenever both fire, so `vision:*` only ever appears
+  on rows where text found nothing: agreement, disagreement and "text caught
+  what vision missed" were all unmeasurable from it, and only "vision caught
+  what text missed" survived, because that is literally what a `vision:*` row
+  means. `text_hazard` and `vision_hazard` are each detector's own reading,
+  returned by `applySafetyFloor` so no caller re-runs detection and the readings
+  can never disagree with the outcome beside them. **Null in either is "not
+  recorded", never "no hazard"** — rule 6, and it bit on day one: every row
+  written before those columns is silent, and reading that silence as "both
+  looked and found nothing" manufactures a clean safety record out of an absent
+  one. `lib/data/triage-accuracy.ts` derives the cutover from the data rather
+  than from a date constant nobody could verify later.
+- **The triage is measured against what the customer did next, and the join was
+  broken at its first link for the whole life of the product.**
+  `bookings.triage_log_id` had a column, a zod field, a flow-state slot, an
+  insert that wrote it and a `/book` page reading `?triage=` — and `logTriage`
+  returned `void`, so nothing ever produced the value and every booking ever
+  taken carries a null. Every individual link was built; the chain was not. The
+  id now rides the booking URL with the rest of the intent, and the test asserts
+  the **ends** rather than the links, because a per-link test would have passed
+  throughout. `/admin/triage-accuracy` is the screen.
+  **It measures and it does not tune**: no threshold, no grade, no colour for
+  bad, no proposal. Nobody knows yet what a good agreement rate looks like here
+  and a constant would freeze a guess into the codebase as a standard. Every
+  rate prints the sample it came out of, through one function, so no row can
+  render a bare percentage — `claimRateWorthReading`'s rule minus the judgement.
+  `Counted<T>` is `Readable<T>` at arity one, because a failed read rendering as
+  "0% agreed" is bad news nobody measured. Tuning — the prompt, the bands, the
+  keyword rules — comes as a proposal once there are rows to make one from.
 - **The dev badge.** A silent fallback is indistinguishable from a working
   product — with no API key every triage still answers. The card carries a
   small line saying which path served it and why (`no ANTHROPIC_API_KEY`,

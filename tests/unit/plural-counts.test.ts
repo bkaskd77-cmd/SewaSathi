@@ -179,3 +179,51 @@ describe("the counts a customer sees", () => {
     expect(flow("jobs", { n: "1", count: 1 })).toBe("1 job");
   });
 });
+
+/**
+ * The same shape on the triage accuracy screen.
+ *
+ * WHY THESE AND NOT EVERY STRING IN THE PRODUCT. That screen's whole discipline
+ * is that no rate is ever printed without the sample it came from, so these two
+ * strings are the denominator — every number on the page goes through one of
+ * them. "62% — 8 of 1 rows" would undermine the exact thing the screen exists to
+ * be trusted about, and the lint only sees that the branch is there.
+ */
+const ta = (locale: "en" | "ne") =>
+  createTranslator({
+    locale,
+    messages: locale === "en" ? en : ne,
+    namespace: "admin.triageAccuracy",
+  });
+
+describe("a rate beside the sample it came out of", () => {
+  it("says one row, not 1 rows", () => {
+    const one = ta("en")("ofTotal", { pct: "100", n: "1", count: 1, total: "1" });
+    expect(one).toBe("100% — 1 of 1 row");
+    expect(one).not.toContain("1 rows");
+  });
+
+  it("still says rows for more than one", () => {
+    expect(ta("en")("ofTotal", { pct: "62", n: "8", count: 13, total: "13" })).toBe(
+      "62% — 8 of 13 rows",
+    );
+  });
+
+  it("says one request, not 1 requests", () => {
+    const one = ta("en")("latency.ms", { ms: "1900", count: 1, n: "1" });
+    expect(one).toBe("1900ms over 1 request");
+    expect(one).not.toContain("1 requests");
+  });
+
+  it("reads correctly in Nepali at one and at many", () => {
+    // पङ्क्ति and अनुरोध do not inflect, so both counts share one branch —
+    // a Nepali plural branch would invent a distinction the language lacks.
+    const one = ta("ne")("ofTotal", { pct: "100", n: "१", count: 1, total: "१" });
+    const many = ta("ne")("ofTotal", { pct: "६२", n: "८", count: 13, total: "१३" });
+    expect(one).toContain("पङ्क्तिमध्ये");
+    expect(many).toContain("पङ्क्तिमध्ये");
+    expect(ta("ne")("latency.ms", { ms: "1900", count: 1, n: "१" })).toContain(
+      "अनुरोधमा",
+    );
+  });
+});
