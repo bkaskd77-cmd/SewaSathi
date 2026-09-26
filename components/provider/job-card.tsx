@@ -19,6 +19,10 @@ import {
   type CorrectionState,
   type QuoteState,
 } from "@/lib/booking";
+import {
+  REFUSAL_REASON_CODES,
+  type RefusalReasonCode,
+} from "@/lib/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -201,6 +205,14 @@ export function JobCard(props: JobCardProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [declining, setDeclining] = React.useState(false);
   const [declineReason, setDeclineReason] = React.useState("");
+  /*
+   * WHICH OF THE FIVE, OR NONE. Null is the starting state and a legitimate
+   * ending one: skipping writes "not recorded" rather than "no reason", and
+   * forcing a choice would push everybody onto `other` and make the count
+   * meaningless. Rule 6 in the shape it takes for a form rather than a column.
+   */
+  const [declineCode, setDeclineCode] =
+    React.useState<RefusalReasonCode | null>(null);
   const [amount, setAmount] = React.useState("");
   const [amountReason, setAmountReason] = React.useState("");
   // Deliberately a string, and deliberately not defaulted to "0". An empty
@@ -268,7 +280,11 @@ export function JobCard(props: JobCardProps) {
       const { declineJobAction } = await import(
         "@/app/[locale]/(work)/provider/jobs/actions"
       );
-      const result = await declineJobAction(props.id, declineReason);
+      const result = await declineJobAction(
+        props.id,
+        declineReason,
+        declineCode,
+      );
       if (result.ok) setDeclining(false);
       return result;
     });
@@ -784,6 +800,50 @@ export function JobCard(props: JobCardProps) {
           <p className="rounded-lg border border-warning/40 bg-warning/[0.08] p-2.5 text-caption text-warning-ink">
             {t("decline.warning")}
           </p>
+          {/*
+            * ONE TAP TO SAY WHY, AND THE CONFIRM STAYS. "One tap" is the
+            * reason, not the decline: the warning above says only support can
+            * undo this and the customer cannot be handed back, and a rule that
+            * strict must not fire from one stray tap beside four other buttons.
+            *
+            * THE CODES ARE A STATED PREFERENCE, NEVER SCORED. "Too far" is
+            * somebody telling us where they will not travel — checkable, theirs
+            * to change, and nothing reads it into ranking.
+            * `withdrawalRankingPenalty` counts refusals without caring why, and
+            * /providers/standards publishes turning work down under *what is
+            * never a signal*.
+            */}
+          <p className="text-caption text-muted-foreground">
+            {t("decline.whyLabel")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {REFUSAL_REASON_CODES.map((code) => {
+              const chosen = declineCode === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  aria-pressed={chosen}
+                  disabled={busy}
+                  // Tapping the chosen one clears it — a selection nobody can
+                  // undo is a selection somebody will make by accident and then
+                  // have to send.
+                  onClick={() => setDeclineCode(chosen ? null : code)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-caption transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "disabled:opacity-60",
+                    chosen
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-muted-foreground hover:border-primary/50",
+                  )}
+                >
+                  {t(`decline.why.${code}`)}
+                </button>
+              );
+            })}
+          </div>
+
           <Label htmlFor={`decline-${props.id}`}>{t("decline.label")}</Label>
           <Input
             id={`decline-${props.id}`}

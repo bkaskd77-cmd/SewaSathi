@@ -414,6 +414,24 @@ describe("a refusal reason that can be counted", () => {
     }
   });
 
+  /*
+   * THE CHIPS AND THE COLUMN CANNOT DRIFT. The decline panel renders one chip
+   * per `REFUSAL_REASON_CODES` entry and looks its label up by the code, so a
+   * label added to the catalogue without the SQL would render a chip the check
+   * constraint refuses — and because the code shares a statement with the free
+   * text, that write loses the prose the professional actually typed. This
+   * asserts the offered set IS the loggable set rather than a subset of it.
+   */
+  it("offers exactly the codes the database accepts", async () => {
+    const en = (await import("@/messages/en.json")).default;
+    const labels: Record<string, string> = en.provider.jobs.decline.why;
+
+    expect(Object.keys(labels).sort()).toEqual([...REFUSAL_REASON_CODES].sort());
+    for (const code of REFUSAL_REASON_CODES) {
+      expect(labels[code]).toBeTruthy();
+    }
+  });
+
   it("is the same list the migration carries", async () => {
     // Two lists written twice drift silently and fail on the first production
     // write that produces the new value. This reads the SQL.

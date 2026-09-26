@@ -239,6 +239,15 @@ Where a change on one side cannot reach the other.
   defaulting — the divergence that already happened once between the catalogue
   card and the scorer. **`volume` at zero jobs reports as measured**: none
   completed is a fact, and calling it an absence would be rule 6 upside down.
+- **A refusal reason is captured, not merely storable.** `reason_code` shipped
+  one commit before anything offered it, so every refusal in between landed
+  null — the same shape as `applyRedoRecovery` spending four phases tested and
+  uncalled, at one-thousandth the scale. The decline panel now renders one chip
+  per `REFUSAL_REASON_CODES` entry; **the offered set is asserted to BE the
+  loggable set**, because a label added to the catalogue without the SQL would
+  render a chip the check constraint refuses, and the code shares its write
+  statement with the free text — so that failure would lose the prose the
+  professional typed. Skipping is a real answer and writes null.
 - **Concentration is measured before any mechanism exists.**
   `lib/data/concentration.ts` reports, per category, the busiest professional's
   share of offers and of finished work, each with its denominator — offers

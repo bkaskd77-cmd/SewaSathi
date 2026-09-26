@@ -371,7 +371,16 @@ should come from real numbers, so there is no threshold and no rotation today.
 **A refusal reason is countable now, and the prose stays.** Both refusal paths
 already captured free text and `provider_stats.declines` already counted
 refusals; what was missing is that prose cannot be aggregated.
-`booking_refusals.reason_code` is a closed set beside the text. It is a **stated
+`booking_refusals.reason_code` is a closed set beside the text, **and the
+provider decline panel offers it** — one tap, skippable, with the free text
+still there for what the list did not anticipate. The column shipped one commit
+before the capture did, which is `applyRedoRecovery`'s four-phase sin in
+miniature: a column nothing writes to is not a feature. Skipping writes null,
+because forcing a choice would push everybody onto `other` and make the count
+meaningless — rule 6 in the shape it takes for a form. The chips are rendered
+from `REFUSAL_REASON_CODES` and a test asserts the offered set IS the loggable
+set, since a label added without the SQL would render a chip whose write the
+check constraint refuses — losing the prose in the same statement. It is a **stated
 preference, not a judgement** — "too far" is somebody telling us where they will
 not travel, which the gate may act on later without anything being scored — and
 `price` is never a signal against anybody, for the same reason

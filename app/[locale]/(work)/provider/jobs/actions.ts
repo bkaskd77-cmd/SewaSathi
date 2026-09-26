@@ -46,6 +46,17 @@ export async function advanceJobAction(
 export async function declineJobAction(
   bookingId: string,
   reason: string,
+  /**
+   * The same refusal from the closed set, so it can be counted.
+   *
+   * OPTIONAL, AND SKIPPING IS A REAL ANSWER. Null reaches the column as "not
+   * recorded", which is not "no reason" — forcing a choice would push everybody
+   * onto `other` and make the count meaningless. `declineJob` guards the value
+   * against `REFUSAL_REASON_CODES` before writing, so a stale client cannot
+   * send something the check constraint would refuse and lose the free text
+   * with it.
+   */
+  reasonCode?: string | null,
 ): Promise<{ ok: boolean; reason?: string }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "notSignedIn" };
@@ -54,6 +65,7 @@ export async function declineJobAction(
     bookingId,
     actorId: profile.id,
     reason: reason.trim() || null,
+    reasonCode: reasonCode ?? null,
   });
   if (result.ok) {
     revalidatePath("/provider/jobs");

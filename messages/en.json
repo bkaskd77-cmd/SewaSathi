@@ -1287,7 +1287,15 @@
         "label": "Why, so we can tell the customer?",
         "placeholder": "Already on another job",
         "confirm": "Turn this down",
-        "back": "Back"
+        "back": "Back",
+        "whyLabel": "Why, if you want to say (optional)",
+        "why": {
+          "too_far": "Too far",
+          "wrong_job": "Not my kind of work",
+          "already_busy": "Already busy",
+          "price": "Not worth the trip",
+          "other": "Something else"
+        }
       },
       "amount": {
         "label": "What is the final amount?",
