@@ -205,6 +205,7 @@ export function RefundDecision({
             <p className="pt-1 text-caption text-muted-foreground">
               {t("preview.recovery", {
                 n: String(consequence.payouts),
+                count: consequence.payouts,
                 share: String(PAYOUT_RULES.redoRecoveryCapBps / 100),
               })}
             </p>

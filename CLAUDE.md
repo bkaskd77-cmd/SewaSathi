@@ -1174,6 +1174,35 @@ Numbers in a summary are not a guard. Two things run automatically:
   disagree on a key or an ICU placeholder. next-intl renders a missing key as
   its own dotted path, so without this the failure mode is a button labelled
   `services.card.book` on a page nobody on the team reads.
+- **Plural rule** — `check:messages` refuses `{n}` sitting in front of a
+  plural noun with no `plural` branch, because `/admin/guarantee-claims`
+  shipped reading "this customer has claimed **1 times** on 6 finished jobs",
+  on the screen where somebody decides how much of a customer's money goes
+  back. It was a class rather than an instance: nine strings had the shape and
+  **six predated the bug that prompted the search** — "1 jobs done" on the
+  bookings summary, "1 years' experience" on a provider card, both live and
+  customer-facing. The idiom was already in the catalogue and simply not
+  reached for: `{count, plural, one {{n} job} other {{n} jobs}}` in English,
+  a single `other` branch in Nepali, both carrying `count` and `n` so the
+  placeholder sets still match. **Nepali gets no plural branch** — वर्ष, काम
+  and पटक do not inflect, and branching would invent a distinction the
+  language does not make. The rule is allowed to be a regex where
+  `check:keys` is not, because it reads a JSON string for a fixed two-token
+  shape and flagged exactly nine with no false positives; it **self-tests on
+  every run**, asserting it still flags a known-bad string and still passes
+  correct copy, so a rule that has stopped biting says so. `ALLOWED_INVARIANT`
+  is the escape hatch and is empty on purpose.
+  `tests/unit/plural-counts.test.ts` renders the strings through next-intl as
+  well, because a branch that exists but selects wrongly passes the lint.
+- **That same fix exposed a false positive in the placeholder check itself.**
+  It read `{X}` or `{X,` as an argument, so `=0 {None, on {jobs} finished
+  jobs}` was reported as English "using {None}" and Nepali failing to — wrong
+  in both directions, and it would have hidden a genuine mismatch behind the
+  noise. A name is an argument only when the brace closes straight after it or
+  a real ICU type follows (`plural`, `select`, `number`, `date`…); everything
+  else is branch text. The tempting fix was to reword copy until the regex
+  stopped complaining, which would have left the trap armed for the next
+  person to write a branch beginning with a word and a comma.
 - **Key check** — `npm run check:keys` is the other half, and it exists because
   a key missing from **both** catalogues agrees perfectly and sails through the
   one above. `admin.detail.payoutIsSomebodyElses` rendered as its own name on

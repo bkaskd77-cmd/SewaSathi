@@ -366,7 +366,10 @@ export function StepProvider({
                             <span>{t("notRated")}</span>
                           )}
                           <span className="tabular-nums">
-                            {t("jobs", { n: String(provider.jobsCompleted) })}
+                            {t("jobs", {
+                              n: String(provider.jobsCompleted),
+                              count: provider.jobsCompleted,
+                            })}
                           </span>
                           {hasResponse(provider) ? (
                             <span className="tabular-nums">

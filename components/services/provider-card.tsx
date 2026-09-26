@@ -187,6 +187,7 @@ export function ProviderCard({
           <Badge variant="gold-subtle">
             {t("card.yearsExperience", {
               n: String(provider.yearsExperience),
+              count: provider.yearsExperience,
             })}
           </Badge>
         ) : null}
@@ -224,7 +225,10 @@ export function ProviderCard({
           <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
             {stats.jobsCompleted > 0
               ? stats.jobsCompleted
-              : t("card.years", { n: String(provider.yearsExperience) })}
+              : t("card.years", {
+                  n: String(provider.yearsExperience),
+                  count: provider.yearsExperience,
+                })}
           </dd>
         </div>
         {/* No jobs, no replies to measure. The 120-minute column default is a

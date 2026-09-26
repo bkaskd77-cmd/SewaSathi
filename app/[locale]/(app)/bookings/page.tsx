@@ -296,6 +296,7 @@ export default async function BookingsPage() {
                   <p className="text-caption tabular-nums text-muted-foreground">
                     {t("summary", {
                       n: String(totals.done),
+                      count: totals.done,
                       amount: formatNpr(totals.spent, { locale }),
                     })}
                   </p>

@@ -254,7 +254,7 @@
       "more": "+{n} more",
       "idVerified": "ID verified",
       "verificationInProgress": "Verification in progress",
-      "yearsExperience": "{n} years’ experience",
+      "yearsExperience": "{count, plural, one {{n} year’s experience} other {{n} years’ experience}}",
       "rating": "Rating",
       "jobsDone": "Jobs done",
       "respondsIn": "Responds in",
@@ -264,7 +264,7 @@
       "new": "New here",
       "notRated": "Not rated yet",
       "experience": "Experience",
-      "years": "{n} yrs"
+      "years": "{count, plural, one {{n} yr} other {{n} yrs}}"
     },
     "availability": {
       "now": "Available now",
@@ -281,7 +281,7 @@
       "busy": "Not taking work right now"
     },
     "profile": {
-      "specialisations": "{trades} · {n} years",
+      "specialisations": "{trades} · {count, plural, one {{n} year} other {{n} years}}",
       "verifiedProfessional": "Verified professional",
       "completion": "Completion",
       "startingRate": "starting rate",
@@ -437,7 +437,7 @@
       "happeningNow": "Happening now",
       "earlier": "Earlier",
       "asSoonAsPossible": "As soon as possible",
-      "summary": "{n} jobs done · {amount} paid",
+      "summary": "{count, plural, one {{n} job done} other {{n} jobs done}} · {amount} paid",
       "needs": {
         "confirmTrip": "Confirm this before anyone sets off",
         "approveAmount": "A price is waiting for your approval",
@@ -549,7 +549,7 @@
         "autoBody": "We send it to the highest-ranked professional free at your time.",
         "orChoose": "Or pick someone yourself",
         "verified": "Verified",
-        "jobs": "{n} jobs",
+        "jobs": "{count, plural, one {{n} job} other {{n} jobs}}",
         "respondsIn": "replies in ~{n} min",
         "noneNearby": "Nobody is listed in that ward yet. Let us choose and we will widen the search.",
         "availability": {
@@ -833,7 +833,7 @@
       "body": "These professionals do the same work. One tap books them — your problem, address and time stay as they are.",
       "verified": "ID verified",
       "choose": "Book {name}",
-      "jobsDone": "{n} jobs",
+      "jobsDone": "{count, plural, one {{n} job} other {{n} jobs}}",
       "from": "from {amount}",
       "reach": {
         "ward": "In your area",
@@ -1880,22 +1880,23 @@
       "materialsCapped": "Only {amount} of that has come off: a parts line never takes more than half the job.",
       "signals": {
         "heading": "What is already on the record",
-        "priorRefundsValue": "{n} on {jobs} finished jobs · {amount} in total",
-        "priorRefundsNoJobs": "{n} · {amount} in total (job count unavailable)",
+        "priorRefundsValue": "{count, plural, =0 {None, on {jobs} finished jobs} one {{n} on {jobs} finished jobs · {amount}} other {{n} on {jobs} finished jobs · {amount} in total}}",
+        "priorRefundsNoJobs": "{count, plural, =0 {None (job count unavailable)} other {{n} · {amount} in total (job count unavailable)}}",
         "outstanding": "Still owed to us",
         "claimRate": "This customer has claimed",
-        "claimRateValue": "{n} times on {jobs} finished jobs",
-        "claimRateNoJobs": "{n} times (job count unavailable)",
+        "claimRateValue": "{count, plural, =0 {Never, on {jobs} finished jobs} one {Once, on {jobs} finished jobs} other {{n} times on {jobs} finished jobs}}",
+        "claimRateNoJobs": "{count, plural, =0 {Never (job count unavailable)} one {Once (job count unavailable)} other {{n} times (job count unavailable)}}",
         "unknown": "Could not be read",
         "reviewNotPunishment": "Worth a person looking at, and nothing more. A high claim rate is not a reason to refuse somebody money they are owed — they may be unlucky, or may have had genuinely bad jobs. Never a ban, never a ranking.",
-        "footnote": "None of this changes what can be paid back. Below {min} finished jobs there is no rate to read.",
-        "priorRefunds": "Refunds agreed on their work"
+        "footnote": "None of this changes what can be paid back.",
+        "priorRefunds": "Refunds agreed on their work",
+        "smallSample": "Below {min} finished jobs there is no rate to read."
       },
       "preview": {
         "customer": "The customer receives",
         "commission": "We return in commission",
         "provider": "The professional owes",
-        "recovery": "Recovered at {share}% of each payout, that is about {n} jobs of this size.",
+        "recovery": "Recovered at {share}% of each payout, that is {count, plural, one {about one job} other {about {n} jobs}} of this size.",
         "recoveryUnknown": "We hold no earning figure for this job, so how long it would take to recover cannot be said."
       },
       "ceiling": "The most that can go back is {amount}",

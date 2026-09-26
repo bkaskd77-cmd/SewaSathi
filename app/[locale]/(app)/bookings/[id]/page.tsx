@@ -237,6 +237,7 @@ export default async function BookingDetailPage({
       : tAlternatives("notRated"),
     jobsLabel: tAlternatives("jobsDone", {
       n: String(option.provider.stats.jobsCompleted),
+      count: option.provider.stats.jobsCompleted,
     }),
     rateLabel: tAlternatives("from", {
       amount: formatNpr(option.provider.baseRate, { locale }),

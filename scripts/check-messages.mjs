@@ -35,12 +35,54 @@ function leaves(value, prefix = "") {
   );
 }
 
-/** The named ICU placeholders in a message, ignoring plural branch keywords. */
+/**
+ * The ICU argument types that may follow a placeholder name.
+ *
+ * This list is what separates an argument from ordinary text that happens to
+ * sit inside braces. `{amount}` and `{count, plural, ...}` are arguments;
+ * `{None, on {jobs} finished jobs}` is the CONTENT of a plural branch and
+ * contains exactly one argument, `jobs`.
+ */
+const ICU_TYPES = new Set([
+  "plural",
+  "select",
+  "selectordinal",
+  "number",
+  "date",
+  "time",
+]);
+
+/**
+ * The named ICU placeholders in a message.
+ *
+ * WHY THIS IS NOT `\{(\w+)[,}]`, WHICH IS WHAT IT USED TO BE. That reads the
+ * first word of every plural branch as a placeholder, so a perfectly ordinary
+ * `=0 {None, on {jobs} finished jobs}` was reported as English "using {None}"
+ * and Nepali failing to. The message was wrong in both directions: there is no
+ * placeholder called `None`, and the real difference between the catalogues —
+ * if there had been one — was hidden behind the noise.
+ *
+ * It bit while writing plural branches for a bug on the refund screen, and the
+ * tempting fix was to reword the copy until the regex stopped complaining.
+ * That would have left the trap armed for whoever wrote the next branch
+ * starting with a word and a comma.
+ *
+ * A name is an argument only when the brace closes straight after it, or when
+ * what follows is a comma and a type ICU actually defines. Everything else is
+ * text.
+ */
 function placeholders(message) {
   if (typeof message !== "string") return new Set();
   const found = new Set();
-  for (const match of message.matchAll(/\{\s*([A-Za-z0-9_]+)\s*[,}]/g)) {
-    found.add(match[1]);
+  for (const match of message.matchAll(/\{\s*([A-Za-z0-9_]+)\s*(,\s*([A-Za-z]+))?/g)) {
+    const [, name, comma, type] = match;
+    if (!comma) {
+      // `{name}` — an argument only if the brace really does close here.
+      const after = message.slice(match.index + match[0].length);
+      if (/^\s*\}/.test(after)) found.add(name);
+      continue;
+    }
+    if (ICU_TYPES.has(type)) found.add(name);
   }
   return found;
 }
@@ -129,6 +171,82 @@ for (const locale of LOCALES) {
   }
 }
 
+/**
+ * "1 times" — a count interpolated in front of a plural noun.
+ *
+ * WHAT WENT WRONG. `/admin/guarantee-claims` shipped reading "This customer
+ * has claimed 1 times on 6 finished jobs", on the screen where somebody
+ * decides how much of a customer's money goes back. Copy that reads as broken
+ * beside a figure makes the figure look careless too.
+ *
+ * IT WAS A CLASS, NOT AN INSTANCE, which is the only reason this check exists.
+ * Nine strings had the same shape when it was written and six of them predated
+ * the bug that prompted it — "1 jobs done" on the bookings summary, "1 years'
+ * experience" on a provider card, both customer-facing and both shipped long
+ * before. The idiom to avoid it was already in the catalogue and simply not
+ * reached for.
+ *
+ * WHY IT IS ALLOWED TO BE A REGEX when `check:keys` refuses to be one. That
+ * checker resolves `t()` calls in TypeScript, where a name can be rebound and
+ * a binding destructured, and three regex attempts each cried wolf. This one
+ * reads a JSON string for a fixed two-token shape — `{n}` then a lowercase
+ * word ending in `s` — and when it was added it flagged exactly nine strings
+ * with no false positives among them. A checker that cried wolf here would be
+ * skimmed and would take the real entries with it.
+ *
+ * ENGLISH ONLY. Nepali's वर्ष, काम and पटक do not inflect for number, so the
+ * same shape there is correct and a branch would invent a distinction the
+ * language does not make.
+ */
+const PLURAL_SHAPE = /\{n\}\s+[a-z]+s\b/;
+
+/** Strings where `{n}` before an s-word is genuinely invariant. */
+const ALLOWED_INVARIANT = new Set([
+  // Empty on purpose. An entry here is a claim that a count reads correctly
+  // at one, so it needs the sentence written out beside it.
+]);
+
+function missingPluralBranch(message) {
+  if (typeof message !== "string") return false;
+  if (message.includes("plural")) return false;
+  return PLURAL_SHAPE.test(message);
+}
+
+/*
+ * THE CHECK PROVES ITSELF ON EVERY RUN, like check:secrets and check:contacts.
+ * A scanner that has quietly stopped scanning prints the same tick as one that
+ * is working, and the tick is what everybody reads.
+ */
+{
+  const mustFlag = "{n} jobs done";
+  const mustNot = [
+    "{count, plural, one {{n} job} other {{n} jobs}}",
+    "{n} वटा काम",
+    "{amount} paid",
+  ];
+  if (!missingPluralBranch(mustFlag)) {
+    failures.push(
+      "check:messages self-test — the plural rule no longer flags \"{n} jobs done\". It is not checking anything.",
+    );
+  }
+  for (const safe of mustNot) {
+    if (missingPluralBranch(safe)) {
+      failures.push(
+        `check:messages self-test — the plural rule now flags ${safe}, which is correct copy. It would cry wolf.`,
+      );
+    }
+  }
+}
+
+for (const key of referenceKeys) {
+  if (ALLOWED_INVARIANT.has(key)) continue;
+  if (missingPluralBranch(at(reference, key))) {
+    failures.push(
+      `${REFERENCE}.json "${key}": {n} sits in front of a plural noun with no plural branch, so it reads "1 times" at one. Use {count, plural, one {…} other {…}} and pass a numeric count.`,
+    );
+  }
+}
+
 // Nepali-specific spelling and calque traps.
 for (const key of leaves(catalogues.ne)) {
   const value = at(catalogues.ne, key);
@@ -150,6 +268,7 @@ if (failures.length > 0) {
 
 console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.`);
 console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.`);
+console.log("  plural rule self-tested; no count reads as \"1 times\".");
 
 /*
  * THE BACKLOG, PRINTED RATHER THAN REMEMBERED.

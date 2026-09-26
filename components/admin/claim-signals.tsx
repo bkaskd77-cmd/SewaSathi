@@ -67,12 +67,14 @@ export async function ClaimSignalsPanel({
                 {signals.provider.jobsCompleted === null
                   ? t("priorRefundsNoJobs", {
                       n: String(signals.provider.priorRefunds),
+                      count: signals.provider.priorRefunds,
                       amount: formatNpr(signals.provider.priorRefundRupees, {
                         locale,
                       }),
                     })
                   : t("priorRefundsValue", {
                       n: String(signals.provider.priorRefunds),
+                      count: signals.provider.priorRefunds,
                       jobs: String(signals.provider.jobsCompleted),
                       amount: formatNpr(signals.provider.priorRefundRupees, {
                         locale,
@@ -107,9 +109,11 @@ export async function ClaimSignalsPanel({
               {signals.customer.completedBookings === null
                 ? t("claimRateNoJobs", {
                     n: String(signals.customer.claims),
+                    count: signals.customer.claims,
                   })
                 : t("claimRateValue", {
                     n: String(signals.customer.claims),
+                    count: signals.customer.claims,
                     jobs: String(signals.customer.completedBookings),
                   })}
             </dd>
@@ -131,7 +135,18 @@ export async function ClaimSignalsPanel({
       ) : null}
 
       <p className="mt-3 text-caption text-muted-foreground">
-        {t("footnote", { min: String(CLAIM_RATE_MIN_JOBS) })}
+        {t("footnote")}
+        {/*
+            THE SMALL-SAMPLE SENTENCE ONLY WHERE IT IS TRUE. It used to render
+            unconditionally, so a screen showing a rate read off six finished
+            jobs also said "below 3 finished jobs there is no rate to read" —
+            a sentence about the row above it that the row above it disproved.
+            A footnote that contradicts its own panel teaches a reader to skip
+            footnotes, which is the opposite of what this one is for.
+         */}
+        {signals.customer && rate.rate === null ? (
+          <> {t("smallSample", { min: String(CLAIM_RATE_MIN_JOBS) })}</>
+        ) : null}
       </p>
     </section>
   );

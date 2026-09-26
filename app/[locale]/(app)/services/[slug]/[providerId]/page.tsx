@@ -170,6 +170,7 @@ export default async function ProviderProfilePage({
                 .map((c) => categoryCopy(c, locale).name)
                 .join(" · "),
               n: String(provider.yearsExperience),
+              count: provider.yearsExperience,
             })}
           </p>
 
