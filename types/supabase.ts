@@ -60,6 +60,18 @@ export type Database = {
           phone: string | null;
           preferred_language: PreferredLanguage;
           role: UserRole;
+          /**
+           * The customer has asked not to appear in the homepage activity strip.
+           *
+           * NOT NULLABLE, and false is a preference nobody has expressed rather
+           * than a measurement — the one place rule 6 does not bite, because
+           * "has not opted out" is a true statement about somebody who has not.
+           *
+           * It is also one of exactly three columns a browser may write; see
+           * `20260927000005_profiles_column_grants.sql` for the other two and
+           * for what a session can no longer touch.
+           */
+          hide_from_activity: boolean;
           created_at: string;
         };
         Insert: {
@@ -68,6 +80,7 @@ export type Database = {
           phone?: string | null;
           preferred_language?: PreferredLanguage;
           role?: UserRole;
+          hide_from_activity?: boolean;
           created_at?: string;
         };
         Update: {
@@ -76,6 +89,7 @@ export type Database = {
           phone?: string | null;
           preferred_language?: PreferredLanguage;
           role?: UserRole;
+          hide_from_activity?: boolean;
           created_at?: string;
         };
         Relationships: [

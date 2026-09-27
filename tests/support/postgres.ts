@@ -185,6 +185,30 @@ $$;
 -- nine of the warnings 20260903000001 was supposed to clear.
 alter default privileges in schema public
   grant execute on functions to anon, authenticated;
+
+-- And the same thing for TABLES, for the same reason one level along.
+--
+-- This used to be a loop AFTER the migrations had applied, walking every table
+-- in \`public\` and granting select, insert and update to anon and authenticated.
+-- It modelled the right fact the wrong way round: Supabase grants those through
+-- a default privilege, at CREATION, so a migration that narrows them afterwards
+-- narrows them for real — whereas a loop running last puts them all back.
+--
+-- NOTHING WAS ACTUALLY BEING ERASED, and that is worth writing down rather than
+-- claiming otherwise. The five \`revoke all\` statements in this repository
+-- (category_pricing_signals, payment_mix_signals, category_rate_signals,
+-- survey_decline_signals, band_ask_signals) are all on VIEWS, and the loop
+-- excluded views on purpose — its comment said so and it was right. The first
+-- thing it WOULD have erased is \`20260927000005\`, which revokes UPDATE on
+-- \`public.profiles\` and grants it back on three columns; under the loop that
+-- migration was silently undone before any test looked, and the escalation it
+-- closes would have read as still open with no way to tell the two apart.
+--
+-- So this is the ordering fixed before it costs anything, not a leak repaired.
+-- No test relies on a grant this does not make: a default privilege set before
+-- the migrations is exactly what production has.
+alter default privileges in schema public
+  grant select, insert, update on tables to anon, authenticated;
 `;
 
 /** Migrations that need Supabase-only schemas we cannot stand up here. */
@@ -261,14 +285,18 @@ export async function startPostgres(): Promise<Harness> {
   }
 
   /*
-   * RLS is bypassed for table owners, so the tests connect as this role.
+   * RLS is bypassed for table owners, so the tests connect as these roles.
    *
-   * TABLES ONLY, and the exclusion is the point: `grant ... on all tables`
-   * includes views, and re-granting them here would silently undo any revoke a
-   * migration had just made — the harness would be MORE permissive than
-   * production and a deliberately-hidden view would test as visible. That is
-   * the same class of mistake as the function-privilege one above, which let a
-   * revoke pass locally while changing nothing in the real database.
+   * THE TABLE GRANTS ARE NOT HERE ANY MORE. They were a loop over `pg_class`
+   * run at this point — after every migration — which is why a revoke in a
+   * migration could not survive: the loop put the privilege straight back and
+   * the harness ended up more permissive than production. The default privilege
+   * in the shim above is what Supabase actually does, and it happens before the
+   * tables exist, so a later `revoke` or `grant (columns)` means what it says.
+   *
+   * The schema and storage grants stay explicit: `storage` is our own shim, so
+   * there is no Supabase default privilege to imitate, and usage on a schema is
+   * not granted by one either.
    */
   await admin.query(`
     grant usage on schema public to authenticated, anon;
@@ -276,22 +304,6 @@ export async function startPostgres(): Promise<Harness> {
     grant usage on schema storage to authenticated, anon;
     grant select, insert, update on storage.objects to authenticated, anon;
     grant select on storage.buckets to authenticated, anon;
-    do $$
-    declare rel record;
-    begin
-      for rel in
-        select c.relname
-        from pg_class c
-        join pg_namespace n on n.oid = c.relnamespace
-        where n.nspname = 'public' and c.relkind in ('r', 'p')
-      loop
-        execute format(
-          'grant select, insert, update on public.%I to authenticated, anon',
-          rel.relname
-        );
-      end loop;
-    end
-    $$;
   `);
 
   const open: Client[] = [];

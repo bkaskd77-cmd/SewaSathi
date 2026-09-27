@@ -249,6 +249,46 @@ divergence stays invisible until somebody is shown a job three wards away.
 **Before leaving a read to RLS, ask which admin policy is on that table.**
 `docs/rls-matrix.md` lists every one of them.
 
+### And RLS is row-level, so a write policy is not a column policy
+
+`profiles` had one update policy — `"Profiles are updatable by their owner"`,
+`using ((select auth.uid()) = id)` — and Supabase grants `authenticated`
+table-wide UPDATE on every table in `public` through a default privilege. Those
+two together let the owner write **every column on their own row**, and there
+was no trigger on the table. So:
+
+    PATCH /rest/v1/profiles?id=eq.<self>   {"role":"admin"}
+
+`using` and `with check` both passed, because `id` never changed. `is_admin()`
+then returned true and the six policies behind it opened — every profile, every
+booking, every payment, every triage log, and the identity documents in the
+private bucket. From any signed-in customer's browser, with the anon key that
+ships in the page.
+
+It is the same class as `enforce_booking_immutability`, which this file and
+CLAUDE.md both already record for `bookings`; nobody asked the question again
+one table over. It was found while adding the activity-strip opt-out — the
+product's first customer-facing write to `profiles`.
+
+**The fix is a column grant, in `20260927000005_profiles_column_grants.sql`:**
+UPDATE is revoked from `anon` and `authenticated` and granted back on
+`full_name`, `preferred_language` and `hide_from_activity` — the three a browser
+legitimately writes, in onboarding and on `/account`. `role`, `id`, `phone` and
+`created_at` are unwritable from any session. `service_role` is untouched, which
+is what keeps `lib/data/review.ts` able to promote an approved applicant.
+
+A grant rather than a trigger, because a trigger on this table would need an
+`auth.uid() is null` bypass for exactly that service-role write, and a bypass is
+a thing that can be reached the wrong way. `tests/db/profile-escalation.test.ts`
+executes the escalation as a signed-in customer rather than reading the catalog,
+and asserts the three allowed writes still work — a revoke that took
+`full_name` with it would have locked every new customer out of onboarding.
+
+**The guard that could not see it.** `tests/support/postgres.ts` re-granted
+table-wide privileges *after* applying the migrations, so any column grant a
+migration made was erased before a test looked. It sets Supabase's default
+privilege before the migrations instead, which is what the real database does.
+
 ---
 
 ## 2. Data inventory
