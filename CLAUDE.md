@@ -315,9 +315,18 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   production and a strict production check would hide it exactly where it is
   needed. Ordinary visitors never see it.
 
-`lib/mock/` — `activityFeed.ts` (becomes a Supabase realtime subscription in
-Phase 8) and `categoryStats.ts` (becomes a rolling booking aggregate in
-Phase 5). Every mock file states in a comment what replaces it and when.
+**`lib/mock/` is empty, and that is the point.** It held `activityFeed.ts` and
+`categoryStats.ts`, and both were rendering on the live homepage: a feed of
+invented customers in real Kathmandu wards with a hardcoded "3 minutes ago", and
+"312 booked this week" against 14 real bookings. They contradicted everything
+underneath them — a product that refuses to print `0.0` for an unrated
+professional and gates 36 invented durations was naming invented customers on
+the first screen anybody sees. The slots were **filled, not emptied**:
+`components/marketing/promise-strip.tsx` and the researched price floor on each
+category card, both true on day one. The Phase 8 realtime shape is recorded in
+that component's comment so deleting the ticker did not lose it. If a mock file
+is ever added again it states in a comment what replaces it and when — and it
+does not render to a customer.
 
 ## Services and discovery
 

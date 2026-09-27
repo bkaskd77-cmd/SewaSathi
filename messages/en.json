@@ -77,7 +77,6 @@
     "servicesEyebrow": "Services",
     "servicesTitle": "Ten trades, one number to call",
     "servicesLead": "Every category is staffed by professionals we've checked ourselves, with published rates so you know the cost before you book.",
-    "bookedThisWeek": "{n} booked this week",
     "stepsEyebrow": "How it works",
     "stepsTitle": "Four steps, no phone tag",
     "stepsLead": "The part most people worry about — what it will cost — is settled before anyone is dispatched.",
@@ -129,7 +128,14 @@
         "q": "How do you check the professionals?",
         "a": "Government ID and a citizenship or licence check before anyone takes a job, plus a skills assessment for the trade they're registering in. Their completion rate and rating come from real finished bookings, not self-reported claims."
       }
-    }
+    },
+    "promise": {
+      "payAfter": "You pay once the work is done, never before.",
+      "emergency": "Gas or sparking is treated as urgent, with what to do first.",
+      "freeToUse": "Free to use — our fee comes from the professional, not your price."
+    },
+    "fromPrice": "From {price}",
+    "surveyPriced": "Priced after a free survey"
   },
   "footer": {
     "company": "Company",
@@ -1046,14 +1052,6 @@
     "title": "That page isn’t here",
     "body": "The link may be old, or the address may have a typo in it. Everything we do is one tap away — start from the services list.",
     "action": "See all services"
-  },
-  "activity": {
-    "cleaning": "{name} in {area} booked a home cleaning — {minutes} min ago",
-    "plumberArrived": "{name}’s plumber arrived in {area} — {minutes} min ago",
-    "electrician": "{name} in {area} booked an electrician — {minutes} min ago",
-    "acDone": "{name}’s AC servicing in {area} was completed — {minutes} min ago",
-    "pestControl": "{name} in {area} booked pest control — {minutes} min ago",
-    "ratedCarpenter": "{name} in {area} rated a carpenter 5 stars — {minutes} min ago"
   },
   "legal": {
     "lastUpdated": "Last updated {date}",

@@ -57,16 +57,19 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Replaced by: `platformStats()` reads real counts and each one appears only above a floor — but **the filter matters more than the floor**, and that is why this entry survives its own fix. A floor of 25 would have PASSED on 26 seeded "verified" rows and put "28 ID-verified professionals" on the landing page: a smaller lie, arrived at carefully. So the count requires `application_id is not null` as well, and this blocker is now formally dependent on `seed-providers-and-reviews` — `npm run check:blockers` fails if this one is marked resolved while that one is open, so a green check here can never hide the reason the strip is empty.
 
 ### BLOCKER: activity-ticker
-- Status: unresolved
-- Claims: A live feed of bookings happening right now — named people in named wards, minutes ago. Every entry is invented and the list never changes.
-- Lives in: `lib/mock/activityFeed.ts`, `components/marketing/activity-ticker.tsx`, `activity` namespace in both catalogues
-- Replaced by: Phase 8 — a Supabase realtime subscription on `bookings`, filtered to the viewer's city, first names only. The component's shape already matches what that subscription returns.
+- Status: resolved
+- Claims: nothing, now. It claimed a live feed of bookings happening right now — named people in named wards, minutes ago. Every entry was invented, `minutesAgo` was a hardcoded constant so it read "3 minutes ago" permanently, and the list never changed. It was live on the homepage above the fold.
+- Lives in: `components/marketing/promise-strip.tsx`, which took the slot
+- Replaced by: three promises that are true on day one and enforced in code rather than asserted — paying only after the work (`lib/payments`), gas and sparking treated as urgent with what to do first (`lib/ai/safety.ts`, every path including the fallback), and our fee coming from the professional and never the customer's price (every constant in `lib/payments/payout.ts` says so, `cashCommissionSurchargeBps` is 0). **Not the obvious replacement**: the trust grid immediately above already carries "Upfront pricing" and "Work guaranteed", so a strip about price and the guarantee would have repeated the row above it in smaller type.
+- **The Phase 8 feed is still wanted, and its shape is recorded so deleting the component did not lose it**: a booking maps to `{ name (first only), area, actionKey, minutesAgo }` over a Supabase realtime subscription, filtered to the viewer's city, surnames stripped. The note lives at the foot of `promise-strip.tsx`. With 14 bookings there is nothing to show — a feed rendering two entries looks worse than none — so it returns when there is volume, and it returns as a second strip rather than by reviving this one.
+
 
 ### BLOCKER: category-booked-this-week
-- Status: unresolved
-- Claims: "312 booked this week" and similar on every category card. There have been no bookings.
-- Lives in: `lib/mock/categoryStats.ts`, rendered by `app/[locale]/page.tsx`
-- Replaced by: a rolling 7-day count per category over the `bookings` table, cached. Phase 9.
+- Status: resolved
+- Claims: nothing, now. It claimed "312 booked this week" and similar on every category card, against 14 real bookings across every category combined.
+- Lives in: `app/[locale]/page.tsx`, the card's last line
+- Replaced by: the **researched price floor** — "From Rs 350" — which is dated 2026-09-15, carries named sources and a confidence level, and answers what somebody choosing a category is actually asking. A count they cannot verify never did. `isSurveyPriced` decides, as it already does on five other surfaces: movers publishes no band anywhere, so it reads "Priced after a free survey" — the same sentence `/services` uses, taken from the same key so the two cannot drift. A category with no band never renders a floor of zero, which is rule 6.
+- The rolling 7-day count is still a reasonable thing to show **once it is true and above a floor**, the way `platformStats()` already gates the trust strip. It is not a blocker any more because nothing on the page claims it.
 
 ### BLOCKER: category-price-bands
 - Status: resolved

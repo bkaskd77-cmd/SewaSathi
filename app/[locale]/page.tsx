@@ -9,7 +9,7 @@ import {
   Timer,
 } from "lucide-react";
 
-import { ActivityTicker } from "@/components/marketing/activity-ticker";
+import { PromiseStrip } from "@/components/marketing/promise-strip";
 import { SiteFooter } from "@/components/marketing/footer";
 import { ProblemSearch } from "@/components/marketing/problem-search";
 import { Section, SectionHeading } from "@/components/marketing/section";
@@ -30,8 +30,12 @@ import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
-import { CATEGORY_BOOKINGS_THIS_WEEK } from "@/lib/mock/categoryStats";
+import {
+  categoryCopy,
+  isSurveyPriced,
+  SERVICE_CATEGORIES,
+} from "@/lib/config/services";
+import { formatNpr } from "@/lib/utils";
 import { site } from "@/lib/config/site";
 
 /**
@@ -124,7 +128,7 @@ export default async function Home() {
           left a sliver of clipped text under the sticky header, which reads as
           a broken page rather than a considered landing.
         */}
-        <section id="hero" className="relative overflow-hidden scroll-mt-16">
+        <section id="hero" className="relative scroll-mt-16 overflow-hidden">
           {/* Pure token gradient — nothing to download. */}
           <div
             aria-hidden="true"
@@ -222,7 +226,7 @@ export default async function Home() {
               ))}
             </ul>
           </div>
-          <ActivityTicker />
+          <PromiseStrip />
         </div>
 
         {/* ---------------- categories ---------------- */}
@@ -256,7 +260,19 @@ export default async function Home() {
               const copy = categoryCopy(category, locale);
               const featured = FEATURED_SLUGS.includes(slug);
               const last = i === SERVICE_CATEGORIES.length - 1;
-              const booked = CATEGORY_BOOKINGS_THIS_WEEK[slug];
+              /*
+                A RESEARCHED FLOOR, NOT AN INVENTED COUNT. This line used to
+                read "312 booked this week" against 14 real bookings across
+                every category. The band is `researched`, dated and sourced —
+                and it answers what somebody choosing a category is actually
+                asking, which a number they cannot verify never did.
+
+                `isSurveyPriced` decides, as it already does on five other
+                surfaces: movers publishes no band anywhere, because no Nepali
+                operator quotes a move without seeing it. A category with no
+                band must never render a floor of zero.
+              */
+              const surveyPriced = isSurveyPriced(category);
 
               const span = featured
                 ? "col-span-2 lg:col-span-4"
@@ -313,9 +329,14 @@ export default async function Home() {
                             {copy.descriptor}
                           </span>
 
-                          {/* Mock booking volume — see lib/mock/categoryStats.ts */}
                           <span className="mt-auto pt-3 text-caption tabular-nums text-muted-foreground/80 transition-transform duration-200 group-hover:-translate-y-px">
-                            {t("bookedThisWeek", { n: String(booked) })}
+                            {surveyPriced
+                              ? t("surveyPriced")
+                              : t("fromPrice", {
+                                  price: formatNpr(category.basePriceMin, {
+                                    locale,
+                                  }),
+                                })}
                           </span>
                         </div>
                       </Link>

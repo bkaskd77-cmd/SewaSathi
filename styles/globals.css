@@ -478,39 +478,6 @@
     }
   }
 
-  /* Ticker entry — a short fade and lift as each line replaces the last. */
-  .animate-ticker-in {
-    animation: ticker-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  @keyframes ticker-in {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  /* Live dot behind the ticker. */
-  .animate-live-pulse {
-    animation: live-pulse 2.4s ease-out infinite;
-  }
-
-  @keyframes live-pulse {
-    0% {
-      opacity: 0.7;
-      transform: scale(1);
-    }
-    70%,
-    100% {
-      opacity: 0;
-      transform: scale(3);
-    }
-  }
-
   /* Loading skeleton for the triage thinking state. */
   .animate-skeleton {
     animation: skeleton 1.2s ease-in-out infinite;
@@ -812,7 +779,6 @@
    */
   @media (prefers-reduced-motion: reduce) {
     .mesh,
-    .animate-live-pulse,
     .animate-skeleton,
     .animate-digit-in,
     .animate-shake {
@@ -846,12 +812,6 @@
        unmounts on a timer that must keep matching what is on screen. */
     .animate-pop-out {
       animation: pop-out 0.01s linear both;
-    }
-
-    .animate-ticker-in {
-      animation: none;
-      opacity: 1;
-      transform: none;
     }
 
     .btn-tactile,
