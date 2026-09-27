@@ -29,8 +29,17 @@ let listingId: string;
 beforeAll(async () => {
   pg = await startPostgres();
 
+  /*
+   * ITS OWN FIXTURE, NOT THE SEED'S. This read a seeded provider until the 28
+   * invented professionals were deleted and `seed/providers.json` emptied —
+   * then it failed on `rows[0].id` of an empty result. A test that leans on
+   * seed data is coupled to marketing content, and marketing content is exactly
+   * the thing that turned out to need deleting.
+   */
   const listing = await pg.admin.query<{ id: string }>(
-    "select id from public.providers where profile_id is null limit 1",
+    `insert into public.providers (display_name, base_rate, availability)
+     values ('Unclaimed listing for provisioning', 900, 'scheduled')
+     returning id`,
   );
   listingId = listing.rows[0].id;
 

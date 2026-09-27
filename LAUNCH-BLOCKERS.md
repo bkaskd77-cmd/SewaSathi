@@ -90,10 +90,12 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Replaced by: researched durations, which is `sub-band-durations` — and `check:blockers` enforces that dependency rather than trusting this line, the same way `trust-strip-counts` is chained to `seed-providers-and-reviews`. **The two duration numbers are gated differently on purpose.** A wrong `typical_working_minutes` reserves 90 minutes where 120 was right: bounded, the same order as the flat two-hour window it replaced, and strictly better than holding the same two hours for a tap washer and a whole-flat repaint — so an invented working figure is allowed to reserve, because a reservation nobody reads makes no claim. A wrong span takes four days of real bookable capacity, invisibly, and nothing on any screen distinguishes it from a measurement. A professional's own correction is evidence and passes the gate whatever our provenance says: they have been to the site, and what is gated is our guess, not their judgement.
 
 ### BLOCKER: seed-providers-and-reviews
-- Status: unresolved
+- Status: resolved
 - Claims: 28 named professionals with photos-worth-of-detail, ratings, job counts, completion rates, response times, and 94 written reviews from named customers. All invented. A visitor can browse them, read their verification breakdown, and tap "Book".
 - Lives in: `lib/data/seed/providers.json`, `lib/data/seed/reviews.json`, `supabase/migrations/20260830000002_services_seed.sql`
-- Replaced by: real provider onboarding (Phase 10). The seed rows must be deleted from the production database, not merely stopped from rendering — they are in the table, not just the fallback.
+- Replaced by: **done.** 24 of the 28 deleted from production outright; the other 4 retired with `is_active = false`, `closed_at` and `closed_reason = 'fixture'`, because `bookings.provider_id` is ON DELETE SET NULL and deleting them would have left 9 real bookings — 2 with `payout_due_at` — recording work paid for by nobody. Verified before and after: 14 bookings, all 14 still carrying their provider, 4 settled payouts intact, 2 listings visible to `anon`.
+- **And the seed JSON was emptied in the same commit**, which is the half that deleting rows does not cover: `lib/data/providers.ts` falls back to `seed/providers.json` when a query *errors*, so all 28 would have returned to a public page on any database hiccup. A fresh clone now renders an empty catalogue, which is a deliberate cost.
+- `provider_reviews` held **one** row in production and it is on a real listing. The 94 invented reviews existed only in `seed/reviews.json` and were never applied.
 
 ### BLOCKER: support-phone-number
 - Status: unresolved

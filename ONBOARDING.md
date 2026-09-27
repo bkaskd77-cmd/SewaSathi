@@ -326,10 +326,15 @@ in the same phase, or say plainly that you have not.
 - **Import `Link`, `redirect`, `useRouter`, `usePathname` from
   `@/i18n/navigation`**, never from `next/*`. One stray `next/link` drops a
   Nepali reader into English and nothing fails.
-- **The seed JSON is both the seed and the runtime fallback.** A fresh clone
-  with no keys renders the whole product — which means a broken query renders a
-  page that looks perfect. Every read records which path it took;
-  `?debug=data` prints it.
+- **The seed JSON is both the seed and the runtime fallback**, and every read
+  records which path it took (`?debug=data` prints it) because a broken query
+  otherwise renders a page that looks perfect. **`providers.json` and
+  `reviews.json` are deliberately empty**, so a fresh clone with no keys shows
+  an empty catalogue — they held 28 invented professionals, and because the
+  fallback fires on a query *error* as well as on missing keys, those 28 would
+  have returned to a public page on any database hiccup after being deleted.
+  `categories.json` is untouched. A failed read and an empty list are different
+  screens for the same reason.
 - **The serverless region and the database region are one decision.** Functions
   defaulted to Washington DC while Supabase sits in Singapore; every query
   crossed the Pacific and a signed-in page made a dozen. `vercel.json` pins

@@ -342,7 +342,10 @@
       "busyNow": "Not taking work right now",
       "busyThen": "Busy at that time",
       "full": "Fully booked then"
-    }
+    },
+    "unreadableTitle": "We can't load professionals right now",
+    "unreadableBody": "This is us, not you — nothing is wrong with your search. Try again in a moment, and if it keeps happening the fault is at our end.",
+    "tryAgain": "Try again"
   },
   "auth": {
     "login": {

@@ -41,14 +41,14 @@ default as a measurement.
 | `payments` | 2 | none | some | some | some | none | all |
 | `profiles` | 5 | none | some | some | some | some | all |
 | `provider_applications` | 0 | no data | no data | no data | no data | no data | no data |
-| `provider_categories` | 39 | all | all | all | all | all | all |
+| `provider_categories` | 0 | no data | no data | no data | no data | no data | no data |
 | `provider_contacts` | 2 | none | none | none | some | some | all |
 | `provider_documents` | 2 | none | none | none | some | some | all |
 | `provider_leads` | 0 | no data | no data | no data | no data | no data | no data |
 | `provider_ledger` | 0 | no data | no data | no data | no data | no data | no data |
 | `provider_reviews` | 0 | no data | no data | no data | no data | no data | no data |
-| `provider_stats` | 29 | all | all | all | all | all | all |
-| `providers` | 30 | all | all | all | all | all | all |
+| `provider_stats` | 1 | all | all | all | all | all | all |
+| `providers` | 2 | all | all | all | all | all | all |
 | `provisioned_accounts` | 0 | no data | no data | no data | no data | no data | no data |
 | `refunds` | 0 | no data | no data | no data | no data | no data | no data |
 | `security_events` | 2 | none | none | none | none | none | all |

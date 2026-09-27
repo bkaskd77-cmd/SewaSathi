@@ -1,9 +1,10 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { SearchX } from "lucide-react";
+import { CloudOff, SearchX } from "lucide-react";
 
 import { DataSourceBadge } from "@/components/services/data-source-badge";
 import { ProviderCard } from "@/components/services/provider-card";
 import { EmptyState } from "@/components/shared/empty-state";
+import { readDataSources } from "@/lib/data/source";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
@@ -144,6 +145,38 @@ export async function ProviderList({
   const visible = ranked.filter((provider) => showsInList(provider.fit));
 
   if (visible.length === 0) {
+    /*
+     * EMPTY BECAUSE NOBODY MATCHED, OR EMPTY BECAUSE WE COULD NOT LOOK?
+     *
+     * These were the same screen until the seed fixtures were deleted, and the
+     * deletion is what made the difference matter. `lib/data/seed/providers.json`
+     * used to hold 28 invented professionals and every failed read quietly
+     * rendered them, so a broken query looked like a full catalogue. It is empty
+     * now — which is correct, and means a failed read renders nothing at all.
+     *
+     * Telling somebody to widen their search when the database is unreachable
+     * sends them on a pointless journey and, worse, says "we have nobody" about
+     * a product that has professionals. `markDataSource` already records which
+     * path the read took, so the screen can tell the two apart rather than
+     * guessing from a row count — the same rule as everywhere else here: a
+     * failed read must never render as a measured zero.
+     */
+    const unreadable = readDataSources().providers.source !== "database";
+    if (unreadable) {
+      return (
+        <EmptyState
+          icon={CloudOff}
+          title={t("unreadableTitle")}
+          description={t("unreadableBody")}
+          action={
+            <Button variant="gold" asChild className="btn-tactile">
+              <Link href={clearHref}>{t("tryAgain")}</Link>
+            </Button>
+          }
+        />
+      );
+    }
+
     const area = params.area ? areaShortLabel(params.area, locale) : null;
 
     return (

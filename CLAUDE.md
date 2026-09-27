@@ -336,9 +336,26 @@ all read from it, so repricing happens once.
 
 The authored copy is `lib/data/seed/*.json`. It seeds the tables
 (`npm run seed:sql` regenerates the seed migration) **and** it is the fallback
-every read falls back to when Supabase is unconfigured or unreachable. That is
-why a fresh clone with no keys still renders the whole product. Edit the JSON,
-re-run `seed:sql`, apply the migration — never edit the generated SQL.
+every read falls back to when Supabase is unconfigured or unreachable. Edit the
+JSON, re-run `seed:sql`, apply the migration — never edit the generated SQL.
+
+**`providers.json` and `reviews.json` are empty now, and a fresh clone renders
+an empty catalogue.** They held 28 invented professionals with invented ratings
+and 94 written reviews from named customers. Deleting the rows from production
+was not enough: every read falls back to this JSON when a query *errors*, so a
+database hiccup would have put all 28 straight back onto a public page after we
+had removed them. The cost is real and was taken deliberately — a new developer
+with no keys sees a catalogue with nobody in it — and it is the right side of
+the trade, because the alternative is invented people reappearing where
+customers look. `categories.json` and `price-bands.json` are untouched: the ten
+services and their researched bands are real.
+
+**So an empty list and a failed read are now different screens.** They were the
+same one while the fallback always had 28 rows to render. `/services` asks
+`readDataSources()` and says "we can't load professionals right now — this is
+us, not you" rather than offering to widen a search it could not run. Rule 6 in
+the shape it takes for a screen: a failed read must never render as a measured
+zero.
 
 `lib/data/` is the boundary: `categories.ts`, `providers.ts` (list, one, counts,
 reviews) and `ranking.ts`. Pages never touch Supabase directly.
