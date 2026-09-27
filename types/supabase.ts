@@ -502,6 +502,28 @@ export type Database = {
         >;
         Relationships: [];
       };
+      cron_runs: {
+        Row: {
+          id: string;
+          job: string;
+          started_at: string;
+          finished_at: string | null;
+          ok: boolean | null;
+          summary: Record<string, unknown> | null;
+          error: string | null;
+        };
+        Insert: {
+          job: string;
+          started_at?: string;
+          finished_at?: string | null;
+          ok?: boolean | null;
+          summary?: unknown;
+          error?: string | null;
+        };
+        /* Append-only in the database, service role included. */
+        Update: never;
+        Relationships: [];
+      };
       security_events: {
         Row: {
           id: number;

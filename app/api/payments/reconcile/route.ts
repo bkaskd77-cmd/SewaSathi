@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { reconcileStuckPayments } from "@/lib/data/payments";
+import { recordCronRun } from "@/lib/data/cron-runs";
 import { sweepRedoRecovery, sweepWriteOffs } from "@/lib/data/recovery";
 
 /**
@@ -65,25 +66,58 @@ export async function GET(request: Request) {
   }
 
   /*
-   * SEQUENTIAL, NOT `Promise.all`, and this is the one place in the product
-   * where that is deliberate rather than an oversight. Reconciling can settle
-   * a payment, and settling stamps `payout_due_at` — so a booking that becomes
-   * due in the first half should be recoverable in the second half of the same
-   * run rather than waiting a day for the next one.
+   * THE RUN RECORDS ITSELF, and that is not bookkeeping — it is the only way to
+   * tell this job apart from one that never fired. With no debt outstanding
+   * `sweepRedoRecovery` correctly writes nothing, so "ran and had nothing to do"
+   * and "was never invoked" leave the same trace. The Cron Jobs page has no
+   * last-run column and Hobby's runtime log is gone by morning. See
+   * `lib/config/cron.ts`.
    */
-  const payments = await reconcileStuckPayments();
-  const recovery = await sweepRedoRecovery();
+  const startedAt = new Date();
 
-  /*
-   * LAST, AND THE ORDER IS THE POINT. Recovery runs first so a balance that
-   * can still be collected is collected; only what survives that is written
-   * off. Reversed, a dormant professional's debt would be cleared a moment
-   * before a due payout could have taken a quarter of it.
-   */
-  const writeOffs = await sweepWriteOffs();
+  try {
+    /*
+     * SEQUENTIAL, NOT `Promise.all`, and this is the one place in the product
+     * where that is deliberate rather than an oversight. Reconciling can settle
+     * a payment, and settling stamps `payout_due_at` — so a booking that becomes
+     * due in the first half should be recoverable in the second half of the same
+     * run rather than waiting a day for the next one.
+     */
+    const payments = await reconcileStuckPayments();
+    const recovery = await sweepRedoRecovery();
 
-  return NextResponse.json(
-    { payments, recovery, writeOffs },
-    { headers: { "cache-control": "no-store" } },
-  );
+    /*
+     * LAST, AND THE ORDER IS THE POINT. Recovery runs first so a balance that
+     * can still be collected is collected; only what survives that is written
+     * off. Reversed, a dormant professional's debt would be cleared a moment
+     * before a due payout could have taken a quarter of it.
+     */
+    const writeOffs = await sweepWriteOffs();
+
+    await recordCronRun({
+      job: "/api/payments/reconcile",
+      startedAt,
+      ok: true,
+      summary: { payments, recovery, writeOffs },
+    });
+
+    return NextResponse.json(
+      { payments, recovery, writeOffs },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch (thrown) {
+    /*
+     * A FAILED RUN IS THE MOST IMPORTANT ONE TO RECORD. Without this the row
+     * would only ever exist for runs that worked, and a job failing every night
+     * would look exactly like a job nobody had scheduled — which is the bug this
+     * table was built for, reintroduced one level in.
+     */
+    await recordCronRun({
+      job: "/api/payments/reconcile",
+      startedAt,
+      ok: false,
+      error: thrown instanceof Error ? thrown.message : String(thrown),
+    });
+    throw thrown;
+  }
 }

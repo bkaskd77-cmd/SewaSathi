@@ -3,6 +3,17 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
+import {
+  CRON_JOBS,
+  DAILY_JOB_STALE_AFTER_HOURS,
+  runFreshness,
+} from "@/lib/config/cron";
+import {
+  FALLBACK_FIRING_STATE,
+  FALLBACK_UNREADABLE_STATE,
+  servesCustomers,
+} from "@/lib/config/health";
+import { lastCronRuns } from "@/lib/data/cron-runs";
 import { hasSupabaseConfig } from "@/lib/env";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
@@ -616,9 +627,17 @@ async function checkTriageModel(): Promise<Check> {
  * started refusing our prompt, or a schema of ours that rejects every reply.
  *
  * Cheap: one counted read on the partial index `triage_logs` carries for exactly
- * this. `unknown` rather than `down` when it fires — the product answered every
- * one of those people, which is the whole design, so nothing is broken for a
- * customer and a 503 would be a lie.
+ * this.
+ *
+ * IT REPORTS `ok` WHEN IT FIRES, and the previous comment here is worth keeping
+ * as a warning. It read: "`unknown` rather than `down` when it fires — the
+ * product answered every one of those people, which is the whole design, so
+ * nothing is broken for a customer and a 503 would be a lie." The reasoning is
+ * exactly right and the state did not deliver it — `servesCustomers` fails on
+ * `unknown` and `down` alike, so the 503 it refused was served anyway. It fired
+ * in production on a live key and returned 503 for a product that answered
+ * every customer. A comment claiming a behaviour the code does not have is
+ * worse than no comment; the state is a tested constant now.
  */
 async function checkTriageFallback(): Promise<Check> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -665,17 +684,91 @@ async function checkTriageFallback(): Promise<Check> {
     }
     return {
       name: "triage.fallback",
-      state: "unknown",
+      /*
+       * `ok`, AND THE COMMENT ABOVE USED TO CLAIM `unknown` ACHIEVED THIS.
+       * `servesCustomers` treats unknown and down identically, so the 503 that
+       * comment refused was served anyway — in production, on four triages that
+       * every customer got an answer to. The state lives in lib/config/health.ts
+       * now, where a test asserts it. See FALLBACK_FIRING_STATE.
+       */
+      state: FALLBACK_FIRING_STATE,
       detail:
         `${fell} of ${all} triages in the last hour were answered by the ` +
-        `keyword matcher despite a key being set. Customers all got an answer. ` +
-        `/admin/triage-accuracy says which cause.`,
+        `keyword matcher despite a key being set. Customers all got an answer, ` +
+        `so this is not an outage. /admin/triage-accuracy says which cause.`,
     };
   } catch (error) {
     return {
       name: "triage.fallback",
-      state: "unknown",
+      // Still `unknown`: not being able to LOOK is the original meaning of the
+      // state and keeps its 503. Looking and finding something harmless is not.
+      state: FALLBACK_UNREADABLE_STATE,
       detail: `Could not read the triage log: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
+
+/**
+ * HAVE THE SCHEDULED JOBS ACTUALLY BEEN RUNNING?
+ *
+ * The fault this cannot otherwise see: a cron that silently stops firing looks
+ * exactly like a cron with nothing to do. `/api/payments/reconcile` nets
+ * guarantee debt off future earnings and `/api/bookings/dispatch` widens a job
+ * nobody accepted — both correctly write nothing when there is nothing due, so
+ * neither leaves a trace of having run. The Cron Jobs dashboard has no last-run
+ * column and Hobby's runtime log is gone within the hour, which is how this went
+ * three rounds of questioning without an answer. `cron_runs` is the record.
+ *
+ * IT REPORTS `ok` EVEN WHEN A JOB IS STALE, and that is deliberate rather than
+ * a dodge — the same call, made consistently, as the fallback check three
+ * hundred lines up. `servesCustomers` turns anything but `ok`/`skipped` into a
+ * 503, and this endpoint answers "can this serve a customer right now". A
+ * dispatch sweep that has not run since yesterday is a real problem and is not
+ * that question; every page still renders and every customer can still book.
+ * Which jobs are urgent enough to take the endpoint down is a product decision
+ * with a threshold in it, and there are no runs yet to choose one from — so
+ * this measures and does not grade, and the detail says plainly what it found.
+ *
+ * NEVER-RECORDED IS NOT NEVER-RAN. The table shipped today; every run before it
+ * is silent and saying otherwise would manufacture a finding from an absence.
+ */
+async function checkCronRuns(): Promise<Check> {
+  if (!hasSupabaseConfig()) {
+    return {
+      name: "cron.runs",
+      state: "skipped",
+      detail: "Supabase not configured, so no run history exists to read.",
+    };
+  }
+
+  try {
+    const runs = await lastCronRuns();
+    const parts = CRON_JOBS.map((job) => {
+      const run = runs.get(job);
+      const freshness = runFreshness(run?.startedAt ?? null);
+      if (freshness.state === "never") {
+        return `${job}: no run recorded yet`;
+      }
+      const hours = freshness.hoursAgo.toFixed(1);
+      const outcome = run?.ok === false ? " and it FAILED" : "";
+      return freshness.state === "stale"
+        ? `${job}: last ran ${hours}h ago — overdue${outcome}`
+        : `${job}: ran ${hours}h ago${outcome}`;
+    });
+
+    return {
+      name: "cron.runs",
+      state: "ok",
+      detail: `${parts.join(" · ")}. Daily jobs are overdue past ${DAILY_JOB_STALE_AFTER_HOURS}h (24 + Hobby's 1h window + slack).`,
+    };
+  } catch (error) {
+    return {
+      name: "cron.runs",
+      state: "ok",
+      detail: `Could not read cron_runs: ${
         error instanceof Error ? error.message : String(error)
       }`,
     };
@@ -797,6 +890,7 @@ export async function GET(request: Request) {
     ])),
     checkTriage(),
     await checkTriageFallback(),
+    await checkCronRuns(),
     checkSmsGateway(),
     checkRateLimiter(),
     await checkSmsBudget(),
@@ -807,8 +901,9 @@ export async function GET(request: Request) {
   }
 
   // `unknown` is not healthy. The whole point of this endpoint is that an
-  // unverifiable dependency is what broke sign-in in the first place.
-  const ok = checks.every((check) => check.state === "ok" || check.state === "skipped");
+  // unverifiable dependency is what broke sign-in in the first place. The rule
+  // lives in lib/config/health.ts so it can be tested; it had never been.
+  const ok = servesCustomers(checks);
 
   return NextResponse.json(
     { ok, commit: BUILD_COMMIT_SHORT, deep: deepAllowed, checks },

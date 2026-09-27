@@ -6,6 +6,7 @@ import { sweepDispatch } from "@/lib/data/dispatch";
 import { publishDueReviews } from "@/lib/data/reviews";
 import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
+import { recordCronRun } from "@/lib/data/cron-runs";
 
 /**
  * The sweep that keeps a promise.
@@ -41,25 +42,46 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "notConfigured" }, { status: 503 });
   }
 
-  /*
-   * The quote sweep rides along rather than getting a cron of its own. Both
-   * answer the same question — "is this booking still waiting on something
-   * that has already run out?" — both are idempotent, and a second scheduled
-   * endpoint is a second thing that can silently stop running.
-   */
-  const [result, quotes, reviews] = await Promise.all([
-    sweepDispatch(),
-    expireStaleQuotes(),
-    publishDueReviews(),
-  ]);
-  return NextResponse.json(
-    {
+  // The run records itself — see lib/config/cron.ts. A sweep that correctly
+  // finds nothing due leaves no other trace that it happened.
+  const startedAt = new Date();
+
+  try {
+    /*
+     * The quote sweep rides along rather than getting a cron of its own. Both
+     * answer the same question — "is this booking still waiting on something
+     * that has already run out?" — both are idempotent, and a second scheduled
+     * endpoint is a second thing that can silently stop running.
+     */
+    const [result, quotes, reviews] = await Promise.all([
+      sweepDispatch(),
+      expireStaleQuotes(),
+      publishDueReviews(),
+    ]);
+
+    const summary = {
       ...result,
       quotesExpired: quotes.expired,
       reviewsPublished: reviews.published,
-    },
-    {
+    };
+
+    await recordCronRun({
+      job: "/api/bookings/dispatch",
+      startedAt,
+      ok: true,
+      summary,
+    });
+
+    return NextResponse.json(summary, {
       headers: { "cache-control": "no-store" },
-    },
-  );
+    });
+  } catch (thrown) {
+    await recordCronRun({
+      job: "/api/bookings/dispatch",
+      startedAt,
+      ok: false,
+      error: thrown instanceof Error ? thrown.message : String(thrown),
+    });
+    throw thrown;
+  }
 }

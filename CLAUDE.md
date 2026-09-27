@@ -651,8 +651,22 @@ verify`, and any can be changed by somebody not looking at this code.
   triage key. **`?deep=1`**, behind `CRON_SECRET`, additionally asks Supabase to
   send a real OTP to `SMS_HEALTH_NUMBER` — the only way to know a gateway's
   credentials are real. Point it at a Supabase *test* number and it is free.
-- **`unknown` is never `ok`.** Not looking must never read as working; that is
-  precisely the confusion that let this run for a day. **`session.config` is
+- **`unknown` is never `ok` — and the corollary was missed for months, which
+  503'd a working product.** Not looking must never read as working; that is
+  precisely the confusion that let this run for a day. The other half is that a
+  check may only be `unknown` or `down` when a customer is actually affected,
+  because `servesCustomers` (`lib/config/health.ts`) turns everything but `ok`
+  and `skipped` into a 503. `checkTriageFallback` returned `unknown` under a
+  comment reading "`unknown` rather than `down` when it fires… nothing is broken
+  for a customer and a 503 would be a lie" — every word of the reasoning right,
+  and the state delivering none of it, since unknown and down are the same
+  verdict there. **It fired in production**: a live key, 4 of 4 triages answered
+  by the keyword matcher, `/api/health` returning 503 while all four customers
+  got an answer, which is what the fallback is FOR. Any monitor on that URL would
+  have paged for a working product. `checkTriage` twenty lines away had already
+  written the correct resolution down. The rule and both fallback states are
+  tested constants now — **`/api/health` had no test of any kind before this**,
+  which is how a comment describing behaviour the code did not have survived. **`session.config` is
   permanently `unknown` on purpose** — JWT expiry and refresh-token rotation
   are dashboard settings and reading them needs a management token this
   product deliberately does not hold, so the line names the dimension and says
@@ -706,6 +720,31 @@ verify`, and any can be changed by somebody not looking at this code.
 - **`site.supportPhone` is one constant.** It appears on five screens and one
   of them is that fallback — the screen somebody reaches when nothing else in
   the product is working for them.
+- **A scheduled job records that it ran, because nothing else could say so.**
+  `/api/payments/reconcile` runs `sweepRedoRecovery`; with no debt outstanding a
+  correct run writes nothing, so "ran and had nothing to do" and "was never
+  invoked in the life of the product" left byte-identical traces. Three oracles
+  were tried and each failed differently: **the Cron Jobs dashboard has no
+  last-run column** (it proves the jobs are registered and enabled, and nothing
+  else); **Hobby's runtime log is a short retention window**, so the 03:00–04:00
+  UTC run is long gone by the time anybody looks and an empty thirty-minute view
+  reads exactly like a job that never fired; and **the database shows nothing**,
+  because that is the premise. `cron_runs` is the record — append-only for every
+  caller including the service role, like `security_events`, since the whole
+  value is that "it ran" cannot later be tidied into "it did not". Both routes
+  record on success **and in a catch**, because a job failing every night would
+  otherwise look exactly like a job nobody scheduled. `CRON_JOBS` in
+  `lib/config/cron.ts` is one list written three times — here, `vercel.json`, and
+  the check constraint — so a test compares all three: a cron added without a
+  recorder records nothing, and a recorder the constraint does not know loses the
+  row in the same statement that writes it. **Null in `ok` is "nobody said", not
+  "it failed"**, and **no recorded run is not "it never ran"** — the table ships
+  after the product, so every earlier run is silent. `cron.runs` on `/api/health`
+  reports `ok` even when a job is stale, deliberately and consistently with the
+  fix above: a dispatch sweep that has not run is a real problem and is not the
+  question "can this serve a customer right now". Which jobs are urgent enough to
+  503 is a threshold nobody has runs to choose yet, so it measures and does not
+  grade.
 - The SMS gateway is a **launch blocker** until `?deep=1` reports
   `auth.sms: ok` against production. The dashboard looked correct the whole
   time it was broken.
