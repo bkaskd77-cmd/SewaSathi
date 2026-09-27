@@ -50,3 +50,34 @@ export const STAT_FLOORS = {
  * absence is the honest shape for a number we are not ready to stand behind.
  */
 export const CATEGORY_COUNT_FLOOR = 20;
+
+/* ------------------------------------------------------------------ *
+ * The activity strip
+ * ------------------------------------------------------------------ */
+
+/**
+ * How long after a job finishes before it may appear on the homepage.
+ *
+ * NOTHING LIVE WHILE SOMEBODY IS AT THE DOOR. A feed that updates as a
+ * professional arrives tells a stranger that this household has a stranger in
+ * it right now, and it tells them the trade. An hour is not privacy on its own
+ * — the city and the first name are what keep this thin — but it breaks the
+ * link between the page and the moment.
+ *
+ * It is also why this is a cached read rather than a realtime subscription:
+ * with an hour's delay there is nothing live to subscribe to.
+ */
+export const ACTIVITY_DELAY_MINUTES = 60;
+
+/**
+ * How many eligible entries before the strip appears at all.
+ *
+ * SILENT BELOW IT, rather than one lonely line. A feed showing a single
+ * booking says "this is all that has ever happened here", which is worse than
+ * saying nothing and is the failure the invented ticker was built to avoid by
+ * lying. Eight is enough that no single household is the feed.
+ */
+export const ACTIVITY_FLOOR = 8;
+
+/** Never more than this on screen, however much is eligible. */
+export const ACTIVITY_MAX = 12;

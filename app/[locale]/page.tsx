@@ -9,6 +9,7 @@ import {
   Timer,
 } from "lucide-react";
 
+import { ActivityStrip } from "@/components/marketing/activity-strip";
 import { PromiseStrip } from "@/components/marketing/promise-strip";
 import { SiteFooter } from "@/components/marketing/footer";
 import { ProblemSearch } from "@/components/marketing/problem-search";
@@ -35,7 +36,7 @@ import {
   isSurveyPriced,
   SERVICE_CATEGORIES,
 } from "@/lib/config/services";
-import { categoryBookingCounts } from "@/lib/data/activity";
+import { categoryBookingCounts, recentActivity } from "@/lib/data/activity";
 import { formatNpr } from "@/lib/utils";
 import { site } from "@/lib/config/site";
 
@@ -95,16 +96,21 @@ export async function generateMetadata({
 export default async function Home() {
   // One wave, per the latency rule: these do not depend on each other, and the
   // booking counts are a cached aggregate so most renders pay nothing for them.
-  const [profile, locale, t, tNav, stats, bookingCounts] = await Promise.all([
-    getSessionProfile(),
-    getLocale() as Promise<Locale>,
-    getTranslations("home"),
-    getTranslations("nav"),
-    // Cached per request, and it returns nothing at all rather than a smaller
-    // number when the evidence is thin. See `platformStats`.
-    platformStats(),
-    categoryBookingCounts(),
-  ]);
+  const [profile, locale, t, tNav, stats, bookingCounts, activity] =
+    await Promise.all([
+      getSessionProfile(),
+      getLocale() as Promise<Locale>,
+      getTranslations("home"),
+      getTranslations("nav"),
+      // Cached per request, and it returns nothing at all rather than a smaller
+      // number when the evidence is thin. See `platformStats`.
+      platformStats(),
+      categoryBookingCounts(),
+      // Both of these are cached across visitors rather than per request, so
+      // most renders pay nothing for either. One wave, per the latency rule —
+      // nothing here depends on anything else here.
+      recentActivity(),
+    ]);
 
   /*
    * One function decides every door in the header — see `headerIdentity`.
@@ -361,6 +367,15 @@ export default async function Home() {
             })}
           </ul>
         </Section>
+
+        {/* ---------------- what has actually happened ---------------- */}
+        {/*
+          Real finished jobs, or nothing. It returns null below the floor and on
+          a failed read, so this slot is silent until there is enough behind it
+          — which is why it sits here rather than above the fold, where a band
+          appearing and disappearing would move the hero.
+        */}
+        <ActivityStrip entries={activity} />
 
         {/* ---------------- how it works ---------------- */}
         <Section
