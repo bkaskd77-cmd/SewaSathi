@@ -35,6 +35,7 @@ import {
   isSurveyPriced,
   SERVICE_CATEGORIES,
 } from "@/lib/config/services";
+import { categoryBookingCounts } from "@/lib/data/activity";
 import { formatNpr } from "@/lib/utils";
 import { site } from "@/lib/config/site";
 
@@ -92,7 +93,9 @@ export async function generateMetadata({
 }
 
 export default async function Home() {
-  const [profile, locale, t, tNav, stats] = await Promise.all([
+  // One wave, per the latency rule: these do not depend on each other, and the
+  // booking counts are a cached aggregate so most renders pay nothing for them.
+  const [profile, locale, t, tNav, stats, bookingCounts] = await Promise.all([
     getSessionProfile(),
     getLocale() as Promise<Locale>,
     getTranslations("home"),
@@ -100,6 +103,7 @@ export default async function Home() {
     // Cached per request, and it returns nothing at all rather than a smaller
     // number when the evidence is thin. See `platformStats`.
     platformStats(),
+    categoryBookingCounts(),
   ]);
 
   /*
@@ -273,6 +277,7 @@ export default async function Home() {
                 band must never render a floor of zero.
               */
               const surveyPriced = isSurveyPriced(category);
+              const booked = bookingCounts.get(slug);
 
               const span = featured
                 ? "col-span-2 lg:col-span-4"
@@ -337,6 +342,15 @@ export default async function Home() {
                                     locale,
                                   }),
                                 })}
+                            {/*
+                              REAL, AND ONLY ABOVE ITS FLOOR. `categoryBookingCounts`
+                              drops anything under CATEGORY_COUNT_FLOOR, so a slug
+                              missing from the map is one we are not ready to print
+                              a figure for — never a zero, never "fewer than 20".
+                            */}
+                            {booked === undefined ? null : (
+                              <> · {t("bookedThisWeek", { n: String(booked) })}</>
+                            )}
                           </span>
                         </div>
                       </Link>

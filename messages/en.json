@@ -135,7 +135,8 @@
       "freeToUse": "Free to use — our fee comes from the professional, not your price."
     },
     "fromPrice": "From {price}",
-    "surveyPriced": "Priced after a free survey"
+    "surveyPriced": "Priced after a free survey",
+    "bookedThisWeek": "{n} booked this week"
   },
   "footer": {
     "company": "Company",

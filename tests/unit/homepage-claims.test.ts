@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import en from "@/messages/en.json";
 import ne from "@/messages/ne.json";
+import { CATEGORY_COUNT_FLOOR } from "@/lib/config/platform";
 import { isSurveyPriced, SERVICE_CATEGORIES } from "@/lib/config/services";
 
 /**
@@ -24,9 +25,27 @@ describe("nothing on the homepage claims a number nobody measured", () => {
     expect(ne).not.toHaveProperty("activity");
   });
 
-  it("has no booking-count string left in either catalogue", () => {
-    expect(en.home).not.toHaveProperty("bookedThisWeek");
-    expect(ne.home).not.toHaveProperty("bookedThisWeek");
+  /*
+   * THE COUNT IS BACK, AND IT IS REAL THIS TIME. It was "312 booked this week"
+   * from `lib/mock/categoryStats.ts` against 14 real bookings. It is now a
+   * rolling seven-day count from `bookings`, cached across visitors, and
+   * printed only above a floor — so the string exists again and what stands
+   * behind it does not.
+   */
+  it("has a booking-count string in both catalogues again", () => {
+    expect(en.home.bookedThisWeek).toContain("{n}");
+    expect(ne.home.bookedThisWeek).toContain("{n}");
+  });
+
+  /*
+   * A REAL NUMBER CAN STILL MISLEAD, which is what the floor is for. "2 booked
+   * this week" invites a conclusion about demand from a sample that supports
+   * none. Below the floor the card shows nothing extra — not a zero, not
+   * "fewer than twenty" — because an absence is the honest shape for a figure
+   * we are not ready to stand behind.
+   */
+  it("sets the floor high enough that the figure means something", () => {
+    expect(CATEGORY_COUNT_FLOOR).toBeGreaterThanOrEqual(20);
   });
 
   /*

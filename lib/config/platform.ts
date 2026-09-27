@@ -32,3 +32,21 @@ export const STAT_FLOORS = {
    */
   ratedJobs: RATING_PRIOR_COUNT,
 } as const;
+
+/**
+ * How many bookings a category needs in a week before the count is worth
+ * printing on its card.
+ *
+ * SAME RULE AS THE STRIP ABOVE, one level down. "312 booked this week" was
+ * invented and is gone; the replacement is real, and a real number can still
+ * mislead — "2 booked this week" on a card invites the reader to conclude
+ * something about demand from a sample that supports no conclusion at all.
+ *
+ * Twenty, because below it the figure describes how new we are rather than how
+ * busy the trade is, and a customer reads it as the second.
+ *
+ * BELOW THE FLOOR THE CARD SHOWS NOTHING EXTRA — not "0 booked", not "fewer
+ * than 20". The price line it already carries is true at any volume, and an
+ * absence is the honest shape for a number we are not ready to stand behind.
+ */
+export const CATEGORY_COUNT_FLOOR = 20;
