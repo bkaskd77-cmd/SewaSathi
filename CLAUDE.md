@@ -3,6 +3,12 @@
 AI-native home services platform for Nepal. Next.js 14 (App Router) · Tailwind ·
 shadcn-style primitives · Supabase · Claude · Vercel.
 
+**A person joining cold reads `ONBOARDING.md` first** — the four invariants, the
+guards and what each catches, the migration rules, and the incidents that
+produced them. This file is the standing law in full and wins wherever the two
+disagree; that one is the forty-minute version written for somebody who has
+never seen the repo.
+
 ## Working agreement
 
 - **One phase at a time.** Every phase, and every substantial change inside

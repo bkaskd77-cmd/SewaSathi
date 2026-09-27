@@ -3,9 +3,19 @@
 AI-native home services platform for Nepal — plumbing, electrical, cleaning,
 appliance repair, carpentry, pest control and similar household work.
 
-**Status: Phase 2 — landing page live.** Foundation, design system and the public
-marketing homepage are built. `/design-system` holds the internal component
-reference. Auth, AI triage and booking are still ahead.
+**Status: pre-launch, and further along than this README used to claim.** Auth
+(phone + OTP), AI triage, the booking flow, payments, the guarantee and the
+admin surface are all built and deployed. What is missing is real traffic —
+`LAUNCH-BLOCKERS.md` is the list of everything on a public URL we cannot yet
+stand behind, and the SMS gateway at the top of it is what stops anybody
+signing in.
+
+> ### Joining this codebase?
+>
+> **Read [`ONBOARDING.md`](./ONBOARDING.md) first.** Forty minutes, and it is
+> the difference between being trusted with a change and having to read 65
+> migrations. This repository has more invariants than its size suggests, and
+> the failures it guards against do not crash — they look like success.
 
 ---
 
