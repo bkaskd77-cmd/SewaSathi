@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { LogOut, Phone, User } from "lucide-react";
+import { Eye, EyeOff, LogOut, Phone, User } from "lucide-react";
 
+import { setActivityOptOutAction } from "@/app/[locale]/(app)/account/actions";
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import { readActivityOptOut } from "@/lib/data/profile-prefs";
 import { formatE164ForDisplay } from "@/lib/auth";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 
@@ -46,6 +48,15 @@ export default async function AccountPage() {
   if (!profile) {
     redirect({ href: "/login?next=%2Faccount", locale });
   }
+
+  /*
+   * A SECOND WAVE, because it needs the profile id — and NOT a widening of
+   * `getSessionProfile`. That object is held by the site header on every page in
+   * the product; a preference one screen needs does not belong in it, and the
+   * read it already makes is not made cheaper by carrying a column nobody else
+   * asks for.
+   */
+  const hiddenFromActivity = await readActivityOptOut(profile.id);
 
   const rows = [
     {
@@ -133,6 +144,64 @@ export default async function AccountPage() {
             })
           : t("changeNoteNoPhone")}
       </p>
+
+      {/* ---------------- the activity strip opt-out ---------------- */}
+      {/*
+        THE ONE THING ON THIS SCREEN THAT CAN BE CHANGED, and it is here rather
+        than in the booking flow on purpose: one setting somebody can find and
+        reason about once, applying to everything they have booked and everything
+        they book later, rather than a checkbox they must notice every time.
+
+        A PLAIN FORM AND A SUBMIT BUTTON, so this page still ships no client
+        JavaScript. The hidden field carries the value being asked for rather
+        than a flip, so a stale page or a double tap cannot put somebody back
+        into a feed they have just left.
+
+        UNAVAILABLE IS NOT OFF. `readActivityOptOut` returns null when it could
+        not ask, and a toggle rendered as "off" on a failed read would tell
+        somebody they are visible when nobody knows — the same mistake as a
+        failed catalogue read rendering as an empty catalogue.
+      */}
+      <Card
+        className="animate-rise mt-8 p-5"
+        style={{ animationDelay: "150ms" }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2.5 text-body-md font-semibold">
+              {hiddenFromActivity ? (
+                <EyeOff aria-hidden="true" className="size-4 shrink-0" />
+              ) : (
+                <Eye aria-hidden="true" className="size-4 shrink-0" />
+              )}
+              {t("activityTitle")}
+            </h2>
+            <p className="mt-2 text-body-sm text-muted-foreground">
+              {t("activityBody")}
+            </p>
+            <p className="mt-1 text-caption text-muted-foreground">
+              {hiddenFromActivity === null
+                ? t("activityUnknown")
+                : hiddenFromActivity
+                  ? t("activityHidden")
+                  : t("activityShown")}
+            </p>
+          </div>
+        </div>
+
+        {hiddenFromActivity === null ? null : (
+          <form action={setActivityOptOutAction} className="mt-4">
+            <input
+              type="hidden"
+              name="hidden"
+              value={hiddenFromActivity ? "false" : "true"}
+            />
+            <Button type="submit" variant="outline" className="btn-tactile">
+              {hiddenFromActivity ? t("activityShowMe") : t("activityHideMe")}
+            </Button>
+          </form>
+        )}
+      </Card>
 
       {/*
         Log out is in the header menu too, but that menu is a hover-sized

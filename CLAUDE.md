@@ -328,6 +328,30 @@ that component's comment so deleting the ticker did not lose it. If a mock file
 is ever added again it states in a comment what replaces it and when — and it
 does not render to a customer.
 
+**And both numbers are real now, both with a floor.** `lib/data/activity.ts`
+holds them, cached across visitors for fifteen minutes rather than per request —
+`categoryBookingCounts` is the rolling seven-day count on each category card,
+silent under `CATEGORY_COUNT_FLOOR` (20), and `recentActivity` is the strip,
+silent under `ACTIVITY_FLOOR` (8). **A real number can still mislead**: "2 booked
+this week" invites a conclusion about demand that a sample of two supports in no
+direction, so below a floor the card shows only the researched price line it
+already carried and the strip renders nothing at all.
+The strip's select **is** the privacy boundary — first name, trade, city, and
+never the ward, because "Anita in Baneshwor" narrows somebody to a few hundred
+households. It is delayed an hour on the *completion* stamp, since a feed that
+moves as somebody arrives tells a stranger that this household has a stranger in
+it right now; the customer can opt out on `/account`; and a booking with a
+guarantee claim or a disputed amount never appears, because nobody mid-complaint
+should find that work advertised. **A cached read rather than a realtime
+subscription, and the delay is what settles it** — with an hour's lag there is
+nothing live to subscribe to, and a socket would put ~70 kB of supabase-js on the
+landing page to deliver events the page must refuse to show.
+**Its floor tests were blind first**: every case read `ACTIVITY_FLOOR`, so
+lowering the floor to 1 left them all green — they asserted that the floor is the
+floor. What the constraint actually says is that **one lonely entry is never the
+feed**, and that is pinned as a behaviour now. Any test written against a
+constant that the code also reads is worth this suspicion.
+
 ## Services and discovery
 
 `categories` is the single source of truth for the ten services — the landing
@@ -1138,6 +1162,33 @@ endpoint or stores a new kind of personal data.
   checks size before decoding, magic bytes rather than the content type,
   dimensions from the file's own header, and strips EXIF — a photograph taken
   in somebody's kitchen carries that kitchen's coordinates.
+- **A write policy is not a column policy, and `profiles` proved it twice over.**
+  RLS is row-level and Supabase grants `authenticated` table-wide UPDATE through
+  a default privilege, so `"Profiles are updatable by their owner"` let the owner
+  write **every** column on their own row — `role` included — with no trigger on
+  the table. One `PATCH /rest/v1/profiles?id=eq.<self> {"role":"admin"}` from any
+  signed-in customer's browser passed both `using` and `with check`, because `id`
+  never changed, and `is_admin()` then opened the six policies behind it: every
+  profile, booking, payment, triage log, and the identity documents in the
+  private bucket. It is the same class as `enforce_booking_immutability`, which
+  this file already recorded for `bookings`; nobody asked the question again one
+  table over, and it was found while adding the activity opt-out — the first
+  customer-facing write this table has ever had.
+  **The fix is a column grant, not a second trigger.** `20260927000005` revokes
+  UPDATE from `anon` and `authenticated` and grants it back on `full_name`,
+  `preferred_language` and `hide_from_activity`: the three a browser legitimately
+  writes, in onboarding and on `/account`. A grant is refused before a row is
+  considered and needs no `auth.uid() is null` bypass — `bookings` needs one
+  because the service role writes the columns it guards, and a bypass is a thing
+  that can be reached the wrong way. `service_role` is untouched, which is what
+  leaves `lib/data/review.ts` able to promote an approved applicant.
+  **And the harness could not have seen it.** `tests/support/postgres.ts`
+  re-granted table-wide privileges in a loop *after* applying the migrations, so
+  any column grant a migration made was erased before a test looked — the fixed
+  migration would have read as still broken with no way to tell the two apart. It
+  sets Supabase's default privilege before the migrations now, which is what the
+  real database does. **So before adding an UPDATE policy, ask which column on
+  that table confers power**, and check the grant as well as the policy.
 - **`security_events` is append-only and the trigger refuses UPDATE and DELETE
   for every caller, service role included.** A log the application can edit
   proves nothing. `lib/audit` never throws: the event already happened.

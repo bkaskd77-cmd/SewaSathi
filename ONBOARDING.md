@@ -225,7 +225,7 @@ wherever a rule has no legitimate exception.**
 
 ---
 
-## 5. Four incidents, and what each one left behind
+## 5. Five incidents, and what each one left behind
 
 ### The sign-in outage — why there is so much observability
 
@@ -312,6 +312,47 @@ It was not a one-off. The same shape appeared three more times:
 Left behind: **test the ends, not the links** — a per-link test would have
 passed throughout. And when you ship a column, ship the thing that writes to it
 in the same phase, or say plainly that you have not.
+
+### The self-promoting customer — why you check the grant, not just the policy
+
+`profiles` had one update policy, `using ((select auth.uid()) = id)`, and it is
+correct: you may update your own row and nobody else's. What it does not say —
+because Postgres has no way for it to say — is **which columns**. RLS is
+row-level, and Supabase grants `authenticated` table-wide UPDATE on every table
+in `public` through a default privilege. So one request from any signed-in
+customer's browser, with the anon key that ships in the page:
+
+    PATCH /rest/v1/profiles?id=eq.<self>   {"role":"admin"}
+
+`using` and `with check` both pass, because `id` never changes. `is_admin()` then
+returns true and the six policies behind it open — every profile, every booking,
+every payment, every triage log, and the identity documents in the private
+bucket.
+
+The product already knew this. `enforce_booking_immutability` exists for exactly
+this reason on `bookings`, and both CLAUDE.md and SECURITY.md describe the class
+in those words. Nobody asked the question again one table over, and it was found
+while adding an opt-out toggle — the first customer-facing write `profiles` has
+ever had.
+
+Two things left behind:
+
+- **A column grant is the narrower tool and usually the right one.**
+  `20260927000005` revokes UPDATE from `anon` and `authenticated` and grants it
+  back on the three columns a browser legitimately writes. A grant is refused
+  before a row is considered and needs no service-role bypass; a trigger on this
+  table would have needed one, because `lib/data/review.ts` writes `role` when an
+  application is approved.
+- **A guard that cannot see the fix is not a guard.** `tests/support/postgres.ts`
+  re-granted table-wide privileges *after* applying the migrations, so a column
+  grant was erased before any test looked: the fixed migration read as still
+  broken, and there was no way to tell that from the fix not working. It sets
+  Supabase's default privilege before the migrations now. When a change is
+  invisible to the harness, fix the harness first and prove it by breaking the
+  fix on purpose.
+
+So: **before adding or widening an UPDATE policy, ask which column on that table
+confers power** — and check the grant as well as the policy.
 
 ---
 

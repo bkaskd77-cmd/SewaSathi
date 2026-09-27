@@ -480,6 +480,13 @@
       "mobile": "Mobile",
       "mobileUnset": "Not on file",
       "language": "Language",
+      "activityTitle": "Appearing on our homepage",
+      "activityBody": "When a job is finished we sometimes show the trade, your first name and your city — never your ward, your address or the amount, and never sooner than an hour afterwards.",
+      "activityShown": "Right now a finished job of yours can appear.",
+      "activityHidden": "Your jobs are never shown.",
+      "activityUnknown": "We cannot check this setting right now. This is us, not you.",
+      "activityHideMe": "Keep my jobs off the homepage",
+      "activityShowMe": "Let my jobs appear again",
       "changeNote": "Need to change something? Call <phone>{number}</phone> and we’ll update it — editing here arrives with addresses and payment.",
       "changeNoteNoPhone": "Editing here arrives with addresses and payment."
     },
