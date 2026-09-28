@@ -3,6 +3,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { ALLOWED } from "../support/write-allowlist";
 
 /**
  * Every table, every role, every verb — asserted, and written down.
@@ -390,20 +391,21 @@ describe("what each role can write", () => {
     ).sort();
 
     /*
-     * Six of thirty-six. Everything else is written by the service role in
+     * Five of thirty-seven. Everything else is written by the service role in
      * `lib/data/`, which re-reads the subject rather than believing what it
      * was handed — payments, refunds, the ledger, the audit log, every signal
-     * table. A seventh name appearing here is a new way into the database from
+     * table. A sixth name appearing here is a new way into the database from
      * a browser, and it should be argued for in the commit that adds it.
+     *
+     * THE LIST IS IMPORTED, NOT REPEATED. It lived here and in
+     * `write-grants.test.ts` for one commit, and dropping the `notifications`
+     * policy had to be made in both — one list written twice, which is the
+     * shape `CRON_JOBS` and `LOGGABLE_REASONS` have already cost this project.
+     * `write-grants.test.ts` is what asserts each entry's guard still exists;
+     * this asserts the same set from the other side, on the database that
+     * builds the published matrix.
      */
-    expect(writable).toEqual([
-      "addresses",
-      "bookings",
-      "notifications",
-      "profiles",
-      "provider_applications",
-      "provider_leads",
-    ]);
+    expect(writable).toEqual(Object.keys(ALLOWED).sort());
   });
 
   it("lets a stranger write to nothing but the join form", () => {

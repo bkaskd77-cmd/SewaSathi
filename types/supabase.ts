@@ -1591,6 +1591,24 @@ export type Database = {
         Args: { target: string };
         Returns: number;
       };
+      /**
+       * Change somebody's role and say which path did it.
+       *
+       * `profiles_record_role_change` writes the audit row for every path; this
+       * is how a path names itself, through two transaction-local settings the
+       * trigger reads in the same transaction. `security invoker` and revoked
+       * from every browser role — a way to record a role change, never a way to
+       * obtain one. See 20260928000001_role_change_audit.sql.
+       */
+      set_profile_role: {
+        Args: {
+          target: string;
+          new_role: string;
+          via: string;
+          actor: string | null;
+        };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

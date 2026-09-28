@@ -712,9 +712,37 @@ describe("notifications belong to the person they are about", () => {
     ).rejects.toThrow(/row-level security|permission denied/i);
   });
 
-  it("lets a person mark their own read", async () => {
+  it("lets nobody mark one read from a browser either", async () => {
+    /*
+     * THIS CASE USED TO ASSERT THE OPPOSITE, and the policy it proved was
+     * dropped in `20260928000001` because nothing in the product ever used it.
+     * `markBookingRead` writes `read_at` under the SERVICE ROLE — deliberately,
+     * so the write cannot be turned into "mark somebody else's read" by an id
+     * from a URL — and `lib/notify/in-app.ts` inserts the same way. The policy
+     * granted UPDATE on all seven columns of a person's own rows, which let
+     * somebody rewrite their own notification's `kind`, `params` and
+     * `booking_id`. Own rows only, so nothing crossed to another person; a
+     * write surface nothing needs is one nobody is watching.
+     *
+     * Rewritten rather than deleted: "a browser cannot write this table" is the
+     * fact worth holding on to, and it is the same question this case always
+     * asked, with the answer the product actually wants.
+     */
     const client = await pg.asUser(ALICE);
     const { rows } = await client.query(
+      "update public.notifications set read_at = now() where profile_id = $1 returning id",
+      [ALICE],
+    );
+
+    // No policy to match, so zero rows change — a refusal rather than an error,
+    // which is how RLS says "not yours" everywhere else in this file.
+    expect(rows).toHaveLength(0);
+  });
+
+  it("still gets marked read by the path the product uses", async () => {
+    // The service role bypasses RLS, which is what `markBookingRead` relies on.
+    // Dropping a policy must not quietly take the working path with it.
+    const { rows } = await pg.admin.query(
       "update public.notifications set read_at = now() where profile_id = $1 returning id",
       [ALICE],
     );

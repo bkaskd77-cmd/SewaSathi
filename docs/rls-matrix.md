@@ -51,7 +51,7 @@ default as a measurement.
 | `providers` | 2 | all | all | all | all | all | all |
 | `provisioned_accounts` | 0 | no data | no data | no data | no data | no data | no data |
 | `refunds` | 0 | no data | no data | no data | no data | no data | no data |
-| `security_events` | 2 | none | none | none | none | none | all |
+| `security_events` | 5 | none | none | none | none | none | all |
 | `survey_visit_fees` | 0 | no data | no data | no data | no data | no data | no data |
 | `triage_logs` | 2 | none | none | none | none | none | all |
 
@@ -69,7 +69,6 @@ service role in `lib/data/`.
 | `bookings` | UPDATE | `Customers cancel their own open bookings` | authenticated |
 | `bookings` | UPDATE | `Providers advance their assigned bookings` | authenticated |
 | `bookings` | UPDATE | `Providers claim an open job` | authenticated |
-| `notifications` | UPDATE | `People mark their own notifications read` | authenticated |
 | `profiles` | UPDATE | `Profiles are updatable by their owner` | authenticated |
 | `provider_applications` | INSERT | `Applicants start their own application` | authenticated |
 | `provider_applications` | UPDATE | `Applicants edit their own draft` | authenticated |

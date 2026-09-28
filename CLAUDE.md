@@ -1194,6 +1194,25 @@ endpoint or stores a new kind of personal data.
   table-wide grant on everything and the policy is what decides; six tables let a
   browser write, each entry names the guard that makes it safe, and the test goes
   red when a seventh appears or when a named guard disappears.
+- **A role change writes its own audit row, in the same transaction.** Promoting
+  an approved applicant was a bare `update({ role })` that logged only on
+  failure, so the live log's only two `role.changed` rows both say `customer` —
+  they are `handle_new_user` at provisioning — and the elevations that produced
+  the real provider and admin accounts left nothing at all. An absent record read
+  as a clean one, one level up from rule 6.
+  `profiles_record_role_change` is a **trigger**, because an application-side
+  call would miss the paths that actually went unrecorded — a dashboard query, an
+  MCP call, a future admin tool — and would not be atomic with the change. No
+  record now means no change, which is deliberately the opposite of `lib/audit`'s
+  never-throw: that logs something that already happened, this gates something
+  that has not. **`via` is what the database can prove** —
+  `current_setting('role')` separates `service-role`, `direct-sql` and `session`,
+  since `current_user` inside a `security definer` function is always the owner —
+  and `public.set_profile_role` is how a path says more, through two
+  transaction-local settings the trigger reads. It is **`security invoker`** so it
+  can never become a way to obtain a role, and revoked from all three browser
+  roles anyway. **Nothing is backfilled**: rows invented for changes nobody
+  witnessed would manufacture the clean record this exists to prevent.
 - **`security_events` is append-only and the trigger refuses UPDATE and DELETE
   for every caller, service role included.** A log the application can edit
   proves nothing. `lib/audit` never throws: the event already happened.

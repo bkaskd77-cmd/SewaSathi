@@ -155,6 +155,10 @@
     "sha": "6bf8725609d56c0c",
     "file": "20260916000002_overbook_counters.sql"
   },
+  "record_role_change": {
+    "sha": "a611273d9607bbc4",
+    "file": "20260928000001_role_change_audit.sql"
+  },
   "recount_provider_on_job": {
     "sha": "f7e7e7c35f78e2b9",
     "file": "20260913000001_availability_states.sql"
@@ -178,6 +182,10 @@
   "session_is_verified": {
     "sha": "8749624cce87057e",
     "file": "20260911000001_unverified_session_guard.sql"
+  },
+  "set_profile_role": {
+    "sha": "5c08db7713f00933",
+    "file": "20260928000001_role_change_audit.sql"
   },
   "sync_booking_days": {
     "sha": "454d9a3a25b33c8d",

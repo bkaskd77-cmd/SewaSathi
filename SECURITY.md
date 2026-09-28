@@ -293,23 +293,69 @@ privilege before the migrations instead, which is what the real database does.
 is what stops a seventh arriving unseen. The grant is not the discriminator — every
 table in `public` carries table-wide INSERT and UPDATE for `anon` and
 `authenticated` through a Supabase default privilege, so listing tables that have
-it lists all of them. The POLICY is what decides, and exactly six tables grant a
-browser role a write:
+it lists all of them. The POLICY is what decides, and after
+`20260928000001` dropped the unused `notifications` policy, exactly five tables
+grant a browser role a write:
 
 | table | verbs | what makes it safe |
 | --- | --- | --- |
 | `addresses` | INSERT, UPDATE | `profile_id = auth.uid()` in `using` **and** `with check` |
 | `bookings` | INSERT, UPDATE | `enforce_booking_immutability`; `enforce_booking_transition` pins an INSERT to `pending` and `freeze_booking_band` writes the floor server-side |
-| `notifications` | UPDATE | own rows both sides — and **unused**: `markBookingRead` writes `read_at` as the service role, so nothing needs the policy |
 | `profiles` | UPDATE | the column grant above |
 | `provider_applications` | INSERT, UPDATE | `enforce_application_immutability` — `status`, `risk_score`, `submitted_at` and a change of hands |
 | `provider_leads` | INSERT | open on purpose: somebody not signed in must be able to ask to join, and a lead confers nothing until a person acts on it |
 
+`notifications` was a sixth and is gone: its policy granted UPDATE on all seven
+columns of a person's own rows and **nothing used it** — `markBookingRead` writes
+`read_at` under the service role, and `lib/notify/in-app.ts` inserts the same way.
+Own rows only, so no privilege crossed to anybody; a write surface nothing needs
+is simply one nobody is watching.
+
 The test names the **guard** on each rather than just permitting the table, because
-a list of names still passes the day a trigger is dropped. It also pins that no
-browser role holds DELETE anywhere — true across all 37 tables, never explicitly
+a list of names still passes the day a trigger is dropped. The list lives in
+`tests/support/write-allowlist.ts` and is read by both `write-grants.test.ts` and
+`rls-matrix.test.ts`, which held separate copies of it for exactly one commit. It
+also pins that no browser role holds DELETE anywhere — true across all 37 tables, never explicitly
 decided, and the first one should be an argument somebody makes rather than a line
 that slips in.
+
+### A role change writes its own audit row, and until now it wrote none
+
+`lib/data/review.ts` promoted an approved applicant with a bare
+`update({ role: 'provider' })` and logged only on failure. So the live audit log
+holds two `role.changed` rows and **both say `customer`** — they are written by
+`handle_new_user` at provisioning. The two elevations that actually produced the
+provider and the admin account left nothing behind, and neither did an admin
+being demoted back to customer. Nothing suggests those were anything but the
+owner's own SQL; the point is that **the log cannot say so**, and an absent
+record read as a clean one is the same mistake as a default read as a
+measurement.
+
+**The record is a trigger, not a call in the application.**
+`profiles_record_role_change` (`20260928000001`) fires on any change to
+`profiles.role` and inserts the event **in the same transaction** — so no record
+means no change. That is the opposite of `lib/audit`, which never throws because
+the thing it logs has already happened; here the privilege has *not* been granted
+yet, and one granted without a trace is the failure this exists to prevent. An
+application-side call would also have missed exactly the paths that went
+unrecorded: a dashboard query, an MCP call, a future admin tool.
+
+**`via` says what the database can prove.** `current_setting('role')` gives the
+caller's effective role — `service-role` is our own server, `direct-sql` is a
+dashboard or MCP session, `session` is a browser. `current_user` is no use inside
+a `security definer` function, where it is always the owner.
+
+**`public.set_profile_role` is how a path names itself**: two transaction-local
+settings the trigger reads, so the approval's row carries
+`via: 'application.approved'` and the deciding admin's id rather than just
+"our server did it". It is **`security invoker`**, so it can never become a way to
+*obtain* a role — the caller's own privileges apply, and the column grant gives
+`authenticated` three columns that do not include `role` — with execute revoked
+from `public`, `anon` and `authenticated` on top of that.
+
+**The three historical transitions are not backfilled.** Inventing rows for
+changes nobody witnessed would manufacture exactly the clean record this change
+exists to stop. The gap stands; the log is trustworthy from here.
 
 ---
 

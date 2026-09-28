@@ -490,10 +490,24 @@ export async function decideApplication(input: {
       .maybeSingle();
 
     if (current && current.role !== "admin") {
-      const { error: roleError } = await db
-        .from("profiles")
-        .update({ role: "provider" })
-        .eq("id", application.profile_id as string);
+      /*
+       * THROUGH `set_profile_role`, NEVER A BARE UPDATE, and the difference is
+       * the audit row. `profiles_record_role_change` writes a `role.changed`
+       * event for every path, so a plain update would be recorded — but only as
+       * `via: 'service-role'`, which says our server did it and not why or on
+       * whose say-so. This funnel sets both as transaction-local settings that
+       * the trigger reads in the same transaction, so the row names the
+       * approval and the admin who made it.
+       *
+       * It is `security invoker` and revoked from every browser role: it is a
+       * way to record a role change, never a way to obtain one.
+       */
+      const { error: roleError } = await db.rpc("set_profile_role", {
+        target: application.profile_id as string,
+        new_role: "provider",
+        via: "application.approved",
+        actor: input.adminId,
+      });
 
       if (roleError) {
         console.error(`[review] role — ${describeError(roleError)}`);
