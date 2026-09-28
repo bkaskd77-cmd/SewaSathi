@@ -1188,7 +1188,12 @@ endpoint or stores a new kind of personal data.
   migration would have read as still broken with no way to tell the two apart. It
   sets Supabase's default privilege before the migrations now, which is what the
   real database does. **So before adding an UPDATE policy, ask which column on
-  that table confers power**, and check the grant as well as the policy.
+  that table confers power**, and check the grant as well as the policy —
+  `tests/db/write-grants.test.ts` is what fails if you do not. It reads
+  `pg_policy` rather than the grants, because Supabase's default privilege puts a
+  table-wide grant on everything and the policy is what decides; six tables let a
+  browser write, each entry names the guard that makes it safe, and the test goes
+  red when a seventh appears or when a named guard disappears.
 - **`security_events` is append-only and the trigger refuses UPDATE and DELETE
   for every caller, service role included.** A log the application can edit
   proves nothing. `lib/audit` never throws: the event already happened.

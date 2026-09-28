@@ -289,6 +289,28 @@ table-wide privileges *after* applying the migrations, so any column grant a
 migration made was erased before a test looked. It sets Supabase's default
 privilege before the migrations instead, which is what the real database does.
 
+**The sweep that followed found no second hole**, and `tests/db/write-grants.test.ts`
+is what stops a seventh arriving unseen. The grant is not the discriminator — every
+table in `public` carries table-wide INSERT and UPDATE for `anon` and
+`authenticated` through a Supabase default privilege, so listing tables that have
+it lists all of them. The POLICY is what decides, and exactly six tables grant a
+browser role a write:
+
+| table | verbs | what makes it safe |
+| --- | --- | --- |
+| `addresses` | INSERT, UPDATE | `profile_id = auth.uid()` in `using` **and** `with check` |
+| `bookings` | INSERT, UPDATE | `enforce_booking_immutability`; `enforce_booking_transition` pins an INSERT to `pending` and `freeze_booking_band` writes the floor server-side |
+| `notifications` | UPDATE | own rows both sides — and **unused**: `markBookingRead` writes `read_at` as the service role, so nothing needs the policy |
+| `profiles` | UPDATE | the column grant above |
+| `provider_applications` | INSERT, UPDATE | `enforce_application_immutability` — `status`, `risk_score`, `submitted_at` and a change of hands |
+| `provider_leads` | INSERT | open on purpose: somebody not signed in must be able to ask to join, and a lead confers nothing until a person acts on it |
+
+The test names the **guard** on each rather than just permitting the table, because
+a list of names still passes the day a trigger is dropped. It also pins that no
+browser role holds DELETE anywhere — true across all 37 tables, never explicitly
+decided, and the first one should be an argument somebody makes rather than a line
+that slips in.
+
 ---
 
 ## 2. Data inventory
