@@ -289,6 +289,38 @@ table-wide privileges *after* applying the migrations, so any column grant a
 migration made was erased before a test looked. It sets Supabase's default
 privilege before the migrations instead, which is what the real database does.
 
+**Proven against production, as `authenticated`.** Run in the Supabase SQL
+editor inside `begin; set local role authenticated; set_config(
+'request.jwt.claim.sub', …); … rollback;` — which is what PostgREST does per
+request, so it exercises the same lock a `PATCH` would meet:
+
+- `update public.profiles set role = 'admin' where id = <self>` →
+  **`ERROR: 42501: permission denied for table profiles`**
+- `update public.profiles set hide_from_activity = true where id = <self>` →
+  one row, `true`. The allowed columns still work.
+
+`42501` is `insufficient_privilege`, raised by the planner **before any row is
+considered** — which is the property a column grant has and a trigger does not,
+and the reason this is a grant. What it does not exercise is PostgREST's own
+parsing or the gateway in front of it; the sandbox cannot reach
+`*.supabase.co`, so the HTTP layer is asserted by the db suite and not by a live
+request.
+
+**AND THE ERROR CARRIES THE INSTRUCTION THAT REOPENS THE HOLE.** Postgres
+appends, and the Supabase editor displays, this hint verbatim:
+
+> HINT: Grant the required privileges to the current role with:
+> `GRANT UPDATE ON public.profiles TO authenticated;`
+
+That is precisely the statement whose removal closed the escalation — it is the
+break-test from the migration's own commit, offered as advice by the tooling.
+Anybody debugging a permission error on this table, in a hurry, will be told by
+the database to undo the fix, and it will work. `tests/db/profile-escalation.test.ts`
+turns red the moment it is run, and `write-grants.test.ts` a second time — but
+neither is what somebody reads at 2am with a red panel in front of them, so it
+is written here: **on `profiles`, that hint is wrong. Grant the column, never
+the table.**
+
 **The sweep that followed found no second hole**, and `tests/db/write-grants.test.ts`
 is what stops a seventh arriving unseen. The grant is not the discriminator — every
 table in `public` carries table-wide INSERT and UPDATE for `anon` and

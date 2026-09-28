@@ -1205,6 +1205,14 @@ endpoint or stores a new kind of personal data.
   because the service role writes the columns it guards, and a bypass is a thing
   that can be reached the wrong way. `service_role` is untouched, which is what
   leaves `lib/data/review.ts` able to promote an approved applicant.
+  **It is proven against production, as `authenticated`**: a `role` write answers
+  `42501 permission denied for table profiles` — from the planner, before any row
+  is considered, which is the property a grant has and a trigger does not — while
+  `hide_from_activity` still returns its row. **And that error carries the
+  instruction that reopens the hole**: Postgres's own HINT, which the Supabase
+  editor shows, is `GRANT UPDATE ON public.profiles TO authenticated;` — the exact
+  break-test from the fix's commit, offered as advice. On `profiles` that hint is
+  wrong: grant the column, never the table.
   **And the harness could not have seen it.** `tests/support/postgres.ts`
   re-granted table-wide privileges in a loop *after* applying the migrations, so
   any column grant a migration made was erased before a test looked — the fixed
