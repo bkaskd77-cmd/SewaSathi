@@ -13,6 +13,15 @@
  * living inside a `server-only` route handler is a judgement nothing can check.
  */
 
+/*
+ * From the module's public entry, which the linter insisted on and which is the
+ * right import anyway: `@/lib/auth` is the ISOMORPHIC surface — route rules and
+ * phone formatting, deliberately free of `server-only`, because merging it with
+ * `session` would pull server code into the client bundle. So this file stays
+ * as dependency-free as its header promises.
+ */
+import { checkNepaliMobile } from "@/lib/auth";
+
 export type HealthState = "ok" | "down" | "unknown" | "skipped";
 
 export type HealthCheck = {
@@ -79,3 +88,42 @@ export const FALLBACK_FIRING_STATE: HealthState = "ok";
  * looking and finding something harmless must never read as broken.
  */
 export const FALLBACK_UNREADABLE_STATE: HealthState = "unknown";
+
+/**
+ * The number the SMS probe should actually send, or why it cannot.
+ *
+ * `checkSmsDelivery` used to pass `SMS_HEALTH_NUMBER` to Supabase exactly as
+ * typed. Every real sign-in does not: it goes through `checkNepaliMobile`, which
+ * returns `+977XXXXXXXXXX`, and `sendOtp` sends that. So unless the variable
+ * happened to be written in that one form, the probe was sending a string the
+ * product never sends — testing a path nobody uses, on the one check that
+ * exists to prove the path everybody uses.
+ *
+ * **AND THE FAILURE POINTED AT THE WRONG DEPENDENCY.** A misformatted variable
+ * came back as `auth.sms: down` carrying the provider's complaint, which reads
+ * as "the gateway is broken" when the truth is a typo in Vercel. That is the
+ * sign-in outage's exact shape with the blame inverted, on the endpoint built to
+ * stop people looking in the wrong place.
+ *
+ * **UNPARSEABLE IS `skipped`, NEVER `down`.** `servesCustomers` turns everything
+ * but `ok` and `skipped` into a 503, and a number we cannot read means we did not
+ * look — no customer is affected by that. `checkTriageFallback` made this exact
+ * mistake once: right reasoning, wrong state, a working product paged.
+ *
+ * It reuses `checkNepaliMobile` rather than restating the rule. A second phone
+ * validator is the one-list-written-twice shape this repository has already paid
+ * for in `CRON_JOBS` and `LOGGABLE_REASONS`.
+ */
+export type SmsProbeTarget =
+  | { ok: true; e164: string }
+  | { ok: false; reason: string };
+
+export function smsProbeTarget(raw: string | undefined): SmsProbeTarget {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed === "") return { ok: false, reason: "unset" };
+
+  const check = checkNepaliMobile(trimmed);
+  if (!check.ok) return { ok: false, reason: check.reason };
+
+  return { ok: true, e164: check.e164 };
+}

@@ -12,6 +12,7 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   servesCustomers,
+  smsProbeTarget,
 } from "@/lib/config/health";
 import { lastCronRuns } from "@/lib/data/cron-runs";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -285,15 +286,30 @@ async function checkFunctions(): Promise<Check> {
  * version of this check is a check that proves nothing.
  */
 async function checkSmsDelivery(): Promise<Check> {
-  const number = process.env.SMS_HEALTH_NUMBER;
-  if (!number) {
+  /*
+   * NORMALISED THE WAY A SIGN-IN IS, or not sent at all. `smsProbeTarget` runs
+   * the variable through `checkNepaliMobile` — the same check every real sign-in
+   * passes — so the probe sends `+977XXXXXXXXXX` exactly as `sendOtp` does. It
+   * used to send the raw variable, which meant any other spelling tested a path
+   * the product never takes.
+   *
+   * `skipped`, never `down`, when it cannot be read: `servesCustomers` turns
+   * everything else into a 503, and a number we cannot parse means we did not
+   * look. And the detail names the VARIABLE — a format mistake reported as a
+   * gateway failure sends somebody to Twilio for a typo in Vercel.
+   */
+  const target = smsProbeTarget(process.env.SMS_HEALTH_NUMBER);
+  if (!target.ok) {
     return {
       name: "auth.sms",
       state: "skipped",
       detail:
-        "Set SMS_HEALTH_NUMBER to a real handset you own — never a Supabase test number, which GoTrue answers itself without calling the gateway this exists to prove.",
+        target.reason === "unset"
+          ? "Set SMS_HEALTH_NUMBER to a real handset you own — never a Supabase test number, which GoTrue answers itself without calling the gateway this exists to prove."
+          : `SMS_HEALTH_NUMBER is not a Nepali mobile (${target.reason}). Nothing was sent, and this is the variable rather than the gateway.`,
     };
   }
+  const number = target.e164;
   if (!hasSupabaseConfig()) {
     return { name: "auth.sms", state: "down", detail: "Supabase not configured." };
   }
