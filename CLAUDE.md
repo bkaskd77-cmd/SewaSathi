@@ -729,7 +729,13 @@ verify`, and any can be changed by somebody not looking at this code.
   right now". Public, cheap, sends nothing: auth config, database reachability,
   triage key. **`?deep=1`**, behind `CRON_SECRET`, additionally asks Supabase to
   send a real OTP to `SMS_HEALTH_NUMBER` — the only way to know a gateway's
-  credentials are real. Point it at a Supabase *test* number and it is free.
+  credentials are real. **It must be a real handset, and this file said the
+  opposite** ("point it at a Supabase test number and it is free") for the whole
+  life of the check. A test number is one GoTrue answers itself: it accepts the
+  fixed code and never calls the SMS provider, so the probe gets its 200 and
+  reports `ok` having touched nothing. That is the sign-in outage reproduced by
+  the check written to catch it — the free version of this check proves nothing.
+  One SMS per deep run is the price of the answer.
 - **`unknown` is never `ok` — and the corollary was missed for months, which
   503'd a working product.** Not looking must never read as working; that is
   precisely the confusion that let this run for a day. The other half is that a

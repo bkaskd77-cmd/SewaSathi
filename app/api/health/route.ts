@@ -264,13 +264,25 @@ async function checkFunctions(): Promise<Check> {
 }
 
 /**
- * The one that matters, and the one that cannot be faked.
+ * The one that matters — and it CAN be faked, by pointing it at a test number.
  *
- * Asks Supabase to send a real OTP to a number we own. A misconfigured
- * gateway answers within a second and says so — which is exactly the failure
- * that reached production undetected. Skipped unless a number is set, and
- * reported as `skipped` rather than `ok`, because "we did not look" must never
- * read as "it works".
+ * Asks Supabase to send a real OTP to a number we own. A misconfigured gateway
+ * answers within a second and says so, which is exactly the failure that reached
+ * production undetected. Skipped unless a number is set, and reported as
+ * `skipped` rather than `ok`, because "we did not look" must never read as "it
+ * works".
+ *
+ * `SMS_HEALTH_NUMBER` MUST BE A REAL HANDSET, NOT A SUPABASE TEST NUMBER, and
+ * this comment and CLAUDE.md both said the opposite for the whole life of the
+ * check — "ideally a Supabase test number, which costs nothing to send to".
+ * A test number is one GoTrue answers itself: it accepts the fixed code and
+ * NEVER CALLS THE SMS PROVIDER. So it returns 200, this reports `ok`, and the
+ * gateway it exists to prove was never touched. That is the sign-in outage
+ * exactly — placeholder Twilio credentials behind a dashboard that looked
+ * correct — reproduced by the check written to catch it.
+ *
+ * The cost is one SMS per deep run, and that is the price of the answer. A free
+ * version of this check is a check that proves nothing.
  */
 async function checkSmsDelivery(): Promise<Check> {
   const number = process.env.SMS_HEALTH_NUMBER;
@@ -279,7 +291,7 @@ async function checkSmsDelivery(): Promise<Check> {
       name: "auth.sms",
       state: "skipped",
       detail:
-        "Set SMS_HEALTH_NUMBER to a number you own (ideally a Supabase test number, which costs nothing to send to) and this becomes a real end-to-end check.",
+        "Set SMS_HEALTH_NUMBER to a real handset you own — never a Supabase test number, which GoTrue answers itself without calling the gateway this exists to prove.",
     };
   }
   if (!hasSupabaseConfig()) {
@@ -303,7 +315,16 @@ async function checkSmsDelivery(): Promise<Check> {
       return {
         name: "auth.sms",
         state: "ok",
-        detail: "Supabase accepted an OTP send. The gateway credentials work.",
+        /*
+         * WHAT WAS OBSERVED, AND THE ONE ASSUMPTION IT RESTS ON. This used to
+         * read "The gateway credentials work", which is an inference rather
+         * than a reading — and a false one if the number is a test number,
+         * because GoTrue answers those itself and the provider is never
+         * called. The endpoint cannot tell the two apart from here, so the
+         * detail names the assumption instead of hiding it.
+         */
+        detail:
+          "Supabase accepted an OTP send, so the gateway credentials work — provided SMS_HEALTH_NUMBER is a real handset and not a test number.",
       };
     }
 
