@@ -31,6 +31,29 @@ never seen the repo.
   never 1) when it cannot reach the site. When that happens, **Verified** says
   "local only, live not checked from here" and **Your turn** carries the
   command. Never write "verified" for something only proven locally.
+- **`npm run verify` says its own verdict in its last line, and that line is the
+  only evidence it passed.** A run was once reported green off a completion
+  notification while the suite inside it was red. The exit code had been right
+  the whole time — `npm run test` exits 1 — so nothing was broken in the
+  mechanism; what was broken is that **a failed run and a passing one ended the
+  same way.** A `&&` chain stops at the failing step, so the tail is test output
+  either way and nothing anywhere states what it meant for the run. A verdict
+  somebody has to remember to ask for is a verdict that gets skipped.
+  `scripts/verify.mjs` is the gate now: a summary naming every step, including
+  the ones a failure stopped (`--`, never a blank — "did not run" and "passed"
+  must not look alike), then one banner and nothing after it —
+  `VERIFY PASSED — N steps` or `VERIFY FAILED — <step> exited <code>`. It
+  carries the failing step's own code rather than flattening to 1, because
+  `check:deployed`'s 2 means "could not reach the site" and that is a different
+  fact. **Never report green from a notification, a summary or a tail that does
+  not contain that line.**
+  **It was also missing two checks CI ran** — `check:transitions` and
+  `check:blockers` — so "verify green" and "CI green" were different claims while
+  this file called verify the gate. `check:transitions` is the one that mattered:
+  it is what stops the TypeScript and SQL booking status machines disagreeing,
+  and it had never run locally. The list lives in the script alone, and a test
+  reads `package.json` so a renamed script fails in a test rather than four
+  minutes into a run.
 - **Automate everything reachable.** Only ask the user for things that need
   their account or a credential, and then ask for one thing at a time.
 - **Migrations are applied by the agent, never pasted by the user.** The
