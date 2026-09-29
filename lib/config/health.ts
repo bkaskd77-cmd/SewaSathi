@@ -127,3 +127,79 @@ export function smsProbeTarget(raw: string | undefined): SmsProbeTarget {
 
   return { ok: true, e164: check.e164 };
 }
+
+/**
+ * What `deep=1` would do with the variable as it stands — readable for free.
+ *
+ * WHY THE SHALLOW CHECK EXISTS AT ALL. `SMS_HEALTH_NUMBER` was set in Vercel
+ * and nothing in the product could say so. Was it set? For Production, or only
+ * Preview? Does the running build see it? Is it in a form the probe can send?
+ * Every one of those questions was answerable only from the Vercel dashboard or
+ * its API — and the product's own answer, `sms.gateway: credentials present`,
+ * says nothing about any of them. So an unset variable, a Preview-only one and
+ * a mistyped one all looked exactly like a correct one, right up until somebody
+ * spent an SMS to find out which they had.
+ *
+ * That is `checkTriage`'s lesson one level along: **present is not working**,
+ * and the answer there was to keep the state honest and name in the detail what
+ * is unproven and which call would prove it. This is the same sentence for the
+ * probe's own preconditions.
+ *
+ * ONE FUNCTION, TWO CALLERS. `checkSmsDelivery` uses it for its `skipped`
+ * detail and the shallow `auth.sms.probe` check uses it for all three, so the
+ * cheap line and the expensive one cannot drift into disagreeing about what the
+ * variable says. Two copies of a sentence is the shape `TriageReason` already
+ * cost this repository.
+ *
+ * IT NEVER PRINTS THE NUMBER. `/api/health` is public and that is a real
+ * handset belonging to a real person; "it reads as a Nepali mobile" is the
+ * whole fact worth reporting, and `PhoneError` is a fixed key set that carries
+ * no digits of its own. `tests/unit/health-state.test.ts` asserts the digits
+ * never appear, because a reworded sentence is exactly how that would be lost.
+ *
+ * AND IT NEVER READS AS A PASS. A parseable variable proves the probe could
+ * run, never that a message arrives — only the send does that, which is why the
+ * gateway stays a launch blocker until `deep=1` has been seen to report `ok`.
+ */
+/**
+ * The state `auth.sms.probe` reports, in every case.
+ *
+ * A CONSTANT RATHER THAN A LITERAL IN THE ROUTE, for the reason
+ * `FALLBACK_FIRING_STATE` above is one: a state inside a `server-only` handler
+ * is a state no test can reach, so the first version of this check's test
+ * constructed `state: "skipped"` itself and would have stayed green with the
+ * route reporting `down`. A test written against a value the code does not read
+ * asserts nothing, which this repository has now paid for in the activity
+ * floor as well.
+ *
+ * `skipped` in both directions. `servesCustomers` turns everything but `ok` and
+ * `skipped` into a 503, and a probe nobody can run is not a customer-facing
+ * fault — nobody signing in is affected by an unset health variable, and
+ * paging for one is the `checkTriageFallback` mistake. Nor may it be `ok`: a
+ * parseable variable is not a delivered message, and only `deep=1` proves that.
+ */
+export const SMS_PROBE_STATE: HealthState = "skipped";
+
+export function smsProbeReadiness(target: SmsProbeTarget): string {
+  if (target.ok) {
+    return (
+      "SMS_HEALTH_NUMBER reads as a Nepali mobile, so deep=1 will send one SMS " +
+      "to it. Delivery is unproven until that run — this line is the variable, " +
+      "not the gateway."
+    );
+  }
+
+  if (target.reason === "unset") {
+    return (
+      "SMS_HEALTH_NUMBER is not set on this deployment, so deep=1 would send " +
+      "nothing. Point it at a real handset you own — never a Supabase test " +
+      "number, which GoTrue answers itself without ever calling the gateway " +
+      "this exists to prove."
+    );
+  }
+
+  return (
+    `SMS_HEALTH_NUMBER is not a Nepali mobile (${target.reason}), so deep=1 ` +
+    "would send nothing. This is the variable rather than the gateway."
+  );
+}

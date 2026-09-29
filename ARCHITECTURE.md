@@ -949,6 +949,15 @@ Where a change on one side cannot reach the other.
   because a gateway's credentials cannot be verified any other way. `unknown`
   is never counted as healthy — an unverifiable dependency is what broke
   sign-in.
+  **The cheap half now reports whether the expensive half could run.**
+  `auth.sms.probe` says whether `SMS_HEALTH_NUMBER` is set and in a form the
+  probe can send — public, sends nothing, never prints the number, and always
+  `skipped` so it cannot 503 a working product or be mistaken for a delivered
+  message. Before it, an unset variable, a Preview-only one and a mistyped one
+  were indistinguishable from a correct one until somebody spent an SMS to find
+  out which they had. `smsProbeReadiness` and `SMS_PROBE_STATE` live in
+  `lib/config/health.ts` for the reason every judgement in this endpoint does:
+  one inside the route handler is one no test can reach.
 - **A late cancellation costs the professional a trip, and nothing recovers
   it.** The window blocks a customer from cancelling once a professional is
   `en_route`, which covers the case that matters most, and `cancellation_fee`

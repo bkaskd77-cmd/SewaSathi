@@ -12,6 +12,8 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   servesCustomers,
+  SMS_PROBE_STATE,
+  smsProbeReadiness,
   smsProbeTarget,
 } from "@/lib/config/health";
 import { lastCronRuns } from "@/lib/data/cron-runs";
@@ -265,6 +267,32 @@ async function checkFunctions(): Promise<Check> {
 }
 
 /**
+ * Could `deep=1` run at all? Free, public, and it sends nothing.
+ *
+ * THE ROUND TRIP THIS REMOVES. `SMS_HEALTH_NUMBER` was set in Vercel and there
+ * was no way to tell from the product: set or unset, Production or Preview-only,
+ * visible to the running build or not, in a form the probe can send or not.
+ * Answering it took the Vercel API. Meanwhile `sms.gateway` reported
+ * "credentials present", which is true of all four cases — so the first signal
+ * distinguishing them cost one SMS and a shell with a credential in it.
+ *
+ * ALWAYS `skipped`, and that is load-bearing rather than lazy.
+ * `servesCustomers` turns everything but `ok` and `skipped` into a 503, and a
+ * probe nobody can run is not a customer-facing fault — nobody signing in is
+ * affected by an unset health variable. `checkTriageFallback` got exactly this
+ * wrong once: right reasoning in the comment, wrong state in the code, a
+ * working product paged. `skipped` also refuses the opposite error: a
+ * parseable variable is not a passing gateway, and only the send proves that.
+ */
+function checkSmsProbe(): Check {
+  return {
+    name: "auth.sms.probe",
+    state: SMS_PROBE_STATE,
+    detail: smsProbeReadiness(smsProbeTarget(process.env.SMS_HEALTH_NUMBER)),
+  };
+}
+
+/**
  * The one that matters — and it CAN be faked, by pointing it at a test number.
  *
  * Asks Supabase to send a real OTP to a number we own. A misconfigured gateway
@@ -297,17 +325,14 @@ async function checkSmsDelivery(): Promise<Check> {
    * everything else into a 503, and a number we cannot parse means we did not
    * look. And the detail names the VARIABLE — a format mistake reported as a
    * gateway failure sends somebody to Twilio for a typo in Vercel.
+   *
+   * THE SENTENCE IS `smsProbeReadiness`, shared with the shallow
+   * `auth.sms.probe` check above, so the free line and the one that costs an
+   * SMS cannot come to disagree about what the variable says.
    */
   const target = smsProbeTarget(process.env.SMS_HEALTH_NUMBER);
   if (!target.ok) {
-    return {
-      name: "auth.sms",
-      state: "skipped",
-      detail:
-        target.reason === "unset"
-          ? "Set SMS_HEALTH_NUMBER to a real handset you own — never a Supabase test number, which GoTrue answers itself without calling the gateway this exists to prove."
-          : `SMS_HEALTH_NUMBER is not a Nepali mobile (${target.reason}). Nothing was sent, and this is the variable rather than the gateway.`,
-    };
+    return { name: "auth.sms", state: "skipped", detail: smsProbeReadiness(target) };
   }
   const number = target.e164;
   if (!hasSupabaseConfig()) {
@@ -910,8 +935,24 @@ export async function GET(request: Request) {
   const deepAllowed = wantsDeep && Boolean(secret) && offered === secret;
 
   if (wantsDeep && !deepAllowed) {
+    /*
+     * "MY TOKEN IS WRONG" AND "THIS DOOR DOES NOT OPEN" ARE DIFFERENT FACTS.
+     * With `CRON_SECRET` unset, `deepAllowed` is false for every caller
+     * including the right one — the deep check is off, permanently, and no
+     * token will ever work. That used to answer with the same sentence as a
+     * mistyped bearer, which is the half-opened-channel shape: indistinguishable
+     * from outside, so somebody re-checks their token instead of the variable.
+     *
+     * It admits nobody either way, so the only thing it discloses is that the
+     * expensive checks are switched off on this deployment.
+     */
     return NextResponse.json(
-      { error: "unauthorized", hint: "deep=1 needs the CRON_SECRET bearer token" },
+      {
+        error: "unauthorized",
+        hint: secret
+          ? "deep=1 needs the CRON_SECRET bearer token"
+          : "deep=1 is disabled on this deployment: CRON_SECRET is not set, so no token can authorise it",
+      },
       { status: 401, headers: { "cache-control": "no-store" } },
     );
   }
@@ -929,6 +970,7 @@ export async function GET(request: Request) {
     await checkTriageFallback(),
     await checkCronRuns(),
     checkSmsGateway(),
+    checkSmsProbe(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];

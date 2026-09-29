@@ -830,6 +830,25 @@ verify`, and any can be changed by somebody not looking at this code.
   question "can this serve a customer right now". Which jobs are urgent enough to
   503 is a threshold nobody has runs to choose yet, so it measures and does not
   grade.
+- **Whether the probe could run at all is readable for free.** `SMS_HEALTH_NUMBER`
+  was set in Vercel and nothing in the product could say so — set or unset,
+  Production or Preview-only, visible to the running build or not, in a form the
+  probe can send or not. All four sat behind one line reading
+  `sms.gateway: credentials present`, so the first signal telling them apart cost
+  one SMS and a shell with a credential in it; answering it took the Vercel API,
+  which the person who set the variable does not have. `auth.sms.probe` is the
+  cheap half: public, sends nothing, and says which of those four it found.
+  It is **always `skipped`** — `servesCustomers` would 503 on anything else and
+  nobody signing in is affected by an unset health variable, which is the
+  `checkTriageFallback` mistake; and it may never be `ok`, because a parseable
+  variable is not a delivered message. `SMS_PROBE_STATE` is a constant for the
+  same reason `FALLBACK_FIRING_STATE` is: the first version of its test built
+  `state: "skipped"` itself and would have stayed green with the route reporting
+  `down`. **It never prints the number** — a real handset on a public endpoint —
+  and `smsProbeReadiness` is one sentence with two callers so the free line and
+  the one that costs an SMS cannot drift.
+  **And the `deep=1` 401 says which refusal it is**: an unset `CRON_SECRET`
+  means no token will ever work, which used to read exactly like a mistyped one.
 - The SMS gateway is a **launch blocker** until `?deep=1` reports
   `auth.sms: ok` against production. The dashboard looked correct the whole
   time it was broken.

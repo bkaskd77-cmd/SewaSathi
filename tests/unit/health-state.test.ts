@@ -4,6 +4,8 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   servesCustomers,
+  SMS_PROBE_STATE,
+  smsProbeReadiness,
   smsProbeTarget,
   type HealthCheck,
 } from "@/lib/config/health";
@@ -133,5 +135,97 @@ describe("the number the SMS probe sends", () => {
     const landline = smsProbeTarget("0142345678");
     expect(landline.ok).toBe(false);
     if (!landline.ok) expect(landline.reason).toBe("landline");
+  });
+});
+
+/**
+ * The probe's preconditions, readable without spending an SMS.
+ *
+ * `SMS_HEALTH_NUMBER` was set in Vercel and nothing in the product could say
+ * so — set or unset, Production or Preview-only, visible to the running build
+ * or not, sendable or not. All four look identical behind
+ * `sms.gateway: credentials present`, so the first line telling them apart cost
+ * one SMS and a shell with a credential in it. `smsProbeReadiness` is that
+ * line; these are its rules, because here the sentence IS the feature.
+ */
+describe("what deep=1 would do with the variable as it stands", () => {
+  it("sends the reader to the variable and never to the gateway", () => {
+    /*
+     * The sign-in outage's lesson with the blame pointing the right way. A
+     * misconfigured health variable reported as a gateway fault sends somebody
+     * to Twilio for a typo in Vercel, which is the confusion this endpoint
+     * exists to remove.
+     */
+    for (const raw of [undefined, "", "0142345678", "98412", "9779841234567"]) {
+      const sentence = smsProbeReadiness(smsProbeTarget(raw));
+      expect(sentence, `${raw} did not name the variable`).toContain(
+        "SMS_HEALTH_NUMBER",
+      );
+      expect(sentence, `${raw} did not say what deep=1 would do`).toContain(
+        "deep=1",
+      );
+    }
+  });
+
+  it("never reads as a passing gateway when the variable merely parses", () => {
+    // A parseable number proves the probe COULD run. Only the send proves a
+    // message arrives, which is why the gateway stays a launch blocker until
+    // `deep=1` has been seen to report `ok`. A sentence that read as a pass
+    // would quietly clear it.
+    const sentence = smsProbeReadiness(smsProbeTarget("9779841234567"));
+    expect(sentence).toContain("unproven");
+    expect(sentence).toContain("will send one SMS");
+  });
+
+  it("never prints the number it was given", () => {
+    /*
+     * `/api/health` is public and that is a real handset belonging to a real
+     * person. "It reads as a Nepali mobile" is the whole fact worth reporting,
+     * and `PhoneError` is a fixed key set carrying no digits of its own.
+     *
+     * Asserted rather than trusted because a reworded sentence is exactly how
+     * this would be lost — the same reason the activity strip's select is
+     * pinned: the privacy boundary is one line of text and nothing else guards
+     * it.
+     */
+    for (const spelling of ["9779841234567", "9841234567", "+977 984 123 4567"]) {
+      const sentence = smsProbeReadiness(smsProbeTarget(spelling));
+      expect(sentence, spelling).not.toContain("9841234567");
+      expect(sentence, spelling).not.toContain("841234567");
+    }
+  });
+
+  it("says which of unset and malformed it found", () => {
+    const unset = smsProbeReadiness(smsProbeTarget(undefined));
+    const landline = smsProbeReadiness(smsProbeTarget("0142345678"));
+
+    expect(unset).toContain("not set");
+    // The test-number trap belongs on the screen somebody reads while setting
+    // the variable: GoTrue answers those itself and never calls the gateway,
+    // which is the check faking its own pass.
+    expect(unset).toContain("test number");
+
+    expect(landline).toContain("landline");
+    expect(landline).not.toBe(unset);
+  });
+
+  it("cannot 503 a working product in any of its states", () => {
+    /*
+     * `auth.sms.probe` is always `skipped`, and `servesCustomers` is what makes
+     * that matter: everything but `ok` and `skipped` is a 503. A probe nobody
+     * can run is not a customer-facing fault — nobody signing in is affected by
+     * an unset health variable. Asserted through `servesCustomers` so the case
+     * reads as the rule rather than as a string comparison.
+     */
+    for (const raw of [undefined, "0142345678", "9779841234567"]) {
+      const check: HealthCheck = {
+        name: "auth.sms.probe",
+        state: SMS_PROBE_STATE,
+        detail: smsProbeReadiness(smsProbeTarget(raw)),
+      };
+      expect(servesCustomers([check]), `${raw} took the endpoint down`).toBe(
+        true,
+      );
+    }
   });
 });
