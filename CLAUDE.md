@@ -873,6 +873,23 @@ verify`, and any can be changed by somebody not looking at this code.
 - The SMS gateway is a **launch blocker** until `?deep=1` reports
   `auth.sms: ok` against production. The dashboard looked correct the whole
   time it was broken.
+  **It has now been run, and it caught exactly what it was built to catch.** On
+  `36a11f2`: `auth.sms: down — 422: Error sending confirmation OTP to provider:
+  auth account AC00000000000000000000000000000000 does not exist`. Twilio 20003,
+  and the Account SID is `AC` plus thirty-two zeros — so the credential was never
+  entered rather than rejected, and the August incident's placeholder is still
+  sitting there untouched. **No real phone can sign in to this product today**;
+  every walkthrough runs on the Supabase test numbers, which GoTrue answers
+  itself without calling a provider, which is why nothing has ever looked wrong.
+  `ok: false` is honest now — `auth.sms` is a genuine customer-facing fault,
+  where the two states this endpoint used to fail on were not.
+  **The gateway is contracted last, deliberately**, after the design and
+  development still ahead: it costs per message and needs a registered Nepali
+  sender ID. The cost of that ordering is written into `LAUNCH-BLOCKERS.md` so it
+  cannot later read as an oversight — and so that no amount of using the product
+  on test numbers is mistaken for evidence the gateway works.
+  The same run proved the other half: `triage.model: ok — claude-sonnet-4-6
+  answered in 1374ms. The key works.`
 
 ## Dispatch — a job nobody accepts
 

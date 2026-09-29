@@ -979,9 +979,12 @@ Where a change on one side cannot reach the other.
 - **OTP DELIVERY IS UNPROVEN END TO END, AND NOTHING IN THIS REPOSITORY CAN
   PROVE IT.** Measured against production on 2026-09-10: Twilio answered
   `Error sending confirmation OTP to provider: Authenticate` (error 20003).
-  The credentials are rejected, so the request never leaves Twilio's front
-  door — not a Nepal routing question, not a deliverability question, just no
-  messages at all. Phone OTP is the only way into this product, so **today the
+  The credentials never leave Twilio's front door — not a Nepal routing
+  question, not a deliverability question, just no messages at all. **And the
+  2026-09-29 deep run sharpened "rejected" into something more specific**: the
+  Account SID in the error is `AC` followed by thirty-two zeros, so nobody has
+  ever entered one. There is nothing to debug, only something to fill in — last,
+  deliberately, per `LAUNCH-BLOCKERS.md`. Phone OTP is the only way into this product, so **today the
   Supabase test numbers are the only way anybody signs in**, and every
   walkthrough runs on them. What would actually prove delivery, in order: a
   contracted Nepali gateway with a registered sender ID; `SMS_GATEWAY` set to
