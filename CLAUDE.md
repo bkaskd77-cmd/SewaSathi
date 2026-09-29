@@ -322,8 +322,10 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   answering so nobody noticed. It stays `ok` rather than `unknown`, deliberately:
   `ok` is computed across every check to decide 200 or 503, and the product
   serves customers perfectly well with no key at all, so `unknown` would 503 a
-  working product. `sms.gateway` had already solved it the same way — report
-  `ok`, and name in the detail what is unproven and which call would prove it.
+  working product. **This file credited `sms.gateway` with having solved it the
+  same way — "report `ok`, and name in the detail what is unproven" — and it had
+  not**: that check read `unknown` the whole time, so the sentence describing the
+  resolution was itself a comment describing behaviour the code did not have.
   **`triage.model` behind `?deep=1` is the only thing that asks the model**, one
   token each way, behind `CRON_SECRET` exactly like the OTP send; it reports the
   provider's own refusal sentence, and it uses `classifyProviderError` rather
@@ -751,8 +753,27 @@ verify`, and any can be changed by somebody not looking at this code.
   have paged for a working product. `checkTriage` twenty lines away had already
   written the correct resolution down. The rule and both fallback states are
   tested constants now — **`/api/health` had no test of any kind before this**,
-  which is how a comment describing behaviour the code did not have survived. **`session.config` is
-  permanently `unknown` on purpose** — JWT expiry and refresh-token rotation
+  which is how a comment describing behaviour the code did not have survived.
+  **And the rule was still broken twice over when somebody finally read the live
+  payload**: `/api/health` answered `"ok":false` on `f29583f` with every
+  customer-facing dependency green. `session.config` was `unknown` "on purpose"
+  and never varies, so **the endpoint returned 503 on every request ever made to
+  it** — the monitor built to catch the sign-in outage could only ever have cried
+  wolf — and `sms.gateway` was `unknown` for an unset `SMS_GATEWAY`, which is the
+  configuration every code is sent under today. Both are `skipped` now, as
+  `SESSION_CONFIG_STATE` and `SMS_GATEWAY_UNSET_STATE`, and the test that catches
+  the class is the **whole live payload pinned as a fixture asserting 200** —
+  thirteen per-check cases had all passed, because the sentence worth asserting
+  ("a working product answers 200") is one no per-check case states.
+  **`sms.gateway`'s comment also contradicted its own detail four lines down** —
+  "every sign-in silently goes nowhere" against "Supabase's own provider carries
+  the code". The detail was right: `lib/auth/otp.ts` calls `signInWithOtp`, and
+  `lib/sms` is reached by `/api/sms/send` alone, which nothing is pointed at yet.
+  It is `skipped` rather than `ok` because the comment describes a real world we
+  cannot see from here — the day the Send SMS Hook points at us with
+  `SMS_GATEWAY` unset, codes do go nowhere — and reading that hook needs the same
+  management token `session.config` lacks. **`session.config` stays on the page,
+  which was always its whole value** — JWT expiry and refresh-token rotation
   are dashboard settings and reading them needs a management token this
   product deliberately does not hold, so the line names the dimension and says
   where to look rather than reporting a number nobody verified. The observable

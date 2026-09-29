@@ -949,6 +949,13 @@ Where a change on one side cannot reach the other.
   because a gateway's credentials cannot be verified any other way. `unknown`
   is never counted as healthy — an unverifiable dependency is what broke
   sign-in.
+  **And that rule 503'd the endpoint on every request ever made to it.**
+  `session.config` was `unknown` "on purpose" and never varies, so a product with
+  every customer-facing dependency green still answered `"ok":false`; an unset
+  `SMS_GATEWAY` — the configuration every code is sent under today — was the
+  second. Both are `skipped` now. The guard is the **whole live payload pinned as
+  a fixture asserting 200**, because thirteen per-check cases all passed: "a
+  working product answers 200" is a sentence no per-check case states.
   **The cheap half now reports whether the expensive half could run.**
   `auth.sms.probe` says whether `SMS_HEALTH_NUMBER` is set and in a form the
   probe can send — public, sends nothing, never prints the number, and always

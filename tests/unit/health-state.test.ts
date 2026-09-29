@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  SESSION_CONFIG_STATE,
   servesCustomers,
+  SMS_GATEWAY_UNSET_STATE,
   SMS_PROBE_STATE,
   smsProbeReadiness,
   smsProbeTarget,
@@ -226,6 +228,77 @@ describe("what deep=1 would do with the variable as it stands", () => {
       expect(servesCustomers([check]), `${raw} took the endpoint down`).toBe(
         true,
       );
+    }
+  });
+});
+
+/**
+ * The verdict this endpoint actually returned in production, pinned.
+ *
+ * `/api/health` answered `"ok":false` — a 503 — on `f29583f`, with every
+ * customer-facing dependency green. Nobody had read its own verdict before;
+ * every test here asserted one check at a time, and each of the two states
+ * causing it was individually defensible.
+ *
+ * `session.config` is documented as permanently `unknown` **on purpose**, and
+ * permanently `unknown` is permanently 503 — so this endpoint has never once
+ * returned 200 in the life of the product. The monitor that would have caught
+ * the sign-in outage is the one that has been crying wolf since the day it
+ * shipped.
+ *
+ * So the fixture is the whole payload rather than a state at a time. That is the
+ * activity floor's lesson: a test that re-reads the thing it is checking asserts
+ * nothing, and the constraint worth pinning is the one a person would state —
+ * **a working product answers 200**.
+ */
+const LIVE_PAYLOAD_F29583F: HealthCheck[] = [
+  { name: "session.config", state: SESSION_CONFIG_STATE, detail: "" },
+  { name: "auth.config", state: "ok", detail: "" },
+  { name: "database", state: "ok", detail: "" },
+  { name: "server.serviceRole", state: "ok", detail: "" },
+  { name: "server.region", state: "ok", detail: "" },
+  { name: "db.functions", state: "ok", detail: "" },
+  { name: "triage", state: "ok", detail: "" },
+  { name: "triage.fallback", state: "ok", detail: "" },
+  { name: "cron.runs", state: "ok", detail: "" },
+  { name: "sms.gateway", state: SMS_GATEWAY_UNSET_STATE, detail: "" },
+  { name: "auth.sms.probe", state: SMS_PROBE_STATE, detail: "" },
+  { name: "rateLimit", state: "ok", detail: "" },
+  { name: "sms.budget", state: "ok", detail: "" },
+];
+
+describe("the verdict production actually returned", () => {
+  /*
+   * THE THREE STATES ARE READ, NOT SPELLED, and that is deliberate here where
+   * it would normally be the blind-test smell. They are what is under test;
+   * the assertion is the BEHAVIOUR they produce — a working product answers
+   * 200 — which is the sentence a person would say and which no arrangement of
+   * per-check cases ever stated. Put either constant back to `unknown` and this
+   * goes red, which is exactly what did not happen for the life of the product.
+   */
+  it("answers 200 for the configuration this product runs on", () => {
+    expect(servesCustomers(LIVE_PAYLOAD_F29583F)).toBe(true);
+  });
+
+  it("still goes down when a customer really is affected", () => {
+    /*
+     * The fix must not read as "make the checks stop complaining". A gateway
+     * with missing credentials fails every code, an unreadable triage log is a
+     * read that FAILED rather than one nobody attempted, and both still take
+     * the endpoint to 503 beside the same thirteen checks.
+     */
+    for (const broken of [
+      { name: "sms.gateway", state: "down" as const, detail: "credentials missing" },
+      {
+        name: "triage.fallback",
+        state: FALLBACK_UNREADABLE_STATE,
+        detail: "could not read",
+      },
+    ]) {
+      const payload = LIVE_PAYLOAD_F29583F.map((check) =>
+        check.name === broken.name ? broken : check,
+      );
+      expect(servesCustomers(payload), broken.name).toBe(false);
     }
   });
 });

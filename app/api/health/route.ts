@@ -11,7 +11,9 @@ import {
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  SESSION_CONFIG_STATE,
   servesCustomers,
+  SMS_GATEWAY_UNSET_STATE,
   SMS_PROBE_STATE,
   smsProbeReadiness,
   smsProbeTarget,
@@ -527,9 +529,12 @@ async function checkSmsBudget(): Promise<Check> {
  * and refresh-token rotation are exactly that, and reading them needs a
  * management token this product deliberately does not hold.
  *
- * SO THIS IS A SIGNPOST AND IT SAYS SO. `unknown`, never `ok` — not looking
+ * SO THIS IS A SIGNPOST AND IT SAYS SO. `skipped`, never `ok` — not looking
  * must not read as working, and reporting a number nobody verified would be
- * worse than reporting none. The observable half lives on
+ * worse than reporting none. It was `unknown`, which meant the same thing to a
+ * reader and a 503 to `servesCustomers`, and since this check never varies the
+ * endpoint answered 503 on every request ever made to it. See
+ * `SESSION_CONFIG_STATE`. The observable half lives on
  * `/account/security?debug=auth`, which prints `exp - iat` from a real token:
  * per session, but the same number the dashboard holds.
  *
@@ -540,7 +545,7 @@ async function checkSmsBudget(): Promise<Check> {
 function checkSessionConfig(): Check {
   return {
     name: "session.config",
-    state: "unknown",
+    state: SESSION_CONFIG_STATE,
     detail:
       `Admin step-up re-challenges every ${STEP_UP_HOURS}h and that number is ours ` +
       `(lib/auth/step-up.ts). The JWT expiry and refresh-token rotation behind it ` +
@@ -556,9 +561,15 @@ function checkSessionConfig(): Check {
  * SEPARATE FROM `auth.sms`, which sends one and is the only proof of delivery.
  * This is the cheap half: it says what is configured without spending
  * anything, so the answer to "did the switch to Sparrow actually take?" is a
- * URL rather than a support ticket. `log` is never `ok` — it is the state
- * where every sign-in silently goes nowhere, which is precisely the failure
- * this endpoint exists to make visible.
+ * URL rather than a support ticket.
+ *
+ * ITS COMMENT AND ITS DETAIL USED TO CONTRADICT EACH OTHER, in the same twelve
+ * lines. The comment said "`log` is never `ok` — it is the state where every
+ * sign-in silently goes nowhere"; the detail said "Supabase's own provider
+ * carries the code". The detail is right: `signInWithOtp` sends every code, and
+ * `lib/sms` is reached by `/api/sms/send` alone. The comment describes the world
+ * after the Send SMS Hook is pointed here, which we cannot see from this process
+ * — so the state is `SMS_GATEWAY_UNSET_STATE` and the reasoning lives there.
  */
 function checkSmsGateway(): Check {
   const gateway = smsGateway();
@@ -566,9 +577,9 @@ function checkSmsGateway(): Check {
   if (gateway.id === "log") {
     return {
       name: "sms.gateway",
-      state: "unknown",
+      state: SMS_GATEWAY_UNSET_STATE,
       detail:
-        "No SMS_GATEWAY set, so nothing is sent and Supabase's own provider carries the code. Set SMS_GATEWAY to sparrow or aakash once a contract exists.",
+        "No SMS_GATEWAY set. Supabase's own provider carries every code today — lib/auth/otp.ts calls signInWithOtp, and lib/sms is reached only by /api/sms/send, which nothing is pointed at yet. Whether that is still true cannot be read from here; deep=1 sends one and settles it. Set SMS_GATEWAY to sparrow or aakash once a contract exists.",
     };
   }
   if (!gateway.isConfigured()) {

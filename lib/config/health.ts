@@ -90,6 +90,54 @@ export const FALLBACK_FIRING_STATE: HealthState = "ok";
 export const FALLBACK_UNREADABLE_STATE: HealthState = "unknown";
 
 /**
+ * What `session.config` reports, and why it is not `unknown`.
+ *
+ * THE BUG THIS CONSTANT IS, and it is `FALLBACK_FIRING_STATE` a second time.
+ * The check was `unknown` "on purpose", with the reasoning written out beside
+ * it: not looking must never read as working. Every word right. But `unknown`
+ * is a 503 here, and this check never varies — so **`/api/health` returned 503
+ * on every request in the life of the product**, with every customer-facing
+ * dependency green. The one URL built to catch the sign-in outage was the one
+ * signal nobody could trust, and no monitor pointed at it could ever have said
+ * anything but "down".
+ *
+ * `skipped` is the state that carries the intended meaning. It is already what
+ * this endpoint uses for "we did not look and cannot from here" — an unset
+ * `SMS_HEALTH_NUMBER` takes it — and it keeps the line on the page, which is
+ * the whole value: before it, nothing in the product mentioned that session
+ * lifetime was a setting at all.
+ *
+ * NOT `ok`, deliberately. `ok` would assert a JWT lifetime nobody has read, and
+ * an unverified dependency reported as verified is precisely what cost a day.
+ */
+export const SESSION_CONFIG_STATE: HealthState = "skipped";
+
+/**
+ * What `sms.gateway` reports when `SMS_GATEWAY` is unset.
+ *
+ * The same 503, and the function said BOTH things at once. Its comment read
+ * "`log` is never `ok` — it is the state where every sign-in silently goes
+ * nowhere", while the detail three lines below read "Supabase's own provider
+ * carries the code". Only one can be true, and it is the detail:
+ * `lib/auth/otp.ts` calls `signInWithOtp`, so Supabase's own gateway sends
+ * every code today. `lib/sms` is reached by `/api/sms/send` alone — the Send
+ * SMS Hook endpoint, which nothing is pointed at yet.
+ *
+ * **`skipped` rather than `ok`, because the comment describes a real world we
+ * cannot see from here.** The day somebody points that hook at `/api/sms/send`
+ * without setting `SMS_GATEWAY`, codes genuinely do go nowhere — and reading
+ * the hook's configuration needs the management token this product does not
+ * hold, exactly like `session.config`. `ok` would hide that outage; `unknown`
+ * pages for today's working one. `skipped` says what is true either way: we did
+ * not look, nobody is known to be affected, and `deep=1`'s `auth.sms` is the
+ * call that settles it, because a real send travels whichever path is live.
+ *
+ * The other two branches keep their `down`: a named gateway with missing
+ * credentials, and — once the hook exists — a fault worth paging for.
+ */
+export const SMS_GATEWAY_UNSET_STATE: HealthState = "skipped";
+
+/**
  * The number the SMS probe should actually send, or why it cannot.
  *
  * `checkSmsDelivery` used to pass `SMS_HEALTH_NUMBER` to Supabase exactly as
