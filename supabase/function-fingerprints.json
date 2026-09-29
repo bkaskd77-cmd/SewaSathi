@@ -111,13 +111,17 @@
     "sha": "3f977d7ea1e0cb88",
     "file": "20260902000001_payments.sql"
   },
+  "provider_balance": {
+    "sha": "a65dd5ab3c57d157",
+    "file": "20260929000001_ledger_kinds.sql"
+  },
   "provider_can_serve": {
     "sha": "44c6b266ce54561d",
     "file": "20260905000002_dispatch.sql"
   },
   "provider_outstanding": {
-    "sha": "03708889b9aaeafd",
-    "file": "20260912000002_guarantee_claims.sql"
+    "sha": "422ab7ee85c2df1c",
+    "file": "20260929000001_ledger_kinds.sql"
   },
   "provider_refused": {
     "sha": "3d1247cd3fff4323",

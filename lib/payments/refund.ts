@@ -297,9 +297,18 @@ export function judgeRefund(input: {
  * selects against the honest. The platform returns its commission on that job:
  * we do not keep a fee out of work that failed.
  *
- * THE PROFESSIONAL'S SHARE IS AN ORDINARY `redo_debt`. Not a new ledger kind —
- * `provider_outstanding` sums `redo_debt` positive and EVERY other kind
- * negative, so a new kind would have quietly reduced what somebody owed.
+ * THE PROFESSIONAL'S SHARE IS AN ORDINARY `redo_debt`, and the REASON changed
+ * under it. It used to be forced: `provider_outstanding` summed `redo_debt`
+ * positive and — through a catch-all `else` — every other kind NEGATIVE, so any
+ * new kind would have quietly reduced what somebody owed. That catch-all is
+ * gone (`20260929000001_ledger_kinds.sql`), because payouts need kinds and the
+ * account has to hold money moving both ways.
+ *
+ * So a new kind is now safe, and this one is still `redo_debt` on the merits:
+ * it is money we advanced on a guarantee claim, recovered forward at a quarter
+ * of a payout, and published under *what is never a signal*. The money kinds
+ * are a different account — `provider_balance` sums those and deliberately
+ * does not see this one.
  */
 export function refundFunding(input: {
   refund: number;

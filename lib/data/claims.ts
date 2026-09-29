@@ -1141,10 +1141,18 @@ export type RefundResult =
  * card on file, no direct debit and no wage to garnish, and backward recovery
  * selects against the honest ones.
  *
- * THE DEBT IS AN ORDINARY `redo_debt` AND NOT A NEW LEDGER KIND.
- * `provider_outstanding` sums `redo_debt` positive and every other kind
- * NEGATIVE, so a `commission_returned` row would have quietly reduced what
- * somebody owed — wrong, and in the direction that costs us money.
+ * THE DEBT IS AN ORDINARY `redo_debt`, AND THE REASON IS NO LONGER THAT A NEW
+ * KIND IS UNSAFE. It was: `provider_outstanding` summed `redo_debt` positive
+ * and every other kind NEGATIVE through a catch-all `else`, so a
+ * `commission_returned` row would have quietly reduced what somebody owed —
+ * wrong, and in the direction that costs us money. `20260929000001_ledger_kinds.sql`
+ * removed that catch-all, because the payout account has to hold money moving
+ * in both directions.
+ *
+ * `commission_returned` is still not a kind, on the merits rather than by
+ * force: the platform returning its own fee is our side of the refund and never
+ * a movement on the professional's account. Their share stays `redo_debt`,
+ * which `provider_balance` deliberately does not count.
  *
  * THE FOUR REFUSALS ARE THE DATABASE'S. `enforce_claim_refund` has no
  * service-role bypass: no double payout, nothing above what was collected,

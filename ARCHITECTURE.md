@@ -108,6 +108,8 @@ interface. Swapping a provider is then one file, not a hunt.
 | Cash | `lib/payments/cash.ts` | Not a degraded path — the common one. `isConfigured()` is always true, so the customer is never left with no way to pay, and `verify()` never self-settles: the customer confirming is the only oracle. |
 | In-app notifications | `lib/notify/in-app.ts` | A row in `notifications`, written under the service role. Always configured — there is no key to be missing, so something is always recorded. |
 | SMS / push notifications | *not built* | Phase 13. One file implementing `NotificationChannel` plus a line in `lib/notify/index.ts`; nothing that decides *what* to notify about changes. |
+| In-app chat | *not built* | In scope, after the Next 16 upgrade. The anti-leakage lever for the `provider_contacts` release window — see Seams. Not an adapter: no external service. |
+| Remittance (payouts) | *not built* | One typed interface, first implementation manual. Until it exists nothing pays anybody — `LAUNCH-BLOCKERS.md § payouts-unbuilt`. |
 | Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
 
 ---
@@ -940,6 +942,16 @@ Where a change on one side cannot reach the other.
   a policy that releases it only while a job of theirs is accepted, on the way
   or under way. The window closing again at `completed` is asserted in the db
   suite, because it is the half nobody would notice was missing.
+  **And that window is why chat is in scope.** A released number is the one
+  thing in this product that keeps working after the booking ends: it costs the
+  professional nothing to take the next job directly, and it costs the customer
+  nothing to offer — so the leak is not misconduct, it is the path of least
+  resistance for two people who are both behaving reasonably. Nothing in the
+  enforcement ladder can see it and no counter would be fair if it could.
+  **In-app messaging is the lever, not a penalty**: it is built after the Next
+  16 upgrade, and its job is to make staying on the platform the easier option
+  rather than to make leaving a punishable one. Until it exists, the release
+  window staying narrow is the whole mitigation.
 - **Every dependency this product has lives in somebody else's dashboard.**
   A Supabase auth toggle, a Twilio credential, a Vercel environment variable —
   none of them are in this repository, none are covered by `npm run verify`,
@@ -949,6 +961,25 @@ Where a change on one side cannot reach the other.
   because a gateway's credentials cannot be verified any other way. `unknown`
   is never counted as healthy — an unverifiable dependency is what broke
   sign-in.
+- **Two accounts on one ledger, and neither function may answer for the other.**
+  `provider_ledger` now records guarantee movements and money movements side by
+  side. `provider_outstanding` sums only `redo_debt`, `recovery` and
+  `write_off`, and keeps its `greatest(0, …)` floor — it can never report that
+  the platform owes somebody. `provider_balance` sums only the money kinds and
+  is **signed**, because a professional whose week was all cash genuinely owes
+  us and a floor would hide it. Which kinds belong to which is
+  `lib/config/ledger.ts`, written as a **partition** rather than as "everything
+  that is not the other" — an exclusion rule is exactly how the catch-all
+  `else` in the old `provider_outstanding` came to exist, and it made adding any
+  kind unsafe for two phases. A guarantee debt is deliberately outside the money
+  account: it is published under *what is never a signal*, and it must not reach
+  into the arrears figure that later pauses dispatch.
+- **The band editor proposes; a person approves.** `proposeBand` exists and has
+  no caller — it lands in the owner's surface after payouts, and **nothing
+  auto-applies a proposal**. Same posture as `/admin/triage-accuracy`, which
+  measures and does not tune, and as the refund screen, whose signals decide
+  nothing: a price band is a promise to customers and a professional's income
+  at once, and a statistic is not entitled to move either on its own.
   **And that rule 503'd the endpoint on every request ever made to it.**
   `session.config` was `unknown` "on purpose" and never varies, so a product with
   every customer-facing dependency green still answered `"ok":false`; an unset
