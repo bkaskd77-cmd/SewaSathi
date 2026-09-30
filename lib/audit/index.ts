@@ -56,6 +56,16 @@ export type SecurityEventKind =
   /* Somebody's phone number was put on an admin's screen */
   | "contact.viewed"
   /**
+   * Somebody read a professional's actual bank account or wallet number.
+   *
+   * THE NARROWEST READ IN THE PRODUCT AND THE ONE WORTH COUNTING. Every other
+   * surface shows `maskAccountRef`'s four digits; this kind is written only by
+   * `revealDestination`, the single path that opens the envelope. So the count
+   * of these rows IS the count of times anybody has seen a payout number, which
+   * is a sentence no other audit kind here can claim about its subject.
+   */
+  | "payoutDestination.viewed"
+  /**
    * An admin searched the support lookup, whether or not it found anything.
    *
    * THE MISSES MATTER AS MUCH AS THE HITS. Six phone numbers tried in a row and
@@ -224,5 +234,44 @@ export async function recordContactAccess(input: {
     subjectType: "profile",
     subjectId: input.subjectId,
     detail: { count: input.count, reason: input.reason },
+  });
+}
+
+/**
+ * Somebody opened the envelope and read where a professional is paid.
+ *
+ * ITS OWN FUNCTION, like `recordDocumentAccess`, `recordRiskAccess` and
+ * `recordContactAccess`, and here the reason is at its sharpest: this is the
+ * only code path in the product that turns a sealed account number back into
+ * digits. A `kind` passed to the general logger would be one more argument a
+ * call site can forget, and forgetting it leaves no trace at all — the
+ * professional cannot tell that anybody looked, and somebody who wanted to look
+ * has no reason to mention it.
+ *
+ * NEVER THE NUMBER, NOT EVEN MASKED. `recordContactAccess` records a count
+ * rather than the phone numbers for exactly this reason: a log that holds what
+ * it is logging access to is a second copy in a table designed to be kept for
+ * ever and read by every admin, rather than by the one who did the reading. The
+ * subject id says whose money it was; the digits stay sealed.
+ *
+ * `reason` IS WHY, IN WORDS, and it is not optional: the legitimate reads are
+ * few and each has a sentence ("first payout confirmation", "professional
+ * queried a failed transfer"). A reveal nobody can give a reason for is a reveal
+ * that should not have happened.
+ */
+export async function recordDestinationAccess(input: {
+  adminId: string;
+  /** The listing whose destination was opened. */
+  providerId: string;
+  destinationId: string;
+  reason: string;
+}): Promise<void> {
+  await recordSecurityEvent({
+    kind: "payoutDestination.viewed",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "provider",
+    subjectId: input.providerId,
+    detail: { destinationId: input.destinationId, reason: input.reason },
   });
 }

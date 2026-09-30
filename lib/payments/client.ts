@@ -63,6 +63,20 @@ export {
   type PayoutPlan,
 } from "./payout";
 
+/*
+ * Masking and the cooldown. Pure — no Node builtin, no network — so it belongs
+ * on this side even though the only caller today is server code: `maskAccountRef`
+ * is what a form uses to echo back the number somebody just typed, and a second
+ * implementation of "how much of an account shows" is exactly what
+ * `lib/payments/destination.ts` exists to prevent.
+ */
+export {
+  destinationReadiness,
+  destinationUsableFrom,
+  maskAccountRef,
+  type DestinationReadiness,
+} from "./destination";
+
 export {
   CUSTOMER_PAYMENT_ERRORS,
   paymentErrorKey,

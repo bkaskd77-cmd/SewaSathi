@@ -50,6 +50,19 @@ describe("turning a notification kind into a sentence", () => {
     }
   });
 
+  it("shows nothing for the destination-change notice, on purpose", () => {
+    /*
+     * PINNED AS A DECISION RATHER THAN LEFT AS AN OMISSION. `/bookings` is a
+     * customer's list of jobs and this kind has `bookingId: null`, so
+     * `unreadByBooking` skips it anyway — but an absent `LIST_NOTES` entry reads
+     * identically to a forgotten one, and the next person to add copy "for
+     * completeness" would put a professional's payout warning on a customer's
+     * booking list. The sentence a professional reads comes off
+     * `payout_destinations` on their own money view.
+     */
+    expect(listNoteKey("payout.destinationChanged")).toBeNull();
+  });
+
   it("carries the two refund kinds, which are separate events", () => {
     // Approved is not sent. One key covering both would have to be written
     // before the second happened.

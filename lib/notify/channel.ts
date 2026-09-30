@@ -131,7 +131,34 @@ export type NotificationKind =
    */
   | "claim.refundApproved"
   /** It has actually gone, with the reference it went under. */
-  | "claim.refundSent";
+  | "claim.refundSent"
+  /**
+   * Where this professional is paid has been changed.
+   *
+   * THE POINT OF SENDING IT IS THE CASE WHERE THE PROFESSIONAL DID NOT DO IT.
+   * An account takeover's first move is to redirect the money, so this is the
+   * one notification whose whole value is reaching somebody who is *not* the
+   * person who triggered it. `DESTINATION_COOLDOWN_HOURS` is the time it buys
+   * them to object.
+   *
+   * IT CARRIES NO SURFACE YET AND THAT IS STATED RATHER THAN IMPLIED. It is
+   * deliberately absent from `LIST_NOTES` below — that allow-list feeds
+   * `/bookings`, and this has `bookingId: null`, which `unreadByBooking` skips
+   * by design. The line a professional actually reads is rendered from
+   * `payout_destinations` on their own money view, off the retired and live rows
+   * themselves, so the visible notice does not depend on a notification surface
+   * that does not exist. This row is the channel-independent record, so the day
+   * an SMS channel lands it sends without the writer changing.
+   *
+   * WHEN THAT SMS CHANNEL IS WRITTEN, THIS KIND NEEDS A RULE OF ITS OWN, and
+   * getting it wrong sends the warning to the attacker. Every other kind may
+   * look the recipient's number up at delivery time; this one must deliver to
+   * the contact AS IT STOOD BEFORE THE CHANGE. Somebody who has taken an account
+   * over changes the phone number too, and a channel that reads
+   * `provider_contacts` at send time would then warn them about their own theft
+   * and tell the real person nothing.
+   */
+  | "payout.destinationChanged";
 
 export type Notification = {
   /** Who it is for. Their language is read at delivery, not passed in. */

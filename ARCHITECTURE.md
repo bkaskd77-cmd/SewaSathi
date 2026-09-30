@@ -405,6 +405,24 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **Where a professional is paid has one reader, and its refusals are the
+  design.** `lib/data/payout-destinations.ts` is the only code touching
+  `payout_destinations`; there is no policy to lean on, because `anon` and
+  `authenticated` are revoked outright. `currentDestination` opens the envelope
+  and hands the result straight to `maskAccountRef`, so no caller can reach the
+  digits; `revealDestination` is the single path that can, and it writes
+  `security_events` **before** opening the envelope — ordering rather than error
+  handling, since `recordSecurityEvent` never throws and nothing could be
+  conditional on it. `changeDestination` takes a `profileId` and resolves the
+  listing itself, seals before any write so a key problem leaves the existing
+  destination untouched, and refuses outright when the session has not
+  re-authenticated inside `REAUTH_WINDOW_MINUTES`. **The one ordering hazard is a
+  named outcome**: the one-live index forces retire-then-insert and supabase-js
+  has no transaction, so a failed insert returns `retiredButNotReplaced` — money
+  pausing rather than money following a stale address, recoverable by
+  re-submitting. `tests/unit/payout-destinations.test.ts` asserts what the client
+  was *asked to do* rather than catching rejections, because a refusal after a
+  partial write catches identically.
 - **Every admin queue is capped, and every one of them now says so.**
   `lib/data/queue.ts` is the shape: rows, the cap that was applied, and the
   total that matched, with the total taken from `count: "exact"` on the same

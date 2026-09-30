@@ -327,6 +327,73 @@ professional, refused by the database rather than remembered by the caller.
 **`usable_from` is the 72-hour takeover window**, stamped at insert rather than
 derived at payout time so the rule cannot be forgotten by a caller.
 
+### Who may read an account number, and who may change one
+
+`lib/data/payout-destinations.ts` is the only code that reads or writes that
+table. Four functions, and the interesting thing about each is what it refuses.
+
+**`currentDestination` never returns plaintext.** It opens the envelope, hands
+the result straight to `maskAccountRef` and discards it inside a function whose
+return type has no room for digits. It also distinguishes a **failed read** from
+**nobody having set one up** — opposite sentences, and collapsing them asks a
+professional to re-enter their bank account because of a database blip.
+
+**`revealDestination` is the only path that hands back the number**, and it
+writes `security_events` **before** it opens the envelope. Ordering, not error
+handling: `recordSecurityEvent` never throws, so nothing could be conditional on
+its success, and writing first means a call that dies halfway still left the
+record that somebody asked. `recordDestinationAccess` is its own function beside
+`recordDocumentAccess`, `recordRiskAccess` and `recordContactAccess` — a `kind`
+passed to the general logger is one more argument a call site can forget, and
+forgetting it here leaves no trace at all: the professional cannot tell anybody
+looked, and somebody who wanted to has no reason to mention it. The log carries
+the reason and the provider id, never the number — a log holding what it logs
+access to is a second copy in a table designed to be kept for ever.
+`security_events.kind` has no check constraint, so this kind needed no migration.
+
+**`changeDestination` takes a `profileId` and resolves the listing itself.** It
+never accepts a `providerId`. All three authorization holes found in this product
+were the same shape — an id arrived from a browser and nothing asked whose it was
+— and the id that would arrive here names the account somebody's earnings go to.
+
+**It refuses before it reads anything** when the session has not proved who it is
+within `REAUTH_WINDOW_MINUTES` (15). A missing stamp is **expired**, not unknown
+— `stepUpFor`'s rule for an absent `amr` claim, applied where guessing wrong
+hands somebody's earnings to a stranger. Fifteen minutes rather than
+`STEP_UP_HOURS`' eight: that window is long because admin work is batched and a
+code every half hour teaches people to tap through approvals, where this happens
+once a year and takes a minute. `stepUpFor` itself does not apply at all — it
+returns `not-required` for anybody who is not an admin, and the person changing a
+destination is a professional. **The OTP behind it cannot reach a real handset
+today**; that is the existing `auth.sms` launch blocker, and it does not weaken
+this refusal — with no stamp the change is refused, so the failure mode is
+"cannot change", never "changed without proof".
+
+**Sealing happens before any write.** `sealSecret` throws on a missing or
+wrong-length key, so attempting it first means a key problem leaves the existing
+destination live and untouched rather than retired with no replacement.
+
+**The one ordering hazard is named rather than hidden.** The one-live partial
+unique index refuses a second live row, so the order must be retire-then-insert,
+and supabase-js has no transaction. If the insert fails there is no live
+destination: recoverable by re-submitting, and the right direction to fail in —
+money pausing beats money following a stale address. `changeDestination` returns
+`retiredButNotReplaced` so the screen says that rather than "something went
+wrong". If it ever bites, the fix is a `security definer` function doing both
+statements in one transaction, not a rollback in TypeScript.
+
+**The notice is written and, today, reaches nobody who is not signed in.**
+`payout.destinationChanged` is a notification kind carrying both destinations
+**masked** — a warning that an account changed must not be where the account is
+printed. It is deliberately absent from `LIST_NOTES`: that allow-list feeds
+`/bookings`, a customer's list of jobs, and this has `bookingId: null`. The line
+a professional actually reads comes off `payout_destinations` on their own money
+view. **When an SMS channel is written, this kind needs a rule of its own** and
+getting it wrong warns the attacker: every other kind may look the recipient's
+number up at delivery, and this one must deliver to the contact **as it stood
+before the change**, because somebody who took an account over changed the phone
+number too.
+
 ### A definer function is a second door onto the same rows
 
 **Its grant is the only lock on it.** `provider_outstanding` and
