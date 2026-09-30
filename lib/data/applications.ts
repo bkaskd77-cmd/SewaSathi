@@ -3,9 +3,11 @@ import "server-only";
 import { headers } from "next/headers";
 
 import { recordSecurityEvent } from "@/lib/audit";
+import { openPayoutAccount } from "@/lib/data/payout-account";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { NEPAL_DIAL_CODE, toNationalDigits } from "@/lib/auth";
+import { sealSecret } from "@/lib/security/secret-box";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 import {
@@ -75,7 +77,19 @@ function toDraft(
     citizenshipNumber: (row.citizenship_number as string | null) ?? null,
     panNumber: (row.pan_number as string | null) ?? null,
     payoutMethod: (row.payout_method as string | null) ?? null,
-    payoutAccount: (row.payout_account as string | null) ?? null,
+    /*
+     * THE OWNER GETS THEIR OWN NUMBER BACK IN FULL, and that is not a hole in
+     * the sealing. This shape feeds the apply form, where `payoutAccount` is a
+     * field's `defaultValue`: an applicant resuming a draft has to see what they
+     * typed, or the only way to correct a digit is to retype all of them. They
+     * are the person who entered it. What sealing defends against is a leaked
+     * backup and an admin read — see `lib/data/review.ts`, which masks.
+     *
+     * `openPayoutAccount` returns null rather than throwing on a value it cannot
+     * open, because a draft form must still render: a missing field is a field
+     * to fill in, where an exception is a page that does not exist.
+     */
+    payoutAccount: openPayoutAccount(row.payout_account as string | null),
     payoutBankName: (row.payout_bank_name as string | null) ?? null,
     hasConsent,
     submittedAt: (row.submitted_at as string | null) ?? null,
@@ -244,7 +258,23 @@ export type StepPatch = {
 
 export type SaveResult =
   | { ok: true; step: number }
-  | { ok: false; error: "notFound" | "notYours" | "locked" | "invalid" };
+  /*
+   * EVERY VALUE HERE HAS COPY, WHICH `"invalid"` DID NOT.
+   *
+   * The form renders `t(\`errors.${error}\`)`, a dynamic key — which
+   * `check:keys` reports rather than resolves, by design, so a value with no
+   * catalogue entry renders its own dotted path onto the page. `"invalid"` had
+   * none, and it was returned from two places meaning two different things: an
+   * unrecognised trade (the applicant's input) and a failed write (ours). One
+   * word for both is why neither got a sentence.
+   *
+   * `pickATrade` and `generic` were already in both catalogues, so naming the
+   * two facts separately cost nothing and removed the missing key.
+   */
+  | {
+      ok: false;
+      error: "notFound" | "notYours" | "locked" | "pickATrade" | "generic";
+    };
 
 /**
  * Save one step and move on.
@@ -290,7 +320,9 @@ export async function saveStep(input: {
 
   const trades = input.patch.trades?.filter(knownTrade);
   if (input.patch.trades && (!trades || trades.length === 0)) {
-    return { ok: false, error: "invalid" };
+    // The applicant's input: nothing they ticked is work we sell. The action
+    // guards this first, so reaching here means a hand-built submission.
+    return { ok: false, error: "pickATrade" };
   }
 
   type ApplicationUpdate =
@@ -314,7 +346,33 @@ export async function saveStep(input: {
   const writable = update as Record<string, unknown>;
   for (const [from, to] of map) {
     const value = input.patch[from];
-    if (value !== undefined && value !== "") writable[to] = value;
+    if (value === undefined || value === "") continue;
+
+    if (to === "payout_account") {
+      /*
+       * SEALED ON THE WAY IN, on the only path that writes this column.
+       *
+       * A failure here refuses the step rather than storing the number in the
+       * clear — the rule `lib/security/secret-box.ts` states about itself, and
+       * the opposite of the triage fallback: "keep working" would mean a bank
+       * account written in plaintext, which is worse than a refused form and,
+       * unlike a refused form, invisible.
+       *
+       * Each save produces a different envelope because the IV is random. That
+       * costs nothing: nothing queries this column, and matching is the digest.
+       */
+      try {
+        writable[to] = sealSecret(String(value));
+      } catch (thrown) {
+        console.error(
+          `[applications] cannot seal the payout account — ${describeError(thrown)}`,
+        );
+        return { ok: false, error: "generic" };
+      }
+      continue;
+    }
+
+    writable[to] = value;
   }
   if (trades) update.trades = trades;
 
@@ -325,8 +383,10 @@ export async function saveStep(input: {
     .eq("status", "draft");
 
   if (error) {
+    // Ours, not theirs. Telling somebody their answer was invalid when the
+    // database refused the write sends them editing a correct form.
     console.error(`[applications] saving step — ${describeError(error)}`);
-    return { ok: false, error: "invalid" };
+    return { ok: false, error: "generic" };
   }
 
   return { ok: true, step: update.step as number };
@@ -447,7 +507,13 @@ export async function addReference(input: {
     phone: input.phone,
     applicantPhone: (owner?.phone as string | null) ?? null,
     existing: (existing ?? []).map((row) => row.phone as string),
-    payoutAccount: (application.payout_account as string | null) ?? null,
+    /*
+     * OPENED FOR THE COMPARISON AND NOWHERE ELSE. `judgeReference` refuses a
+     * referee whose phone IS the payout number — somebody who holds the wallet
+     * is not an independent referee — and that comparison needs the digits. They
+     * are read here, judged, and never returned to anybody.
+     */
+    payoutAccount: openPayoutAccount(application.payout_account as string | null),
   });
   if (verdict !== "ok") return verdict;
 

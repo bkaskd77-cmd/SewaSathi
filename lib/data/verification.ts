@@ -2,6 +2,7 @@ import "server-only";
 
 import { recordSecurityEvent } from "@/lib/audit";
 import { unreadableQueue, type QueuePage } from "@/lib/data/queue";
+import { openPayoutAccount } from "@/lib/data/payout-account";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { secretDigest } from "@/lib/security/secret-box";
@@ -34,6 +35,48 @@ import {
  * So the normalising is shared and the hashing is the server's, which is also
  * where it belongs — the hash is a storage decision, not a matching one.
  */
+
+/** Everything on an application that a match key is derived from. */
+export type MatchKeySubject = {
+  citizenship_number: string | null;
+  pan_number: string | null;
+  /** AS STORED — an envelope, or a legacy bare number. Opened in here. */
+  payout_account: string | null;
+  full_name: string | null;
+  service_areas: string[] | null;
+  device_fingerprint: string | null;
+  referencePhones: string[];
+};
+
+/**
+ * The keys for one application, computed from values this function opens itself.
+ *
+ * ONE FUNCTION BECAUSE THE TRAP IS UNREACHABLE THAT WAY, and the trap is sharp.
+ * `payout_account` is sealed and the envelope carries a RANDOM IV, so digesting
+ * the stored string produces a different key on every submission — account
+ * duplicate detection dies with no failed write, no exception and no log line,
+ * which is a check that has quietly stopped checking. There were two callers
+ * computing this shape (the submission and the conversion sweep), which is one
+ * list written twice with a silent failure at the end of it. Now neither can
+ * forget to open the account, because neither is handed the chance.
+ *
+ * It takes the row as stored rather than a plaintext argument for the same
+ * reason: an argument named `plainAccount` is an argument somebody can pass the
+ * envelope to.
+ */
+export function applicationMatchKeys(subject: MatchKeySubject): MatchKey[] {
+  return matchKeysFor({
+    documentNumbers: [
+      subject.citizenship_number ?? "",
+      subject.pan_number ?? "",
+    ],
+    accounts: [openPayoutAccount(subject.payout_account) ?? ""],
+    fullName: subject.full_name ?? "",
+    areaKeys: subject.service_areas ?? [],
+    deviceFingerprint: subject.device_fingerprint ?? undefined,
+    referencePhones: subject.referencePhones,
+  });
+}
 
 /**
  * A KEYED digest of `kind:value`, hex. 64 characters, as the column still checks.
@@ -227,15 +270,13 @@ export async function sealApplication(input: {
     .select("phone")
     .eq("application_id", input.applicationId);
 
-  const keys: MatchKey[] = matchKeysFor({
-    documentNumbers: [
-      application.citizenship_number ?? "",
-      application.pan_number ?? "",
-    ],
-    accounts: [application.payout_account ?? ""],
-    fullName: application.full_name ?? "",
-    areaKeys: (application.service_areas as string[]) ?? [],
-    deviceFingerprint: application.device_fingerprint ?? undefined,
+  const keys: MatchKey[] = applicationMatchKeys({
+    citizenship_number: application.citizenship_number as string | null,
+    pan_number: application.pan_number as string | null,
+    payout_account: application.payout_account as string | null,
+    full_name: application.full_name as string | null,
+    service_areas: (application.service_areas as string[] | null) ?? null,
+    device_fingerprint: application.device_fingerprint as string | null,
     referencePhones: (referenceRows ?? []).map((row) => row.phone as string),
   });
 

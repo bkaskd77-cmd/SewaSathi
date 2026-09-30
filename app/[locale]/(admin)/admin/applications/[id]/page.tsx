@@ -99,7 +99,7 @@ export default async function ApplicationReviewPage({
         />
         <Pair
           label={tApply("payout.title")}
-          value={application.payoutAccount}
+          value={application.payoutAccountMasked}
           note={
             application.payoutIsSomebodyElses
               ? t("payoutIsSomebodyElses")

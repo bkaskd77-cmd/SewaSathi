@@ -305,6 +305,55 @@ deliberately not in the database. Until it does, this is stated rather than
 assumed away: nothing else in the product can tell a dead key from a value nobody
 shares.
 
+### The account number on an application
+
+`provider_applications.payout_account` is the other place a number like this
+lives. It is **not** a payable address — it is collected once at review and
+nothing sends money to it — but a leaked backup does not care about that
+distinction, and two real numbers sat in it in plaintext.
+
+**Sealed on the way in, on the only path that writes it.** `saveStep` seals
+before the update; a key failure refuses the step rather than storing the number
+in the clear.
+
+**The owner gets their own digits back. An admin does not.** The apply form uses
+`payoutAccount` as a field's `defaultValue`, so somebody resuming a draft has to
+see what they typed or the only way to fix one character is to retype all of them
+— and they are the person who entered it. The reviewer's shape is
+`payoutAccountMasked`, **renamed deliberately**: a field still called
+`payoutAccount` while holding `••••4567` invites the next person to print it
+expecting a number, or to "fix" the mask. `payoutIsSomebodyElses` answers the one
+question the digits would be read for, as a boolean, computed from plaintext that
+is discarded. There is no audited reveal here, because nothing pays this field;
+`payout_destinations` is the payable address and that one has one.
+
+**One function computes the match keys, and that is a correctness fix rather than
+tidiness.** The envelope carries a random IV, so digesting the stored string
+produces a different key on every submission — account-duplicate detection would
+die with no failed write, no exception and no log line. Two callers were building
+that shape (the submission and the conversion sweep): one list written twice with
+a silent failure at the end of it. `applicationMatchKeys` takes the row **as
+stored** and opens the account itself, so no argument exists that somebody could
+pass an envelope to. The test for it did not bite until the two were collapsed —
+it was covering `hashMatchKey` and the sweep, not the submission path.
+
+**The conversion is a guarded one-shot with a stated life expectancy.**
+`/api/maintenance/seal-applications`, behind `CRON_SECRET`, a dry run unless
+`?armed=1`, idempotent because `isSealed` decides per row rather than a flag
+somebody has to keep correct. It seals the plaintext rows and re-keys the dead
+digests in the same pass, writing new keys **before** removing old ones so no
+application is ever left with none. A value that will not open is counted as a
+failure and left alone: re-sealing it would make it permanently unopenable and
+report success. It runs as a URL because the key is a Vercel variable — the
+conversion has to happen where that variable exists, not from a developer's
+machine and not through the database, which deliberately does not hold it.
+
+**The shape constraint comes last**, after the sweep reports zero, for the reason
+`20260930000003`'s header states: a constraint requiring an envelope, added
+first, refuses the very UPDATE that converts the rows. When it lands, the legacy
+plaintext branch in `lib/data/payout-account.ts` and the whole maintenance route
+are dead and get deleted.
+
 ### The one table whose contents are somebody's bank account
 
 `payout_destinations` holds where a professional is paid — an account number or

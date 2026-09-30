@@ -12,6 +12,10 @@ import {
   unreadableQueue,
   type QueuePage,
 } from "@/lib/data/queue";
+import {
+  maskPayoutAccount,
+  openPayoutAccount,
+} from "@/lib/data/payout-account";
 import { describeError } from "@/lib/data/source";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
@@ -76,7 +80,8 @@ export type ApplicationForReview = {
   citizenshipNumber: string | null;
   panNumber: string | null;
   payoutMethod: string | null;
-  payoutAccount: string | null;
+  /** `••••4567`. Never the digits — see the note where it is built. */
+  payoutAccountMasked: string | null;
   /**
    * The payout number is not the number they sign in with.
    *
@@ -260,9 +265,29 @@ export async function applicationForReview(input: {
     citizenshipNumber: (application.citizenship_number as string | null) ?? null,
     panNumber: (application.pan_number as string | null) ?? null,
     payoutMethod: (application.payout_method as string | null) ?? null,
-    payoutAccount: (application.payout_account as string | null) ?? null,
+    /*
+     * MASKED FOR THE REVIEWER, AND THE FIELD IS NAMED FOR IT.
+     *
+     * A reviewer is checking that the payout name matches the applicant and that
+     * the method is one we support. Neither needs the digits, and the one
+     * question the number itself would be read for — is this somebody else's
+     * wallet — is answered on the next line as a boolean, computed from the
+     * plaintext and discarded. So the digits never reach a response, a cache or a
+     * screenshot.
+     *
+     * RENAMED FROM `payoutAccount` DELIBERATELY. A field still called
+     * `payoutAccount` while holding `••••4567` invites the next person to print
+     * it expecting a number, or to "fix" the mask. The name says what it is.
+     * There is no audited reveal for this field because nothing sends money to
+     * it — `payout_destinations` is the payable address, and that one has one.
+     */
+    payoutAccountMasked: maskPayoutAccount(
+      application.payout_account as string | null,
+    ),
     payoutIsSomebodyElses: payoutIsSomebodyElses({
-      payoutAccount: application.payout_account as string | null,
+      payoutAccount: openPayoutAccount(
+        application.payout_account as string | null,
+      ),
       applicantPhone: applicantPhone,
     }),
     yearsExperience: (application.years_experience as number | null) ?? null,
