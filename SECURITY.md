@@ -214,6 +214,33 @@ adds is the record.
   beside their phone number, which is the shape of thing that gets acted on
   without anybody deciding to.
 
+### A definer function is a second door onto the same rows
+
+**Its grant is the only lock on it.** `provider_outstanding` and
+`provider_balance` aggregate `provider_ledger`, whose policies scope reads
+correctly — the owning professional, and admins. Both functions are
+`security definer`, so they never consult those policies, and both carried
+`execute` for `authenticated`: any signed-in customer could read any
+professional's guarantee debt and net money position by naming their id.
+
+Proven against production as `authenticated`, with a customer's own JWT claim
+and somebody else's provider id — the call returned a row. Nothing was
+disclosed, because `provider_ledger` is empty; the door being open is the
+finding, not the traffic through it.
+
+**Revoked from `authenticated` in `20260930000001`**, and it cost nothing: both
+production callers already hold the service role
+(`lib/data/provider-profile.ts`, `lib/data/claim-signals.ts`), so the grant
+served no legitimate path. `tests/db/ledger-kinds.test.ts` asserts the refusal
+as the caller experiences it, including for a professional asking about
+themselves — nothing calls these from a browser, and a grant that exists for
+nobody is one only an attacker can use.
+
+So before adding a `security definer` function, the question is not "is the
+policy right" but **"who may call it, and with whose id"**.
+`tests/db/guard-clauses.test.ts` fails on a new definer function signed-in users
+can reach with nothing naming the policy that needs it.
+
 ### RLS is a floor, not a filter
 
 **A read for a screen that belongs to one person names that person in the

@@ -215,6 +215,58 @@ describe("the guarantee account and the money account are separate", () => {
   });
 });
 
+describe("the aggregates are server-side only", () => {
+  /**
+   * WHAT WAS OPEN, AND WHY A POLICY DID NOT CLOSE IT.
+   *
+   * `provider_ledger`'s policies are right — a professional reads their own
+   * rows, an admin reads all. But both aggregates are `security definer`, so
+   * they never consult a policy, and both had `execute` for `authenticated`.
+   * Any signed-in customer could name any professional's id and read their
+   * guarantee debt and money position. Proven against production before the
+   * fix: the call returned a row rather than being refused.
+   *
+   * That is `listBookings()` one layer down. RLS is a floor; a definer function
+   * standing on it answers only to its own grant. So the guard is the GRANT,
+   * asserted here as the caller actually experiences it, and the break-test
+   * below is what stops this passing for the wrong reason.
+   */
+  it("refuses a signed-in caller naming somebody else's id", async () => {
+    const asCustomer = await pg.asUser(ANITA);
+
+    for (const fn of ["provider_outstanding", "provider_balance"]) {
+      await expect(
+        asCustomer.query(`select public.${fn}($1)`, [krishna]),
+        `${fn} answered a caller who is not that provider`,
+      ).rejects.toThrow(/permission denied/i);
+    }
+  });
+
+  it("refuses them even when the caller IS that provider", async () => {
+    /*
+     * Deliberate, and the reason the fix is a revoke rather than an ownership
+     * check inside the function. Nothing in the product calls these from a
+     * browser: both call sites hold the service role, and the professional's
+     * money view is server-rendered. A grant that exists for nobody is a grant
+     * that only an attacker can use.
+     */
+    const asProvider = await pg.asUser(KRISHNA);
+
+    await expect(
+      asProvider.query("select public.provider_balance($1)", [krishna]),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("still answers the service role", async () => {
+    // The half that must keep working: `pg.admin` is the owner, standing in for
+    // `createAdminClient()`. A revoke that broke this would have taken the
+    // provider dashboard and the claim signals down with it.
+    await expect(
+      pg.admin.query("select public.provider_balance($1) as net", [krishna]),
+    ).resolves.toBeDefined();
+  });
+});
+
 describe("the constraint and the append-only guard cover the new kinds", () => {
   it("accepts every kind the TypeScript list names", async () => {
     for (const kind of LEDGER_KINDS) {

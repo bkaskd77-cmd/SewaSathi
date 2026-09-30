@@ -967,8 +967,10 @@ Where a change on one side cannot reach the other.
   `write_off`, and keeps its `greatest(0, …)` floor — it can never report that
   the platform owes somebody. `provider_balance` sums only the money kinds and
   is **signed**, because a professional whose week was all cash genuinely owes
-  us and a floor would hide it. Which kinds belong to which is
-  `lib/config/ledger.ts`, written as a **partition** rather than as "everything
+  us and a floor would hide it. **Both are server-side only**: `security definer`
+  over a table whose policies they do not consult, so `execute` is revoked from
+  `anon` and `authenticated` and the two callers hold the service role. Which
+  kinds belong to which is `lib/config/ledger.ts`, written as a **partition** rather than as "everything
   that is not the other" — an exclusion rule is exactly how the catch-all
   `else` in the old `provider_outstanding` came to exist, and it made adding any
   kind unsafe for two phases. A guarantee debt is deliberately outside the money

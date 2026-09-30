@@ -702,10 +702,6 @@ describe("who may execute what", () => {
       "Six policies call it — profiles, triage_logs, bookings, payments, refunds, booking_status_history. Revoking breaks every read in the product for every signed-in user.",
     provider_can_serve:
       "Called by the bookings policies. `security definer` to break the recursion a policy on bookings reading addresses would otherwise cause.",
-    provider_outstanding:
-      "Read by the provider ledger surface so a professional can see what they owe.",
-    provider_balance:
-      "The signed two-way net — earnings owed against commission owed on cash. Read by a professional's own money view, the same reason provider_outstanding keeps execute. Separate from it because that one floors at zero, which is right for a guarantee debt and wrong for an account that must be able to go negative.",
     open_job_ids:
       "The trade-and-ward rule for the open-job board, written once. Both 'Providers see open jobs they can do' and lib/data/provider-jobs.ts call it; revoking it empties every professional's open-job list.",
     provider_refused:

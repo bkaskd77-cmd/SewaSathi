@@ -1236,6 +1236,32 @@ endpoint or stores a new kind of personal data.
   policy and the application call it (`open_job_ids()`). Before leaving a read
   to RLS, ask which admin policy is on that table — `docs/rls-matrix.md` lists
   them.
+- **RLS is a floor under the rows, and a `security definer` function stands on
+  top of it answering to nothing but its own grant.** `provider_ledger`'s
+  policies are exactly right — a professional reads their own rows, an admin
+  reads all — and `provider_outstanding` and `provider_balance` had `execute`
+  for `authenticated` while being `security definer`, so any signed-in customer
+  could name any professional's id and read their guarantee debt and money
+  position. **Proven against production before the fix**: as `authenticated`
+  with a customer's own JWT claim and somebody else's provider id, the call
+  returned a row. Nothing was disclosed — `provider_ledger` is empty — but the
+  door was open, which is the finding.
+  This is `listBookings()` one layer down: there the unscoped thing was a query,
+  here it is an aggregate, and in both cases the policy was faultless and
+  irrelevant. **So the question to ask of every definer function is not "is the
+  policy right" but "who may call it, and with whose id".**
+  The fix cost nothing, which is the part worth keeping: **no production caller
+  needed the grant.** `lib/data/provider-profile.ts` and
+  `lib/data/claim-signals.ts` both reach these through `createAdminClient()`,
+  so the grant served nobody but an id-enumerator. Revoked from `authenticated`
+  in `20260930000001`, and `tests/db/ledger-kinds.test.ts` asserts the refusal
+  as the caller experiences it.
+  **`provider_balance` inherited the hole one day old**, copied from
+  `provider_outstanding`'s shape without asking what the definer bypassed — and
+  the reason recorded for granting it ("a professional reads their own balance
+  on their dashboard") was wrong on its face, since that view is server-rendered
+  and reads through the service role like every other money surface. A pattern
+  copied is not a pattern examined.
 - **The actor comes from the session, never from the caller.** Every action
   re-reads `getSessionProfile()` and passes the id down as `actorId`; the data
   layer re-reads the subject and decides. Three holes have been found this way
