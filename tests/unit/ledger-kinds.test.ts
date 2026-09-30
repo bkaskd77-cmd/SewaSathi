@@ -36,6 +36,34 @@ describe("the ledger kinds match the column's check constraint", () => {
     expect(inSql).toEqual([...LEDGER_KINDS].sort());
   });
 
+  it("matches the hand-written database types as well", async () => {
+    /*
+     * ONE LIST WRITTEN THREE TIMES, not two. `types/supabase.ts` is
+     * hand-maintained to mirror the database, and it carried the original three
+     * kinds for a day after the constraint grew to eight — the migration and
+     * the constant agreed with each other while the type disagreed with both,
+     * which is the exact shape `CRON_JOBS` has a three-way test for.
+     *
+     * A stale union here does not fail a build: it makes TypeScript reject a
+     * legitimate write at the call site, in the payout run that does not exist
+     * yet, months from now, looking like a bug in the run.
+     */
+    const { readFile } = await import("node:fs/promises");
+    const types = await readFile(
+      new URL("../../types/supabase.ts", import.meta.url),
+      "utf8",
+    );
+
+    const block = types.match(
+      /provider_ledger: \{[\s\S]*?kind:([\s\S]*?);/,
+    )?.[1];
+    const inTypes = ((block ?? "").match(/"[a-z_]+"/g) ?? [])
+      .map((quoted) => quoted.slice(1, -1))
+      .sort();
+
+    expect(inTypes).toEqual([...LEDGER_KINDS].sort());
+  });
+
   it("splits every kind into exactly one of the two accounts", () => {
     /*
      * A KIND COUNTED BY NEITHER FUNCTION IS THE FAILURE THIS CATCHES, and it

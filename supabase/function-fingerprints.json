@@ -51,6 +51,10 @@
     "sha": "176915304a970b04",
     "file": "20260910000002_customer_risk.sql"
   },
+  "enforce_destination_immutability": {
+    "sha": "13915262d7f14d12",
+    "file": "20260930000002_payout_destinations.sql"
+  },
   "enforce_guarantee_visit": {
     "sha": "6a7989b0a9606c44",
     "file": "20260921000007_guarantee_visit_gate.sql"

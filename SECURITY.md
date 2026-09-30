@@ -214,6 +214,42 @@ adds is the record.
   beside their phone number, which is the shape of thing that gets acted on
   without anybody deciding to.
 
+### The one table whose contents are somebody's bank account
+
+`payout_destinations` holds where a professional is paid — an account number or
+a wallet id. It is the only table in this product reached by **no browser at
+all**: `anon` and `authenticated` are `revoke all`'d rather than filtered by a
+policy, so the planner refuses before a row is considered.
+
+**Deliberately no policy, including no `is_admin()` one.** A SELECT policy would
+be a second path to the same rows over `/rest/v1` that writes no audit row, and
+the audit is the point: every admin read goes through a separate function that
+cannot be quietly skipped, the `recordDocumentAccess` idiom. The professional
+sees their own destination **masked**, server-rendered — showing somebody their
+own account number in full tells them nothing they do not know and puts it in a
+response, a cache and a screenshot.
+
+`tests/db/booking-rls.test.ts` normally fails a table with RLS and no policies,
+because that is usually an oversight rather than a decision. This table is named
+in `NO_BROWSER_ACCESS` there with its reason, the same "decide out loud" shape as
+`PUBLIC_TO_ANON`. That case also now accepts a **refusal** as well as zero rows —
+a revoked table throws where a filtered one returns nothing, and the refusal is
+the stronger result. It matches `permission denied` specifically, so a typo in
+the probe cannot read as a secure table.
+
+**Retire, never edit.** `enforce_destination_immutability` refuses a change to
+`kind`, `account_ref`, `account_name`, `bank_name`, `created_at` or
+`usable_from` for **every caller including the service role** — no
+`auth.uid() is null` bypass, unlike `enforce_booking_immutability`, because
+every write here is service-role and a bypass would leave the trigger enforcing
+nothing. It also refuses un-retiring a row (resurrecting a replaced address is
+the takeover path with an extra step) and refuses overwriting a recorded
+first-payout confirmation. A partial unique index keeps one live destination per
+professional, refused by the database rather than remembered by the caller.
+
+**`usable_from` is the 72-hour takeover window**, stamped at insert rather than
+derived at payout time so the rule cannot be forgotten by a caller.
+
 ### A definer function is a second door onto the same rows
 
 **Its grant is the only lock on it.** `provider_outstanding` and

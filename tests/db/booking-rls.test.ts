@@ -2047,6 +2047,28 @@ describe("RLS covers every table, including ones nobody has written a test for",
   /** The one table a stranger may write to: the "join us" form. */
   const ANON_MAY_WRITE = new Set(["provider_leads"]);
 
+  /**
+   * Tables no browser reaches at all — the privilege is revoked, so there is no
+   * policy to write.
+   *
+   * RLS-with-no-policy is normally a mistake, which is why the case below fails
+   * on it. This set is the "decided out loud" escape, same shape as
+   * `PUBLIC_TO_ANON`, and each entry says what makes the absence deliberate.
+   *
+   * `payout_destinations` holds somebody's bank account or wallet id. Every
+   * read is service-role and audited by a separate function that cannot be
+   * quietly skipped; a SELECT policy — even `is_admin()` — would create a
+   * second path to the same rows over /rest/v1 that writes no audit row. The
+   * professional sees their own destination MASKED on a server-rendered page,
+   * which needs no policy either.
+   */
+  const NO_BROWSER_ACCESS = new Map([
+    [
+      "payout_destinations",
+      "service-role reads only; a policy would be an unaudited path to somebody's account number",
+    ],
+  ]);
+
   const tables = async (): Promise<
     Array<{ relname: string; rls: boolean; policies: number }>
   > => {
@@ -2072,7 +2094,7 @@ describe("RLS covers every table, including ones nobody has written a test for",
     // always a mistake rather than a decision — the table is unreachable and
     // whoever wrote it has not noticed yet.
     const bare = (await tables())
-      .filter((t) => t.policies === 0)
+      .filter((t) => t.policies === 0 && !NO_BROWSER_ACCESS.has(t.relname))
       .map((t) => t.relname);
     expect(bare).toEqual([]);
   });
@@ -2083,10 +2105,27 @@ describe("RLS covers every table, including ones nobody has written a test for",
 
     for (const { relname } of await tables()) {
       if (PUBLIC_TO_ANON.has(relname)) continue;
-      const { rows } = await anon.query(
-        `select 1 from public.${relname} limit 1`,
-      );
-      if (rows.length > 0) leaked.push(relname);
+
+      /*
+       * A REVOKED TABLE THROWS RATHER THAN RETURNING NOTHING, and that is the
+       * stronger outcome — the planner refuses before a row is considered,
+       * which is the property a grant has and a policy does not.
+       *
+       * The error is matched on `permission denied` specifically. Catching
+       * every error would let a typo in this loop read as a secure table,
+       * which is how a probe stops probing without anybody noticing.
+       */
+      try {
+        const { rows } = await anon.query(
+          `select 1 from public.${relname} limit 1`,
+        );
+        if (rows.length > 0) leaked.push(relname);
+      } catch (error) {
+        const message = (error as Error).message;
+        if (!/permission denied/i.test(message)) {
+          throw new Error(`${relname} failed for a reason that is not a refusal: ${message}`);
+        }
+      }
     }
 
     expect(leaked).toEqual([]);

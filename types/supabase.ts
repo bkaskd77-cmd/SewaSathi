@@ -985,6 +985,56 @@ export type Database = {
         >;
         Relationships: [];
       };
+      /**
+       * Where a professional is paid.
+       *
+       * NO BROWSER REACHES THIS TABLE — `anon` and `authenticated` are revoked
+       * outright rather than filtered by a policy, so every read is
+       * service-role and audited. The type exists because the payout run and
+       * the admin screen will reach it through `createAdminClient()`.
+       *
+       * `Update` is deliberately narrow: the immutability trigger refuses a
+       * change to anything else for every caller, service role included. A
+       * destination is replaced by retiring it and inserting a new row, so a
+       * payout can always name the address that was live when it was sent.
+       */
+      payout_destinations: {
+        Row: {
+          id: string;
+          provider_id: string;
+          kind: "bank" | "esewa" | "khalti";
+          /** Never rendered whole — `maskAccountRef` decides how much shows. */
+          account_ref: string;
+          account_name: string;
+          bank_name: string | null;
+          created_at: string;
+          /** The 72-hour takeover window, stamped at insert. */
+          usable_from: string;
+          /** Null means nobody has confirmed it yet, not that no payout went. */
+          first_payout_confirmed_at: string | null;
+          first_payout_confirmed_by: string | null;
+          retired_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          provider_id: string;
+          kind: "bank" | "esewa" | "khalti";
+          account_ref: string;
+          account_name: string;
+          bank_name?: string | null;
+          created_at?: string;
+          usable_from: string;
+          first_payout_confirmed_at?: string | null;
+          first_payout_confirmed_by?: string | null;
+          retired_at?: string | null;
+        };
+        Update: {
+          first_payout_confirmed_at?: string | null;
+          first_payout_confirmed_by?: string | null;
+          retired_at?: string | null;
+        };
+        Relationships: [];
+      };
       payments: {
         Row: {
           id: string;
@@ -1330,7 +1380,15 @@ export type Database = {
            * happened rather than an inference: payouts were undivided then.
            */
           tranche: "main" | "holdback";
-          kind: "redo_debt" | "recovery" | "write_off";
+          kind:
+            | "redo_debt"
+            | "recovery"
+            | "write_off"
+            | "earning"
+            | "commission_due"
+            | "payout"
+            | "payout_reversal"
+            | "tax_withheld";
           amount_rupees: number;
           note: string | null;
           created_at: string;
@@ -1341,7 +1399,15 @@ export type Database = {
           claim_id?: string | null;
           booking_id?: string | null;
           tranche?: "main" | "holdback";
-          kind: "redo_debt" | "recovery" | "write_off";
+          kind:
+            | "redo_debt"
+            | "recovery"
+            | "write_off"
+            | "earning"
+            | "commission_due"
+            | "payout"
+            | "payout_reversal"
+            | "tax_withheld";
           amount_rupees: number;
           note?: string | null;
           created_at?: string;

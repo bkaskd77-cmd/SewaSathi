@@ -109,6 +109,7 @@ interface. Swapping a provider is then one file, not a hunt.
 | In-app notifications | `lib/notify/in-app.ts` | A row in `notifications`, written under the service role. Always configured — there is no key to be missing, so something is always recorded. |
 | SMS / push notifications | *not built* | Phase 13. One file implementing `NotificationChannel` plus a line in `lib/notify/index.ts`; nothing that decides *what* to notify about changes. |
 | In-app chat | *not built* | In scope, after the Next 16 upgrade. The anti-leakage lever for the `provider_contacts` release window — see Seams. Not an adapter: no external service. |
+| Payout destination | `lib/payments/destination.ts` | Pure: masking and the 72-hour cooldown. One place decides how much of an account number a screen shows, so two surfaces cannot disagree about it. The table itself is reached by no browser. |
 | Remittance (payouts) | *not built* | One typed interface, first implementation manual. Until it exists nothing pays anybody — `LAUNCH-BLOCKERS.md § payouts-unbuilt`. |
 | Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
 

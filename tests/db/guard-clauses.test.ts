@@ -46,6 +46,37 @@ type Guard = {
 };
 
 const GUARDS: Record<string, Guard[]> = {
+  enforce_destination_immutability: [
+    {
+      protects:
+        "Where the money goes cannot be edited in place — it is replaced.",
+      ifMissing:
+        "A payout row names a destination whose account number has since been changed, so every historical payout points at today's answer. That is precisely the record somebody asks for when their money went somewhere else.",
+      clauses: [
+        "new.account_ref is distinct from old.account_ref",
+        "new.kind is distinct from old.kind",
+        "new.usable_from is distinct from old.usable_from",
+      ],
+    },
+    {
+      protects: "A retired destination stays retired.",
+      ifMissing:
+        "An address somebody deliberately replaced can be brought back by clearing one column, which is the account-takeover path with an extra step.",
+      clauses: ["old.retired_at is not null and new.retired_at is null"],
+    },
+    {
+      protects: "The first-payout confirmation is written once.",
+      ifMissing:
+        "A second look overwrites the first person's name and timestamp on the record of who approved money going to a new account.",
+      clauses: ["old.first_payout_confirmed_at is not null"],
+    },
+    {
+      protects: "A destination is never deleted.",
+      ifMissing:
+        "The row a payout points at can vanish, and the audit trail with it.",
+      clauses: ["tg_op = 'DELETE'"],
+    },
+  ],
   enforce_slot_capacity: [
     {
       protects: "One professional cannot be in two houses at once.",
