@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  SEALING_NOT_READY_STATE,
+  sealingReadiness,
   SESSION_CONFIG_STATE,
   servesCustomers,
   SMS_GATEWAY_UNSET_STATE,
@@ -263,6 +265,14 @@ const LIVE_PAYLOAD_F29583F: HealthCheck[] = [
   { name: "cron.runs", state: "ok", detail: "" },
   { name: "sms.gateway", state: SMS_GATEWAY_UNSET_STATE, detail: "" },
   { name: "auth.sms.probe", state: SMS_PROBE_STATE, detail: "" },
+  /*
+   * Added after the payload above was captured. Kept in the fixture rather
+   * than left out: the case asserts that the configuration this product runs
+   * on answers 200, and a check added later is part of that configuration. A
+   * fixture frozen at one commit would stop being the thing under test the
+   * first time the endpoint grew.
+   */
+  { name: "payout.sealing", state: SEALING_NOT_READY_STATE, detail: "" },
   { name: "rateLimit", state: "ok", detail: "" },
   { name: "sms.budget", state: "ok", detail: "" },
 ];
@@ -299,6 +309,73 @@ describe("the verdict production actually returned", () => {
         check.name === broken.name ? broken : check,
       );
       expect(servesCustomers(payload), broken.name).toBe(false);
+    }
+  });
+});
+
+/**
+ * Whether this deployment can seal an account number, readable for free.
+ *
+ * THE `SMS_HEALTH_NUMBER` LESSON, APPLIED BEFORE IT COST ANYTHING. A key that
+ * is set but truncated looks identical to a working one from every dashboard:
+ * Vercel cannot read a sensitive variable back, the build succeeds, every page
+ * renders. The first signal would be a professional failing to save where they
+ * are paid, with an error that looks like a bug in the form.
+ */
+describe("what the sealing key is", () => {
+  const unset = { ok: false as const, reason: "unset", length: 0 };
+  const short = { ok: false as const, reason: "badLength", length: 24 };
+  const ready = { ok: true as const };
+
+  it("gives three different sentences, because they are three different jobs", () => {
+    /*
+     * Nobody set it / somebody set it wrongly / it works. Collapsing the middle
+     * into either neighbour is how "present" came to read as "working" on
+     * `checkTriage` for months.
+     */
+    const sentences = [
+      sealingReadiness(unset),
+      sealingReadiness(short),
+      sealingReadiness(ready),
+    ];
+    expect(new Set(sentences).size).toBe(3);
+    for (const sentence of sentences) {
+      expect(sentence).toContain("PAYOUT_ENCRYPTION_KEY");
+    }
+  });
+
+  it("names the length when the key is the wrong size", () => {
+    // The fact that identifies a truncated paste, and the one a reader can act
+    // on without being able to see the value.
+    expect(sealingReadiness(short)).toContain("24 bytes");
+    expect(sealingReadiness(short)).toContain("must be 32");
+    expect(sealingReadiness(short)).toContain("openssl rand -base64 32");
+  });
+
+  it("says a working key still proves nothing about a stored value", () => {
+    // `ok` here means "we can seal", not "everything that was sealed opens".
+    // Reporting the stronger claim is the mistake this endpoint keeps making.
+    expect(sealingReadiness(ready)).toContain("only proved by reading one back");
+  });
+
+  it("says plainly that an unset key breaks nothing else", () => {
+    expect(sealingReadiness(unset)).toContain("Nothing else is affected");
+  });
+
+  it("cannot 503 a working product when the key is missing or wrong", () => {
+    /*
+     * `servesCustomers` turns anything but `ok` and `skipped` into a 503, and a
+     * missing sealing key stops nobody booking a plumber. It stops a
+     * professional saving where they are paid — a real fault, and not the
+     * question this endpoint asks.
+     */
+    for (const status of [unset, short]) {
+      const check: HealthCheck = {
+        name: "payout.sealing",
+        state: SEALING_NOT_READY_STATE,
+        detail: sealingReadiness(status),
+      };
+      expect(servesCustomers([check]), status.reason).toBe(true);
     }
   });
 });

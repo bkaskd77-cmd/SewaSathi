@@ -870,6 +870,21 @@ verify`, and any can be changed by somebody not looking at this code.
   the one that costs an SMS cannot drift.
   **And the `deep=1` 401 says which refusal it is**: an unset `CRON_SECRET`
   means no token will ever work, which used to read exactly like a mistyped one.
+- **`payout.sealing` applies the `SMS_HEALTH_NUMBER` lesson before it costs
+  anything.** A `PAYOUT_ENCRYPTION_KEY` that is set but truncated is
+  indistinguishable from a working one everywhere a person can look: Vercel
+  cannot read a sensitive variable back, the build succeeds, every page
+  renders. The first signal would be a professional failing to save where they
+  are paid, with an error that reads like a bug in the form. So the check is
+  **three-way** — unset, wrong length, ready — because "nobody set it" and
+  "somebody set it wrongly" are different jobs, and a boolean collapses them.
+  It reports the **length** and never the key, since a length is what tells
+  somebody they pasted 24 characters of a 44-character value. It is `ok` only
+  on a key of the right size — a present key reported as working is
+  `checkTriage`'s months-long mistake — and its detail says that even then,
+  whether a *stored* value opens again is only proved by reading one back.
+  Never `down`: a missing sealing key stops nobody booking a plumber, so
+  `SEALING_NOT_READY_STATE` is `skipped` and cannot 503 a working product.
 - The SMS gateway is a **launch blocker** until `?deep=1` reports
   `auth.sms: ok` against production. The dashboard looked correct the whole
   time it was broken.

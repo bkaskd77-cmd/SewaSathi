@@ -5,6 +5,7 @@ import {
   openSecret,
   sealSecret,
   sealingIsConfigured,
+  sealingStatus,
   secretDigest,
 } from "@/lib/security/secret-box";
 
@@ -113,6 +114,36 @@ describe("a missing or wrong key", () => {
     delete process.env.PAYOUT_ENCRYPTION_KEY;
     expect(() => sealSecret(ACCOUNT)).toThrow(/PAYOUT_ENCRYPTION_KEY is not set/);
     expect(sealingIsConfigured()).toBe(false);
+  });
+
+  it("reports the length rather than a bare false", () => {
+    /*
+     * Three answers, not two. A boolean collapses "nobody configured this" into
+     * "somebody configured this wrongly", and those need different sentences on
+     * /api/health — one is a task, the other is a bug somebody has already
+     * made and cannot see.
+     */
+    delete process.env.PAYOUT_ENCRYPTION_KEY;
+    expect(sealingStatus()).toEqual({ ok: false, reason: "unset", length: 0 });
+
+    process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(24, 1).toString("base64");
+    expect(sealingStatus()).toEqual({
+      ok: false,
+      reason: "badLength",
+      length: 24,
+    });
+
+    process.env.PAYOUT_ENCRYPTION_KEY = KEY;
+    expect(sealingStatus()).toEqual({ ok: true });
+  });
+
+  it("treats a whitespace-only key as unset, not as a bad length", () => {
+    // A variable set to a space is somebody who cleared it, not somebody who
+    // pasted the wrong thing. Base64-decoding "  " gives zero bytes, which
+    // would otherwise report as `badLength: 0` and send them looking for a
+    // truncated paste that does not exist.
+    process.env.PAYOUT_ENCRYPTION_KEY = "   ";
+    expect(sealingStatus()).toEqual({ ok: false, reason: "unset", length: 0 });
   });
 
   it("names the variable when the key is the wrong length", () => {

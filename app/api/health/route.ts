@@ -11,6 +11,8 @@ import {
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  SEALING_NOT_READY_STATE,
+  sealingReadiness,
   SESSION_CONFIG_STATE,
   servesCustomers,
   SMS_GATEWAY_UNSET_STATE,
@@ -25,6 +27,7 @@ import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 import { smsGateway } from "@/lib/sms";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
+import { sealingStatus } from "@/lib/security/secret-box";
 import FINGERPRINTS from "@/supabase/function-fingerprints.json";
 
 /**
@@ -266,6 +269,32 @@ async function checkFunctions(): Promise<Check> {
       detail: `Could not read the live definitions: ${(error as Error).message}`,
     };
   }
+}
+
+/**
+ * Can this deployment seal an account number? Free, public, sends nothing.
+ *
+ * WHY THIS EXISTS AT ALL, and it is the `SMS_HEALTH_NUMBER` lesson applied
+ * before it costs anything rather than after. A key that is set but truncated
+ * is indistinguishable from a working one in every dashboard: Vercel shows a
+ * sensitive variable it cannot read back, the build succeeds, every page
+ * renders. The first signal would be a professional failing to save where they
+ * are paid, and the error would look like a bug in the form.
+ *
+ * `ok` ONLY WHEN THE KEY IS THE RIGHT LENGTH. Reporting a present key as
+ * working is exactly what `checkTriage` did for months.
+ *
+ * NEVER `down`. `servesCustomers` turns anything but `ok` and `skipped` into a
+ * 503, and a missing sealing key stops nobody booking a plumber — see
+ * `SEALING_NOT_READY_STATE`.
+ */
+function checkSealing(): Check {
+  const status = sealingStatus();
+  return {
+    name: "payout.sealing",
+    state: status.ok ? "ok" : SEALING_NOT_READY_STATE,
+    detail: sealingReadiness(status),
+  };
 }
 
 /**
@@ -982,6 +1011,7 @@ export async function GET(request: Request) {
     await checkCronRuns(),
     checkSmsGateway(),
     checkSmsProbe(),
+    checkSealing(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];

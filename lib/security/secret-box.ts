@@ -78,14 +78,38 @@ function key(): Buffer {
   return bytes;
 }
 
+export type SealingStatus =
+  | { ok: true }
+  | { ok: false; reason: "unset" | "badLength"; length: number };
+
+/**
+ * Can this deployment seal anything?
+ *
+ * THREE ANSWERS, NOT TWO, and the third is the one worth having. "Set" and
+ * "working" are different facts: a key that is present but the wrong length
+ * looks correct in every dashboard and fails at the first write, which is the
+ * shape of the sign-in outage and of `checkTriage` reporting a revoked key as
+ * `ok`. A boolean would collapse "nobody configured this" into "somebody
+ * configured this wrongly", and those need different sentences.
+ *
+ * Reports the LENGTH and never the key. A length is what tells somebody they
+ * pasted 24 characters of a 44-character value.
+ */
+export function sealingStatus(): SealingStatus {
+  const raw = process.env.PAYOUT_ENCRYPTION_KEY ?? "";
+  if (raw.trim() === "") return { ok: false, reason: "unset", length: 0 };
+
+  const bytes = Buffer.from(raw, "base64");
+  if (bytes.length !== KEY_BYTES) {
+    return { ok: false, reason: "badLength", length: bytes.length };
+  }
+
+  return { ok: true };
+}
+
 /** Is the key present and the right shape? For a health check, not a branch. */
 export function sealingIsConfigured(): boolean {
-  try {
-    key();
-    return true;
-  } catch {
-    return false;
-  }
+  return sealingStatus().ok;
 }
 
 /** `v1.<iv>.<ciphertext>.<tag>`, base64 parts. */

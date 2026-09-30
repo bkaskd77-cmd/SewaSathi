@@ -138,6 +138,58 @@ export const SESSION_CONFIG_STATE: HealthState = "skipped";
 export const SMS_GATEWAY_UNSET_STATE: HealthState = "skipped";
 
 /**
+ * The state `payout.sealing` reports.
+ *
+ * `skipped` for every not-ready case, never `down`, and the reason is the rule
+ * this endpoint keeps relearning: `servesCustomers` turns anything but `ok` and
+ * `skipped` into a 503, and a missing sealing key stops nobody booking a
+ * plumber. It stops a professional saving where they are paid, which is a real
+ * fault and not the question "can this serve a customer right now".
+ *
+ * It may never be `ok` on a key that is merely PRESENT, which is the other half
+ * — see `sealingReadiness`.
+ */
+export const SEALING_NOT_READY_STATE: HealthState = "skipped";
+
+/**
+ * What the sealing key is, in a sentence somebody can act on.
+ *
+ * ONE SENTENCE, THREE CASES, and they are genuinely different advice: nobody
+ * set it, somebody set it wrongly, or it works. Collapsing the middle into
+ * either neighbour is how "present" came to read as "working" on `checkTriage`
+ * for months.
+ *
+ * NEVER PRINTS THE KEY, and prints the LENGTH for the malformed case because
+ * that is the fact that identifies a truncated paste. `/api/health` is public.
+ */
+export function sealingReadiness(
+  status: { ok: true } | { ok: false; reason: string; length: number },
+): string {
+  if (status.ok) {
+    return (
+      "PAYOUT_ENCRYPTION_KEY is set and the right length, so account numbers " +
+      "are sealed before they are stored. Whether a stored value opens again " +
+      "is only proved by reading one back."
+    );
+  }
+
+  if (status.reason === "unset") {
+    return (
+      "PAYOUT_ENCRYPTION_KEY is not set on this deployment. No payout " +
+      "destination can be saved — the write throws rather than storing an " +
+      "account number in the clear. Nothing else is affected."
+    );
+  }
+
+  return (
+    `PAYOUT_ENCRYPTION_KEY decodes to ${status.length} bytes and must be 32. ` +
+    "It is set, so every dashboard reads as configured, and every attempt to " +
+    "save a payout destination will fail. Generate one with: openssl rand " +
+    "-base64 32"
+  );
+}
+
+/**
  * The number the SMS probe should actually send, or why it cannot.
  *
  * `checkSmsDelivery` used to pass `SMS_HEALTH_NUMBER` to Supabase exactly as
