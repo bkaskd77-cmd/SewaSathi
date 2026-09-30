@@ -272,24 +272,38 @@ credential; the name is already on the profile and the application, and sealing
 it would mean a decrypt on every row before an admin could see whose account
 they are looking at.
 
-### Still open: an unkeyed digest undoes some of this
+### The unkeyed digest beside it, and what fixing it broke
 
-`application_match_keys.key_hash` is an **unkeyed SHA-256** of the normalised
-value, under a comment reading "Never the value itself". That is true and not
-sufficient: a Nepali bank account or wallet number is a short numeric string, so
-anybody holding a backup can enumerate the space and match the digest in
-seconds. Encrypting `account_ref` while leaving that digest one table over is a
-lock on one door.
+`application_match_keys.key_hash` was an **unkeyed SHA-256** of the normalised
+value, under a comment reading "Never the value itself". That was true and not
+sufficient: every value fed to it is a short string from a small space — a bank
+account, a wallet number, a citizenship number, a referee's phone — so anybody
+holding a backup enumerates the space and matches the digest in seconds, with no
+key and nothing decrypted. Sealing `account_ref` while leaving that one table over
+is a lock on one door of two.
 
-`secretDigest` in `lib/security/secret-box.ts` is the replacement — HMAC-SHA-256
-under the same key, keeping exact-match equality so duplicate detection is
-unchanged in behaviour. **It is not wired yet, and the reason is deploy order**:
-`hashMatchKey` is called on every provider application submission across all six
-key kinds, so a keyed digest that throws without the key would fail every
-submission in production the moment it deployed. It lands once
-`PAYOUT_ENCRYPTION_KEY` is set, together with sealing
-`provider_applications.payout_account` — which holds two real account numbers in
-plaintext today.
+`hashMatchKey` now delegates to `secretDigest` — **HMAC-SHA-256 under
+`PAYOUT_ENCRYPTION_KEY`**, still 64 hex characters so the column's check holds,
+and still exact-match equal for the same value, which is the one property
+duplicate detection needs.
+
+**It throws when the key is absent, and `sealApplication` turns that into a
+refused submission.** Falling back to the unkeyed form would reintroduce the
+enumerable digest on a product reporting itself healthy — the `no-api-key` lesson
+where the cost is a duplicate check that has quietly stopped checking. The
+digests are therefore computed **before** the upsert is attempted rather than
+inside its argument, so the failure is reportable instead of thrown mid-call.
+
+**Old rows no longer match, and that is a real gap with a measured size.** A
+keyed digest of the same value is a different string, so the **10 existing rows
+across 2 applications** (of 3, both of those already approved) are dead keys: a
+new applicant sharing a bank account or citizenship number with one of them would
+not be flagged. The values themselves are still on `provider_applications`, so
+re-digesting is possible and is part of the same backfill that seals
+`payout_account` — it has to run in Node with the key, because the key is
+deliberately not in the database. Until it does, this is stated rather than
+assumed away: nothing else in the product can tell a dead key from a value nobody
+shares.
 
 ### The one table whose contents are somebody's bank account
 

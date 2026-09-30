@@ -1,11 +1,10 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import { recordSecurityEvent } from "@/lib/audit";
 import { unreadableQueue, type QueuePage } from "@/lib/data/queue";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { secretDigest } from "@/lib/security/secret-box";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   matchKeysFor,
@@ -37,15 +36,34 @@ import {
  */
 
 /**
- * SHA-256 of `kind:value`, hex.
+ * A KEYED digest of `kind:value`, hex. 64 characters, as the column still checks.
  *
- * THE KIND IS IN THE HASH so a document number can never collide with a bank
+ * THE KIND IS IN THE DIGEST so a document number can never collide with a bank
  * account that happens to be the same digits. Without it, "1234567890" as a
  * citizenship number and "1234567890" as an eSewa account would be the same
  * row, and a reviewer would be shown a duplicate that is not one.
+ *
+ * IT WAS A BARE SHA-256 AND THE COMMENT ABOVE IT READ "Never the value itself".
+ * That was true and it was not sufficient. A Nepali bank account, a wallet
+ * number, a citizenship number and a phone number are all short strings from a
+ * small space, so anybody holding a database backup can enumerate it and match
+ * the digest in seconds — no key, no cleverness, no decryption. Sealing
+ * `payout_destinations.account_ref` while leaving an unkeyed digest of the same
+ * number one table over is a lock on one door of two.
+ *
+ * `secretDigest` IS HMAC-SHA-256 UNDER `PAYOUT_ENCRYPTION_KEY`. It keeps the one
+ * property this table needs — equal values give equal digests, so duplicate
+ * detection stays exact-match and behaves identically — while making the digest
+ * worth nothing to somebody without the key.
+ *
+ * IT THROWS WHEN THE KEY IS ABSENT, and the caller turns that into a failed
+ * submission rather than a quiet one. Falling back to the unkeyed form would be
+ * the enumerable digest reintroduced silently, on a product that looks like it
+ * is working — the exact failure a `no-api-key` triage fallback taught this
+ * repository to distrust. A refused submission is visible and can be retried.
  */
 export function hashMatchKey(kind: MatchKeyKind, value: string): string {
-  return createHash("sha256").update(`${kind}:${value}`).digest("hex");
+  return secretDigest(kind, value);
 }
 
 export type DuplicateHit = {
@@ -222,16 +240,34 @@ export async function sealApplication(input: {
   });
 
   if (keys.length > 0) {
+    /*
+     * THE DIGESTS ARE COMPUTED BEFORE THE WRITE IS ATTEMPTED, because they can
+     * now fail. `hashMatchKey` is keyed, so an absent or wrong-length
+     * `PAYOUT_ENCRYPTION_KEY` throws — and the submission must refuse rather
+     * than store rows some of whose keys are missing. Doing it inside the
+     * `.upsert()` argument would throw mid-call, past the point where this
+     * function can say what went wrong.
+     */
+    let rows: Array<{ application_id: string; kind: MatchKeyKind; key_hash: string }>;
+    try {
+      rows = keys.map((key) => ({
+        application_id: input.applicationId,
+        kind: key.kind,
+        key_hash: hashMatchKey(key.kind, key.value),
+      }));
+    } catch (thrown) {
+      // The key, not the application. Named so nobody looks for a bug in the
+      // form: this is a deployment variable somebody has to set.
+      console.error(`[verification] cannot digest keys — ${describeError(thrown)}`);
+      return { ok: false };
+    }
+
     const { error: writeError } = await db
       .from("application_match_keys")
-      .upsert(
-        keys.map((key) => ({
-          application_id: input.applicationId,
-          kind: key.kind,
-          key_hash: hashMatchKey(key.kind, key.value),
-        })),
-        { onConflict: "application_id,kind,key_hash", ignoreDuplicates: true },
-      );
+      .upsert(rows, {
+        onConflict: "application_id,kind,key_hash",
+        ignoreDuplicates: true,
+      });
     if (writeError) {
       console.error(`[verification] writing keys — ${describeError(writeError)}`);
       return { ok: false };
