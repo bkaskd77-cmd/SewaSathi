@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { availableMethods, gatewayFor, PAYMENT_METHODS } from "@/lib/payments";
-import { esewaSignature, signaturesMatch } from "@/lib/payments/esewa";
+import { esewaSignature } from "@/lib/payments/esewa";
 
 /**
  * The gateway contract, and the one rule that protects the money.
@@ -218,14 +218,6 @@ describe("eSewa's signature", () => {
     expect(esewaSignature(base, "s")).not.toBe(esewaSignature(tampered, "s"));
   });
 
-  it("compares in constant time and rejects a mismatch", () => {
-    expect(signaturesMatch("abc", "abc")).toBe(true);
-    expect(signaturesMatch("abc", "abd")).toBe(false);
-    // Different lengths must not throw — timingSafeEqual does if they differ.
-    expect(signaturesMatch("abc", "abcd")).toBe(false);
-    expect(signaturesMatch("", "abc")).toBe(false);
-  });
-
   it("signs the form it actually posts", async () => {
     const result = await gatewayFor("esewa").initiate({
       reference: "SKP-1",
@@ -241,12 +233,9 @@ describe("eSewa's signature", () => {
     expect(result.kind).toBe("form");
     const fields = result.fields!;
     expect(fields.total_amount).toBe("1500");
-    expect(
-      signaturesMatch(
-        fields.signature,
-        esewaSignature(fields, process.env.ESEWA_SECRET_KEY!),
-      ),
-    ).toBe(true);
+    expect(fields.signature).toBe(
+      esewaSignature(fields, process.env.ESEWA_SECRET_KEY!),
+    );
   });
 
   it("never puts the signature in the stored raw record", async () => {

@@ -1,11 +1,13 @@
 -- ---------------------------------------------------------------------------
 -- Where a professional's money actually goes.
 --
--- THE ONLY DESTINATION FIELD THAT EXISTED WAS A BANK *NAME*.
--- `provider_applications.payout_bank_name` holds "Nabil Bank" and nothing else
--- — no account number, no wallet id. So even a manual transfer had nowhere to
--- read an address from, which is one of the reasons `payouts-unbuilt` is a
--- launch blocker rather than a missing screen.
+-- WHAT EXISTED, STATED CORRECTLY. An earlier draft of this header claimed
+-- `provider_applications.payout_bank_name` was the only destination field
+-- anywhere. It was not: `payout_account` has existed since `20260910000001`,
+-- is shown to a reviewer, is hashed into `application_match_keys`, and holds
+-- real account numbers. What it is not is a PAYABLE address — it is collected
+-- once at review and nothing reads it to send money. This table is that home,
+-- and the application field's own plaintext exposure is dealt with separately.
 --
 -- RETIRE, NEVER EDIT. A destination row is immutable once written: changing
 -- where money goes inserts a new row and retires the old one. That is not

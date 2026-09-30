@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 import type {
   InitiateInput,
@@ -33,6 +33,17 @@ import type {
  * control. `verify()` therefore ignores the outcome in it and asks eSewa's
  * status endpoint directly. The callback is only used to learn *which*
  * transaction to ask about — and we already know that from our own reference.
+ *
+ * SO THERE IS NO INBOUND SIGNATURE CHECK, AND ITS ABSENCE IS THE DESIGN.
+ * A constant-time comparer lived here for months, exported and exercised only
+ * by its own tests, and read like a guard somebody had forgotten to wire.
+ * Nothing should call it: verifying the callback's signature would prove the
+ * payload came from eSewa and prove nothing about whether the payment
+ * happened, which is the only question. A forged callback carrying a perfect
+ * signature is exactly as powerless as one carrying none, because the outcome
+ * comes from a server-to-server read reconciled against our own amount.
+ *
+ * The signature we DO compute is outbound, in `initiate` below.
  */
 
 const SANDBOX = {
@@ -79,14 +90,6 @@ export function esewaSignature(
     ",",
   );
   return createHmac("sha256", secret).update(message).digest("base64");
-}
-
-/** Constant-time compare, so a signature check cannot be timed character by character. */
-export function signaturesMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a ?? "", "utf8");
-  const right = Buffer.from(b ?? "", "utf8");
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
 }
 
 export const esewa: PaymentGateway = {

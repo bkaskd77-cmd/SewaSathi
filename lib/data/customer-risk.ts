@@ -77,10 +77,16 @@ export async function customerHistory(
 /**
  * Store the keys that make a ban outlive a phone number.
  *
- * Called when an address is saved, because that is the first moment a customer
- * gives us anything durable — a name and a ward. Deliberately fewer keys than
- * the provider side: we do not ask a customer for a citizenship number, and we
- * are not going to start in order to police them.
+ * NOTHING CALLS THIS. The comment used to say "called when an address is
+ * saved", which was the intent and never the fact — the address path does not
+ * reach it, so no customer key has ever been recorded and the two functions
+ * below have nothing to read. Wiring it or deleting it is decided after
+ * payouts; until then this is a capability, not a feature.
+ *
+ * The intent, kept because it is the argument for wiring it: an address is the
+ * first moment a customer gives us anything durable — a name and a ward.
+ * Deliberately fewer keys than the provider side: we do not ask a customer for
+ * a citizenship number, and we are not going to start in order to police them.
  */
 export async function recordCustomerKeys(input: {
   profileId: string;
@@ -111,10 +117,16 @@ export async function recordCustomerKeys(input: {
 /**
  * Is this person a banned account wearing a new SIM?
  *
- * Returns the evidence rather than a verdict, and NOTHING CALLS THIS TO
- * AUTO-BLOCK. A name and a ward are weak keys — thousands of people share
- * both — so a hit here is a reason to ask for confirmation, never a reason to
- * refuse somebody their plumber.
+ * NOTHING CALLS THIS AT ALL, which is a stronger statement than the one this
+ * comment used to make. It said nothing calls it to AUTO-BLOCK — true, and it
+ * read as though something called it to warn. Nothing does, and
+ * `recordCustomerKeys` above has never written a key, so today it would have
+ * nothing to match against even if it were wired.
+ *
+ * The design still holds and is why it should be wired rather than deleted: it
+ * returns evidence rather than a verdict. A name and a ward are weak keys —
+ * thousands of people share both — so a hit is a reason to ask for
+ * confirmation, never a reason to refuse somebody their plumber.
  */
 export async function bannedAccountMatches(
   profileId: string,
@@ -192,9 +204,16 @@ export async function trustForAddress(input: {
 /**
  * Decide, at creation, whether this trip needs an answer before anybody rides.
  *
- * Written by the server onto the booking, and the trigger stops a customer
- * un-requiring it from a browser — RLS is row-level, so the update policy that
- * lets them cancel their own booking would otherwise let them clear this flag.
+ * NOTHING CALLS THIS, SO THE GUARD IS INERT. `bookings.confirmation_required`
+ * exists and its trigger works — a customer genuinely cannot clear the flag
+ * from a browser, and the db suite proves it — but nothing ever SETS the flag,
+ * so the trigger has never had anything to protect. The comment said "written
+ * by the server onto the booking", which described the half that was built
+ * while reading as though the whole were.
+ *
+ * The trigger half is worth keeping whatever is decided here: RLS is
+ * row-level, so the update policy that lets a customer cancel their own
+ * booking would otherwise let them clear this flag.
  */
 export async function armConfirmation(input: {
   bookingId: string;
@@ -544,9 +563,15 @@ export async function settleNoShowClaim(input: {
 /**
  * What this customer's next bill actually is.
  *
- * Called at settlement, so a trip debt is recovered from work they chose to
- * book rather than demanded from them. Returns the bill unchanged when there
- * is nothing owed, which is almost always.
+ * NOTHING CALLS THIS, so a trip debt is recorded and never recovered — the
+ * same shape as `applyRedoRecovery` sitting uncalled for four phases while
+ * `/providers/standards` described the balance going down. The comment said
+ * "called at settlement", which was the plan.
+ *
+ * The plan is still right and is the argument for wiring it: recovering at
+ * settlement takes the debt out of work the customer chose to book rather than
+ * demanding it from them. Returns the bill unchanged when nothing is owed,
+ * which is almost always.
  */
 export async function applyTripDebtToBill(input: {
   profileId: string;

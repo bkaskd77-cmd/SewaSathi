@@ -214,6 +214,29 @@ adds is the record.
   beside their phone number, which is the shape of thing that gets acted on
   without anybody deciding to.
 
+### Payment trust comes from the status check, never from a callback
+
+A gateway returns the customer to us with an outcome in the URL, through a
+browser we do not control. **Nothing in that URL decides anything.**
+`readCallback` takes one field from it — the reference — and `verifyAndSettle`
+then asks the gateway's own servers, passing **our** amount off our own row, and
+refuses on a mismatch. The settle is guarded on the row's current status, so a
+duplicate callback, a refresh and the reconciliation sweep can race and one
+wins. The `payment=…` in the redirect is a hint for a heading; the booking page
+re-reads the payment itself.
+
+**So there is no inbound signature check, and that is the design rather than a
+gap.** A constant-time comparer (`signaturesMatch`) sat exported in
+`lib/payments/esewa.ts` for months, exercised only by its own tests, reading
+exactly like a guard somebody forgot to wire. It is deleted. Verifying the
+callback's signature would prove the payload came from eSewa and prove nothing
+about whether the payment happened — a forged callback carrying a perfect
+signature is exactly as powerless as one carrying none. The signature we do
+compute is **outbound**, signing the form we post.
+
+Anyone tempted to re-add it should change this section instead: the helper's
+absence is load-bearing documentation.
+
 ### The one table whose contents are somebody's bank account
 
 `payout_destinations` holds where a professional is paid — an account number or
