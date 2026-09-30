@@ -73,6 +73,13 @@ const SECRET_NAMES = [
   "SPARROW_SMS_TOKEN",
   "AAKASH_SMS_TOKEN",
   "SEND_SMS_HOOK_SECRET",
+  /*
+   * The key that seals payout account numbers. In the client bundle it would
+   * make every sealed value in a leaked backup openable, which is the one
+   * thing the sealing exists to prevent — so the source pass requiring
+   * `server-only` on whatever reads it matters more here than the bundle scan.
+   */
+  "PAYOUT_ENCRYPTION_KEY",
 ];
 
 /** Values too short or too common to search for without crying wolf. */

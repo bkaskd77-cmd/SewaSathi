@@ -237,6 +237,60 @@ compute is **outbound**, signing the form we post.
 Anyone tempted to re-add it should change this section instead: the helper's
 absence is load-bearing documentation.
 
+### What a leaked backup would expose
+
+Row-level security decides who may read a row **through the database**. It says
+nothing about a dump, a replica, a support export or a stolen backup, and an
+account number is worth exactly as much to somebody holding one of those.
+
+So `payout_destinations.account_ref` is **sealed with AES-256-GCM**
+(`lib/security/secret-box.ts`), key in `PAYOUT_ENCRYPTION_KEY`, held in Vercel
+and never in the database. Envelope `v1.<iv>.<ciphertext>.<tag>`, carrying its
+key version so a rotation can still open old rows, with a random IV per row —
+identical ciphertexts would reveal which professionals share an account without
+anybody decrypting anything.
+
+**A missing key throws on write.** This is deliberately the opposite of the rule
+the triage path follows: there, a missing `ANTHROPIC_API_KEY` must never reach
+the customer as an error, because a keyword-matched answer beats none. Here the
+equivalent "keep working" is storing somebody's bank account in the clear, which
+is worse than a refused form and — unlike a refused form — invisible.
+
+**The database refuses plaintext**, via
+`payout_destinations_account_ref_sealed`. The application seals before writing,
+and that is the intent; the constraint is what makes it true when a backfill
+script, an admin tool or an MCP call bypasses the intent entirely. Proven as the
+service role, the most privileged caller there is, because a constraint that
+only stops a browser stops nothing on a service-role-only table.
+
+**No plaintext tail column.** The mask is computed by decrypting server-side;
+storing four digits of every account beside the ciphertext would put them in the
+same backup the sealing exists to defeat.
+
+**`account_name` and `bank_name` stay in the clear.** The number is the
+credential; the name is already on the profile and the application, and sealing
+it would mean a decrypt on every row before an admin could see whose account
+they are looking at.
+
+### Still open: an unkeyed digest undoes some of this
+
+`application_match_keys.key_hash` is an **unkeyed SHA-256** of the normalised
+value, under a comment reading "Never the value itself". That is true and not
+sufficient: a Nepali bank account or wallet number is a short numeric string, so
+anybody holding a backup can enumerate the space and match the digest in
+seconds. Encrypting `account_ref` while leaving that digest one table over is a
+lock on one door.
+
+`secretDigest` in `lib/security/secret-box.ts` is the replacement — HMAC-SHA-256
+under the same key, keeping exact-match equality so duplicate detection is
+unchanged in behaviour. **It is not wired yet, and the reason is deploy order**:
+`hashMatchKey` is called on every provider application submission across all six
+key kinds, so a keyed digest that throws without the key would fail every
+submission in production the moment it deployed. It lands once
+`PAYOUT_ENCRYPTION_KEY` is set, together with sealing
+`provider_applications.payout_account` — which holds two real account numbers in
+plaintext today.
+
 ### The one table whose contents are somebody's bank account
 
 `payout_destinations` holds where a professional is paid — an account number or

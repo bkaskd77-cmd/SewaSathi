@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { destinationUsableFrom } from "@/lib/payments/destination";
+import { isSealed, sealSecret } from "@/lib/security/secret-box";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -54,12 +55,15 @@ async function addDestination(
        (provider_id, kind, account_ref, account_name, bank_name, usable_from)
      values ($1, $2, $3, 'Krishna Tamang', 'Nabil Bank', $4)
      returning id`,
-    [krishna, kind, ref, destinationUsableFrom(created).toISOString()],
+    [krishna, kind, sealSecret(ref), destinationUsableFrom(created).toISOString()],
   );
   return rows[0].id as string;
 }
 
 beforeAll(async () => {
+  // Sealing is required to write this table at all, which is the point of the
+  // constraint below. A suite-wide key keeps every fixture honest.
+  process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
   pg = await startPostgres();
 
   for (const [id, name, role] of [
@@ -189,16 +193,16 @@ describe("one live destination at a time", () => {
     await pg.admin.query(
       `insert into public.payout_destinations
          (provider_id, kind, account_ref, account_name, usable_from)
-       values ($1, 'esewa', '9779841111111', 'One Live', $2)`,
-      [provider, usable],
+       values ($1, 'esewa', $3, 'One Live', $2)`,
+      [provider, usable, sealSecret("9779841111111")],
     );
 
     await expect(
       pg.admin.query(
         `insert into public.payout_destinations
            (provider_id, kind, account_ref, account_name, usable_from)
-         values ($1, 'khalti', '9779842222222', 'One Live', $2)`,
-        [provider, usable],
+         values ($1, 'khalti', $3, 'One Live', $2)`,
+        [provider, usable, sealSecret("9779842222222")],
       ),
     ).rejects.toThrow(/payout_destinations_one_live_idx/);
 
@@ -212,10 +216,83 @@ describe("one live destination at a time", () => {
       pg.admin.query(
         `insert into public.payout_destinations
            (provider_id, kind, account_ref, account_name, usable_from)
-         values ($1, 'khalti', '9779842222222', 'One Live', $2)`,
-        [provider, usable],
+         values ($1, 'khalti', $3, 'One Live', $2)`,
+        [provider, usable, sealSecret("9779842222222")],
       ),
     ).resolves.toBeDefined();
+  });
+});
+
+describe("the database refuses a plaintext account number", () => {
+  it("rejects a bare number, as the service role", async () => {
+    /*
+     * THE CONSTRAINT IS WHAT MAKES THE SEALING TRUE. `lib/security/secret-box.ts`
+     * seals before writing, and that is the intent; a backfill script, an admin
+     * tool or an MCP call bypasses the intent entirely. This is the planner
+     * refusing instead.
+     *
+     * Attempted as `pg.admin` — the owner, the most privileged caller there is
+     * — because a constraint that only stops a browser stops nothing here:
+     * every legitimate write to this table is service-role.
+     */
+    for (const plaintext of [
+      "9779841234567",
+      // LONG ENOUGH TO PASS THE LENGTH BOUND, which is the case that matters.
+      // The first version of this test used only the short number and stayed
+      // green with the envelope pattern removed entirely — it was passing on
+      // `char_length between 40 and 400`, not on the shape. A plaintext
+      // account reference can be up to 40 characters and a padded one longer
+      // still, so the shape is the only thing that actually refuses it.
+      "9779841234567890123456789012345678901234567890",
+    ]) {
+      await expect(
+        pg.admin.query(
+          `insert into public.payout_destinations
+             (provider_id, kind, account_ref, account_name, usable_from)
+           values ($1, 'bank', $2, 'Krishna Tamang', now())`,
+          [krishna, plaintext],
+        ),
+        `${plaintext} was stored in the clear`,
+      ).rejects.toThrow(/payout_destinations_account_ref_sealed/);
+    }
+  });
+
+  it("accepts what sealSecret produces, so the two rules agree", async () => {
+    /*
+     * The constraint's regex and `isSealed` are one rule written twice — in SQL
+     * and in TypeScript. They are compared by round-tripping a real envelope
+     * through both rather than by eyeballing two regexes, because that is the
+     * pair that would drift.
+     */
+    const sealed = sealSecret("9779841234567");
+    expect(isSealed(sealed)).toBe(true);
+
+    await pg.admin.query(
+      `update public.payout_destinations set retired_at = now()
+        where provider_id = $1 and retired_at is null`,
+      [krishna],
+    );
+    await expect(
+      pg.admin.query(
+        `insert into public.payout_destinations
+           (provider_id, kind, account_ref, account_name, usable_from)
+         values ($1, 'bank', $2, 'Krishna Tamang', now())`,
+        [krishna, sealed],
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects an envelope of the wrong version", async () => {
+    // A future `v2` must be added to both rules deliberately, not absorbed by
+    // a loose pattern — the same reason the ledger's catch-all `else` went.
+    await expect(
+      pg.admin.query(
+        `insert into public.payout_destinations
+           (provider_id, kind, account_ref, account_name, usable_from)
+         values ($1, 'bank', $2, 'Krishna Tamang', now())`,
+        [krishna, sealSecret("9779841234567").replace(/^v1\./, "v2.")],
+      ),
+    ).rejects.toThrow(/payout_destinations_account_ref_sealed/);
   });
 });
 
@@ -246,8 +323,8 @@ describe("no browser reaches it", () => {
       asCustomer.query(
         `insert into public.payout_destinations
            (provider_id, kind, account_ref, account_name, usable_from)
-         values ($1, 'esewa', '9779843333333', 'Not Theirs', now())`,
-        [krishna],
+         values ($1, 'esewa', $2, 'Not Theirs', now())`,
+        [krishna, sealSecret("9779843333333")],
       ),
     ).rejects.toThrow(/permission denied/i);
   });
