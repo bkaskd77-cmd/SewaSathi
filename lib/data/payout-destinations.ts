@@ -2,6 +2,7 @@ import "server-only";
 
 import { recordDestinationAccess } from "@/lib/audit";
 import { REAUTH_WINDOW_MINUTES } from "@/lib/config/payout-policy";
+import { unreadable, type Readable } from "@/lib/data/readable";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
@@ -172,6 +173,175 @@ export async function lastChangedAt(providerId: string): Promise<Date | null> {
       `[payout-destinations] last change — ${describeError(thrown)}`,
     );
     return null;
+  }
+}
+
+/**
+ * How many changed destinations a person will look at before the list is cut.
+ *
+ * Small on purpose: every row here is a window in which somebody's earnings
+ * could be redirected, and a queue of these that needs paging means something
+ * has gone badly wrong rather than that the cap is too low.
+ */
+export const DESTINATION_WATCH_CAP = 50;
+
+/**
+ * Destinations that replaced another one and are still inside their cooldown.
+ *
+ * WHY A PERSON WATCHES THIS AT ALL. The change notice has no delivery channel:
+ * the in-app row has no address and the SMS channel does not exist, so the only
+ * place a professional can read "your account was changed" is a screen they have
+ * to be signed in to open. In the case the notice exists for — somebody else
+ * holding the session — that reader is the attacker. Until a code can be sent to
+ * the number on record, a human seeing these is the whole control, and
+ * `LAUNCH-BLOCKERS.md § payout-notice-undeliverable` says payouts cannot go live
+ * on that basis.
+ *
+ * WHAT IT COUNTS IS NARROWER THAN WHAT IT IS FOR, AND THAT IS SAID RATHER THAN
+ * GLOSSED. The question worth asking is "a destination changed and a payout is
+ * about to go to it"; there is no `payouts` table yet, so the second half is
+ * unmeasurable. This counts the first half — live, cooling, and replacing
+ * something. When the run exists the condition tightens to "and a payout is
+ * due", and this function is where that happens.
+ *
+ * A FIRST DESTINATION IS NOT IN IT. Nobody is being redirected from anywhere,
+ * there is no notice anyone needed to read, and it is already gated by
+ * `first_payout_confirmed_at`. Including them would bury the rows that matter
+ * under every new professional we approve.
+ *
+ * NULL IS NOT ZERO. A failed count renders as unreadable, never as "nothing is
+ * waiting" — the rule the whole admin index follows, and here the zero would be
+ * "no accounts are being redirected", which is good news nobody measured.
+ */
+export async function destinationsInCooldownCount(
+  now: Date = new Date(),
+): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const admin = createAdminClient();
+
+    /*
+     * Two reads rather than a join, because "replaced something" is a fact about
+     * a DIFFERENT row — the retired one — and PostgREST cannot express
+     * "exists another row for this provider" in one filter. The first read is
+     * capped and small by construction: a cooling window is 72 hours wide.
+     */
+    const { data: cooling, error } = await admin
+      .from("payout_destinations")
+      .select("provider_id")
+      .is("retired_at", null)
+      .gt("usable_from", now.toISOString())
+      .limit(DESTINATION_WATCH_CAP);
+
+    if (error) {
+      console.error(
+        `[payout-destinations] cooling count — ${describeError(error)}`,
+      );
+      return null;
+    }
+
+    const providers = Array.from(
+      new Set((cooling ?? []).map((row) => row.provider_id as string)),
+    );
+    if (providers.length === 0) return 0;
+
+    const { data: replaced, error: replacedError } = await admin
+      .from("payout_destinations")
+      .select("provider_id")
+      .in("provider_id", providers)
+      .not("retired_at", "is", null);
+
+    if (replacedError) {
+      console.error(
+        `[payout-destinations] replaced count — ${describeError(replacedError)}`,
+      );
+      return null;
+    }
+
+    const everReplaced = new Set(
+      (replaced ?? []).map((row) => row.provider_id as string),
+    );
+    return providers.filter((id) => everReplaced.has(id)).length;
+  } catch (thrown) {
+    console.error(
+      `[payout-destinations] cooling count threw — ${describeError(thrown)}`,
+    );
+    return null;
+  }
+}
+
+export type WatchedDestination = MaskedDestination & {
+  providerId: string;
+  displayName: string;
+  /** True when this row replaced another — the only ones worth warning about. */
+  replacedAnother: boolean;
+};
+
+/**
+ * The rows a person looks at: changed and cooling, or waiting on a confirmation.
+ *
+ * ONE READ FOR BOTH GROUPS, because they are the same question asked at two
+ * moments — is money about to go somewhere nobody has checked. The screen splits
+ * them; splitting them here would mean two queries that can disagree about which
+ * row belongs where.
+ *
+ * MASKED, like every other surface. The one path that returns digits is
+ * `revealDestination`, and it writes an audit row first.
+ */
+export async function destinationsNeedingAttention(
+  now: Date = new Date(),
+): Promise<Readable<WatchedDestination>> {
+  if (!hasSupabaseConfig()) return unreadable();
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("payout_destinations")
+      .select(`${LIVE_COLUMNS}, provider_id, providers(display_name)`)
+      .is("retired_at", null)
+      .or(
+        `usable_from.gt.${now.toISOString()},first_payout_confirmed_at.is.null`,
+      )
+      .order("created_at", { ascending: true })
+      .limit(DESTINATION_WATCH_CAP);
+
+    if (error) {
+      console.error(`[payout-destinations] watch — ${describeError(error)}`);
+      return unreadable();
+    }
+
+    const rows = (data ?? []) as unknown as Array<
+      Parameters<typeof toMasked>[0] & {
+        provider_id: string;
+        providers: { display_name: string } | null;
+      }
+    >;
+
+    const providers = Array.from(new Set(rows.map((row) => row.provider_id)));
+    const replaced = new Set<string>();
+
+    if (providers.length > 0) {
+      const { data: retired } = await createAdminClient()
+        .from("payout_destinations")
+        .select("provider_id")
+        .in("provider_id", providers)
+        .not("retired_at", "is", null);
+
+      for (const row of retired ?? []) replaced.add(row.provider_id as string);
+    }
+
+    return {
+      ok: true,
+      rows: rows.map((row) => ({
+        ...toMasked(row),
+        providerId: row.provider_id,
+        displayName: row.providers?.display_name ?? "—",
+        replacedAnother: replaced.has(row.provider_id),
+      })),
+    };
+  } catch (thrown) {
+    console.error(`[payout-destinations] watch threw — ${describeError(thrown)}`);
+    return unreadable();
   }
 }
 

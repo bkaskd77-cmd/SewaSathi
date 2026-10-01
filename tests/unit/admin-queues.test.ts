@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  ADMIN_QUEUE_KEYS,
   QUEUE_CAP,
   queuesState,
   unreadableQueue,
@@ -76,15 +77,14 @@ describe("a read that failed makes no claim about how many there are", () => {
  * this test until both languages have words for it.
  */
 describe("every queue on the index has words in both languages", () => {
-  const KEYS: AdminQueueKey[] = [
-    "applications",
-    "claims",
-    "refunds",
-    "verdicts",
-    "surveyFees",
-    "appeals",
-    "mismatches",
-  ];
+  /*
+   * READ FROM THE SOURCE, NOT COPIED FROM IT. This list used to be written out
+   * here as well as in `lib/data/queue.ts`, which made the promise in the
+   * comment above conditional on somebody remembering to update both. It is one
+   * list now, so a queue added without copy fails here because the catalogues
+   * are short — which is what the comment always claimed.
+   */
+  const KEYS: readonly AdminQueueKey[] = ADMIN_QUEUE_KEYS;
 
   for (const file of ["messages/en.json", "messages/ne.json"]) {
     it(`${file} names and describes every one`, () => {

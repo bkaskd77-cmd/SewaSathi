@@ -1667,6 +1667,10 @@
         "mismatches": {
           "name": "Amounts that do not match",
           "what": "Cash jobs where the customer's figure and the professional's disagree."
+        },
+        "payoutDestinations": {
+          "name": "Payout accounts just changed",
+          "what": "A professional's account was replaced and is inside its three-day wait. Nobody can be told by text yet, so this is the only place it shows."
         }
       },
       "toolsTitle": "Look things up",
@@ -2101,6 +2105,28 @@
         "answerRejected": "The model answered and we rejected the answer",
         "noKey": "No key was set",
         "notRecorded": "Written before we kept the reason"
+      }
+    },
+    "payoutDestinations": {
+      "title": "Payout accounts",
+      "lead": "Accounts that changed recently, and accounts waiting to be checked before their first payment.",
+      "unreadable": "We could not load these. This is us, not you — try again shortly.",
+      "empty": "Nothing is waiting. No account has been changed recently and none is waiting to be checked.",
+      "coolingTitle": "Changed recently",
+      "coolingWhat": "These replaced an account the professional had before. Until a text can be sent to the number we hold, nobody but whoever is signed in has been told — so a changed account that surprises you is worth a phone call before money moves.",
+      "confirmTitle": "Waiting to be checked",
+      "confirmWhat": "No payment has gone to these accounts yet. Check the name and the account against the application, then confirm.",
+      "usableFrom": "Usable from {date}",
+      "replaced": "Replaced an earlier account",
+      "firstEver": "Their first account",
+      "confirm": "Confirm this account",
+      "confirming": "Confirming…",
+      "confirmed": "Confirmed.",
+      "errors": {
+        "alreadyConfirmed": "Somebody has already confirmed this one.",
+        "notFound": "That account is no longer there.",
+        "notSignedIn": "Sign in again to do that.",
+        "generic": "That did not go through. Try again."
       }
     }
   }

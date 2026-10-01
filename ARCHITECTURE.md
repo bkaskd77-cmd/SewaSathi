@@ -405,6 +405,15 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **A gate that measures the wrong clock is not a gate.** `changeDestination`
+  needs to know when somebody last proved who they are, and the first version was
+  handed the access token's `iat` — which a silent refresh resets, so it read
+  "recently active" and a stolen session satisfied it by being used.
+  `authenticatedAt` (`lib/auth/step-up.ts`) reads the newest `amr` timestamp
+  instead, which survives a refresh because it belongs to the session rather than
+  the token. Pure, so the refreshed-but-old case is a unit test rather than an
+  hour of waiting. **Before trusting any timestamp as a proof of identity, ask
+  what resets it.**
 - **The cooldown is a change control, and "first" counts retired rows.**
   `destinationUsableFrom(now, { isFirst })` is the one place that decides, and
   `changeDestination` sets `isFirst` by counting **every** row a professional has

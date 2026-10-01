@@ -434,13 +434,26 @@ never accepts a `providerId`. All three authorization holes found in this produc
 were the same shape — an id arrived from a browser and nothing asked whose it was
 — and the id that would arrive here names the account somebody's earnings go to.
 
-**Re-auth is read from the session token, never from the request.**
-`sessionIssuedAt()` returns the access token's own `iat`. A cookie is the
-browser's to set and a column needs a write and a read that can disagree; `iat`
-sits inside a signed JWT, so forging it means forging the session. That also makes
-re-auth and re-verification the same act: verifying a fresh code mints a new
-session carrying a new `iat`, with nothing to store and nothing to forget to
-clear. The action reads it server-side — it is never a form field.
+**Re-auth is read from the session token, never from the request — and from
+`amr`, not `iat`.** `sessionAuthenticatedAt()` returns the newest `amr`
+timestamp, which is when somebody last actually proved who they are.
+
+**The first version read `iat` and was a live hole.** A Supabase access token is
+refreshed silently, and each refresh mints a new token with a new `iat` — so for
+any session that stays active the value is always minutes old. The gate read
+"recently active", which is exactly the state a stolen session is in: the theft
+satisfied the control standing in front of it. **A refreshed token passed with no
+new code.** `amr` survives a refresh because it describes the session's
+authentication events rather than the token carrying them.
+
+The rule was already written down one function away: `mfaState` reads `amr` under
+a comment saying the timestamp is "the moment of verification… not the session's
+start, and not now". Same shape as `checkTriage` and `checkTriageFallback` —
+correct reasoning in one function, the opposite behaviour twenty lines below it.
+`authenticatedAt` in `lib/auth/step-up.ts` is the rule now, pure like every other
+judgement in that file, so the case that matters — a token refreshed a minute ago
+carrying an authentication from six hours ago — is tested without a session, a
+browser, or an hour of waiting. Null is expired, never a guess.
 
 **It refuses before it reads anything** when the session has not proved who it is
 within `REAUTH_WINDOW_MINUTES` (15). A missing stamp is **expired**, not unknown

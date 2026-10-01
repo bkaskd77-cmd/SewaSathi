@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   afterSecurity,
+  authenticatedAt,
   stepUpBlocks,
   stepUpFor,
   STEP_UP_HOURS,
@@ -153,5 +154,90 @@ describe("where somebody goes after satisfying the security screen", () => {
   it("stays put when they came here on their own", () => {
     // No `next` means nobody sent them; they opened their own settings.
     expect(afterSecurity({ ...ready, next: "/" })).toBeNull();
+  });
+});
+
+describe("when this session last proved who it is", () => {
+  /**
+   * THE BUG THIS EXISTS TO STOP, AND IT SHIPPED. `changeDestination` refuses a
+   * session that has not re-authenticated inside `REAUTH_WINDOW_MINUTES`, and
+   * the timestamp it was given came from the access token's `iat`. A Supabase
+   * access token is refreshed silently, and a refresh mints a NEW token with a
+   * NEW `iat` — so for any session that stays active, `iat` is always minutes
+   * old. The gate read "recently active", which is exactly what a stolen
+   * session is.
+   *
+   * `amr` is the claim that survives a refresh, because it describes the
+   * session's authentication events rather than the token carrying them. The
+   * correct rule was already written down one function away: `mfaState` reads
+   * `amr` under a comment saying the timestamp is "the moment of verification,
+   * which is what the re-challenge window is measured from — not the session's
+   * start, and not now".
+   *
+   * These cases are pure on purpose. Proving it end to end needs a real session
+   * left alone for an hour; this pins the judgement without one, which is why
+   * every other decision in this file is pure too.
+   */
+
+  const HOUR = 60 * 60;
+  const NOW = new Date("2026-10-01T12:00:00Z");
+  const seconds = (at: Date) => Math.floor(at.getTime() / 1000);
+
+  it("refuses a refreshed token whose authentication is old", () => {
+    /*
+     * THE CASE THE WHOLE FIX IS FOR. `iat` one minute ago because the token was
+     * just refreshed; `amr` six hours ago because that is when somebody last
+     * typed a code. Reading `iat` accepts this. Reading `amr` refuses it.
+     */
+    const at = authenticatedAt({
+      iat: seconds(NOW) - 60,
+      amr: [{ method: "otp", timestamp: seconds(NOW) - 6 * HOUR }],
+    });
+
+    expect(at).not.toBeNull();
+    expect(seconds(at!)).toBe(seconds(NOW) - 6 * HOUR);
+  });
+
+  it("takes the most recent method, not the first", () => {
+    // A second factor used minutes ago is a proof of identity; this morning's
+    // OTP is not. The newest entry is the answer whatever order they arrive in.
+    const at = authenticatedAt({
+      amr: [
+        { method: "otp", timestamp: seconds(NOW) - 6 * HOUR },
+        { method: "totp", timestamp: seconds(NOW) - 120 },
+      ],
+    });
+
+    expect(seconds(at!)).toBe(seconds(NOW) - 120);
+  });
+
+  it("ignores iat even when iat is older, because it answers a different question", () => {
+    // Not a preference for the larger number: `iat` is never the answer. A
+    // clock skew or a long-lived token must not move an authentication time.
+    const at = authenticatedAt({
+      iat: seconds(NOW) - 12 * HOUR,
+      amr: [{ method: "otp", timestamp: seconds(NOW) - 60 }],
+    });
+
+    expect(seconds(at!)).toBe(seconds(NOW) - 60);
+  });
+
+  it("is null when there is no amr at all", () => {
+    /*
+     * A claim that is absent is not evidence the window is open — `stepUpFor`'s
+     * own rule for a missing timestamp, applied where guessing wrong hands
+     * somebody's earnings to a stranger. `isFresh` treats null as expired.
+     */
+    expect(authenticatedAt({ iat: seconds(NOW) })).toBeNull();
+    expect(authenticatedAt({ amr: [] })).toBeNull();
+    expect(authenticatedAt({})).toBeNull();
+  });
+
+  it("ignores an entry with no usable timestamp rather than trusting the method", () => {
+    // A method name without a time says something happened and not when.
+    expect(authenticatedAt({ amr: [{ method: "otp" }] })).toBeNull();
+    expect(
+      authenticatedAt({ amr: [{ method: "otp", timestamp: Number.NaN }] }),
+    ).toBeNull();
   });
 });

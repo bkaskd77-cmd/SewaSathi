@@ -236,11 +236,11 @@ export async function changeDestinationAction(
   }
 
   const { changeDestination } = await import("@/lib/data/payout-destinations");
-  const { sessionIssuedAt } = await import("@/lib/auth/mfa");
+  const { sessionAuthenticatedAt } = await import("@/lib/auth/mfa");
 
   const result = await changeDestination({
     profileId: profile.id,
-    reauthenticatedAt: await sessionIssuedAt(),
+    reauthenticatedAt: await sessionAuthenticatedAt(),
     kind: kind as "bank" | "esewa" | "khalti",
     accountRef: field("accountRef"),
     accountName: field("accountName"),

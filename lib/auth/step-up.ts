@@ -118,3 +118,58 @@ export function afterSecurity(input: {
   if (!input.hasFactor || input.needsCode) return null;
   return input.next;
 }
+
+/**
+ * Claims from a Supabase access token, as far as this file cares.
+ *
+ * `amr` is the list of authentication methods this SESSION used, each with when
+ * it happened. `iat` is on the TOKEN. They are named together here because the
+ * difference between them is the whole point of the function below.
+ */
+export type SessionClaims = {
+  iat?: number;
+  amr?: Array<{ method?: string; timestamp?: number }>;
+};
+
+/**
+ * When this session last proved who it is — the newest `amr` timestamp, or null.
+ *
+ * WHY NOT `iat`, WHICH IS WHAT SHIPPED AND WAS WRONG. A Supabase access token is
+ * refreshed silently, and a refresh mints a new token with a new `iat`. So for
+ * any session that stays active, `iat` is always a few minutes old, and a gate
+ * reading it asks "has this browser been used recently" — which is exactly the
+ * state a stolen session is in. `changeDestination` was given that number, so
+ * the control standing between a stolen session and somebody's earnings was
+ * satisfied by the theft itself.
+ *
+ * `amr` SURVIVES A REFRESH because it describes what the session did, not what
+ * the token is. `mfaState` already read it under a comment stating the rule —
+ * "the moment of verification… not the session's start, and not now" — which is
+ * the same mistake caught one function away and then made anyway, the shape
+ * `checkTriage` and `checkTriageFallback` are recorded for.
+ *
+ * THE NEWEST ACROSS EVERY METHOD, not just `otp`. A second factor verified two
+ * minutes ago is a proof of identity; this morning's sign-in is not. Taking the
+ * maximum means any fresh proof counts and no stale one does.
+ *
+ * NULL IS NOT A GUESS AND CALLERS MUST TREAT IT AS EXPIRED. `stepUpFor` already
+ * treats a missing timestamp that way, and `isFresh` does the same: an absent
+ * claim is not evidence the window is open.
+ *
+ * Pure, like everything else in this file, so the case that matters — a token
+ * refreshed a minute ago carrying an authentication from six hours ago — is
+ * testable without a session, a browser or an hour of waiting.
+ */
+export function authenticatedAt(claims: SessionClaims): Date | null {
+  let newest: number | null = null;
+
+  for (const entry of claims.amr ?? []) {
+    const at = entry?.timestamp;
+    if (typeof at !== "number" || !Number.isFinite(at)) continue;
+    if (newest === null || at > newest) newest = at;
+  }
+
+  if (newest === null) return null;
+  const at = new Date(newest * 1000);
+  return Number.isNaN(at.getTime()) ? null : at;
+}

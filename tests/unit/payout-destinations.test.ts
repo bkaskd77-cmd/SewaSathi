@@ -58,6 +58,10 @@ class Fake {
   limit() { return this; }
   eq(c: string, v: unknown) { return this.note(c, v); }
   is(c: string, v: unknown) { return this.note(c, v); }
+  gt(c: string, v: unknown) { return this.note(c, v); }
+  in(c: string, v: unknown) { return this.note(c, v); }
+  not(c: string, _op: string, v: unknown) { return this.note(c, v); }
+  or(expression: string) { return this.note("or", expression); }
 
   insert(payload: Record<string, unknown>) {
     this.entry.op = "insert";
@@ -596,5 +600,77 @@ describe("confirming the first payout to a new destination", () => {
     const write = of("payout_destinations").find((o) => o.op === "update")!;
     expect(write.payload!.first_payout_confirmed_by).toBe(ADMIN);
     expect(write.payload!.first_payout_confirmed_at).toBeTruthy();
+  });
+});
+
+describe("the queue a person watches", () => {
+  /*
+   * WHY THIS QUEUE EXISTS AT ALL. A professional whose payout account changes is
+   * meant to be told, so that if it was not them they can object inside the
+   * window. The notice has no delivery channel — the in-app row has no address
+   * and there is no SMS channel — so the only reader it can reach is whoever
+   * holds the session, which in a takeover is the attacker. A person seeing
+   * these rows is the whole control until a code can be sent.
+   *
+   * SO THE TWO EXCLUSIONS ARE THE POINT, not tidiness. A row past its cooldown
+   * is no longer a window anybody can act in, and a FIRST destination has nobody
+   * to warn — including either would bury the rows that matter under every
+   * professional we approve.
+   */
+  async function count(
+    cooling: Array<{ provider_id: string }>,
+    retired: Array<{ provider_id: string }>,
+  ) {
+    answers = {
+      payout_destinations: [
+        { data: cooling, error: null },
+        { data: retired, error: null },
+      ],
+    };
+    const { destinationsInCooldownCount } = await import(
+      "@/lib/data/payout-destinations"
+    );
+    return destinationsInCooldownCount(new Date("2026-10-01T12:00:00Z"));
+  }
+
+  it("counts a changed destination that is still cooling", async () => {
+    expect(await count([{ provider_id: KRISHNA_LISTING }], [{ provider_id: KRISHNA_LISTING }])).toBe(1);
+  });
+
+  it("does not count a first destination, because nobody is being redirected", async () => {
+    // Cooling, but nothing retired behind it — so there is no earlier account
+    // and nobody who could be surprised by this one.
+    expect(await count([{ provider_id: KRISHNA_LISTING }], [])).toBe(0);
+  });
+
+  it("only looks at rows still inside the window", async () => {
+    /*
+     * Asserted on the FILTER rather than on a count, because a row past its
+     * cooldown never comes back from the query at all — and a test that fed it
+     * one anyway would be proving something the database does, not something
+     * this function does.
+     */
+    await count([], []);
+    const read = of("payout_destinations")[0];
+    expect(read.filters).toContainEqual(["retired_at", null]);
+    expect(
+      read.filters.some(([column]) => column === "usable_from"),
+      "the read did not bound the cooling window",
+    ).toBe(true);
+  });
+
+  it("reads a failed count as unreadable, never as nothing waiting", async () => {
+    /*
+     * The rule the whole admin index follows, and here the zero would be "no
+     * accounts are being redirected" — good news nobody measured, on the one
+     * card built to notice a theft.
+     */
+    answers = {
+      payout_destinations: [{ data: null, error: { message: "down" } }],
+    };
+    const { destinationsInCooldownCount } = await import(
+      "@/lib/data/payout-destinations"
+    );
+    expect(await destinationsInCooldownCount()).toBeNull();
   });
 });

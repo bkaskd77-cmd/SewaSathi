@@ -11,6 +11,10 @@ import {
   openAmountMismatchesCount,
   openCommissionAppealsCount,
 } from "@/lib/data/payments";
+import {
+  DESTINATION_WATCH_CAP,
+  destinationsInCooldownCount,
+} from "@/lib/data/payout-destinations";
 import type { AdminQueueCount } from "@/lib/data/queue";
 import { NO_SHOW_QUEUE_CAP, openNoShowClaimsCount } from "@/lib/data/review";
 import {
@@ -46,15 +50,23 @@ import { REVIEW_QUEUE_CAP, reviewQueueCount } from "@/lib/data/verification";
  */
 
 export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
-  const [applications, claims, refunds, surveyFees, appeals, mismatches] =
-    await Promise.all([
-      reviewQueueCount(),
-      openNoShowClaimsCount(),
-      refundQueueCounts(),
-      pendingSurveyFeesCount(),
-      openCommissionAppealsCount(),
-      openAmountMismatchesCount(),
-    ]);
+  const [
+    applications,
+    claims,
+    refunds,
+    surveyFees,
+    appeals,
+    mismatches,
+    destinations,
+  ] = await Promise.all([
+    reviewQueueCount(),
+    openNoShowClaimsCount(),
+    refundQueueCounts(),
+    pendingSurveyFeesCount(),
+    openCommissionAppealsCount(),
+    openAmountMismatchesCount(),
+    destinationsInCooldownCount(),
+  ]);
 
   return [
     {
@@ -103,6 +115,20 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/mismatches",
       total: mismatches,
       cap: MISMATCH_QUEUE_CAP,
+    },
+    /*
+     * A WATCH RATHER THAN A BACKLOG, and the only queue here where zero is the
+     * expected reading. Every row is a window in which somebody's earnings could
+     * be redirected to an account its owner never chose — and the notice telling
+     * them so has no delivery channel, so the only reader it can reach today is
+     * whoever holds the session. Until a code can go to the number on record, a
+     * person seeing this card IS the control.
+     */
+    {
+      key: "payoutDestinations",
+      href: "/admin/payout-destinations",
+      total: destinations,
+      cap: DESTINATION_WATCH_CAP,
     },
   ];
 }

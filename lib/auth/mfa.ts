@@ -1,6 +1,7 @@
 import "server-only";
 
 import { describeEnrollError } from "@/lib/auth/mfa-error";
+import { authenticatedAt, type SessionClaims } from "@/lib/auth/step-up";
 import { site } from "@/lib/config/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -74,6 +75,13 @@ export async function mfaState(): Promise<MfaState> {
      * The TOTP entry's timestamp is the moment of verification, which is what
      * the re-challenge window is measured from — not the session's start, and
      * not now.
+     *
+     * DELIBERATELY NOT `authenticatedAt`, which answers a different question.
+     * That one takes the newest proof by any method, for "did somebody prove who
+     * they are recently"; this one needs the TOTP entry specifically, because the
+     * admin gate is about the second factor and an OTP sign-in five minutes ago
+     * must not satisfy it. Same claim, two questions — said here so the two do
+     * not drift into disagreeing about what `amr` means.
      */
     const totp = (payload.amr ?? []).find((entry) => entry.method === "totp");
     const verifiedAt =
@@ -339,31 +347,29 @@ export async function accessTokenLifetimeSeconds(): Promise<number | null> {
 }
 
 /**
- * When this session last proved who it is, from the token's own `iat`.
+ * When this session last proved who it is.
  *
- * WHY THE TOKEN AND NOT A COOKIE OR A COLUMN. Changing where a professional's
- * money goes requires a recent proof of identity (`REAUTH_WINDOW_MINUTES`), and
- * that proof needs a timestamp the browser cannot move. A cookie is the browser's
- * to set; a column needs a write and a read that can disagree. `iat` is inside a
- * signed JWT — forging it means forging the token, which is the same thing as
- * forging the session itself.
+ * READ FROM `amr`, NOT FROM `iat`, AND THE FIRST VERSION OF THIS READ `iat`.
+ * That was a live hole: a Supabase access token is refreshed silently and a
+ * refresh mints a new token with a new `iat`, so the number was always a few
+ * minutes old for any active session — and `changeDestination` was using it to
+ * decide whether somebody had recently proved who they are before moving where
+ * their money goes. A stolen session satisfied it by being used.
  *
- * SO RE-AUTH IS RE-VERIFICATION, not a separate mechanism. Verifying a fresh OTP
- * mints a new session, which carries a new `iat`; no new storage, nothing to
- * expire on its own, and nothing to forget to clear. The same claim
- * `accessTokenLifetimeSeconds` already reads for `exp - iat`.
+ * `authenticatedAt` is the rule and it is pure, so the case that matters — a
+ * token refreshed a minute ago carrying an authentication from six hours ago —
+ * is tested without a session. Everything this function adds is the round trip.
  *
- * Null when there is no session or the claim cannot be read — never a guess, and
- * `isFresh` treats null as expired, which is the safe direction when the cost of
- * being wrong is somebody's earnings.
+ * SO RE-AUTH IS RE-VERIFICATION. Verifying a fresh code starts a session whose
+ * `amr` carries the moment it happened; nothing is stored on our side and
+ * nothing has to be cleared. Null when there is no session or no usable claim —
+ * never a guess, and `isFresh` treats null as expired, which is the safe
+ * direction when being wrong hands somebody's earnings to a stranger.
  */
-export async function sessionIssuedAt(): Promise<Date | null> {
+export async function sessionAuthenticatedAt(): Promise<Date | null> {
   try {
     const { data } = await createClient().auth.getClaims();
-    const claims = (data?.claims ?? {}) as { iat?: number };
-    if (typeof claims.iat !== "number") return null;
-    const at = new Date(claims.iat * 1000);
-    return Number.isNaN(at.getTime()) ? null : at;
+    return authenticatedAt((data?.claims ?? {}) as SessionClaims);
   } catch {
     return null;
   }

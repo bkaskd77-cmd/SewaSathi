@@ -63,14 +63,30 @@ export function unreadableQueue<T>(cap: number): QueuePage<T> {
  * added to without being noticed. `mismatches` was added that way and the test
  * refused it twice on the way in, exactly as intended.
  */
-export type AdminQueueKey =
-  | "applications"
-  | "claims"
-  | "refunds"
-  | "verdicts"
-  | "surveyFees"
-  | "appeals"
-  | "mismatches";
+/**
+ * Every queue the admin index can show, as a runtime list.
+ *
+ * A LIST, NOT A UNION, BECAUSE THE UNION WAS WRITTEN TWICE. The type lived here
+ * and `tests/unit/admin-queues.test.ts` kept its own copy to check both
+ * catalogues exhaustively — so adding a queue meant editing two places, and the
+ * test's own comment promised "adding a seventh queue fails this test until both
+ * languages have words for it", which was true only because somebody kept the
+ * second copy up to date. A TypeScript union erases at runtime and cannot be
+ * enumerated, so the list is the source and the type is derived from it — the
+ * same idiom as `LEDGER_KINDS` and `REFUSAL_REASON_CODES`.
+ */
+export const ADMIN_QUEUE_KEYS = [
+  "applications",
+  "claims",
+  "refunds",
+  "verdicts",
+  "surveyFees",
+  "appeals",
+  "mismatches",
+  "payoutDestinations",
+] as const;
+
+export type AdminQueueKey = (typeof ADMIN_QUEUE_KEYS)[number];
 
 export type AdminQueueCount = {
   key: AdminQueueKey;
