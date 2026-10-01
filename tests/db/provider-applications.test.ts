@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { sealSecret } from "@/lib/security/secret-box";
 import { matchKeysFor } from "@/lib/verification";
 
 import { startPostgres, type Harness } from "../support/postgres";
@@ -33,6 +34,10 @@ function hash(kind: string, value: string): string {
 }
 
 beforeAll(async () => {
+  // Sealing is required to store an account number at all now, so the suite
+  // needs a key before any fixture is written.
+  process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
+
   pg = await startPostgres();
 
   for (const [id, name, role] of [
@@ -50,15 +55,22 @@ beforeAll(async () => {
     );
   }
 
+  /*
+   * `provider_applications_payout_account_sealed` refuses a bare account number,
+   * so a fixture cannot write one — which is the constraint doing its job and
+   * this file modelling something the product can no longer do. The db suite
+   * found it, not a reading of the diff. Sealed here the way
+   * tests/db/payout-destinations.test.ts does it.
+   */
   const application = async (owner: string, name: string) => {
     const { rows } = await pg.admin.query(
       `insert into public.provider_applications
          (profile_id, full_name, trades, service_areas, citizenship_number,
           payout_method, payout_account)
        values ($1, $2, '{plumbing}', '{lalitpur-4}', '12-01-70-01234',
-               'esewa', '9801234567')
+               'esewa', $3)
        returning id`,
-      [owner, name],
+      [owner, name, sealSecret("9801234567")],
     );
     return rows[0].id as string;
   };
@@ -311,9 +323,9 @@ describe("a rejected applicant cannot come back on a new number", () => {
          (profile_id, full_name, trades, service_areas, citizenship_number,
           payout_account, status)
        values ($1, 'Shyam Kumar Shrestha', '{plumbing}', '{lalitpur-4}',
-               '12-01-70-01234', '9801234567', 'rejected')
+               '12-01-70-01234', $2, 'rejected')
        returning id`,
-      [ADMIN],
+      [ADMIN, sealSecret("9801234567")],
     );
     const rejectedId = rejected.rows[0].id as string;
 

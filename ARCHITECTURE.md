@@ -111,7 +111,6 @@ interface. Swapping a provider is then one file, not a hunt.
 | In-app chat | *not built* | In scope, after the Next 16 upgrade. The anti-leakage lever for the `provider_contacts` release window — see Seams. Not an adapter: no external service. |
 | Sealed values | `lib/security/secret-box.ts` | AES-256-GCM over `node:crypto`. The key is `PAYOUT_ENCRYPTION_KEY`, outside the database, so a leaked backup exposes no account numbers. A missing key throws rather than writing plaintext. |
 | Payout destination | `lib/payments/destination.ts` | Pure: masking and the 72-hour cooldown. One place decides how much of an account number a screen shows, so two surfaces cannot disagree about it. The table itself is reached by no browser. |
-| Application account sealing | `lib/data/application-sealing.ts` | The one-shot that converts rows written before sealing existed and re-keys the digests beside them. A dry run unless armed, idempotent because `isSealed` decides per row. **It has a life expectancy**: once `remainingPlaintext` is 0 and the shape constraint lands, it and its route are dead and get deleted — written down so it is not still in the route table in a year with nobody sure what calls it. |
 | Remittance (payouts) | *not built* | One typed interface, first implementation manual. Until it exists nothing pays anybody — `LAUNCH-BLOCKERS.md § payouts-unbuilt`. |
 | Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
 

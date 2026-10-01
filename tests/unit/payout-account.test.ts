@@ -74,16 +74,24 @@ describe("digesting a sealed account number", () => {
 });
 
 describe("reading the column while it holds two shapes", () => {
-  it("returns a legacy plaintext number unchanged", async () => {
+  it("reads a bare number as null, because one can no longer be stored", async () => {
     /*
-     * Two rows in this table predate the sealing. `openSecret` throws on a bare
-     * number by design — it must never hand back its input — so a reader that
-     * assumed an envelope would break the review screen for exactly the two
-     * applications that matter. The branch goes when the conversion sweep
-     * reports 0 and the shape constraint lands.
+     * THIS ASSERTION USED TO BE ITS OPPOSITE, and flipping it rather than
+     * deleting it is the point: two rows in this table did hold bare numbers, and
+     * a reader that assumed an envelope would have broken the review screen for
+     * exactly the two applications that mattered. They were converted, and
+     * `provider_applications_payout_account_sealed` now refuses the shape at the
+     * planner — proven against production with both a short and a 46-character
+     * plaintext.
+     *
+     * So a bare number reaching here means something bypassed the constraint, and
+     * null is the safe answer: `openSecret` refuses to hand back its input, which
+     * is what would otherwise put a raw account number on a screen expecting a
+     * mask. Deleting this case would leave no record that the shape was ever
+     * accepted.
      */
     const { openPayoutAccount } = await import("@/lib/data/payout-account");
-    expect(openPayoutAccount(ACCOUNT)).toBe(ACCOUNT);
+    expect(openPayoutAccount(ACCOUNT)).toBeNull();
   });
 
   it("opens a sealed one and returns null for nothing", async () => {
@@ -119,13 +127,6 @@ describe("what an admin sees", () => {
     const masked = maskPayoutAccount(sealSecret(ACCOUNT));
     expect(masked).toBe("••••4567");
     expect(masked).not.toContain("9841");
-  });
-
-  it("masks a legacy plaintext row the same way", async () => {
-    // The reviewer's screen must not look different for the two unconverted
-    // rows, or the mask reads as a bug on exactly the rows somebody is checking.
-    const { maskPayoutAccount } = await import("@/lib/data/payout-account");
-    expect(maskPayoutAccount(ACCOUNT)).toBe("••••4567");
   });
 
   it("is null when there is nothing, never a row of dots", async () => {

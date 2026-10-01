@@ -337,22 +337,37 @@ stored** and opens the account itself, so no argument exists that somebody could
 pass an envelope to. The test for it did not bite until the two were collapsed —
 it was covering `hashMatchKey` and the sweep, not the submission path.
 
-**The conversion is a guarded one-shot with a stated life expectancy.**
-`/api/maintenance/seal-applications`, behind `CRON_SECRET`, a dry run unless
-`?armed=1`, idempotent because `isSealed` decides per row rather than a flag
-somebody has to keep correct. It seals the plaintext rows and re-keys the dead
-digests in the same pass, writing new keys **before** removing old ones so no
-application is ever left with none. A value that will not open is counted as a
-failure and left alone: re-sealing it would make it permanently unopenable and
-report success. It runs as a URL because the key is a Vercel variable — the
-conversion has to happen where that variable exists, not from a developer's
-machine and not through the database, which deliberately does not hold it.
+**The conversion is done, and it was done in that order for a reason.** Two rows
+held bare numbers and 10 match-key rows were dead; a constraint requiring an
+envelope, added first, refuses the very UPDATE that converts them. So: widen the
+bound, convert, then constrain. The conversion ran as a guarded one-shot
+(`CRON_SECRET`, dry run unless `?armed=1`, idempotent because `isSealed` decided
+per row rather than a flag somebody keeps correct), writing new keys **before**
+removing old ones so no application was ever left with none. It had to be a URL
+because the key is a Vercel variable — not a developer's machine, and not the
+database, which deliberately does not hold it.
 
-**The shape constraint comes last**, after the sweep reports zero, for the reason
-`20260930000003`'s header states: a constraint requiring an envelope, added
-first, refuses the very UPDATE that converts the rows. When it lands, the legacy
-plaintext branch in `lib/data/payout-account.ts` and the whole maintenance route
-are dead and get deleted.
+**Measured, not assumed.** The sweep reported `sealed: 2, removed: 10,
+written: 12, remainingPlaintext: 0`, and the database was then read directly
+rather than taken on the sweep's word: 2 of 2 envelopes at 61 characters, 0 not an
+envelope, 12 keys across 2 applications, 0 malformed. The 12-against-10 difference
+is the two `reference` keys those applications never had, because
+`20260912000001` postdated them.
+
+**`provider_applications_payout_account_sealed` is what makes it stay true.**
+Proven by breaking it against production as the owner — the most privileged caller
+there is, since every legitimate write here is service-role — with a bare
+`9841234567` **and** a 46-character plaintext. That second case is the one the
+`payout_destinations` test was originally passing on for the wrong reason, caught
+by `char_length` rather than by the shape. Null is still accepted: most drafts have
+not reached the payout step, and an unanswered question is not a plaintext account
+number.
+
+**The one-shot and the tolerance are gone.** The sweep, its route and the legacy
+plaintext branch in `lib/data/payout-account.ts` were deleted in the commit that
+added the constraint, which is what that route's own comment promised. The test
+asserting the tolerance was **inverted rather than deleted**, so the record that
+the shape was once accepted survives.
 
 ### The one table whose contents are somebody's bank account
 
