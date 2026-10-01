@@ -337,3 +337,34 @@ export async function accessTokenLifetimeSeconds(): Promise<number | null> {
     return null;
   }
 }
+
+/**
+ * When this session last proved who it is, from the token's own `iat`.
+ *
+ * WHY THE TOKEN AND NOT A COOKIE OR A COLUMN. Changing where a professional's
+ * money goes requires a recent proof of identity (`REAUTH_WINDOW_MINUTES`), and
+ * that proof needs a timestamp the browser cannot move. A cookie is the browser's
+ * to set; a column needs a write and a read that can disagree. `iat` is inside a
+ * signed JWT — forging it means forging the token, which is the same thing as
+ * forging the session itself.
+ *
+ * SO RE-AUTH IS RE-VERIFICATION, not a separate mechanism. Verifying a fresh OTP
+ * mints a new session, which carries a new `iat`; no new storage, nothing to
+ * expire on its own, and nothing to forget to clear. The same claim
+ * `accessTokenLifetimeSeconds` already reads for `exp - iat`.
+ *
+ * Null when there is no session or the claim cannot be read — never a guess, and
+ * `isFresh` treats null as expired, which is the safe direction when the cost of
+ * being wrong is somebody's earnings.
+ */
+export async function sessionIssuedAt(): Promise<Date | null> {
+  try {
+    const { data } = await createClient().auth.getClaims();
+    const claims = (data?.claims ?? {}) as { iat?: number };
+    if (typeof claims.iat !== "number") return null;
+    const at = new Date(claims.iat * 1000);
+    return Number.isNaN(at.getTime()) ? null : at;
+  } catch {
+    return null;
+  }
+}

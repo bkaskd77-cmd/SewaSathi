@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { accountKey } from "@/lib/verification/match-keys";
 
+/** Whose row. Required by `openPayoutAccount`, so a test states it like a caller. */
+const WHOSE = {
+  subjectType: "profile",
+  subjectId: "33333333-c333-4333-8333-333333333333",
+} as const;
+
 /**
  * Reading an account number off an application, and the trap underneath it.
  *
@@ -22,6 +28,18 @@ import { accountKey } from "@/lib/verification/match-keys";
 vi.mock("react", async (original) => ({
   ...((await original()) as Record<string, unknown>),
   cache: <T,>(fn: T) => fn,
+}));
+
+/*
+ * The audit module is mocked rather than the supabase client, because what this
+ * file asserts is that the READ reports itself — not how `lib/audit` writes a
+ * row, which `tests/unit/payout-destinations.test.ts` already covers.
+ */
+const logged: Array<Record<string, unknown>> = [];
+vi.mock("@/lib/audit", () => ({
+  recordSecurityEvent: async (event: Record<string, unknown>) => {
+    logged.push(event);
+  },
 }));
 
 const KEY = Buffer.alloc(32, 13).toString("base64");
@@ -52,7 +70,7 @@ describe("digesting a sealed account number", () => {
     expect(first).not.toBe(second);
 
     const digest = (envelope: string) =>
-      hashMatchKey("account", accountKey(openPayoutAccount(envelope)!));
+      hashMatchKey("account", accountKey(openPayoutAccount(envelope, WHOSE)!));
 
     expect(digest(first)).toBe(digest(second));
   });
@@ -91,16 +109,16 @@ describe("reading the column while it holds two shapes", () => {
      * accepted.
      */
     const { openPayoutAccount } = await import("@/lib/data/payout-account");
-    expect(openPayoutAccount(ACCOUNT)).toBeNull();
+    expect(openPayoutAccount(ACCOUNT, WHOSE)).toBeNull();
   });
 
   it("opens a sealed one and returns null for nothing", async () => {
     const { sealSecret } = await import("@/lib/security/secret-box");
     const { openPayoutAccount } = await import("@/lib/data/payout-account");
 
-    expect(openPayoutAccount(sealSecret(ACCOUNT))).toBe(ACCOUNT);
-    expect(openPayoutAccount(null)).toBeNull();
-    expect(openPayoutAccount("")).toBeNull();
+    expect(openPayoutAccount(sealSecret(ACCOUNT), WHOSE)).toBe(ACCOUNT);
+    expect(openPayoutAccount(null, WHOSE)).toBeNull();
+    expect(openPayoutAccount("", WHOSE)).toBeNull();
   });
 
   it("returns null rather than throwing when the key will not open it", async () => {
@@ -115,7 +133,7 @@ describe("reading the column while it holds two shapes", () => {
     process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(32, 99).toString("base64");
 
     const { openPayoutAccount } = await import("@/lib/data/payout-account");
-    expect(openPayoutAccount(sealed)).toBeNull();
+    expect(openPayoutAccount(sealed, WHOSE)).toBeNull();
   });
 });
 
@@ -124,7 +142,7 @@ describe("what an admin sees", () => {
     const { sealSecret } = await import("@/lib/security/secret-box");
     const { maskPayoutAccount } = await import("@/lib/data/payout-account");
 
-    const masked = maskPayoutAccount(sealSecret(ACCOUNT));
+    const masked = maskPayoutAccount(sealSecret(ACCOUNT), WHOSE);
     expect(masked).toBe("••••4567");
     expect(masked).not.toContain("9841");
   });
@@ -136,6 +154,58 @@ describe("what an admin sees", () => {
      * tells a reviewer something is there.
      */
     const { maskPayoutAccount } = await import("@/lib/data/payout-account");
-    expect(maskPayoutAccount(null)).toBeNull();
+    expect(maskPayoutAccount(null, WHOSE)).toBeNull();
+  });
+});
+
+describe("a value that will not open", () => {
+  it("is quiet on the screen and loud in the log", async () => {
+    /*
+     * THE WHOLE POINT, AND IT IS THE PAIR THAT MATTERS. Returning null keeps a
+     * draft form and a review screen rendering, because failing to render tells
+     * the reader nothing useful. Returning null AND saying nothing anywhere is
+     * how a key problem becomes invisible: every surface shows an empty field,
+     * nobody is blocked, and the first signal is a professional asking where
+     * their account went.
+     */
+    const { sealSecret } = await import("@/lib/security/secret-box");
+    const sealed = sealSecret(ACCOUNT);
+    process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(32, 77).toString("base64");
+
+    logged.length = 0;
+    const { openPayoutAccount } = await import("@/lib/data/payout-account");
+    expect(openPayoutAccount(sealed, WHOSE)).toBeNull();
+
+    expect(logged, "nothing recorded that a stored account would not open").toHaveLength(1);
+    expect(logged[0].kind).toBe("payoutAccount.unreadable");
+    expect(logged[0].subjectId).toBe(WHOSE.subjectId);
+  });
+
+  it("records no value, not even the envelope", async () => {
+    // It could not be opened, so the envelope is no more loggable than the
+    // number would have been — and this table is read by people.
+    const { sealSecret } = await import("@/lib/security/secret-box");
+    const sealed = sealSecret(ACCOUNT);
+    process.env.PAYOUT_ENCRYPTION_KEY = Buffer.alloc(32, 77).toString("base64");
+
+    logged.length = 0;
+    const { openPayoutAccount } = await import("@/lib/data/payout-account");
+    openPayoutAccount(sealed, WHOSE);
+
+    const written = JSON.stringify(logged[0]);
+    expect(written).not.toContain(ACCOUNT);
+    expect(written).not.toContain(sealed);
+  });
+
+  it("says nothing when there is simply no account on the row", async () => {
+    /*
+     * An unanswered payout step is not a fault. Logging it would bury the real
+     * event under every draft anybody has ever started — the crying-wolf shape,
+     * one table over.
+     */
+    logged.length = 0;
+    const { openPayoutAccount } = await import("@/lib/data/payout-account");
+    expect(openPayoutAccount(null, WHOSE)).toBeNull();
+    expect(logged).toHaveLength(0);
   });
 });

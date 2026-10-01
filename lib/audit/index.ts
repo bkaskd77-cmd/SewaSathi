@@ -66,6 +66,16 @@ export type SecurityEventKind =
    */
   | "payoutDestination.viewed"
   /**
+   * A stored payout account would not open.
+   *
+   * THE EVENT FOR SOMETHING THAT CANNOT HAPPEN. A check constraint requires an
+   * envelope, so the only way to reach this is a key that changed without a
+   * re-seal — and every surface would quietly render an empty field, because
+   * failing to render tells the reader nothing useful. The screen stays quiet;
+   * this is why that is not the same as nobody being told.
+   */
+  | "payoutAccount.unreadable"
+  /**
    * An admin searched the support lookup, whether or not it found anything.
    *
    * THE MISSES MATTER AS MUCH AS THE HITS. Six phone numbers tried in a row and

@@ -109,6 +109,7 @@ export const GUARDED_ROUTES = [
   // Deliberately not a PROVIDER_ROUTE — see the note in lib/auth/routes.ts.
   "/provider",
   "/provider/jobs",
+  "/provider/payouts",
   "/providers/apply",
   // Public route, page-level redirect: arriving with no number must not show
   // six code boxes that can never succeed.

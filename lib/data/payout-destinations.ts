@@ -140,8 +140,49 @@ export async function currentDestination(
   }
 }
 
+/**
+ * When this destination replaced another one, or null if it is the first.
+ *
+ * THE VISIBLE HALF OF THE CHANGE NOTICE, AND IT COMES FROM THE TABLE. The
+ * `payout.destinationChanged` notification has no surface and no delivery
+ * address — the in-app channel has no address at all and the SMS channel does
+ * not exist — so a screen that waited for it would show nothing. The retired
+ * row's `retired_at` is the same fact, already written, already durable, and
+ * readable by the one person who needs it.
+ *
+ * Null means nothing was replaced, which is a first destination rather than a
+ * failed read: this is only ever called beside a live row that was found.
+ */
+export async function lastChangedAt(providerId: string): Promise<Date | null> {
+  if (!hasSupabaseConfig()) return null;
+  try {
+    const { data } = await createAdminClient()
+      .from("payout_destinations")
+      .select("retired_at")
+      .eq("provider_id", providerId)
+      .not("retired_at", "is", null)
+      .order("retired_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const retired = data?.retired_at as string | null | undefined;
+    return retired ? new Date(retired) : null;
+  } catch (thrown) {
+    console.error(
+      `[payout-destinations] last change — ${describeError(thrown)}`,
+    );
+    return null;
+  }
+}
+
 export type ChangeResult =
-  | { ok: true; destination: MaskedDestination }
+  /**
+   * `isFirst` SAYS WHICH RULE APPLIED, so the screen states it rather than
+   * inferring it from a date. "Usable from today" and "usable in three days" are
+   * the same field with opposite meanings for the reader, and a screen working
+   * that out by comparing timestamps is a second opinion waiting to disagree.
+   */
+  | { ok: true; destination: MaskedDestination; isFirst: boolean }
   /** Their session has not proved who they are recently enough. */
   | { ok: false; reason: "reauthRequired" }
   /** No listing belongs to this account. */
@@ -240,6 +281,40 @@ export async function changeDestination(input: {
     if (!provider) return { ok: false, reason: "noListing" };
     const providerId = provider.id as string;
 
+    /*
+     * HAS THIS PROFESSIONAL EVER NAMED A DESTINATION? Counting every row, live
+     * and retired, and the "retired" half is the whole point.
+     *
+     * THE BYPASS THIS CLOSES. Counting only live rows would let anybody retire
+     * their destination and insert another one to skip the 72-hour cooldown
+     * entirely — the account-takeover path with one extra step, and a step an
+     * attacker is delighted to take. A row that has ever existed means a notice
+     * has been sent and somebody could have objected, which is exactly the fact
+     * the cooldown turns on.
+     *
+     * `head: true` with an exact count: the rows themselves are nobody's business
+     * here and this only has to answer none-or-some.
+     */
+    const { count, error: countError } = await admin
+      .from("payout_destinations")
+      .select("id", { count: "exact", head: true })
+      .eq("provider_id", providerId);
+
+    if (countError) {
+      console.error(
+        `[payout-destinations] counting history — ${describeError(countError)}`,
+      );
+      return { ok: false, reason: "generic" };
+    }
+
+    /*
+     * A FAILED COUNT WOULD READ AS "none", which would hand somebody an instant
+     * destination on a database blip. `count` is null when the read did not
+     * answer, so it is treated as "there is history" — the safe direction, since
+     * being wrong that way costs a three-day wait rather than a window.
+     */
+    const isFirst = count === 0;
+
     const { error: retireError } = await admin
       .from("payout_destinations")
       .update({ retired_at: now.toISOString() })
@@ -261,7 +336,7 @@ export async function changeDestination(input: {
         account_ref: sealed,
         account_name: input.accountName.trim(),
         bank_name: input.bankName?.trim() || null,
-        usable_from: destinationUsableFrom(now).toISOString(),
+        usable_from: destinationUsableFrom(now, { isFirst }).toISOString(),
       })
       .select(LIVE_COLUMNS)
       .single();
@@ -302,7 +377,7 @@ export async function changeDestination(input: {
       bookingId: null,
     });
 
-    return { ok: true, destination };
+    return { ok: true, destination, isFirst };
   } catch (thrown) {
     console.error(
       `[payout-destinations] change threw — ${describeError(thrown)}`,

@@ -43,6 +43,7 @@ export type ApplyDraft = {
   panNumber: string | null;
   payoutMethod: string | null;
   payoutAccount: string | null;
+  payoutAccountName: string | null;
   payoutBankName: string | null;
   hasConsent: boolean;
 };
@@ -479,6 +480,23 @@ function PayoutStep(props: ApplyFlowProps) {
         defaultValue={props.draft.payoutAccount}
         required
       />
+      {/*
+        WHOSE NAME THE ACCOUNT IS IN, ASKED RATHER THAN ASSUMED. Plenty of
+        tradespeople here do not hold their own wallet — it is a spouse's, a
+        son's, a parent's — which is why `payoutIsSomebodyElses` exists at all.
+        Taking the applicant's own name for this field would write something
+        false for exactly those people, and it is the name a bank transfer is
+        made out to. The hint says a different name is fine, because somebody who
+        thinks it is a problem will put their own in and the money will bounce.
+      */}
+      <Field
+        label={t("payout.accountName")}
+        name="payoutAccountName"
+        defaultValue={props.draft.payoutAccountName}
+        hint={t("payout.accountNameHint")}
+        required
+      />
+
       {method === "bank" ? (
         <Field
           label={t("payout.bankName")}

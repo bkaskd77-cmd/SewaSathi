@@ -38,6 +38,12 @@ import {
 
 /** Everything on an application that a match key is derived from. */
 export type MatchKeySubject = {
+  /**
+   * Whose application. Carried so that a `payout_account` which will not open is
+   * logged against somebody rather than as an unattributed line — the audit row
+   * is useless without it, and the caller has the id anyway.
+   */
+  profileId: string;
   citizenship_number: string | null;
   pan_number: string | null;
   /** AS STORED — an envelope, or a legacy bare number. Opened in here. */
@@ -70,7 +76,12 @@ export function applicationMatchKeys(subject: MatchKeySubject): MatchKey[] {
       subject.citizenship_number ?? "",
       subject.pan_number ?? "",
     ],
-    accounts: [openPayoutAccount(subject.payout_account) ?? ""],
+    accounts: [
+      openPayoutAccount(subject.payout_account, {
+        subjectType: "profile",
+        subjectId: subject.profileId,
+      }) ?? "",
+    ],
     fullName: subject.full_name ?? "",
     areaKeys: subject.service_areas ?? [],
     deviceFingerprint: subject.device_fingerprint ?? undefined,
@@ -271,6 +282,7 @@ export async function sealApplication(input: {
     .eq("application_id", input.applicationId);
 
   const keys: MatchKey[] = applicationMatchKeys({
+    profileId: application.profile_id as string,
     citizenship_number: application.citizenship_number as string | null,
     pan_number: application.pan_number as string | null,
     payout_account: application.payout_account as string | null,

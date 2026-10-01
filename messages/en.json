@@ -1221,6 +1221,8 @@
         "khalti": "Khalti",
         "account": "Account number",
         "accountEsewa": "The mobile number your wallet is registered to",
+        "accountName": "Name on the account",
+        "accountNameHint": "It can be someone else's — a wife's or a son's wallet is fine. Write it exactly as it appears on the account.",
         "bankName": "Bank name"
       },
       "references": {
@@ -1564,6 +1566,41 @@
       "unnamed": "your listing",
       "footerNote": "Something wrong on a job? Ring us.",
       "home": "Main site"
+    },
+    "payouts": {
+      "title": "Where you are paid",
+      "lead": "Your earnings are sent here. Only you and our team can see it, and we never show the whole number back to anyone.",
+      "none": "You have not told us where to send your earnings yet.",
+      "noneAction": "Add an account",
+      "unreadable": "We cannot read your account details right now. Nothing is lost — tell us and we will sort it out.",
+      "accountLabel": "Account",
+      "nameLabel": "Name on the account",
+      "bankLabel": "Bank",
+      "readyFirst": "Ready to use. Before the first payment goes to this account, somebody on our team checks it — that is the only thing holding it.",
+      "readyCooling": "Payments to this account start on {date}. Changing where money goes always waits three days, so if it was not you who changed it, there is time to tell us.",
+      "readyUnconfirmed": "Somebody on our team is checking this account before the first payment goes to it.",
+      "readyOk": "Payments go here.",
+      "changedOn": "Changed on {date}.",
+      "changedNotYou": "Was that not you? Ring {phone} now.",
+      "changeTitle": "Change the account",
+      "changeLead": "The new account waits three days before any money goes to it. We will tell you here when it changed, so nobody can move your earnings quietly.",
+      "method": "Where should we send it",
+      "methods": {
+        "esewa": "eSewa",
+        "khalti": "Khalti",
+        "bank": "Bank account"
+      },
+      "save": "Save the new account",
+      "saving": "Saving…",
+      "errors": {
+        "reauthRequired": "For your safety, sign in again before you change this — it has been a while since you last did.",
+        "noListing": "We cannot find your listing. Tell us and we will sort it out.",
+        "cannotSeal": "We could not store that safely just now, so we did not store it at all. Try again shortly.",
+        "retiredButNotReplaced": "Your old account was removed but the new one did not save. Nothing will be paid out until you enter it again below.",
+        "pickAMethod": "Choose where we should send your earnings.",
+        "notSignedIn": "Sign in to change this.",
+        "generic": "That did not save. Try again."
+      }
     }
   },
   "admin": {
@@ -1699,6 +1736,7 @@
       "mustConfirm": "Open the evidence first. This is the step that actually does the verifying.",
       "decided": "Decided by {name} on {date}",
       "payoutIsSomebodyElses": "Money goes to a number we have never sent a code to. That is allowed — plenty of people use a spouse's or a family member's wallet — but check who holds it before approving.",
+      "payoutNameDiffers": "A different name from the applicant's. That is allowed — say in the internal note why you accepted it.",
       "openFailed": "That did not open. Try again."
     },
     "claims": {

@@ -745,6 +745,8 @@ export type Database = {
           pan_number: string | null;
           payout_method: string | null;
           payout_account: string | null;
+          /** Null means we never asked — it postdates three applications. */
+          payout_account_name: string | null;
           payout_bank_name: string | null;
           step: number;
           status: string;
@@ -768,6 +770,7 @@ export type Database = {
           pan_number?: string | null;
           payout_method?: string | null;
           payout_account?: string | null;
+          payout_account_name?: string | null;
           payout_bank_name?: string | null;
           step?: number;
           status?: string;

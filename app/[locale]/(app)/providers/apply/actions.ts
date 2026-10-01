@@ -190,6 +190,9 @@ export async function saveStepAction(
   if (many("serviceAreas").length > 0) patch.serviceAreas = many("serviceAreas");
   if (value("payoutMethod")) patch.payoutMethod = value("payoutMethod");
   if (value("payoutAccount")) patch.payoutAccount = value("payoutAccount");
+  if (value("payoutAccountName")) {
+    patch.payoutAccountName = value("payoutAccountName");
+  }
   if (value("payoutBankName")) patch.payoutBankName = value("payoutBankName");
   if (value("deviceFingerprint")) {
     patch.deviceFingerprint = value("deviceFingerprint");

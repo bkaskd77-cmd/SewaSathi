@@ -106,6 +106,25 @@ export default async function ApplicationReviewPage({
               : null
           }
         />
+        {/*
+          THE PAYEE NAME BESIDE THE APPLICANT'S, AND NOTHING COMPARES THEM.
+          A payout account in a spouse's or a son's name is ordinary here. What
+          the reviewer needs is both names in one place and a prompt to say why
+          they accepted a difference — which lands in the internal note, a field
+          that already exists and is already append-only. An automatic match
+          across Devanagari and Latin spellings of the same person is how a
+          signal starts crying wolf.
+        */}
+        <Pair
+          label={tApply("payout.accountName")}
+          value={application.payoutAccountName}
+          note={
+            application.payoutAccountName &&
+            application.payoutAccountName !== application.fullName
+              ? t("payoutNameDiffers")
+              : null
+          }
+        />
       </dl>
 
       {/* Duplicates first: a match against somebody we removed changes how

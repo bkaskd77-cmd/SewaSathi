@@ -21,7 +21,9 @@ import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
 import { getPriceBands } from "@/lib/ai/price-bands";
+import { destinationUsableFrom } from "@/lib/payments";
 import { bandForTrades, clampRate } from "@/lib/provider";
+import { sealSecret } from "@/lib/security/secret-box";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   documentsFor,
@@ -82,6 +84,11 @@ export type ApplicationForReview = {
   payoutMethod: string | null;
   /** `••••4567`. Never the digits — see the note where it is built. */
   payoutAccountMasked: string | null;
+  /**
+   * The name the applicant says the account is held in. In the clear, and
+   * allowed to differ from their own — shown, never scored.
+   */
+  payoutAccountName: string | null;
   /**
    * The payout number is not the number they sign in with.
    *
@@ -283,10 +290,23 @@ export async function applicationForReview(input: {
      */
     payoutAccountMasked: maskPayoutAccount(
       application.payout_account as string | null,
+      { subjectType: "profile", subjectId: application.profile_id as string },
     ),
+    /*
+     * SHOWN BESIDE THEIR OWN NAME, AND NEVER COMPARED HERE.
+     *
+     * A payout account in somebody else's name is ordinary — a spouse's, a
+     * son's — and the reviewer is the one who decides whether this instance is
+     * fine, recording why in `application_decisions.internal_note`. An automatic
+     * comparison would have to match names across Devanagari and Latin spellings
+     * of the same person, which is precisely how a signal starts crying wolf;
+     * `foldNepali` is deliberately narrow for the same reason.
+     */
+    payoutAccountName: (application.payout_account_name as string | null) ?? null,
     payoutIsSomebodyElses: payoutIsSomebodyElses({
       payoutAccount: openPayoutAccount(
         application.payout_account as string | null,
+        { subjectType: "profile", subjectId: application.profile_id as string },
       ),
       applicantPhone: applicantPhone,
     }),
@@ -354,9 +374,18 @@ export async function decideApplication(input: {
 
   const db = createAdminClient();
 
+  /*
+   * The four payout columns are read here for the destination seeded on approval
+   * below. Named rather than `*` so it stays visible that this read moves an
+   * account number into memory — and the comment sits above the call rather than
+   * inside it, because `tests/db/column-manifest.test.ts` parses the select
+   * expression and read the comment as the column list. It found that, not me.
+   */
   const { data: application } = await db
     .from("provider_applications")
-    .select("id, profile_id, status, risk_score, full_name, trades, service_areas, years_experience")
+    .select(
+      "id, profile_id, status, risk_score, full_name, trades, service_areas, years_experience, payout_account, payout_account_name, payout_method, payout_bank_name",
+    )
     .eq("id", input.applicationId)
     .maybeSingle();
 
@@ -488,6 +517,84 @@ export async function decideApplication(input: {
         await db
           .from("provider_stats")
           .insert({ provider_id: provider.id as string });
+
+        /*
+         * AND WHERE THEIR MONEY GOES, CARRIED OVER RATHER THAN ASKED AGAIN.
+         *
+         * ONE SOURCE OF TRUTH. The applicant stated an account on the
+         * application and a reviewer looked at it; asking them to type it again
+         * on their dashboard would create a second answer that can disagree with
+         * the one approval was granted against. They confirm it on
+         * /provider/payouts; they do not re-enter it.
+         *
+         * OPENED AND RE-SEALED, NOT COPIED. Copying the envelope would give two
+         * rows the same ciphertext. Nothing leaks across people that way — the
+         * IV is per row, so another applicant with the same account number still
+         * gets a different envelope — but "every row has its own IV" is a rule
+         * worth keeping true with no exception to remember later.
+         *
+         * `usable_from` IS NOW. The 72-hour cooldown is a change control: it
+         * buys the real person time to object to a redirection. Nobody is being
+         * redirected here and there is no notice to object to, so a first
+         * destination is usable immediately — and still not payable until
+         * `first_payout_confirmed_at`, which is a person looking. Two gates, and
+         * `destinationUsableFrom(now, { isFirst: true })` is the one place that
+         * decides.
+         *
+         * SKIPPED RATHER THAN GUESSED when either half is missing.
+         * `payout_account_name` postdates three applications, and the only name
+         * to hand would be the applicant's own — false for exactly the people
+         * `payoutIsSomebodyElses` exists for. They state it on the screen
+         * instead, which is also why a failure here logs and does not fail the
+         * approval: the screen is the fallback.
+         */
+        const storedAccount = application.payout_account as string | null;
+        const payeeName = application.payout_account_name as string | null;
+        const method = application.payout_method as
+          | "bank"
+          | "esewa"
+          | "khalti"
+          | null;
+
+        if (!storedAccount || !payeeName || !method) {
+          console.warn(
+            `[review] ${input.applicationId} approved with no payout destination seeded — ` +
+              `account ${storedAccount ? "yes" : "no"}, name ${payeeName ? "yes" : "no"}, ` +
+              `method ${method ?? "none"}. They state it on /provider/payouts.`,
+          );
+        } else {
+          const plain = openPayoutAccount(storedAccount, {
+            subjectType: "profile",
+            subjectId: application.profile_id as string,
+          });
+
+          if (!plain) {
+            // Already logged against this profile by `openPayoutAccount`.
+            console.error(
+              `[review] ${input.applicationId} payout account would not open; no destination seeded`,
+            );
+          } else {
+            const seededAt = new Date();
+            const { error: destinationError } = await db
+              .from("payout_destinations")
+              .insert({
+                provider_id: provider.id as string,
+                kind: method,
+                account_ref: sealSecret(plain),
+                account_name: payeeName,
+                bank_name: (application.payout_bank_name as string | null) ?? null,
+                usable_from: destinationUsableFrom(seededAt, {
+                  isFirst: true,
+                }).toISOString(),
+              });
+
+            if (destinationError) {
+              console.error(
+                `[review] seeding the payout destination — ${describeError(destinationError)}`,
+              );
+            }
+          }
+        }
       }
     }
 

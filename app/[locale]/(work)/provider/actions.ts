@@ -199,3 +199,56 @@ async function requireProvider(): Promise<string | null> {
   const me = await getMyProvider(profile.id);
   return me?.providerId ?? null;
 }
+
+/**
+ * Change where this professional is paid.
+ *
+ * THE ACTOR COMES FROM THE SESSION, like everything else here: no provider id
+ * crosses the wire, `changeDestination` resolves the listing from the profile.
+ *
+ * `reauthenticatedAt` IS THE TOKEN'S OWN `iat`, READ SERVER-SIDE. It is never a
+ * field, never a parameter and never a cookie — all three are the browser's to
+ * set, and this is the gate standing between a stolen session and somebody's
+ * earnings. Verifying a fresh code mints a new session, so proving identity and
+ * moving the clock are the same act; `isFresh` refuses anything older than
+ * `REAUTH_WINDOW_MINUTES`, and treats a missing claim as expired.
+ *
+ * WHAT CANNOT BE PROVEN END TO END YET: no code reaches a real handset while
+ * `auth.sms` is down, which is an existing launch blocker rather than a new one.
+ * The refusal works regardless — with no fresh `iat` the write is refused — so
+ * the failure mode is "cannot change", never "changed without proof".
+ */
+export async function changeDestinationAction(
+  _previous: ProviderSettingResult | null,
+  formData: FormData,
+): Promise<ProviderSettingResult> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, error: "notSignedIn" };
+
+  const field = (name: string) => {
+    const raw = formData.get(name);
+    return typeof raw === "string" ? raw.trim() : "";
+  };
+
+  const kind = field("kind");
+  if (!["bank", "esewa", "khalti"].includes(kind)) {
+    return { ok: false, error: "pickAMethod" };
+  }
+
+  const { changeDestination } = await import("@/lib/data/payout-destinations");
+  const { sessionIssuedAt } = await import("@/lib/auth/mfa");
+
+  const result = await changeDestination({
+    profileId: profile.id,
+    reauthenticatedAt: await sessionIssuedAt(),
+    kind: kind as "bank" | "esewa" | "khalti",
+    accountRef: field("accountRef"),
+    accountName: field("accountName"),
+    bankName: field("bankName") || null,
+  });
+
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath("/[locale]/(work)/provider/payouts", "page");
+  return { ok: true };
+}

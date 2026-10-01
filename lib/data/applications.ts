@@ -52,6 +52,7 @@ export type ApplicationDraft = {
   panNumber: string | null;
   payoutMethod: string | null;
   payoutAccount: string | null;
+  payoutAccountName: string | null;
   payoutBankName: string | null;
   hasConsent: boolean;
   submittedAt: string | null;
@@ -89,7 +90,17 @@ function toDraft(
      * open, because a draft form must still render: a missing field is a field
      * to fill in, where an exception is a page that does not exist.
      */
-    payoutAccount: openPayoutAccount(row.payout_account as string | null),
+    payoutAccount: openPayoutAccount(row.payout_account as string | null, {
+      subjectType: "profile",
+      subjectId: row.profile_id as string,
+    }),
+    /*
+     * IN THE CLEAR, unlike the number beside it. The number is the credential;
+     * a payee name is not, and sealing it would mean a decrypt on every row
+     * before a reviewer could see whose account they are looking at — the same
+     * reasoning `payout_destinations.account_name` already carries.
+     */
+    payoutAccountName: (row.payout_account_name as string | null) ?? null,
     payoutBankName: (row.payout_bank_name as string | null) ?? null,
     hasConsent,
     submittedAt: (row.submitted_at as string | null) ?? null,
@@ -252,6 +263,7 @@ export type StepPatch = {
   panNumber?: string;
   payoutMethod?: string;
   payoutAccount?: string;
+  payoutAccountName?: string;
   payoutBankName?: string;
   deviceFingerprint?: string;
 };
@@ -340,6 +352,7 @@ export async function saveStep(input: {
     ["panNumber", "pan_number"],
     ["payoutMethod", "payout_method"],
     ["payoutAccount", "payout_account"],
+    ["payoutAccountName", "payout_account_name"],
     ["payoutBankName", "payout_bank_name"],
     ["deviceFingerprint", "device_fingerprint"],
   ];
@@ -513,7 +526,10 @@ export async function addReference(input: {
      * is not an independent referee — and that comparison needs the digits. They
      * are read here, judged, and never returned to anybody.
      */
-    payoutAccount: openPayoutAccount(application.payout_account as string | null),
+    payoutAccount: openPayoutAccount(application.payout_account as string | null, {
+      subjectType: "profile",
+      subjectId: application.profile_id as string,
+    }),
   });
   if (verdict !== "ok") return verdict;
 

@@ -41,8 +41,31 @@ export function maskAccountRef(ref: string): string {
  *
  * Stamped onto the row at insert as `usable_from`. Returned as a `Date` so the
  * caller writes an ISO string once, at the edge.
+ *
+ * THE COOLDOWN IS A CHANGE CONTROL, NOT AN ARRIVAL TAX. It exists because an
+ * account takeover's first move is to redirect the money, and the window is the
+ * time the real person has to see the notice and object. A professional who has
+ * never named a destination is not being redirected from anywhere — there is no
+ * notice to read and nobody to object. Making them wait three days for their
+ * first payment would be a delay with no attacker on the other side of it.
+ *
+ * WHAT GUARDS THE FIRST ONE INSTEAD is `first_payout_confirmed_at`: a person
+ * looks before any money goes to a destination nobody has paid before.
+ * `destinationReadiness` returns `unconfirmed` until then, so a first row is
+ * immediately usable and still not payable — two different gates, and the screen
+ * says so rather than leaving somebody to infer it.
+ *
+ * `isFirst` IS DECIDED BY THE CALLER COUNTING EVERY ROW THAT HAS EVER EXISTED,
+ * retired ones included. Counting only live rows would make this the bypass:
+ * retire the destination, add another, and the cooldown never applies — the
+ * takeover path with one extra step. The rule is stated here because this is
+ * where somebody reads it; `changeDestination` is where it is enforced.
  */
-export function destinationUsableFrom(createdAt: Date): Date {
+export function destinationUsableFrom(
+  createdAt: Date,
+  options: { isFirst: boolean } = { isFirst: false },
+): Date {
+  if (options.isFirst) return createdAt;
   return new Date(
     createdAt.getTime() + DESTINATION_COOLDOWN_HOURS * 60 * 60 * 1000,
   );

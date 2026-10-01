@@ -25,14 +25,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Op = {
   table: string;
-  op: "select" | "insert" | "update";
+  op: "select" | "count" | "insert" | "update";
   payload?: Record<string, unknown>;
   filters: Array<[string, unknown]>;
 };
 
 let ops: Op[] = [];
 /** Canned answers, popped in order per table. */
-let answers: Record<string, Array<{ data: unknown; error: unknown }>> = {};
+let answers: Record<
+  string,
+  Array<{ data: unknown; error: unknown; count?: number | null }>
+> = {};
 
 class Fake {
   private readonly entry: Op;
@@ -47,7 +50,10 @@ class Fake {
     return this;
   }
 
-  select() { return this; }
+  select(_columns?: string, options?: { count?: string; head?: boolean }) {
+    if (options?.head) this.entry.op = "count";
+    return this;
+  }
   order() { return this; }
   limit() { return this; }
   eq(c: string, v: unknown) { return this.note(c, v); }
@@ -67,13 +73,15 @@ class Fake {
 
   private answer() {
     const queue = answers[this.entry.table] ?? [];
-    return queue.shift() ?? { data: null, error: null };
+    return queue.shift() ?? { data: null, error: null, count: null };
   }
 
   maybeSingle() { return Promise.resolve(this.answer()); }
   single() { return Promise.resolve(this.answer()); }
 
-  then<T>(resolve: (value: { data: unknown; error: unknown }) => T) {
+  then<T>(
+    resolve: (value: { data: unknown; error: unknown; count?: number | null }) => T,
+  ) {
     return Promise.resolve(this.answer()).then(resolve);
   }
 }
@@ -219,6 +227,7 @@ describe("replacing a destination", () => {
     answers = {
       providers: [{ data: { id: KRISHNA_LISTING, profile_id: KRISHNA_PROFILE }, error: null }],
       payout_destinations: [
+        { data: null, error: null, count: 1 }, // the history count — a change
         { data: null, error: null }, // the retire
         { data: replacement, error: null }, // the insert
       ],
@@ -239,7 +248,9 @@ describe("replacing a destination", () => {
     const result = await change();
     expect(result.ok).toBe(true);
 
-    const writes = of("payout_destinations").filter((o) => o.op !== "select");
+    const writes = of("payout_destinations").filter(
+      (o) => o.op === "update" || o.op === "insert",
+    );
     expect(writes.map((o) => o.op)).toEqual(["update", "insert"]);
     expect(writes[0].payload).toHaveProperty("retired_at");
     expect(writes[0].filters).toContainEqual(["retired_at", null]);
@@ -303,6 +314,7 @@ describe("replacing a destination", () => {
     answers = {
       providers: [{ data: { id: KRISHNA_LISTING, profile_id: KRISHNA_PROFILE }, error: null }],
       payout_destinations: [
+        { data: null, error: null, count: 1 }, // the history count
         { data: null, error: null }, // the retire succeeds
         { data: null, error: { message: "network" } }, // the insert does not
       ],
@@ -321,6 +333,88 @@ describe("replacing a destination", () => {
     expect(of("notifications")).toEqual([]);
   });
 
+  async function changeWithHistory(count: number | null) {
+    answers = {
+      providers: [{ data: { id: KRISHNA_LISTING, profile_id: KRISHNA_PROFILE }, error: null }],
+      payout_destinations: [
+        { data: null, error: null, count },
+        { data: null, error: null },
+        {
+          data: {
+            ...(await liveRow()),
+            created_at: "2026-10-01T12:00:00.000Z",
+            usable_from: "2026-10-01T12:00:00.000Z",
+          },
+          error: null,
+        },
+      ],
+    };
+
+    const { changeDestination } = await import("@/lib/data/payout-destinations");
+    return changeDestination({
+      profileId: KRISHNA_PROFILE,
+      reauthenticatedAt: new Date("2026-10-01T12:00:00Z"),
+      kind: "bank",
+      accountRef: ACCOUNT,
+      accountName: "Krishna Tamang",
+      now: new Date("2026-10-01T12:00:00Z"),
+    });
+  }
+
+  it("a first destination is usable immediately, because nobody is being redirected", async () => {
+    /*
+     * The cooldown is a change control, not an arrival tax. A professional who
+     * has never named a destination has no notice to read and nobody to object
+     * to — making them wait three days for their first payment would be a delay
+     * with no attacker on the other side of it. What guards a first row instead
+     * is `first_payout_confirmed_at`: usable immediately, and still not payable
+     * until a person looks.
+     */
+    const result = await changeWithHistory(0);
+    expect(result).toMatchObject({ ok: true, isFirst: true });
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    expect(insert.payload!.usable_from).toBe("2026-10-01T12:00:00.000Z");
+  });
+
+  it("counts retired rows, so retire-then-add cannot skip the cooldown", async () => {
+    /*
+     * THE BYPASS, PINNED. If "first" meant "no LIVE row", anybody could retire
+     * their destination and insert another one to land a usable address
+     * instantly — the account-takeover path with one extra step, and a step an
+     * attacker is glad to take. The history count is unfiltered on `retired_at`
+     * for exactly this; delete that filter's absence and this goes red.
+     *
+     * Asserted on the stamped date rather than on the flag alone, because the
+     * flag is a label and `usable_from` is what the payout run actually reads.
+     */
+    const result = await changeWithHistory(1);
+    expect(result).toMatchObject({ ok: true, isFirst: false });
+
+    const count = of("payout_destinations").find((o) => o.op === "count")!;
+    expect(
+      count.filters.some(([column]) => column === "retired_at"),
+      "the history count filtered on retired_at, which is the bypass",
+    ).toBe(false);
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    const { DESTINATION_COOLDOWN_HOURS } = await import("@/lib/config/payout-policy");
+    expect(
+      new Date(insert.payload!.usable_from as string).getTime() -
+        new Date("2026-10-01T12:00:00Z").getTime(),
+    ).toBe(DESTINATION_COOLDOWN_HOURS * 60 * 60 * 1000);
+  });
+
+  it("treats a failed history count as history, not as a first destination", async () => {
+    /*
+     * A read that did not answer must not hand somebody an instant destination
+     * on a database blip. Null is "we could not tell", and the safe direction
+     * costs a three-day wait rather than a window.
+     */
+    const result = await changeWithHistory(null);
+    expect(result).toMatchObject({ ok: true, isFirst: false });
+  });
+
   it("refuses an account with no listing behind it", async () => {
     answers = { providers: [{ data: null, error: null }] };
     const { changeDestination } = await import("@/lib/data/payout-destinations");
@@ -334,7 +428,11 @@ describe("replacing a destination", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "noListing" });
-    expect(of("payout_destinations").filter((o) => o.op !== "select")).toEqual([]);
+    expect(
+      of("payout_destinations").filter(
+        (o) => o.op === "update" || o.op === "insert",
+      ),
+    ).toEqual([]);
   });
 });
 

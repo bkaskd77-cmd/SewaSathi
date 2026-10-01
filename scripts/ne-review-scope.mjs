@@ -41,6 +41,8 @@ export const REVIEW_SCOPE = [
   { tier: "staff", prefix: "admin.guaranteeClaims", why: "A reviewer deciding how much of a customer's money goes back, against a ceiling and a parts deduction they have to read correctly to weigh. Same room as admin.mismatches and a larger consequence: this one moves money out." },
   { tier: "money", prefix: "provider.jobs.materials", why: "A figure the professional types at settlement that later reduces what they can be asked to refund. Wrong wording here reads as 'what did the job cost', which is a different number." },
   { tier: "money", prefix: "provider.dashboard.claims.parts", why: "Their answer decides whether the parts cost comes off a refund they may fund. A mistranslated option is somebody answering the opposite of what they meant about their own money." },
+  { tier: "money", prefix: "provider.payouts", why: "Where a professional's earnings are sent, and the sentences that explain the three-day wait and the check before a first payment. The takeover warning lives here — somebody reading 'was that not you?' wrongly is somebody who does not ring us while their money is being redirected." },
+  { tier: "money", prefix: "join.apply.payout", why: "Where a professional's earnings are sent. It was missing from this list while every other money namespace was on it — found when the payee-name field was added, which is the one string here with a real failure mode: somebody who reads it as 'your own name' writes theirs on a wallet that is not theirs, and the transfer bounces with no sign of why." },
 ];
 
 /**

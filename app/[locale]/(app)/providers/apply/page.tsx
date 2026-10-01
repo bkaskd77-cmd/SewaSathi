@@ -187,7 +187,16 @@ export default async function ApplyPage() {
   if (!application.fullName) missing.push(t("details.fullName"));
   if (application.trades.length === 0) missing.push(t("trades.title"));
   if (application.serviceAreas.length === 0) missing.push(t("areas.title"));
-  if (!application.payoutAccount) missing.push(t("payout.title"));
+  /*
+   * BOTH HALVES OF THE PAYOUT STEP, because a destination needs both. The row in
+   * `payout_destinations` that approval seeds has `account_name` as `not null`,
+   * so an application carrying a number and no payee name cannot become one —
+   * and the only name to hand would be the applicant's own, which is false
+   * whenever the wallet belongs to a family member.
+   */
+  if (!application.payoutAccount || !application.payoutAccountName) {
+    missing.push(t("payout.title"));
+  }
   if (references.length < 2) missing.push(t("references.title"));
 
   return (

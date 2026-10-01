@@ -405,6 +405,26 @@ Where a change on one side cannot reach the other.
   update on `payments` to anybody, so every write goes through
   `lib/data/payments.ts` under the service role, after it has re-read the
   booking and reconciled the gateway's figure against ours.
+- **The cooldown is a change control, and "first" counts retired rows.**
+  `destinationUsableFrom(now, { isFirst })` is the one place that decides, and
+  `changeDestination` sets `isFirst` by counting **every** row a professional has
+  ever had — retired included. Counting only live ones would make retire-then-add
+  the bypass: the 72-hour window exists to give the real person time to object to
+  a redirection, and an attacker who can retire a row first would never face it. A
+  first destination is usable immediately because nobody is being redirected from
+  anywhere; what guards it instead is `first_payout_confirmed_at`, a person
+  looking before any money moves. Two gates, and `changeDestination` returns
+  `isFirst` so the screen states which one applies rather than inferring it from a
+  date. A failed count reads as "there is history", because being wrong that way
+  costs a three-day wait rather than a window.
+- **Approval seeds the destination; the professional confirms it rather than
+  retyping it.** `decideApplication` carries the application's sealed account into
+  `payout_destinations` — **opened and re-sealed, never copied**, so every row
+  keeps its own IV with no exception to remember. It is **skipped with a log line**
+  when the account, the payee name or the method is missing, because the only name
+  to hand would be the applicant's own and that is false for exactly the people
+  `payoutIsSomebodyElses` exists for. A failure logs and does not fail the
+  approval: `/provider/payouts` is the fallback, which is what makes that safe.
 - **Where a professional is paid has one reader, and its refusals are the
   design.** `lib/data/payout-destinations.ts` is the only code touching
   `payout_destinations`; there is no policy to lean on, because `anon` and
