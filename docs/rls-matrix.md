@@ -40,6 +40,7 @@ default as a measurement.
 | `notifications` | 2 | none | some | some | none | none | none |
 | `payments` | 2 | none | some | some | some | none | all |
 | `payout_destinations` | 0 | no data | no data | no data | no data | no data | no data |
+| `payouts` | 0 | no data | no data | no data | no data | no data | no data |
 | `profiles` | 5 | none | some | some | some | some | all |
 | `provider_applications` | 0 | no data | no data | no data | no data | no data | no data |
 | `provider_categories` | 0 | no data | no data | no data | no data | no data | no data |

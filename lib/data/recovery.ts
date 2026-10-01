@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  payableTranches,
+  type PayableTranche,
+  type SettledBooking,
+} from "@/lib/payments";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -43,20 +48,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * report rather than quietly built here.
  */
 
-/**
- * One payable tranche of one booking.
- *
- * `earning` is the money actually arriving on that date, not the whole
- * settlement — which is the entire point: the published quarter is a quarter of
- * what lands, and on a held-back job the two tranches land a month apart.
+/*
+ * `PayableTranche` and the rule that produces it now live in
+ * `lib/payments/tranches.ts`, because the payout run has to agree with this file
+ * about what a payout is — the published quarter is a quarter of what lands, and
+ * two selections would be two answers. Moved rather than copied, which is the
+ * whole point.
  */
-type Tranche = {
-  bookingId: string;
-  reference: string | null;
-  providerId: string;
-  tranche: "main" | "holdback";
-  earning: number;
-};
+type Tranche = PayableTranche;
 
 /** What one sweep did. Counted, because a cron that says nothing proves nothing. */
 export type RecoverySweep = {
@@ -141,35 +140,16 @@ export async function sweepRedoRecovery(
      * earning, so a quarter of each is never more than a quarter of anything
      * that lands.
      */
-    const candidates: Tranche[] = [];
-    for (const row of rows) {
-      const earning = Number(row.provider_earning ?? 0);
-      const held = Number(row.payout_holdback_rupees ?? 0);
-      const until = row.payout_holdback_until as string | null;
-
-      const main = earning - (Number.isFinite(held) ? held : 0);
-      if (main > 0) {
-        candidates.push({
-          bookingId: row.id as string,
-          reference: (row.reference as string | null) ?? null,
-          providerId: row.provider_id as string,
-          tranche: "main",
-          earning: main,
-        });
-      }
-
-      // Held money is not a payout until its date passes — recovering against
-      // it early takes a quarter of something nobody has been paid.
-      if (held > 0 && until && until <= now) {
-        candidates.push({
-          bookingId: row.id as string,
-          reference: (row.reference as string | null) ?? null,
-          providerId: row.provider_id as string,
-          tranche: "holdback",
-          earning: held,
-        });
-      }
-    }
+    /*
+     * ONE BOOKING BECOMES ONE OR TWO PAYOUTS, and `payableTranches` is the only
+     * thing that decides which. It re-checks `payout_due_at` itself, so the query
+     * filter above is an optimisation rather than half the rule — the same
+     * arrangement the unique index has with the `alreadyDone` filter below.
+     */
+    const candidates: Tranche[] = payableTranches(
+      rows as unknown as SettledBooking[],
+      new Date(now),
+    );
 
     if (candidates.length === 0) return EMPTY;
 

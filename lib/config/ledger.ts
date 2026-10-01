@@ -63,9 +63,10 @@ export const GUARANTEE_KINDS = ["redo_debt", "recovery", "write_off"] as const;
 /**
  * The kinds `provider_balance` counts: the money account.
  *
- * Disjoint from `GUARANTEE_KINDS` on purpose, and the union of the two is every
- * kind — asserted in the unit test, so a kind added to neither is caught rather
- * than silently counted by nothing.
+ * The union with `GUARANTEE_KINDS` is every kind — asserted in the unit test, so
+ * a kind added to neither is caught rather than silently counted by nothing. The
+ * two are NOT disjoint, and the one overlap is named below rather than left to be
+ * noticed.
  */
 export const MONEY_KINDS = [
   "earning",
@@ -73,4 +74,27 @@ export const MONEY_KINDS = [
   "payout",
   "payout_reversal",
   "tax_withheld",
+  "recovery",
 ] as const;
+
+/**
+ * The kinds that belong to BOTH accounts, named explicitly and never derived.
+ *
+ * `recovery` is the only one, and it is on both sides because it is genuinely two
+ * facts at once: money the professional was owed, spent on the debt they owe us.
+ * It reduces `provider_outstanding` because the debt is smaller, and it reduces
+ * `provider_balance` because we no longer owe them that money — we settled it
+ * against their own account rather than sending it to their bank.
+ *
+ * WHAT COUNTING IT ON ONE SIDE ONLY WOULD DO. `provider_balance` excluded it
+ * until the payout run was built, which meant every rupee recovered stayed on the
+ * books for ever as money we still owed — the professional had already received
+ * it, as debt relief, and the balance said otherwise. It only became visible when
+ * something finally tried to pay that balance out.
+ *
+ * NAMED, NOT DERIVED, for the reason `GUARANTEE_KINDS` gives about exclusions: an
+ * intersection computed at runtime would silently absorb the next kind somebody
+ * adds to both lists by accident. The unit test asserts this constant IS the
+ * intersection, so the two cannot drift.
+ */
+export const CROSS_KINDS = ["recovery"] as const;

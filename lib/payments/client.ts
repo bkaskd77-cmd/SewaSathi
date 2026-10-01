@@ -77,6 +77,16 @@ export {
   type DestinationReadiness,
 } from "./destination";
 
+/*
+ * What one payout IS. Pure, and shared by the redo recovery and the payout run
+ * so the two cannot disagree about what a quarter is a quarter of.
+ */
+export {
+  payableTranches,
+  type PayableTranche,
+  type SettledBooking,
+} from "./tranches";
+
 export {
   CUSTOMER_PAYMENT_ERRORS,
   paymentErrorKey,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CROSS_KINDS,
   GUARANTEE_KINDS,
   LEDGER_KINDS,
   MONEY_KINDS,
@@ -77,15 +78,30 @@ describe("the ledger kinds match the column's check constraint", () => {
     const guarantee = new Set<string>(GUARANTEE_KINDS);
     const money = new Set<string>(MONEY_KINDS);
 
-    const overlap = GUARANTEE_KINDS.filter((k) => money.has(k));
-    expect(overlap, "a kind counted by both accounts").toEqual([]);
+    /*
+     * THE OVERLAP IS NAMED, NOT EMPTY — and asserting it IS `CROSS_KINDS` is
+     * stronger than asserting it is empty was. `recovery` belongs to both
+     * accounts because it is two facts at once: the debt shrinks, and so does
+     * what we owe them, since we settled it against their own account instead of
+     * sending it to their bank. Counting it on one side only left every
+     * recovered rupee on the books for ever as money still owed.
+     *
+     * A second kind added to both lists by accident fails here rather than
+     * quietly joining the exception.
+     */
+    const overlap = LEDGER_KINDS.filter((k) => guarantee.has(k) && money.has(k));
+    expect(overlap, "the kinds on both accounts are not the declared ones").toEqual([
+      ...CROSS_KINDS,
+    ]);
 
     const unfiled = LEDGER_KINDS.filter(
       (k) => !guarantee.has(k) && !money.has(k),
     );
     expect(unfiled, "a kind counted by neither account").toEqual([]);
 
-    expect(guarantee.size + money.size).toBe(LEDGER_KINDS.length);
+    expect(guarantee.size + money.size - CROSS_KINDS.length).toBe(
+      LEDGER_KINDS.length,
+    );
   });
 
   it("refuses a kind that is not in the list", () => {

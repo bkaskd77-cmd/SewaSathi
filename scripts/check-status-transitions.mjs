@@ -47,6 +47,12 @@ const MACHINES = [
     tsConst: "CLAIM_TRANSITIONS",
     sqlFn: "claim_transition_allowed",
   },
+  {
+    name: "Payout",
+    ts: "lib/payments/payout-status.ts",
+    tsConst: "PAYOUT_TRANSITIONS",
+    sqlFn: "payout_transition_allowed",
+  },
 ];
 
 /**

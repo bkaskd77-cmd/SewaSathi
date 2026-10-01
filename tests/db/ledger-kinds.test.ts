@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { GUARANTEE_KINDS, LEDGER_KINDS, MONEY_KINDS } from "@/lib/config/ledger";
+import {
+  CROSS_KINDS,
+  GUARANTEE_KINDS,
+  LEDGER_KINDS,
+  MONEY_KINDS,
+} from "@/lib/config/ledger";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -122,18 +127,57 @@ afterAll(async () => {
 });
 
 describe("the guarantee account and the money account are separate", () => {
-  it("leaves the guarantee balance untouched by every money kind", async () => {
+  /** The money kinds that belong to the money account ALONE. */
+  const MONEY_ONLY = MONEY_KINDS.filter(
+    (kind) => !(CROSS_KINDS as readonly string[]).includes(kind),
+  );
+
+  it("leaves the guarantee balance untouched by every money-only kind", async () => {
+    /*
+     * NARROWED FROM "every money kind" WHEN `recovery` JOINED BOTH ACCOUNTS, and
+     * the narrowing is the finding rather than a concession. A recovery is money
+     * the professional earned, spent on the debt they owed us: it moves both
+     * numbers, which is what the case below asserts. Everything else on the money
+     * side must still leave the guarantee account alone, and `MONEY_ONLY` is
+     * derived from the declared lists so a second cross-kind cannot slip in here
+     * by being added to both.
+     */
     await entry("redo_debt", 34_000);
     expect(await outstanding()).toBe(34_000);
 
-    for (const kind of MONEY_KINDS) {
+    for (const kind of MONEY_ONLY) {
       await entry(kind, 1_000);
     }
 
     expect(
       await outstanding(),
-      "a money kind moved the guarantee balance",
+      "a money-only kind moved the guarantee balance",
     ).toBe(34_000);
+  });
+
+  it("a recovery moves both accounts, each by its amount and once", async () => {
+    /*
+     * THE CROSS-KIND, ASSERTED ON BOTH SIDES IN ONE CASE. Before the payout run
+     * existed `provider_balance` ignored `recovery` entirely, so every recovered
+     * rupee stayed on the books for ever as money we still owed — on top of
+     * having already been handed to the professional as debt relief. Nothing
+     * noticed, because nothing read the balance for real.
+     *
+     * Both deltas are measured from a reading taken immediately before, so the
+     * case does not depend on what the rows above left behind — and "once" is the
+     * half that would catch a kind counted twice in one body.
+     */
+    const debtBefore = await outstanding();
+    const balanceBefore = await balance();
+
+    await entry("recovery", 2_000);
+
+    expect(await outstanding(), "the debt did not fall by the recovery").toBe(
+      debtBefore - 2_000,
+    );
+    expect(await balance(), "what we owe did not fall by the recovery").toBe(
+      balanceBefore - 2_000,
+    );
   });
 
   /**
@@ -149,13 +193,25 @@ describe("the guarantee account and the money account are separate", () => {
   it("would have been wrong under the catch-all it replaced", async () => {
     await pg.admin.query(CATCH_ALL_OUTSTANDING);
     try {
-      // The five money rows above are 1,000 each and all read as negative.
-      expect(await outstanding()).toBe(34_000 - 5_000);
+      /*
+       * Under the catch-all every kind but `redo_debt` read as negative, so the
+       * figure is the debt less every money-only row (1,000 each) and less the
+       * 2,000 recovery from the case above. Derived rather than written as a
+       * literal, because a literal here would need editing every time a kind is
+       * added and would be "fixed" to whatever the code said.
+       */
+      expect(await outstanding()).toBe(34_000 - MONEY_ONLY.length * 1_000 - 2_000);
     } finally {
       await pg.admin.query(EXPLICIT_OUTSTANDING);
     }
 
-    expect(await outstanding()).toBe(34_000);
+    /*
+     * Restored, the explicit body reads the debt less only the GUARANTEE rows —
+     * which is the 2,000 recovery, and none of the money-only ones. That gap
+     * between the two figures is the whole point of naming kinds instead of
+     * catching all.
+     */
+    expect(await outstanding()).toBe(34_000 - 2_000);
   });
 
   it("reports a negative balance while the guarantee account reads zero", async () => {
@@ -321,10 +377,15 @@ describe("the constraint and the append-only guard cover the new kinds", () => {
     // the file somebody edits when they add a kind to the constraint.
     const guarantee = new Set<string>(GUARANTEE_KINDS);
     const money = new Set<string>(MONEY_KINDS);
+    const cross = new Set<string>(CROSS_KINDS);
+
     for (const kind of LEDGER_KINDS) {
+      const sides = (guarantee.has(kind) ? 1 : 0) + (money.has(kind) ? 1 : 0);
+      // One account, or both and declared. Never neither, and never both by
+      // accident — `recovery` is on both because it moves both numbers.
       expect(
-        guarantee.has(kind) !== money.has(kind),
-        `${kind} is counted by neither account or by both`,
+        cross.has(kind) ? sides === 2 : sides === 1,
+        `${kind} is counted by neither account, or by both without being declared`,
       ).toBe(true);
     }
   });

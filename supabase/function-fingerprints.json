@@ -63,6 +63,10 @@
     "sha": "6f667677f0171f51",
     "file": "20260902000001_payments.sql"
   },
+  "enforce_payout_transition": {
+    "sha": "5fabad0ea3c602a6",
+    "file": "20261001000003_payouts.sql"
+  },
   "enforce_price_correction": {
     "sha": "7bdf9e19644ff25e",
     "file": "20260921000001_band_correction.sql"
@@ -115,9 +119,13 @@
     "sha": "3f977d7ea1e0cb88",
     "file": "20260902000001_payments.sql"
   },
+  "payout_transition_allowed": {
+    "sha": "471448afcfca1828",
+    "file": "20261001000003_payouts.sql"
+  },
   "provider_balance": {
-    "sha": "a65dd5ab3c57d157",
-    "file": "20260929000001_ledger_kinds.sql"
+    "sha": "8e0b0997e31f4eea",
+    "file": "20261001000002_balance_counts_recovery.sql"
   },
   "provider_can_serve": {
     "sha": "44c6b266ce54561d",

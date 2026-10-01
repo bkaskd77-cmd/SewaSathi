@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import {
+  CROSS_KINDS,
+  GUARANTEE_KINDS,
+  MONEY_KINDS,
+} from "@/lib/config/ledger";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -46,6 +51,26 @@ type Guard = {
 };
 
 const GUARDS: Record<string, Guard[]> = {
+  enforce_payout_transition: [
+    {
+      protects:
+        "A payout can only move the way the state machine allows.",
+      ifMissing:
+        "A cron could take a draft straight to `sent` without a person ever approving it, or a confirmed payout could be walked back to draft and paid twice. The TypeScript table says the same thing and `npm run check:transitions` compares them — but the interface half is advice, and this is the half that binds a service-role caller.",
+      clauses: ["public.payout_transition_allowed(old.status, new.status)"],
+    },
+    {
+      protects:
+        "The figures are frozen once a payout leaves draft.",
+      ifMissing:
+        "A payout somebody approved at one amount could be sent at another, which makes the approval a record of nothing. Same reasoning as the quoted band being frozen onto a booking.",
+      clauses: [
+        "old.status <> 'draft'",
+        "new.net_rupees is distinct from old.net_rupees",
+        "new.period_start is distinct from old.period_start",
+      ],
+    },
+  ],
   enforce_destination_immutability: [
     {
       protects:
@@ -584,6 +609,49 @@ async function source(name: string): Promise<string> {
   expect(rows, `public.${name} does not exist`).toHaveLength(1);
   return rows[0].prosrc as string;
 }
+
+describe("the two ledger accounts, pinned in the function bodies", () => {
+  /*
+   * NOT A GUARD CLAUSE, BUT THE SAME FAILURE MODE, which is why it lives here.
+   * `provider_balance` and `provider_outstanding` raise nothing, so the manifest
+   * above never sees them — and they are `security definer` arithmetic that
+   * decides how much of somebody's money we think we owe them. An edit that drops
+   * a kind from one of them is silent: every row still sums, every test that
+   * counts rows still passes, and the only symptom is a number.
+   *
+   * `recovery` IS THE ONE THAT MATTERS. It belongs to both accounts — it reduces
+   * the debt AND reduces what we owe, because it is money they earned spent on
+   * their own debt. It was missing from `provider_balance` until the payout run
+   * was built, which left every recovered rupee on the books for ever as money
+   * still owed. Dropping it from either side again fails here.
+   */
+  it("provider_balance counts every money kind, recovery included", async () => {
+    const body = await source("provider_balance");
+    for (const kind of MONEY_KINDS) {
+      expect(body, `provider_balance ignores ${kind}`).toContain(`'${kind}'`);
+    }
+    // The direction matters as much as the presence: a recovery discharges what
+    // we owe, so it subtracts exactly as a payout does.
+    expect(body).toMatch(/when 'recovery'\s+then -amount_rupees/);
+    expect(body).toMatch(/when 'earning'\s+then amount_rupees/);
+  });
+
+  it("provider_balance ignores the guarantee-only kinds", async () => {
+    // A debt is not a reduction in what we owe, and a write-off pays nobody.
+    const body = await source("provider_balance");
+    for (const kind of GUARANTEE_KINDS) {
+      if ((CROSS_KINDS as readonly string[]).includes(kind)) continue;
+      expect(body, `provider_balance counts ${kind}`).not.toContain(`'${kind}'`);
+    }
+  });
+
+  it("provider_outstanding still counts the guarantee account", async () => {
+    const body = await source("provider_outstanding");
+    for (const kind of GUARANTEE_KINDS) {
+      expect(body, `provider_outstanding ignores ${kind}`).toContain(`'${kind}'`);
+    }
+  });
+});
 
 describe("every guard clause is still in the function that needs it", () => {
   for (const [name, guards] of Object.entries(GUARDS)) {

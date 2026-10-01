@@ -206,16 +206,24 @@ async function requireProvider(): Promise<string | null> {
  * THE ACTOR COMES FROM THE SESSION, like everything else here: no provider id
  * crosses the wire, `changeDestination` resolves the listing from the profile.
  *
- * `reauthenticatedAt` IS THE TOKEN'S OWN `iat`, READ SERVER-SIDE. It is never a
- * field, never a parameter and never a cookie — all three are the browser's to
- * set, and this is the gate standing between a stolen session and somebody's
- * earnings. Verifying a fresh code mints a new session, so proving identity and
- * moving the clock are the same act; `isFresh` refuses anything older than
- * `REAUTH_WINDOW_MINUTES`, and treats a missing claim as expired.
+ * `reauthenticatedAt` IS THE SESSION'S `amr` TIMESTAMP, READ SERVER-SIDE. It is
+ * never a field, never a parameter and never a cookie — all three are the
+ * browser's to set, and this is the gate standing between a stolen session and
+ * somebody's earnings. Verifying a fresh code starts a session whose `amr`
+ * carries the moment it happened, so proving identity and moving the clock are
+ * one act; `isFresh` refuses anything older than `REAUTH_WINDOW_MINUTES` and
+ * treats a missing claim as expired.
+ *
+ * THIS PARAGRAPH SAID `iat` FOR A WHOLE PHASE AFTER THE CODE STOPPED USING IT.
+ * The call was renamed and the prose was not — a comment describing behaviour
+ * the code does not have, which is worse than no comment because it is the thing
+ * a reader trusts. The bug it described was real: `iat` resets on every silent
+ * token refresh, so the gate read "recently active", which is what a stolen
+ * session is.
  *
  * WHAT CANNOT BE PROVEN END TO END YET: no code reaches a real handset while
  * `auth.sms` is down, which is an existing launch blocker rather than a new one.
- * The refusal works regardless — with no fresh `iat` the write is refused — so
+ * The refusal works regardless — with no fresh proof the write is refused — so
  * the failure mode is "cannot change", never "changed without proof".
  */
 export async function changeDestinationAction(
