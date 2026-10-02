@@ -73,8 +73,10 @@ export {
 export {
   destinationReadiness,
   destinationUsableFrom,
+  heldReasonFor,
   maskAccountRef,
   type DestinationReadiness,
+  type PayoutHeldReason,
 } from "./destination";
 
 /*
@@ -86,6 +88,22 @@ export {
   type PayableTranche,
   type SettledBooking,
 } from "./tranches";
+
+/*
+ * The payout machine. Pure, and on this side for the same reason the booking
+ * machine is: a screen that renders a status badge needs the list, and a second
+ * copy of "what may follow what" is how two surfaces come to disagree about
+ * whether a payout can still be failed.
+ */
+export {
+  canTransitionPayout,
+  isPayoutStatus,
+  needsReversal,
+  PAYOUT_STATUSES,
+  PAYOUT_TRANSITIONS,
+  UNRESOLVED_PAYOUT_STATUSES,
+  type PayoutStatus,
+} from "./payout-status";
 
 export {
   CUSTOMER_PAYMENT_ERRORS,

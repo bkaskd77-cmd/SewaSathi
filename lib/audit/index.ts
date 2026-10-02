@@ -76,6 +76,23 @@ export type SecurityEventKind =
    */
   | "payoutAccount.unreadable"
   /**
+   * A person approved a payout, handed it to a rail, or failed one.
+   *
+   * THREE KINDS RATHER THAN ONE, because the questions asked afterwards are
+   * different: who agreed this figure, who sent it and with what reference, and
+   * who decided it had not arrived. `payout.confirmed` is deliberately absent —
+   * confirming moves no money and records the rail's answer, which the `payouts`
+   * row already carries with its stamp.
+   *
+   * `detail` carries the reason the actor typed and the net figure, never an
+   * account number: `payoutDestination.viewed` is the only kind that means
+   * anybody saw one of those, and keeping that true is what makes counting it
+   * worth anything.
+   */
+  | "payout.approved"
+  | "payout.sent"
+  | "payout.failed"
+  /**
    * An admin searched the support lookup, whether or not it found anything.
    *
    * THE MISSES MATTER AS MUCH AS THE HITS. Six phone numbers tried in a row and

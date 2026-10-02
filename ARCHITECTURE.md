@@ -293,9 +293,11 @@ Where a change on one side cannot reach the other.
   date for zero rupees. The job card shows the held amount, its release date and
   any outstanding balance together: a smaller figure with no explanation is the
   worst version of this.
-- **A redo debt is recovered by a sweep, and a payout is a booking.** There is
-  no payout table and no payout run in this product: `payout_due_at` is stamped
-  on the booking at settlement and that is the whole mechanism. So
+- **A redo debt is recovered by a sweep, and a payout is a TRANCHE.** It used to
+  be a booking, and for a while there was no payout table at all — `payout_due_at`
+  stamped on the booking was the whole mechanism. `lib/payments/tranches.ts` is now
+  the one answer to "what is a payout", imported by both the recovery sweep and the
+  payout run so the published quarter cannot be a quarter of two different things.
   `sweepRedoRecovery` (`lib/data/recovery.ts`) walks settled bookings whose
   payout has come due and takes at most `redoRecoveryCapBps` off each, reading
   `provider_outstanding` once per professional and carrying the balance across
@@ -304,6 +306,26 @@ Where a change on one side cannot reach the other.
   second recovery row for a booking rather than the application remembering not
   to write it. It runs from `/api/payments/reconcile`, which now does two jobs
   and says so.
+- **The payout run is weekly, folded into a daily cron, and creates drafts only.**
+  `lib/data/payouts.ts` is the only writer of `payouts` and holds the service-role
+  key on a money path — treat an edit there like shared code, as with
+  `lib/data/payments.ts`. It nets a professional's whole position for the week
+  (`provider_balance` after this run's `earning` and `commission_due` rows are
+  written) into one draft per `(provider, period_start)`, refused twice over by a
+  unique index. Weekly lives in `isPayoutRunDay` rather than in `vercel.json`,
+  because Hobby has one schedule and because a day-of-week check is testable where a
+  cron expression is not — so the sweep is safe to call on any day, twice, or late.
+  It runs **last** in `/api/payments/reconcile`: a settlement reconciled a moment
+  ago stamps `payout_due_at`, and a recovery takes its quarter off a tranche before
+  that tranche is counted into a week.
+  **The period names the payout; it does not filter the work.** Every tranche
+  payable by the end of the period with no ledger row yet is written, so a missed
+  Tuesday catches up rather than losing a week permanently.
+  **Approval is a person, and `payout_transition_allowed` is what makes that
+  structural**: no caller can reach `sent` from `draft`. `/admin/payouts` is the
+  surface — approve, mark sent with the rail's reference, confirm, fail — each
+  behind `adminActor()`, a fifteen-minute `amr` proof and a recorded reason, with
+  `revealDestination` as the one path that shows an account number.
 - **A balance has an end, and the end is not a removal.** `sweepWriteOffs`
   (`lib/data/recovery.ts`) writes off what is owed by anybody with no completed
   job for `PAYOUT_RULES.writeOffAfterMonths`, then closes the listing through

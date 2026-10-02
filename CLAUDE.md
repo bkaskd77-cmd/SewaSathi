@@ -1100,6 +1100,104 @@ follows from that.
   released holdback would have been paid whole with no row, no unique violation
   and nothing logged. It is `(booking_id, tranche)` now, the filter keys on the
   pair, and the test proves it by restoring the old index.
+- **And the chain is closed now: there IS a payout table and a payout run.**
+  `settleSplit` froze a split, `payoutDueAt` dated it, `payoutPlan` tranched it,
+  `applyRedoRecovery` netted a debt forward and `provider_ledger` recorded all of
+  it — and nothing grouped those earnings into a payment, nothing sent money and
+  nothing recorded that it had. Every link was built and the chain was open, which
+  is `applyRedoRecovery`-with-no-caller at the scale of a product.
+  `lib/data/payouts.ts` is the only writer of `payouts` and holds the service-role
+  key on a money path, so treat an edit there the way you would treat
+  `lib/data/payments.ts`.
+  **A payout is a period, not a booking**: one professional, one week, one net
+  figure — the two-way sum of what we owe them on digital jobs and what they owe us
+  in commission on cash ones. Paying per booking would mean a transfer fee per job
+  and a statement nobody can reconcile against a week's work.
+  **The run only ever creates drafts and that is structural, not a habit.**
+  `payout_transition_allowed` refuses `draft -> sent` however it is called, so no
+  cron, no retry and no bug in the sweep can reach a rail. A person approves, sends
+  and records what came back, on `/admin/payouts`.
+  **Weekly lives in `isPayoutRunDay`, not in `vercel.json`** — Hobby has one
+  schedule, and a day-of-week check in code is testable where a cron expression is
+  not. So the sweep is safe to invoke on any day, twice or late, and returns
+  `ranFor: null` on the other six days. It runs **last** in
+  `/api/payments/reconcile`: a settlement reconciled a moment ago stamps
+  `payout_due_at`, and a recovery takes its quarter off a tranche before that
+  tranche is counted into a week.
+  **The period names the payout; it does not filter the work.** Every tranche
+  payable by the end of the period that has no ledger row yet is written, so a
+  missed Tuesday catches up instead of losing a week for ever — nothing else ever
+  looks at those tranches again. And the Tuesday run settles the week ending at the
+  previous Monday 00:00 UTC, which is ISO weeks and not an off-by-one.
+  **Digital and cash are not mirror images.** A digital job writes one `earning`
+  per tranche, the money actually landing that date; a cash job writes one
+  `commission_due` for the fee and no earning at all, because they already hold the
+  notes — and its holdback columns are ignored, since there is nothing of ours to
+  hold back. At `withholdingTaxBps` 0 **no `tax_withheld` row is written**: a row
+  for zero rupees asserts a withholding was calculated.
+  **The statement's lines need not subtract to its total, and the screen says so.**
+  `earnings_rupees` and `commission_rupees` are what this run put into the account;
+  `net_rupees` is the whole position, so a recovery, a week they owed us and
+  anything held last Tuesday sit in the difference. `/admin/payouts` prints that
+  difference as *carried* rather than hiding it — a figure somebody approves has to
+  be checkable, and arithmetic that silently does not add up is worse than a third
+  line.
+  **At most one unresolved payout per professional**, refused by
+  `payouts_one_in_flight_idx` rather than remembered by the application — found by
+  re-reading the run's own diff rather than by a failure. `net_rupees` is the whole
+  position, so a week drafted at 2,500 that nobody approves gets drafted again the
+  next Tuesday with an unchanged `ledger_rows_at_draft`: two approvable rows for one
+  sum, and each send writing its own `payout` row around a ledger that still
+  reconciles. It costs something and the cost is deliberate: an unresolved payout
+  stops the next week being drafted, loudly — the run counts it as `blocked` so a
+  stuck week cannot look like a quiet one — and the way out is a person approving it
+  or failing it with a reason.
+  **A negative week drafts nothing at all**, for the same reason one level on: a
+  payout row is an instruction to pay and a week they owe us is not one. The first
+  version wrote a held `negative` row, which read tidily and would have blocked every
+  later week until somebody failed it by hand — weekly busywork for a professional
+  whose work is all cash, over a row nobody could act on. The ledger carries the
+  balance forward because that is what a ledger does.
+  **A held payout carries its reason and offers no button.** `heldReasonFor` is
+  pure, in `lib/payments/destination.ts` beside `destinationReadiness` so a test can
+  reach it — the judgement was first written inside the `server-only` module, which
+  is the mistake this file records four times. Negative outranks every destination
+  reason, because where they owe us their bank account is irrelevant; a **failed**
+  destination read drafts nothing at all and is counted as `unreadable`, since
+  writing it as `no_destination` would put a measurement into a column that had
+  none.
+  **The destination is re-checked at the approval and again at the send**, and this
+  is the one hole the cooldown could not close by itself: a draft agreed against a
+  confirmed account, then the address changed — which starts a fresh 72-hour window
+  on the NEW row while nothing in the draft mentions an account. Without the
+  re-check, an approval and a send would release digits for an address no window has
+  elapsed on and no person has confirmed.
+  **A stale draft is recomputed, never approved.** `payouts.ledger_rows_at_draft` is
+  a row count, and it is a sound cursor only because `provider_ledger_append_only`
+  refuses UPDATE and DELETE for every caller — the ledger can change in exactly one
+  way, by growing. If that trigger ever goes, a row edited in place leaves the count
+  identical and an approval pays a figure the ledger no longer supports, so the db
+  test asserts the trigger rather than assuming it. The recompute writes to the same
+  still-`draft` row rather than failing it, because
+  `payouts_provider_period_idx` would otherwise block that week for ever.
+  **Approve, mark-sent and mark-failed need a fifteen-minute `amr` proof**
+  (`REAUTH_WINDOW_MINUTES`), deliberately not the eight-hour `STEP_UP_HOURS`:
+  batched admin work and releasing somebody's week of earnings are different
+  shapes. `markConfirmed` asks for no code at all — it records an answer that came
+  from outside and moves no money, and a code demanded for a write that cannot cost
+  anybody anything is how people learn to tap through the ones that can.
+  **`sessionAuthenticatedAt` is re-exported from `lib/auth/session`**, which is the
+  front door: the provider action had been reaching `lib/auth/mfa` through a dynamic
+  `await import`, which the linter cannot see — a boundary evaded rather than
+  respected.
+  **The ledger total has to equal what was paid plus what is still owed, at every
+  state.** `tests/db/payout-run.test.ts` checks both halves after the run, after an
+  approval, after a send and after a `sent -> failed` reversal, summing the kinds
+  independently rather than asking `provider_balance` twice — which would assert
+  that a function equals itself. `provider_ledger_payout_once_idx` and its reversal
+  twin are what make a double payment a database refusal rather than something the
+  application remembers not to do; proven by dropping the index and watching the
+  case go red.
 - **The guarantee is on the workmanship, so the parts come off the refund
   ceiling — but only on a recorded answer, and never by more than half.**
   `bookings.materials_rupees` is stated by the professional at settlement;

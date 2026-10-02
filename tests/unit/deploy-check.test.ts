@@ -220,11 +220,18 @@ describe("nothing ships unchecked", () => {
    * check. So the rule has to bite in this direction, and this is it biting.
    */
   it("reports a page that is on neither list", () => {
+    /*
+     * THE UNLISTED EXAMPLE IS A ROUTE THAT WILL NEVER EXIST, and it used to be a
+     * real one — `/admin/payouts`, which was unlisted when this case was written
+     * and became listed the day that screen shipped, turning a working rule into a
+     * red test. A fixture built from "a route nobody has added yet" has a shelf
+     * life; one built from a path nobody will ever add does not.
+     */
     const gaps = coverageGaps([
       "app/[locale]/(admin)/admin/signals/page.tsx",
-      "app/[locale]/(admin)/admin/payouts/page.tsx",
+      "app/[locale]/(admin)/admin/zz-not-a-real-screen/page.tsx",
     ]);
-    expect(gaps.map((g) => g.route)).toEqual(["/admin/payouts"]);
+    expect(gaps.map((g) => g.route)).toEqual(["/admin/zz-not-a-real-screen"]);
   });
 
   it("counts a Nepali-prefixed entry as covering its unprefixed route", () => {

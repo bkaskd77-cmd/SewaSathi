@@ -88,6 +88,11 @@ public POST endpoint like any other.
 | `resolveAppealAction` | admins | one open commission appeal | role re-read in the action and again in `resolveCommissionAppeal`; refuses an appeal that is not `open`; upholding recomputes the split against the `commission_bps` frozen at settlement, never today's rate; written to `security_events` as `commission.appealResolved` |
 | `resolveMismatchAction` | admins | one cash job whose two figures disagree | role re-read in the action **and** again in `resolveAmountMismatch`; refuses a booking with no open mismatch, and the UPDATE repeats `amount_mismatch_resolved_at is null` so two reviewers produce one settlement; the settled amount is judged by `judgeMismatchResolution` against the same 2× quoted-max ceiling the professional faces — including when the customer's own figure is chosen, which nothing had ever checked; only a *third* figure arrives from the form, because the two party figures are re-read from the booking; written to `security_events` as `payment.mismatchResolved` |
 | `decideApplicationAction` | admins | one provider application | role re-read in the action; document reads logged separately by `recordDocumentAccess`, and the applicant's and referees' phone numbers by `recordContactAccess` on every load of the review screen |
+| `approvePayoutAction` | admins | one drafted payout | `adminActor()` in the action; `approvePayout` re-reads the row and refuses anything that is not still `draft`, anything carrying a `held_reason`, and a session whose `amr` proof is older than `REAUTH_WINDOW_MINUTES` — fifteen minutes, not the eight-hour step-up, because this is the write that releases a week of somebody's earnings. A reason is required and recorded. If the professional's ledger row count has moved since the draft, **nothing is approved**: the figure is recomputed in place (guarded on `status = 'draft'`, which `enforce_payout_transition` is what permits) and the caller is told to read the new number |
+| `markSentAction` | admins | one approved payout | `adminActor()`; `markPayoutSent` refuses anything not `approved`, a stale `amr`, a missing transaction reference, and a destination that has changed since the draft. It writes the `payout` ledger row **before** the status, so a half-failure leaves the balance right and the retry idempotent on `provider_ledger_payout_once_idx` |
+| `markConfirmedAction` | admins | one sent payout | `adminActor()`; `markPayoutConfirmed` refuses anything not `sent`. **No re-challenge, deliberately**: it records an answer that came from outside and moves no money, and a code demanded for a write that cannot cost anybody anything is how people learn to tap through the ones that can |
+| `markFailedAction` | admins | one payout not yet confirmed or failed | `adminActor()`; stale `amr` refused; a reason required and recorded. `needsReversal` decides whether a `payout_reversal` is written — only from `sent`, because a draft and an approval moved nothing — and the `payout` row is never deleted, which an append-only ledger forbids and which would erase the evidence a remittance was attempted |
+| `revealDestinationAction` | admins, from `/admin/payouts` | returns one account number in plaintext | `adminActor()`; a reason of at least four characters refused here **and** in `revealDestination`, which writes `security_events` before it opens the envelope. The number is the action's return value and is never rendered into the page, so it stays out of the server HTML, the router cache and anything a later visitor to the screen receives |
 
 **Every admin endpoint above now goes through `adminActor()`**, which is
 `adminGate()` collapsed to a profile or null: it re-reads the role *and* the
@@ -404,6 +409,60 @@ professional, refused by the database rather than remembered by the caller.
 
 **`usable_from` is the 72-hour takeover window**, stamped at insert rather than
 derived at payout time so the rule cannot be forgotten by a caller.
+
+### The payout run, and what it cannot do
+
+`public.payouts` grants **no insert or update to anybody** — the same posture as
+`payments`, `survey_visit_fees` and `commission_appeals`. A professional and an
+admin each read through RLS; every write goes through `lib/data/payouts.ts` under
+the service role, so a row saying money was sent cannot be forged by the person
+receiving it.
+
+**The run can only ever create drafts, and that is structural rather than a
+convention.** `payout_transition_allowed` refuses `draft -> sent` however it is
+called, so no cron, no retry and no bug in the sweep can reach a rail. A person
+approves, a person sends, a person records what came back.
+
+**`enforce_payout_transition` freezes the figures past `draft`** — earnings,
+commission, net, tax, and both period dates — for every caller including the
+service role, with no `auth.uid() is null` bypass, because every write here is
+service-role and a bypass would leave the trigger enforcing nothing. A payout that
+can be edited after a person approved it is a payout nobody approved.
+
+**The destination is re-checked at the approval and again at the send.** This is
+the one hole the cooldown could not close on its own: a draft agreed against a
+confirmed destination, then the address changed, which starts a fresh window on
+the NEW row while nothing in the draft mentions an account. `destinationStillGood`
+compares the live destination's id against the one frozen on the payout and asks
+`destinationReadiness` again; an unreadable destination refuses too, because "we
+could not check" must not pass as "we checked".
+
+**`payouts.ledger_rows_at_draft` is a count, and it is sound only because
+`provider_ledger_append_only` refuses UPDATE and DELETE for every caller.** The
+ledger can change in exactly one way — by growing — so a different count means
+rows arrived. `tests/db/payout-run.test.ts` asserts that trigger is still attached
+rather than assuming it, because without it a row edited in place leaves the count
+identical and an approval pays a figure the ledger no longer supports.
+
+**At most one unresolved payout per professional**, through
+`payouts_one_in_flight_idx` — unique on `(provider_id)` where the status is
+`draft`, `approved` or `sent`. Without it two unresolved drafts describe the same
+money: `net_rupees` is the whole position, so a week drafted at 2,500 that nobody
+approves is drafted again the next Tuesday with an unchanged
+`ledger_rows_at_draft`, and each send writes its own `payout` row — a ledger that
+reconciles perfectly around a double payment. The cost is stated rather than
+discovered: an unresolved payout stops the next week being drafted, which is
+deliberate and loud, and the way out is a person approving it or failing it with a
+reason. **A negative week therefore drafts nothing at all** — a payout row is an
+instruction to pay and there is no such instruction; the ledger carries the balance
+forward by construction, and the first version's held `negative` row would have
+blocked every later week for somebody whose work is all cash.
+
+**Two partial unique indexes make a double payment a database refusal.**
+`provider_ledger_payout_once_idx` and `provider_ledger_payout_reversal_once_idx`
+are unique on `(payout_id)` per kind — the `our_reference` idiom — so a retried
+send, a double submit or two admins pressing at once produce one `payout` row. The
+application's duplicate-tolerance is the optimisation; the index is the rule.
 
 ### Who may read an account number, and who may change one
 

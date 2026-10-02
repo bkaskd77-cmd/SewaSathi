@@ -87,3 +87,16 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile | null> 
     providerName: (listing?.display_name as string | undefined) ?? null,
   };
 });
+
+/*
+ * WHEN THIS SESSION LAST PROVED WHO IT IS, re-exported here rather than reached for.
+ *
+ * `mfa.ts` is private — the linter says so, and the reason is that it is the adapter
+ * and swapping the second factor should be one file. But `sessionAuthenticatedAt`
+ * is not about TOTP: it reads the `amr` claim off the session, which is this
+ * module's subject, and two callers need it (a professional changing where they are
+ * paid, an admin releasing a week of somebody's earnings). The provider action
+ * reached it through a dynamic `await import`, which the rule cannot see — a
+ * boundary evaded rather than respected. This is the door.
+ */
+export { sessionAuthenticatedAt } from "./mfa";

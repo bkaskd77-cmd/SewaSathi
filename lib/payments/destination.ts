@@ -109,3 +109,43 @@ export function destinationReadiness(
 
   return { ok: true };
 }
+
+/** What a payout may be held for. The closed set `payouts.held_reason` allows. */
+export type PayoutHeldReason =
+  | "cooling"
+  | "unconfirmed"
+  | "no_destination"
+  | "negative";
+
+/** The hold reasons, in precedence order. Pure so the test can read it directly. */
+export function heldReasonFor(
+  net: number,
+  destination: { readiness: { ok: boolean; reason?: string } } | null,
+): PayoutHeldReason | null {
+  /*
+   * NEGATIVE FIRST, because where they owe us the destination is irrelevant: we
+   * are not sending anything, and asking "is their bank account confirmed" about a
+   * week they owe us would report a hold for the wrong reason. It is carried
+   * forward and never collected — CLAUDE.md refuses backward recovery, so next
+   * week's net absorbs it.
+   */
+  if (net < 0) return "negative";
+
+  if (!destination) return "no_destination";
+  if (destination.readiness.ok) return null;
+
+  /*
+   * `destinationReadiness` ALREADY DECIDED THIS and is composed rather than
+   * re-asked. Its three refusals map onto three of ours; `retired` cannot reach
+   * here because `currentDestination` reads only the live row, and if it ever did
+   * it means there is no address to pay — which is what `no_destination` says.
+   */
+  switch (destination.readiness.reason) {
+    case "cooling":
+      return "cooling";
+    case "unconfirmed":
+      return "unconfirmed";
+    default:
+      return "no_destination";
+  }
+}

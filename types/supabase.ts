@@ -1367,6 +1367,93 @@ export type Database = {
           },
         ];
       };
+      payouts: {
+        Row: {
+          id: string;
+          provider_id: string;
+          /** The ISO week this settles, `[start, end)`. `payoutPeriod` derives it. */
+          period_start: string;
+          period_end: string;
+          status: "draft" | "approved" | "sent" | "confirmed" | "failed";
+          /** What this run put into their account. Never negative. */
+          earnings_rupees: number;
+          commission_rupees: number;
+          /** The whole position being paid. The only figure that may be negative. */
+          net_rupees: number;
+          tax_withheld_rupees: number;
+          destination_id: string | null;
+          held_reason: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          external_reference: string | null;
+          failure_reason: string | null;
+          /**
+           * The professional's `provider_ledger` row count when this was drafted.
+           *
+           * A count is a sound cursor because that table is append-only — the
+           * trigger refuses UPDATE and DELETE for every caller — so a different
+           * number means rows arrived and the figures no longer have a ledger
+           * behind them.
+           */
+          ledger_rows_at_draft: number;
+          created_at: string;
+          approved_at: string | null;
+          approved_by: string | null;
+          sent_at: string | null;
+          settled_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          provider_id: string;
+          period_start: string;
+          period_end: string;
+          status?: "draft" | "approved" | "sent" | "confirmed" | "failed";
+          earnings_rupees?: number;
+          commission_rupees?: number;
+          net_rupees: number;
+          tax_withheld_rupees?: number;
+          destination_id?: string | null;
+          held_reason?: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          external_reference?: string | null;
+          failure_reason?: string | null;
+          ledger_rows_at_draft?: number;
+          created_at?: string;
+          approved_at?: string | null;
+          approved_by?: string | null;
+          sent_at?: string | null;
+          settled_at?: string | null;
+        };
+        Update: Partial<{
+          status: "draft" | "approved" | "sent" | "confirmed" | "failed";
+          earnings_rupees: number;
+          commission_rupees: number;
+          net_rupees: number;
+          tax_withheld_rupees: number;
+          destination_id: string | null;
+          held_reason: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          external_reference: string | null;
+          failure_reason: string | null;
+          ledger_rows_at_draft: number;
+          approved_at: string | null;
+          approved_by: string | null;
+          sent_at: string | null;
+          settled_at: string | null;
+        }>;
+        Relationships: [
+          {
+            foreignKeyName: "payouts_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payouts_destination_id_fkey";
+            columns: ["destination_id"];
+            isOneToOne: false;
+            referencedRelation: "payout_destinations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       provider_ledger: {
         Row: {
           id: string;
@@ -1392,6 +1479,14 @@ export type Database = {
             | "payout"
             | "payout_reversal"
             | "tax_withheld";
+          /**
+           * The remittance this row belongs to.
+           *
+           * Set on `payout` and `payout_reversal`, which cover a PERIOD rather
+           * than a booking and therefore have no `(booking_id, tranche)` key to
+           * be unique on. Null on every booking-keyed kind.
+           */
+          payout_id: string | null;
           amount_rupees: number;
           note: string | null;
           created_at: string;
@@ -1401,6 +1496,7 @@ export type Database = {
           provider_id: string;
           claim_id?: string | null;
           booking_id?: string | null;
+          payout_id?: string | null;
           tranche?: "main" | "holdback";
           kind:
             | "redo_debt"
@@ -1657,6 +1753,18 @@ export type Database = {
       };
       /** Redo debt still owed, netted and floored at zero. */
       provider_outstanding: {
+        Args: { target: string };
+        Returns: number;
+      };
+      /**
+       * Signed net money position: positive means we owe them.
+       *
+       * `recovery` counts on BOTH accounts — see `CROSS_KINDS` — because it is two
+       * facts at once: money they were owed, spent on the debt they owed us.
+       * Service-role only; `authenticated` was revoked in 20260930000001 after it
+       * let any signed-in caller read any professional's position.
+       */
+      provider_balance: {
         Args: { target: string };
         Returns: number;
       };

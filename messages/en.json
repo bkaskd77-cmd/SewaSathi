@@ -2128,6 +2128,63 @@
         "notSignedIn": "Sign in again to do that.",
         "generic": "That did not go through. Try again."
       }
+    },
+    "payouts": {
+      "title": "Payouts",
+      "lead": "One professional, one week, one figure. Nothing is sent until somebody here reads it and says so.",
+      "unreadable": "We cannot load the payouts right now — this is us, not you. Nothing has been sent and nothing is lost.",
+      "empty": "Nothing to approve.",
+      "emptyWhen": "The run drafts a week every Tuesday. A week with nothing owed either way produces nothing at all.",
+      "unnamed": "This listing has no name on it",
+      "period": "{from} to {to}",
+      "statuses": {
+        "draft": "drafted, nobody has looked",
+        "approved": "approved, not yet sent",
+        "sent": "sent, waiting to be confirmed"
+      },
+      "earnings": "Earned this week",
+      "commission": "Our fee this week",
+      "carried": "Carried from before",
+      "sentWith": "Sent with reference {reference}.",
+      "methods": {
+        "bank": "Bank account",
+        "esewa": "eSewa",
+        "khalti": "Khalti"
+      },
+      "held": {
+        "cooling": "Held: the account was changed recently and the three days have not passed. Nothing goes to the old address or the new one until they have.",
+        "unconfirmed": "Held: nobody has checked this account yet. Confirm it on the payout accounts screen and it goes out next week.",
+        "no_destination": "Held: they have not told us where to send it.",
+        "negative": "Held: they owe us for this week rather than the other way round. It carries forward and comes off what they earn next — we never ask for it back."
+      },
+      "destinationChanged": "The account changed after this was drafted, so this payout cannot be sent. The new account waits three days and needs checking; next Tuesday's run will draft against it.",
+      "approve": "Approve this figure",
+      "approveWhy": "Why you are approving it",
+      "markSent": "I have sent it",
+      "sentWhy": "Anything worth recording",
+      "reference": "Bank or wallet transaction number",
+      "referencePlaceholder": "e.g. 2026100212345",
+      "referenceWhy": "This is the only thing that can answer “where did my money go” later, so it is required.",
+      "markConfirmed": "It arrived",
+      "confirmWhy": "Record that the bank or wallet says it landed. No code needed — this moves nothing.",
+      "markFailed": "It did not go",
+      "failedWhy": "What happened",
+      "reveal": "Show the account number",
+      "revealWhy": "Why you need the number",
+      "recomputed": "The ledger moved since this was drafted, so the figure has been worked out again: {n}. Read it and approve again.",
+      "done": "Done.",
+      "working": "Working…",
+      "destinationsLink": "Accounts waiting to be checked are on the <link>payout accounts</link> screen.",
+      "errors": {
+        "notFresh": "Prove who you are again before moving money — it has been more than fifteen minutes.",
+        "needsReason": "Say why, in a few words. It goes on the record.",
+        "needsReference": "The transaction number is required.",
+        "held": "This one is held, so it cannot be approved. The reason is on the card.",
+        "wrongStatus": "That has already moved on. Reload the page to see where it is.",
+        "destinationChanged": "The account changed after this was drafted. This payout cannot be sent.",
+        "notFound": "That payout is no longer there.",
+        "generic": "That did not go through. Try again."
+      }
     }
   }
 }

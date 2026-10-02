@@ -35,11 +35,14 @@ export const dynamic = "force-dynamic";
  * has looked at. One query, split on screen; two queries could disagree about
  * which row belongs where.
  *
- * NOTHING SHOWS AN ACCOUNT NUMBER. Every row is masked, and the one path that
- * returns digits writes an audit row before it opens anything — it is not
- * reached from here, because until a payout run exists nobody on this screen is
- * sending money, and a reveal whose only purpose is curiosity is a reveal that
- * should not be built.
+ * NOTHING SHOWS AN ACCOUNT NUMBER **ON THIS SCREEN**, and that is now a statement
+ * about this screen rather than about the product. It used to say the reveal path
+ * was reached from nowhere "because until a payout run exists nobody on this screen
+ * is sending money" — true when it was written and untrue the moment `/admin/payouts`
+ * shipped, which is the class of comment this repository keeps paying for. The
+ * reveal lives there, beside the payout it is for, where the reason given for it is
+ * "I am typing this into a bank". Here there is no payment in hand, so a reveal
+ * would be curiosity, and it is still deliberately absent.
  *
  * A FAILED READ IS NOT AN EMPTY QUEUE. "Nothing is waiting" from a broken query
  * is the sentence that tells somebody to go home while an account is being

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getSessionProfile } from "@/lib/auth/session";
+import { getSessionProfile, sessionAuthenticatedAt } from "@/lib/auth/session";
 import { acceptClaim, recordVerdict, releaseClaim } from "@/lib/data/claims";
 import { getMyProvider } from "@/lib/data/provider-jobs";
 import {
@@ -244,7 +244,6 @@ export async function changeDestinationAction(
   }
 
   const { changeDestination } = await import("@/lib/data/payout-destinations");
-  const { sessionAuthenticatedAt } = await import("@/lib/auth/mfa");
 
   const result = await changeDestination({
     profileId: profile.id,

@@ -77,3 +77,23 @@ export function canTransitionPayout(
 export function needsReversal(from: PayoutStatus): boolean {
   return from === "sent";
 }
+
+/**
+ * The statuses that mean "this payout is not finished with".
+ *
+ * ONE LIST WRITTEN TWICE — here and as the predicate of
+ * `payouts_one_in_flight_idx` in `20261002000003_one_payout_in_flight.sql`, which is
+ * what refuses a second unresolved payout for the same professional.
+ * `tests/db/payout-run.test.ts` reads the index definition and compares, the
+ * arrangement `LOGGABLE_REASONS` and `CRON_JOBS` already use: the two would
+ * otherwise drift, and the drift is silent in the worst direction — a status added
+ * here but not to the index lets a second payout through for the money the first one
+ * already claims.
+ *
+ * DERIVED FROM THE MACHINE rather than typed out, so a sixth status cannot be
+ * forgotten: anything with somewhere left to go is unresolved, and `confirmed` and
+ * `failed` are exactly the two that do not.
+ */
+export const UNRESOLVED_PAYOUT_STATUSES = PAYOUT_STATUSES.filter(
+  (status) => PAYOUT_TRANSITIONS[status].length > 0,
+);

@@ -4,14 +4,15 @@ import { NextResponse } from "next/server";
 
 import { reconcileStuckPayments } from "@/lib/data/payments";
 import { recordCronRun } from "@/lib/data/cron-runs";
+import { runPayouts } from "@/lib/data/payouts";
 import { sweepRedoRecovery, sweepWriteOffs } from "@/lib/data/recovery";
 
 /**
- * THREE SWEEPS, AND TWO OF THEM ARE NOT ABOUT PAYMENTS.
+ * FOUR SWEEPS, AND THREE OF THEM ARE NOT ABOUT PAYMENTS.
  *
  * This route was the payment reconciliation alone. It now also runs the redo
- * recovery and the write-off, and that is said here rather than left for
- * somebody to find:
+ * recovery, the write-off and the weekly payout run, and that is said here rather
+ * than left for somebody to find:
  * a cron that silently grows a second responsibility is the next person's
  * surprise, and this one moves money between us and a professional.
  *
@@ -94,15 +95,32 @@ export async function GET(request: Request) {
      */
     const writeOffs = await sweepWriteOffs();
 
+    /*
+     * THE PAYOUT RUN IS LAST, AND WEEKLY INSIDE A DAILY CRON.
+     *
+     * Last because the three sweeps above change what a week totals to: a
+     * settlement reconciled a moment ago stamps `payout_due_at`, and a recovery
+     * takes its quarter off a tranche BEFORE that tranche is counted into a
+     * payout. Reversed, a professional would be drafted a figure that the
+     * recovery then moved, and `approvePayout` would refuse its own run's draft.
+     *
+     * Weekly lives in `isPayoutRunDay` rather than in `vercel.json` because
+     * Vercel's Hobby plan has one schedule — daily — and because a day-of-week
+     * check in code is testable where a cron expression is not. `runPayouts`
+     * returns `ranFor: null` on the other six days and writes nothing, so the
+     * recorded run says which of the two happened.
+     */
+    const payouts = await runPayouts();
+
     await recordCronRun({
       job: "/api/payments/reconcile",
       startedAt,
       ok: true,
-      summary: { payments, recovery, writeOffs },
+      summary: { payments, recovery, writeOffs, payouts },
     });
 
     return NextResponse.json(
-      { payments, recovery, writeOffs },
+      { payments, recovery, writeOffs, payouts },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (thrown) {

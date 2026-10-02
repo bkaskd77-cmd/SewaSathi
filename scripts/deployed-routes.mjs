@@ -124,6 +124,7 @@ export const GUARDED_ROUTES = [
   "/admin/lookup",
   "/admin/mismatches",
   "/admin/payout-destinations",
+  "/admin/payouts",
   "/admin/signals",
   "/admin/survey-fees",
   "/admin/triage-accuracy",
