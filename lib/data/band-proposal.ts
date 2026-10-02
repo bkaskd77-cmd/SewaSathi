@@ -39,6 +39,20 @@ export const MIN_PROPOSAL_SAMPLE: Record<BandConfidence, number> = {
 };
 
 export type BandConfidence = "high" | "medium" | "low";
+/**
+ * How much history counts as "now" for a band proposal.
+ *
+ * IT IS THE OTHER HALF OF `MIN_PROPOSAL_SAMPLE` and belongs beside it: widening
+ * the window reaches the minimum sooner on older evidence, narrowing it holds out
+ * for newer evidence and may never reach the minimum at all. Changing either
+ * number without the other is how a proposal comes to describe last year.
+ *
+ * 180 days is `docs/PRICING-BANDS.md § 4`'s figure: long enough that a trade
+ * doing a few jobs a week clears 30, short enough to exclude a Kathmandu price
+ * from two monsoons ago.
+ */
+export const PROPOSAL_WINDOW_DAYS = 180;
+
 
 /** Tukey. A quarter of the sample can be arbitrarily large before Q3 moves. */
 export const FENCE_IQR_MULTIPLIER = 1.5;
@@ -179,4 +193,98 @@ export function proposeBand(input: {
     uncapped: rounded,
     capped: final.low !== rounded.low || final.high !== rounded.high,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * A proposal somebody has already turned down
+ * ------------------------------------------------------------------ */
+
+/**
+ * How much more evidence makes a rejected proposal worth showing again.
+ *
+ * WHY THE SAMPLE NEEDS A CLAUSE AT ALL. A rejection can mean two different
+ * things and the screen cannot tell them apart: *this number is wrong because
+ * the category is two different jobs* (a model objection — more data producing
+ * the same number answers nothing), or *too soon, come back with more jobs* (a
+ * sample objection, which more data does answer). Suppressing on the number
+ * alone would strand the second kind for ever; suppressing on the sample alone
+ * would re-offer the first kind every time a job settled.
+ *
+ * HALF AGAIN, because it has to be a genuinely different sample rather than one
+ * more job. At the 30-job minimum that is 15 more settled jobs, which on this
+ * product's volume is a season rather than a week — long enough that somebody
+ * looking again is looking at new evidence, not at the same screen.
+ */
+export const REJECTION_SAMPLE_GROWTH = 0.5;
+
+/** What a rejection recorded, as `proposalSuppressedBy` needs to read it. */
+export type RejectedProposal = {
+  proposedLow: number;
+  proposedHigh: number;
+  /** The sample the rejected proposal was computed from. */
+  sample: number;
+};
+
+/**
+ * Is this proposal the one somebody already said no to?
+ *
+ * THE RULE, STATED RATHER THAN IMPLIED. A rejection suppresses a later proposal
+ * while BOTH hold:
+ *
+ *   1. the proposed pair is identical to the rejected pair, and
+ *   2. the sample has not grown by `REJECTION_SAMPLE_GROWTH`.
+ *
+ * NO MARGIN, AND NOTHING TO TUNE — which is the point of comparing the pair
+ * exactly. `proposeBand` has already rounded both bounds outward to `ROUNDING`,
+ * so two proposals are either the same published numbers or at least Rs 100
+ * apart: "materially different" is a property of the output rather than a
+ * threshold somebody has to pick, defend and later be suspicious of. Any band
+ * tuning constant in this file is a product decision with a paragraph beside it;
+ * this one did not need to exist.
+ *
+ * `Math.ceil` on the growth so the bar is never cleared by rounding: at a sample
+ * of 31 the threshold is 47, not 46.5 rounded down to a number 47 jobs already
+ * passed.
+ */
+export function proposalSuppressedBy(
+  rejection: RejectedProposal,
+  proposal: Pick<BandProposal, "low" | "high" | "sample">,
+): boolean {
+  const samePair =
+    proposal.low === rejection.proposedLow &&
+    proposal.high === rejection.proposedHigh;
+  if (!samePair) return false;
+
+  const enoughNewEvidence =
+    proposal.sample >= Math.ceil(rejection.sample * (1 + REJECTION_SAMPLE_GROWTH));
+  return !enoughNewEvidence;
+}
+
+/* ------------------------------------------------------------------ *
+ * Which settled jobs are market prices
+ * ------------------------------------------------------------------ */
+
+/**
+ * Does a guarantee visit's price belong in a band proposal?
+ *
+ * PURE AND HERE RATHER THAN INSIDE THE READ, because this is a judgement about
+ * money and a judgement written inside a `server-only` module is one no unit test
+ * can reach — a mistake this project has now made five times (`claimRateWorthReading`,
+ * `heldReasonFor`, `whyWaiting`…). The read composes it.
+ *
+ * `docs/PRICING-BANDS.md § 4` says "re-do visits" are excluded, flatly. THIS IS
+ * NARROWER, DELIBERATELY, and the guarantee rules are what decide it: only a
+ * `sameFault` visit is unpaid, and an unpaid return is not a market price. A
+ * `differentProblem`, `nothingWrong` or `customerCaused` visit is "an ordinary
+ * booking at the ordinary price" — the policy's own words — so excluding it would
+ * throw away real evidence about what this trade charges.
+ *
+ * A VISIT WITH NO VERDICT IS EXCLUDED, which is rule 6 in the shape it takes for a
+ * sample: nobody has said yet whether this was paid work, and unknown is not
+ * evidence in either direction. It comes back into the sample the day somebody
+ * records a verdict, because the read is computed on demand.
+ */
+export function visitPriceIsMarketPrice(verdict: string | null): boolean {
+  if (verdict === null) return false;
+  return verdict !== "sameFault";
 }

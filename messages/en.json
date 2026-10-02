@@ -1633,6 +1633,45 @@
     }
   },
   "admin": {
+    "bands": {
+      "title": "Price bands",
+      "lead": "What we publish for each trade, where the number came from, and what our own settled jobs say instead.",
+      "forwardOnly": "Approving a band changes nothing about a booking that already exists — every quote freezes its own floor and ceiling.",
+      "unreadable": "We could not read the bands just now. Nothing has been changed.",
+      "published": "Published",
+      "observed": "Our own jobs",
+      "window": "Settled in the last {days} days.",
+      "jobs": "Jobs",
+      "q1": "p25",
+      "median": "Median",
+      "q3": "p75",
+      "proposed": "What the data suggests",
+      "evidence": "Robust p25/p75 from {n, plural, one {# settled job} other {# settled jobs}}, {capped, plural, =0 {none capped at the fence} one {# capped at the fence} other {# capped at the fence}}.",
+      "cappedNote": "Movement was capped at {pct}%. The sample asked for {band} — approving this is a step toward it, not the whole of it. A large capped count usually means the trade is two different jobs rather than one wide band.",
+      "tooFew": "Not enough settled jobs yet — {have} of {needed}. No proposal until there are, which is not the same as agreeing with what is published.",
+      "suppressedTitle": "Already turned down",
+      "suppressedBody": "The data still says {band}, which was rejected on {when} — “{why}”",
+      "suppressedReturns": "It comes back if that pair changes, or once the sample reaches {n}.",
+      "why": "Why (recorded)",
+      "approve": "Approve and publish",
+      "reject": "Turn it down",
+      "working": "Saving…",
+      "done": "Saved.",
+      "unnamed": "an admin",
+      "lastApproved": "Published by {who} on {when} — “{why}”",
+      "lastRejected": "Last proposal turned down by {who} on {when} — “{why}”",
+      "sources": {
+        "invented": "a guess — cannot launch",
+        "researched": "researched",
+        "observed": "from our own jobs"
+      },
+      "errors": {
+        "refused": "That did not save. Nothing has been changed.",
+        "unreadable": "We could not reach the database. Nothing has been changed.",
+        "noCategory": "That trade no longer exists.",
+        "noReason": "A reason is required — it is what a future reader has."
+      }
+    },
     "meta": {
       "title": "Applications"
     },
@@ -1715,6 +1754,10 @@
         "signals": {
           "name": "Signals",
           "what": "Where our published prices are wrong, and how much is being paid in cash."
+        },
+        "bands": {
+          "name": "Price bands",
+          "what": "What we publish per trade, and what our own jobs suggest instead"
         },
         "audit": {
           "name": "Audit log",

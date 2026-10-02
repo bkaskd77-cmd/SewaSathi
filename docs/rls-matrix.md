@@ -30,6 +30,7 @@ default as a measurement.
 | `bookings` | 2 | none | some | some | some | none | all |
 | `categories` | 10 | all | all | all | all | all | all |
 | `category_price_bands` | 36 | all | all | all | all | all | all |
+| `category_price_revisions` | 0 | no data | no data | no data | no data | no data | no data |
 | `commission_appeals` | 0 | no data | no data | no data | no data | no data | no data |
 | `cron_runs` | 0 | no data | no data | no data | no data | no data | no data |
 | `customer_match_keys` | 0 | no data | no data | no data | no data | no data | no data |

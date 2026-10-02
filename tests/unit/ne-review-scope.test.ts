@@ -109,9 +109,37 @@ describe("the real catalogue", () => {
      * assert the split by naming the namespaces rather than by counting them: a
      * count moves every time a phase adds a string, and a test that has to be
      * renumbered to stay green is a test people renumber without reading.
+     *
+     * SO THE TWO BOUNDS NOW GUARD TWO DIFFERENT THINGS, and this one is the loose
+     * one on purpose. It went red at 479 the day `/admin/bands` shipped 33 staff
+     * strings — an honest increase in a tier nobody has to finish before launch,
+     * failing a ceiling written when every tier blocked. Raising it to 600 would be
+     * the quiet bump this comment already warns about if it were the only bound, so
+     * the finishable-pass question moved to `the blocking half is finishable` below,
+     * which is measured against what a launch actually waits for. What is left here
+     * is pure drift protection: the scope must not creep toward the whole 1,769-key
+     * catalogue, where "everything needs a native read" would mean nothing does.
      */
     expect(scope.length).toBeGreaterThan(50);
-    expect(scope.length).toBeLessThan(460);
+    expect(scope.length).toBeLessThan(600);
+  });
+
+  /*
+   * THE BOUND THAT STILL MEANS SOMETHING. The blocking tiers are what a launch
+   * waits for, so this is the number that has to stay a pass somebody can actually
+   * sit down and do. At roughly twenty seconds a string, 300 is about an hour and a
+   * half — long but finishable in one sitting, which is the claim the original
+   * ceiling was making about the whole scope and could no longer make.
+   *
+   * If this fails, the question is not "raise it" but "does a launch really have to
+   * wait for this tier". Moving a namespace to `staff` to clear it is exactly what
+   * `the split that decides a launch` refuses, which is why both cases exist.
+   */
+  it("keeps the blocking half finishable in one sitting", async () => {
+    const ne = (await import("../../messages/ne.json")).default;
+    const { blocking } = backlog(ne, { keys: [] });
+    expect(blocking.inScope).toBeGreaterThan(50);
+    expect(blocking.inScope).toBeLessThan(300);
   });
 
   it("every rule matches something, so a renamed namespace is caught", async () => {

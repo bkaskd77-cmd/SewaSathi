@@ -608,6 +608,25 @@ Where a change on one side cannot reach the other.
   one. `docs/PRICING-BANDS.md` holds the proposal mechanism, the review screen
   it is meant for, and the robust statistic that keeps a handful of large jobs
   from dragging a proposal.
+  **And the screen exists now, which is the point at which the statistic stopped
+  being decoration.** `proposeBand` sat written, tested and documented with no
+  production caller for four phases — the `applyRedoRecovery` sin, one module
+  over — so a band could only ever be changed by editing the seed and running a
+  migration. `lib/data/bands.ts` is the caller and `/admin/bands` is the screen;
+  `category_price_revisions` is the decision history, append-only like
+  `security_events`, and it does one thing beyond recording: a rejection
+  suppresses that exact proposed pair until the data moves, because a proposal
+  computed on demand otherwise returns on every visit and the same number offered
+  weekly is a number approved out of fatigue. The suppression rule is
+  `proposalSuppressedBy`, pure and beside `MIN_PROPOSAL_SAMPLE`, and it needs no
+  tolerance constant: `proposeBand` rounds outward to Rs 100, so two proposals
+  are either the same published pair or a hundred rupees apart.
+  **`bookings.band_revision_id` is the other half** — the decision a quote was
+  framed by, frozen beside `band_min` by the same trigger, so a dispute can show
+  which band was in force and who approved it. Null is "no revision on record",
+  which is every booking taken so far, and it is never backfilled: a revision
+  invented for a decision nobody took would be the manufactured clean record
+  that `profiles_record_role_change` exists to refuse.
 - **The triage is measured against what the customer did next, and the join
   that makes it possible did not exist for the whole life of the product.**
   `bookings.triage_log_id` had a column, a zod field, a flow-state slot, an

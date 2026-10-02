@@ -17,7 +17,7 @@
  */
 
 export type AdminTool = {
-  key: "lookup" | "signals" | "triageAccuracy" | "audit";
+  key: "lookup" | "signals" | "bands" | "triageAccuracy" | "audit";
   /** Unprefixed; the caller's `Link` adds the locale. */
   href: string;
 };
@@ -25,6 +25,14 @@ export type AdminTool = {
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "lookup", href: "/admin/lookup" },
   { key: "signals", href: "/admin/signals" },
+  /*
+   * The pair: signals says whether a band looks wrong, this is where it moves.
+   * Not a queue for the reason above — a proposal is computed on demand from
+   * settled jobs, so there is no list that drains and nothing to count. "Three
+   * categories have a proposal" would also be the wrong call to action: a
+   * proposal is evidence to weigh, not work outstanding.
+   */
+  { key: "bands", href: "/admin/bands" },
   /*
    * Beside signals rather than in the queues, for the same reason as the rest
    * of this group: it has no list that drains and no number that is a call to

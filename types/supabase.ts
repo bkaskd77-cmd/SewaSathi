@@ -150,6 +150,48 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];
       };
+      category_price_revisions: {
+        Row: {
+          id: string;
+          category_slug: string;
+          decision: "approved" | "rejected";
+          /** The band published when the decision was taken, kept rather than joined. */
+          old_min: number;
+          old_max: number;
+          /** Equal to old_* on a rejection: nothing was written. */
+          new_min: number;
+          new_max: number;
+          /** What the data asked for — what a rejection is about, and what suppression keys on. */
+          proposed_min: number;
+          proposed_max: number;
+          sample: number;
+          winsorised: number;
+          capped: boolean;
+          actor_id: string | null;
+          reason: string;
+          decided_at: string;
+        };
+        Insert: {
+          id?: string;
+          category_slug: string;
+          decision: "approved" | "rejected";
+          old_min: number;
+          old_max: number;
+          new_min: number;
+          new_max: number;
+          proposed_min: number;
+          proposed_max: number;
+          sample: number;
+          winsorised: number;
+          capped: boolean;
+          actor_id?: string | null;
+          reason: string;
+          decided_at?: string;
+        };
+        /** Append-only: `refuse_rewrite()` refuses UPDATE and DELETE for every caller. */
+        Update: never;
+        Relationships: [];
+      };
       addresses: {
         Row: {
           id: string;
@@ -218,6 +260,8 @@ export type Database = {
            * bug the survey phase existed to prevent.
            */
           band_min: number | null;
+          /** The approved band revision in force at quote time. Null: none on record — the band came from the launch research, or the quote was a survey. Never backfilled. */
+          band_revision_id: string | null;
           final_amount: number | null;
           payment_method: string;
           payment_status: string;
@@ -361,6 +405,7 @@ export type Database = {
           quoted_max?: number | null;
           /** Filled by `freeze_booking_band` when omitted, so never required. */
           band_min?: number | null;
+          band_revision_id?: string | null;
           final_amount?: number | null;
           payment_method?: string;
           payment_status?: string;

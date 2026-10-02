@@ -443,6 +443,45 @@ zero jobs is measured**: none completed is a fact, and calling it missing is rul
 6 upside down. Nothing there recommends a retune; it is the number to retune
 from.
 
+**A published band can be moved by a person now, and the statistic that proposes
+one had no caller for four phases.** `proposeBand` was written, tested and
+documented while the only way to change a band was editing the seed and running a
+migration — `applyRedoRecovery`'s sin one module over. `lib/data/bands.ts` is the
+caller, `/admin/bands` is the screen, and **the evidence is on it**: the sample,
+the quartiles, how many jobs were capped at the Tukey fence, and whether
+`MAX_REVISION_MOVE` bound the result. That last one is the easiest to omit and the
+most misleading to: a capped proposal is one whose data asked for **more**, so
+printed alone it reads as "the data says this" and somebody approves a step
+believing it is the answer. Below the minimum sample there is no proposal at all,
+only the count so far — rule 6, since a proposal of the current band would be an
+endorsement nobody computed.
+**A rejection is a decision with an effect, which is why it is stored.** A proposal
+is computed on demand, so the same number returns on every visit and a number
+offered weekly is a number approved out of fatigue. `category_price_revisions` is
+append-only (`refuse_rewrite()`, like `security_events`) and a rejection suppresses
+**that exact proposed pair** until the data moves. The rule is written down rather
+than implied: `proposalSuppressedBy` suppresses only while the pair is identical
+**and** the sample has not grown by half again. It needs no tolerance constant,
+because `proposeBand` already rounds outward to Rs 100 — two proposals are either
+the same published numbers or a hundred rupees apart — and the sample clause is the
+escape hatch for a rejection that meant *too soon* rather than *wrong shape*, since
+more data saying the same thing is no answer to "this category is two different
+jobs". **Suppression is never silent**: the screen names the pair, the reason and
+what would bring it back, because a hidden proposal and no proposal must not look
+alike.
+**`bookings.band_revision_id` records which decision a quote was framed by**,
+frozen beside `band_min` by `freeze_booking_band()` and pinned on update the same
+way, so a dispute can show the band in force and who approved it. **Null is "no
+revision on record"** — every booking taken so far, plus every survey quote, whose
+floor is the surveyed figure rather than a band we published — and nothing is
+backfilled: a revision invented for a decision nobody took is the manufactured
+clean record `profiles_record_role_change` refuses. **Rebuilding that trigger is
+the policy trap one object type over**: it is defined in `20260913000003` and
+redefined in `20260921000001`, and the first draft of `20261002000005` rebuilt from
+the older text, silently dropping the survey branches and the `booking_band_bounds`
+read. The fingerprint check caught it, not a reading. Rebuild from the LAST
+definition.
+
 **Concentration is counted before any mechanism.** `lib/data/concentration.ts`
 gives the busiest professional's share of offers and of finished work per
 category, with denominators — offers concentrating only matters if the work
@@ -1542,8 +1581,23 @@ actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
 `pg_proc`. The file is still what the db suite runs and what a fresh project
 gets; applying it by hand from a dashboard is how the two drift apart.
 
-**Multi-statement DDL over that connection hangs, so more than one statement
-goes in a `DO` block.** Reproduced with two trivial statements — a `create
+**The transport is unreliable in a way neither "statement count" nor "DO block"
+explains, and the reliable path is one bare statement per call.** This note used
+to say a `DO` block was the way through. Applying
+`20261002000004_category_price_revisions.sql` measured otherwise: one LARGE `DO`
+block (create table, alter, revoke) applied instantly; one SMALL `DO` block (an
+index and a trigger) timed out at 60 seconds **three times**, through
+`apply_migration` and `execute_sql` alike; and each of those same statements, sent
+bare, applied instantly. `pg_locks` was empty, `pg_stat_activity` idle, nothing
+waiting, and every timed-out attempt rolled back whole. So **send one statement per
+call** and order the file closed-before-open, because without the block there is no
+atomicity to lean on and any statement can be the last one that runs. The paragraph
+below is kept because what it established about a block's atomicity is still true
+and still useful when a block does go through — it is just not a way to avoid
+hanging.
+
+**Multi-statement DDL over that connection also hangs, which is what the `DO`
+block was for.** Reproduced with two trivial statements — a `create
 table` and its `drop` in one call sat for 60 seconds, where either alone returns
 instantly — and the batch rolled back cleanly, so it is not the SQL, not the
 table and not the size. Locks were ruled out (`pg_stat_activity` idle, nothing

@@ -113,6 +113,21 @@ export type SecurityEventKind =
    * as a name or a searched string.
    */
   | "audit.viewed"
+  /**
+   * A person moved a published price band, or declined to.
+   *
+   * BOTH, AND THE REFUSAL IS THE INTERESTING ONE. An approval is also recorded in
+   * `category_price_revisions` with its evidence, so this kind is the
+   * cannot-be-tidied copy. A rejection matters here because it is what suppresses
+   * that proposal from coming back — a decision with an effect, not a non-event —
+   * and because a band proposed three times and refused three times is a pattern
+   * about our pricing model that only the log can show.
+   *
+   * `detail` carries the bands, the sample and the reason typed. No personal data
+   * is involved: a band is published copy.
+   */
+  | "pricing.bandApproved"
+  | "pricing.bandRejected"
   | "document.reviewed"
   /* Anything an admin does at all */
   | "admin.action";
@@ -124,7 +139,14 @@ export type SecurityEvent = {
   /** Null for the system itself: a cron sweep, a gateway callback. */
   actorId?: string | null;
   actorRole?: ActorRole;
-  subjectType?: "booking" | "payment" | "profile" | "document" | "provider";
+  subjectType?:
+    | "booking"
+    | "payment"
+    | "profile"
+    | "document"
+    | "provider"
+    /** A category slug — the subject of a band decision. Not a person. */
+    | "category";
   subjectId?: string | null;
   /** Facts, never secrets. See the note above. */
   detail?: Record<string, unknown>;

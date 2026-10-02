@@ -92,8 +92,8 @@
     "file": "20260918000003_review_surfaces.sql"
   },
   "freeze_booking_band": {
-    "sha": "28617b282080951d",
-    "file": "20260921000001_band_correction.sql"
+    "sha": "e720e98e8e146db3",
+    "file": "20261002000005_booking_band_revision.sql"
   },
   "freeze_quote_after_work": {
     "sha": "5882a0e677fb68f0",
