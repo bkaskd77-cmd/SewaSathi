@@ -23,6 +23,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { backlog } from "./ne-review-scope.mjs";
+
 const FILE = "LAUNCH-BLOCKERS.md";
 const VALID_STATUS = new Set(["unresolved", "resolved"]);
 
@@ -92,6 +94,53 @@ function inventedCategories() {
   }
 }
 
+/**
+ * And the same for the Nepali native read, which is a THIRD entry whose status is
+ * a fact rather than a judgement.
+ *
+ * WHY IT IS SPLIT. One entry over all 446 in-scope strings could not be satisfied
+ * without reviewing admin copy no customer or professional will ever read, so the
+ * money and safety lines were held behind the staff ones. `BLOCKING_TIERS` in
+ * `ne-review-scope.mjs` is the split: money, safety and legal refuse a launch, and
+ * the staff tier is counted, printed on every `check:messages` run, and does not.
+ * An admin misreading a queue label costs a slower queue, in a room with somebody
+ * who can ask. A professional misreading the cash-fee line loses money and trusts
+ * us less with nobody there to correct it.
+ *
+ * WHY THE DATA RATHER THAN THE STATUS LINE. Resolving this entry means a native
+ * speaker read the strings, which is recorded in `messages/ne-reviewed.json` — so a
+ * `resolved` status with an unread blocking string is a lie inside the register that
+ * exists to prevent lies, exactly like `resolved` bands over an `invented` seed. It
+ * is checked on every run rather than only at launch, for the same reason: a false
+ * `resolved` is worse than an honest `unresolved`.
+ *
+ * It counts documents as well as keys. `lib/content/` holds four `{ en, ne }` prose
+ * documents with no keys, and a backlog built from the catalogue alone reported the
+ * enforcement ladder as read when nobody had opened it.
+ */
+const NATIVE_READ_ENTRY = "nepali-native-read";
+
+function nativeReadBacklog() {
+  try {
+    const at = (name) =>
+      JSON.parse(readFileSync(path.join(process.cwd(), "messages", name), "utf8"));
+    const { blocking, waiting } = backlog(at("ne.json"), at("ne-reviewed.json"));
+    return {
+      blocking: blocking.keys.length + blocking.documents.length,
+      blockingTotal: blocking.inScope + blocking.documents.length,
+      staff: waiting.keys.length,
+    };
+  } catch {
+    /*
+     * UNREADABLE IS NOT READ. A catalogue this script cannot parse says nothing
+     * about whether a native speaker saw it, so it reports one outstanding rather
+     * than zero — the same direction `inventedCategories` takes, and rule 6's
+     * shape for a script.
+     */
+    return { blocking: 1, blockingTotal: 1, staff: 0, unreadable: true };
+  }
+}
+
 /** Fenced code blocks hold the format example, which is not an entry. */
 function stripFences(markdown) {
   return markdown.replace(/^```[\s\S]*?^```/gm, "");
@@ -139,6 +188,8 @@ function main() {
   const bands = entries.find((e) => e.id === BANDS_ENTRY);
   const guessedDurations = inventedDurations();
   const durations = entries.find((e) => e.id === DURATIONS_ENTRY);
+  const nepali = nativeReadBacklog();
+  const nativeRead = entries.find((e) => e.id === NATIVE_READ_ENTRY);
 
   /*
    * ONE BLOCKER CANNOT RESOLVE WHILE THE ONE IT RESTS ON IS OPEN.
@@ -212,6 +263,21 @@ function main() {
     );
   }
 
+  /*
+   * BOTH NUMBERS, so reclassifying cannot read as finishing. The staff count is
+   * printed here as well as by `check:messages` precisely because it no longer
+   * holds a launch: a backlog that stops being said out loud is one nobody closes.
+   */
+  if (nepali.unreadable) {
+    console.log(
+      "  the Nepali catalogue could not be read, so the native-read backlog is unknown",
+    );
+  } else if (nepali.blocking > 0 || nepali.staff > 0) {
+    console.log(
+      `  ${nepali.blocking} of ${nepali.blockingTotal} money, safety and legal Nepali strings await a native read (blocking); ${nepali.staff} staff strings await one and do not block`,
+    );
+  }
+
   if (durations?.status === "resolved" && guessedDurations.length > 0) {
     console.error(
       `\n${FILE} marks ${DURATIONS_ENTRY} resolved, but ${SUB_BAND_SEED} still carries invented durations:\n`,
@@ -222,6 +288,23 @@ function main() {
         `durationSource "researched" or "observed", with durationCheckedAt and a\n` +
         `durationNote naming what was checked. Until then the numbers schedule but\n` +
         `do not publish, which is the honest state, not a bug to route around.\n`,
+    );
+    process.exit(1);
+  }
+
+  if (nativeRead?.status === "resolved" && nepali.blocking > 0) {
+    console.error(
+      `\n${FILE} marks ${NATIVE_READ_ENTRY} resolved, but ${nepali.blocking} blocking Nepali string${
+        nepali.blocking === 1 ? "" : "s"
+      } or document${nepali.blocking === 1 ? "" : "s"} ${
+        nepali.unreadable ? "could not be counted" : "have no native sign-off"
+      }.\n`,
+    );
+    console.error(
+      `Resolving that entry means a native speaker reading each one in place and the\n` +
+        `key going into messages/ne-reviewed.json — a document by its path. Run\n` +
+        `npm run ne:review to see what is left. The staff tier is deliberately outside\n` +
+        `this gate and is not what is failing here.\n`,
     );
     process.exit(1);
   }

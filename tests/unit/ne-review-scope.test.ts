@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BLOCKING_TIERS,
   PROSE_DOCUMENTS,
   REVIEW_SCOPE,
+  backlog,
   inScope,
+  isBlockingTier,
   leaves,
 } from "../../scripts/ne-review-scope.mjs";
 
@@ -96,13 +99,16 @@ describe("the real catalogue", () => {
      *
      * The ceiling stays because the thing it actually guards is still true: the
      * scope must not drift toward the whole catalogue, where "everything needs a
-     * native read" would mean nothing does. What has to change is the SHAPE of the
-     * pass rather than its size — `npm run ne:review` already groups by tier, and
-     * the money and safety tiers are the ones where a misreading costs somebody
-     * money or safety. Splitting `LAUNCH-BLOCKERS § nepali-native-read` so the
-     * money and safety tiers block a launch and the staff tier does not is the
-     * obvious next move, and it is a product decision rather than something to
-     * slip into a test's constant.
+     * native read" would mean nothing does. What had to change is the SHAPE of the
+     * pass rather than its size.
+     *
+     * AND IT HAS: `nepali-native-read` now blocks on the money, safety and legal
+     * tiers only — 273 keys and 4 documents — while the staff tier stays counted and
+     * printed and does not hold a launch. So this number is no longer the size of the
+     * thing somebody has to finish before shipping, which is why the cases below
+     * assert the split by naming the namespaces rather than by counting them: a
+     * count moves every time a phase adds a string, and a test that has to be
+     * renumbered to stay green is a test people renumber without reading.
      */
     expect(scope.length).toBeGreaterThan(50);
     expect(scope.length).toBeLessThan(460);
@@ -140,5 +146,98 @@ describe("the Nepali that is not in the catalogue", () => {
       expect(doc.why.length).toBeGreaterThan(20);
       expect(doc.tier.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Which half of the backlog refuses a launch.
+ *
+ * WHAT THESE PIN AND WHY NOT A COUNT. `nepali-native-read` blocks on money, safety
+ * and legal; the staff tier is counted, printed and does not hold a launch. The
+ * cheap way to assert that is `blocking.keys.length === 273`, and it is the wrong
+ * way twice over: it goes red every time a phase adds a payment string, so it gets
+ * renumbered without being read, and renumbering it is exactly how somebody would
+ * clear a launch by relabelling a money namespace as `staff` — the failure these
+ * cases exist to catch.
+ *
+ * So they name the namespaces instead. A rule moved out of the blocking tiers fails
+ * here, and adding strings to one does not.
+ */
+describe("the split that decides a launch", () => {
+  const MUST_BLOCK = [
+    "booking.payment",
+    "booking.guarantee",
+    "booking.notifications",
+    "booking.detail.cancel",
+    "booking.account",
+    "provider.money",
+    "provider.payouts",
+    "join.apply.payout",
+    "safety",
+    "triage",
+    "legal",
+  ];
+
+  /*
+   * Each of these states a term, names a figure somebody is about to hand over, or
+   * is read while frightened. `booking.detail.cancel` is in because in this product
+   * the window IS the policy — there is no fee to soften a misreading — and
+   * `booking.account` because the activity opt-out decides whether somebody's first
+   * name appears on the homepage, which is consent rather than a preference.
+   */
+  it("holds a launch on every namespace that states a term or a figure", () => {
+    for (const prefix of MUST_BLOCK) {
+      const rule = REVIEW_SCOPE.find((r) => r.prefix === prefix);
+      expect(rule, `no scope rule covers "${prefix}"`).toBeDefined();
+      expect(
+        isBlockingTier(rule!.tier),
+        `"${prefix}" is tier "${rule!.tier}", which does not block a launch`,
+      ).toBe(true);
+    }
+  });
+
+  /* The other direction: the exclusion is the staff tier and nothing else. */
+  it("does not hold a launch on an admin screen", () => {
+    const admin = REVIEW_SCOPE.filter((r) => r.prefix.startsWith("admin."));
+    expect(admin.length).toBeGreaterThan(0);
+    for (const rule of admin) {
+      expect(isBlockingTier(rule.tier), `${rule.prefix} blocks a launch`).toBe(
+        false,
+      );
+    }
+    expect(BLOCKING_TIERS).not.toContain("staff");
+  });
+
+  it("counts the staff tier even though it does not block, so it stays visible", async () => {
+    const ne = (await import("../../messages/ne.json")).default;
+    const { waiting } = backlog(ne, { keys: [] });
+    // Reclassifying is not doing: the number keeps a denominator and a line of its own.
+    expect(waiting.inScope).toBeGreaterThan(0);
+    expect(waiting.keys.length).toBe(waiting.inScope);
+  });
+
+  /*
+   * THE DOCUMENTS ARE IN THE BLOCKING HALF AND CAN NOW BE SIGNED OFF. They could
+   * not be before: `ne-reviewed.json` held `keys`, a document has no key, and
+   * `ne:review` listed all four unconditionally for ever — a gate on something
+   * nobody can satisfy is not a gate.
+   */
+  it("blocks on the prose documents, and lets a path sign one off", async () => {
+    const ne = (await import("../../messages/ne.json")).default;
+    const before = backlog(ne, {});
+    expect(before.blocking.documents.length).toBe(PROSE_DOCUMENTS.length);
+
+    const after = backlog(ne, { documents: [PROSE_DOCUMENTS[0].path] });
+    expect(after.blocking.documents.length).toBe(PROSE_DOCUMENTS.length - 1);
+    // The denominator does not shrink — "3 of 4 read" is progress, "3 of 3" is not.
+    expect(after.documents.length).toBe(PROSE_DOCUMENTS.length);
+  });
+
+  it("reads a missing sign-off file as nothing read, never as all clear", async () => {
+    const ne = (await import("../../messages/ne.json")).default;
+    expect(backlog(ne).blocking.keys.length).toBe(
+      backlog(ne, { keys: [], documents: [] }).blocking.keys.length,
+    );
+    expect(backlog(ne).blocking.keys.length).toBeGreaterThan(0);
   });
 });

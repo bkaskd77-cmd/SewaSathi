@@ -571,6 +571,26 @@ nepali-native-read` refuses a launch build while any remain. A key leaves the
 backlog by being added to `messages/ne-reviewed.json` — by hand, because no
 rule can know whether somebody actually read something.
 
+**Not all of it blocks a launch, and the split is a predicate over the tier each
+rule already carries.** One entry over all 446 in-scope strings could not be
+satisfied without reviewing admin copy no customer or professional will ever
+read, which held the money and safety lines behind the staff ones — and the two
+are not the same risk: an admin misreading a queue label costs a slower queue in
+a room with somebody who can ask, where a professional misreading the cash-fee
+line on `provider.money` loses money and trusts us less with nobody there to
+correct it. `BLOCKING_TIERS` is `money`, `safety` and `legal` — 273 keys and the
+four documents — and `staff` (173) is deliberately outside it. **It stays
+counted and printed on every run, by `check:messages` and `check:blockers`
+both**, because reclassifying is not the same as doing and a number that stops
+being said out loud is one nobody closes. `check:blockers` reads the backlog
+rather than the status line, so marking the entry resolved while a blocking
+string is unread fails on every run and not only at launch — the same shape as a
+`resolved` band over an `invented` seed. **A document is signed off by its path,
+which was impossible until the split**: that file held `keys`, a document has no
+key, and all four were listed as waiting for ever, so the half of the gate
+covering the enforcement ladder and the legal pages could never have been
+satisfied by anybody.
+
 **Not everything in Nepali is a message key**, and assuming it was is how the
 first version of that scope reported the enforcement ladder as reviewed when
 nobody had opened it. `lib/content/pages/standards.ts` and the three files

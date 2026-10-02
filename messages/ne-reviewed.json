@@ -1,4 +1,6 @@
 {
-  "_": "Nepali keys a native speaker has actually read and signed off. Derived scope lives in scripts/ne-review-scope.mjs; this is the hand-kept half, because 'somebody read it' is not something a rule can infer. Add a key here only after a native speaker has seen it in place on the screen — not after a careful translation. `npm run ne:review` prints what is left; LAUNCH-BLOCKERS.md § nepali-native-read is what stops a launch while any remain.",
-  "keys": []
+  "_": "Nepali keys a native speaker has actually read and signed off. Derived scope lives in scripts/ne-review-scope.mjs; this is the hand-kept half, because 'somebody read it' is not something a rule can infer. Add a key here only after a native speaker has seen it in place on the screen — not after a careful translation. `npm run ne:review` prints what is left; LAUNCH-BLOCKERS.md § nepali-native-read is what stops a launch while any money, safety or legal one remains — the staff tier is counted and printed but does not hold a launch.",
+  "keys": [],
+  "_documents": "The long-form Nepali in lib/content/, which has no keys to sign off — a path goes here once a native speaker has read that document. There was no sign-off path at all until the blocker was split: this file held keys, a document has no key, and all four were listed as waiting for ever, so a gate on them could never have been satisfied.",
+  "documents": []
 }

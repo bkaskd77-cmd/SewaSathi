@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { inScope } from "./ne-review-scope.mjs";
+import { PROSE_DOCUMENTS, backlog } from "./ne-review-scope.mjs";
 
 const ROOT = process.cwd();
 const LOCALES = ["en", "ne"];
@@ -284,20 +284,35 @@ console.log("  plural rule self-tested; no count reads as \"1 times\".");
  * Not a failure. `npm run check:blockers` is what refuses a launch build while
  * any of them are unread — see LAUNCH-BLOCKERS.md § nepali-native-read.
  */
-let reviewed = [];
+let reviewed = {};
 try {
-  reviewed =
-    JSON.parse(readFileSync(path.join(ROOT, "messages", "ne-reviewed.json"), "utf8"))
-      .keys ?? [];
+  reviewed = JSON.parse(
+    readFileSync(path.join(ROOT, "messages", "ne-reviewed.json"), "utf8"),
+  );
 } catch {
   // Missing or malformed reads as nothing reviewed, which is the safe
   // direction: it over-reports the backlog rather than hiding it.
 }
-const scope = inScope(catalogues.ne, reviewed);
-const waiting = scope.filter((entry) => !entry.reviewed).length;
+
+/*
+ * BOTH HALVES ARE PRINTED, which is the whole reason the split is safe to make.
+ * `nepali-native-read` blocks a launch on the money, safety and legal tiers only
+ * — reclassifying the staff strings would otherwise be a way of finishing them
+ * without reading them, and a number that stops being printed is a number nobody
+ * finishes. So the staff count stays on this line, every run, saying plainly that
+ * it is not holding a launch.
+ */
+const { blocking, waiting } = backlog(catalogues.ne, reviewed);
+const blockingLeft = blocking.keys.length + blocking.documents.length;
+const blockingTotal = blocking.inScope + PROSE_DOCUMENTS.length;
 console.log(
-  waiting === 0
-    ? `  ${scope.length} money, safety and legal strings, all read by a native speaker.`
-    : `  ${waiting} of ${scope.length} money, safety and legal strings await a native read — npm run ne:review`,
+  blockingLeft === 0
+    ? `  ${blockingTotal} money, safety and legal strings and documents, all read by a native speaker.`
+    : `  ${blockingLeft} of ${blockingTotal} money, safety and legal strings await a native read — blocks a launch — npm run ne:review`,
+);
+console.log(
+  waiting.keys.length === 0
+    ? `  ${waiting.inScope} staff strings, all read.`
+    : `  ${waiting.keys.length} of ${waiting.inScope} staff strings await one too — counted, does not block a launch.`,
 );
 console.log("");

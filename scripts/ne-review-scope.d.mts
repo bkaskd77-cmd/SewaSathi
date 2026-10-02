@@ -31,3 +31,31 @@ export declare function inScope(
   catalogue: unknown,
   reviewed?: string[],
 ): ScopeEntry[];
+
+export type ReviewedFile = {
+  /** Keys a native speaker has read in place. */
+  keys?: string[];
+  /** Paths of long-form `{ en, ne }` documents a native speaker has read. */
+  documents?: string[];
+};
+
+export type BacklogHalf = {
+  keys: ScopeEntry[];
+  documents: (ProseDocument & { reviewed: boolean })[];
+  /** Everything in scope for this half, read or not — the denominator. */
+  inScope: number;
+};
+
+export declare const BLOCKING_TIERS: ReviewTier[];
+export declare function isBlockingTier(tier: string): boolean;
+export declare function backlog(
+  catalogue: unknown,
+  reviewed?: ReviewedFile,
+): {
+  scope: ScopeEntry[];
+  documents: (ProseDocument & { reviewed: boolean })[];
+  /** money, safety and legal — refuses a launch build. */
+  blocking: BacklogHalf;
+  /** staff — counted and printed, never a launch failure. */
+  waiting: BacklogHalf;
+};
