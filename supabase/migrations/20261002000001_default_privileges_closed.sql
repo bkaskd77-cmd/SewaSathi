@@ -1,0 +1,43 @@
+-- ---------------------------------------------------------------------------
+-- A new table grants nothing until its own migration says otherwise.
+--
+-- THE INCIDENT THIS CLOSES, AND IT IS THE SECOND OF ITS KIND. A migration timed
+-- out after `public.payouts` was created and before its guards were applied, so
+-- production briefly held a money-instruction table with RLS off, no policies,
+-- and `anon` and `authenticated` carrying full SELECT/INSERT/UPDATE/DELETE. Not
+-- because anybody granted that — because Supabase's default privilege on
+-- `public` grants it to every new table automatically. The first of its kind was
+-- `profiles`, where the same default let a signed-in browser write its own
+-- `role`; that was fixed one table at a time, and this fixes the source.
+--
+-- SCOPE, STATED HONESTLY: EVERY TABLE THIS PRODUCT CREATES. `pg_default_acl`
+-- holds TWO entries for tables in `public` — one granted by `postgres`, one by
+-- `supabase_admin` — and which applies depends on who runs the CREATE. The
+-- migration connection is `postgres` and `pg_has_role` says it is not a member
+-- of `supabase_admin`, so only the `postgres` entry can be altered from here.
+-- Every table in this repository is created by `postgres`, so every table this
+-- product creates is covered. A table created by Supabase's own tooling as
+-- `supabase_admin` would still inherit the old default, and
+-- `tests/db/write-grants.test.ts` is the backstop for exactly that case: it reads
+-- the policies on every browser-writable table and goes red when a new one
+-- appears.
+--
+-- `service_role` KEEPS EVERYTHING. Every server-side write in this product goes
+-- through it; revoking it would break the product rather than protect it.
+--
+-- NO EXISTING TABLE LOSES ANYTHING. Default privileges apply only at CREATE
+-- time, so nothing already created is touched. Proven rather than asserted: the
+-- grants for `anon` and `authenticated` across every `public` table were
+-- fingerprinted before and after this ran, and both reads gave
+-- `97230d26367804600c9cd4e1ccd8a195` over 75 rows.
+--
+-- THE TRAP THIS CREATES IS LOUDER THAN THE ONE IT CLOSES, so it is written in
+-- CLAUDE.md as well: after this, a new table with a perfectly correct RLS policy
+-- still answers `permission denied`. The policy decides WHICH ROWS; the grant
+-- decides whether you may ask at all. Every new table's migration now ends with
+-- an explicit `grant` naming what a browser may do, or a comment saying it
+-- deliberately grants nothing.
+-- ---------------------------------------------------------------------------
+
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;

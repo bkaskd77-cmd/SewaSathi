@@ -193,3 +193,71 @@ describe("every declared guard is still there", () => {
     }
   });
 });
+
+/*
+ * THE OTHER HALF, AND IT IS THE HALF THAT WAS MISSING WHEN `payouts` LEAKED.
+ *
+ * Everything above starts at `pg_policy`, because a grant Supabase makes to every
+ * table in `public` cannot discriminate between tables. That reasoning was right
+ * and it had a blind spot: a table with NO policies at all was invisible to it,
+ * and the default grant made such a table fully writable by any browser. A
+ * migration timed out after `create table public.payouts` and before its RLS
+ * enable, and for as long as that lasted `anon` held SELECT, INSERT, UPDATE and
+ * DELETE on a money-instruction table — through nothing anybody wrote.
+ *
+ * `20261002000001_default_privileges_closed.sql` closes the source: new tables
+ * created by `postgres` grant nothing, so a half-applied migration leaves a table
+ * nobody can reach. These two cases are what stop it being reopened — by a
+ * dashboard click, a Supabase upgrade, or somebody clearing a `permission denied`
+ * the quick way, which is exactly what Postgres's own HINT recommends.
+ */
+describe("a new table grants a browser nothing", () => {
+  it("has no table default privilege for anon or authenticated", async () => {
+    const { rows } = await pg.admin.query(`
+      select unnest(d.defaclacl)::text as item
+        from pg_default_acl d
+        join pg_namespace n on n.oid = d.defaclnamespace
+       where n.nspname = 'public'
+         and d.defaclobjtype = 'r'
+    `);
+
+    const browser = (rows as { item: string }[])
+      .map((r) => r.item)
+      .filter((item) => /^(anon|authenticated)=/.test(item));
+
+    expect(
+      browser,
+      "A default privilege grants a browser role something on every new table. " +
+        "Revoke it (see 20261002000001) and grant per table instead.",
+    ).toEqual([]);
+  });
+
+  it("gives authenticated no privilege on a table created now", async () => {
+    /*
+     * THE CASE THAT CANNOT PASS FOR THE WRONG REASON. The one above reads the
+     * catalog, and an empty `pg_default_acl` satisfies it whether the default was
+     * revoked or never existed — so on its own it would have been green through
+     * the whole incident. This asks the question a table actually gets asked.
+     */
+    await pg.admin.query("create table public.zz_grant_probe (id int)");
+    try {
+      const { rows } = await pg.admin.query(`
+        select grantee, privilege_type
+          from information_schema.role_table_grants
+         where table_schema = 'public'
+           and table_name = 'zz_grant_probe'
+           and grantee in ('anon', 'authenticated')
+      `);
+
+      expect(
+        rows,
+        "A brand-new table is writable from a browser before anybody has " +
+          "written a policy for it. That is how public.payouts leaked.",
+      ).toEqual([]);
+    } finally {
+      // Dropped either way: a probe table left behind would be a table with no
+      // policies, which is the first case this file sweeps for.
+      await pg.admin.query("drop table if exists public.zz_grant_probe");
+    }
+  });
+});

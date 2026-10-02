@@ -1385,6 +1385,57 @@ actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
 `pg_proc`. The file is still what the db suite runs and what a fresh project
 gets; applying it by hand from a dashboard is how the two drift apart.
 
+**Multi-statement DDL over that connection hangs, so more than one statement
+goes in a `DO` block.** Reproduced with two trivial statements — a `create
+table` and its `drop` in one call sat for 60 seconds, where either alone returns
+instantly — and the batch rolled back cleanly, so it is not the SQL, not the
+table and not the size. Locks were ruled out (`pg_stat_activity` idle, nothing
+waiting); the mechanism inside Supabase's MCP server or its pooler is not
+visible from here and is not written down as a cause. What is established is the
+behaviour. A `DO $$ … END $$;` block is **one statement to the transport and one
+implicit transaction**, which is both the way through and the property worth
+having: it was proven atomic by putting a deliberate failure in its last
+statement and finding neither the table nor the index afterwards. Insert the
+`supabase_migrations.schema_migrations` row **inside** the block, so history
+records the migration only if its DDL committed.
+**`CREATE INDEX CONCURRENTLY` cannot go through it** — `25001: cannot be
+executed from a function`, proven rather than assumed. That one statement goes
+in a call of its own, outside any block.
+
+**Every migration is ordered so that stopping anywhere leaves something closed,
+never something open.** Create, then `enable row level security` and the
+revokes, then triggers and constraints, then policies and grants.
+`20261001000003_payouts.sql` timed out after its `create table` and before its
+guards, and production briefly held a money-instruction table with RLS off and
+`anon` carrying full SELECT, INSERT, UPDATE and DELETE on it. Nothing was
+disclosed — the table was empty and unwritten — and the window was real.
+`npm run check:migrations` enforces the ordering per file and self-tests the
+rule on every run; it was proven by reordering that same migration so its
+policies preceded the RLS enable, and watching it go red.
+
+**A new table grants nothing, so its migration says what it grants.** Supabase's
+default privilege on `public` handed `anon` and `authenticated` everything on
+every table at creation, which is what made that window exploitable and what let
+a signed-in browser write its own `profiles.role` a month earlier. It is revoked
+in `20261002000001`, and the scope is stated narrowly because it has to be:
+`pg_default_acl` holds **two** entries for `public` tables, one granted by
+`postgres` and one by `supabase_admin`, and which applies depends on who runs the
+CREATE. The connection is `postgres` and `pg_has_role` says it is not a member of
+`supabase_admin`, so what is actually true is **every table this product
+creates**. `tests/db/write-grants.test.ts` is the backstop for the other case.
+No existing table lost anything — default privileges apply only at CREATE time,
+and the grants for both browser roles across all 75 rows fingerprinted
+identically before and after.
+**The trap this creates is louder than the one it closes**, so it is written
+here: a new table with a perfectly correct RLS policy still answers `permission
+denied`, because the policy decides *which rows* and the grant decides whether
+you may ask at all. Every new table ends its migration with an explicit
+`grant select on <table> to authenticated` or a comment saying it deliberately
+grants nothing. Postgres's own HINT on that error recommends granting the whole
+table; on `profiles` that hint is how the escalation comes back, and it is wrong
+here for the same reason — grant the column, or the table to the role that needs
+it, never the default to everybody.
+
 `types/supabase.ts` is hand-written to match. Regenerate it with
 `supabase gen types` when you have network to the project, and keep it in the
 same commit as the migration that changed it.

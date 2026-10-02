@@ -207,6 +207,25 @@ alter default privileges in schema public
 -- So this is the ordering fixed before it costs anything, not a leak repaired.
 -- No test relies on a grant this does not make: a default privilege set before
 -- the migrations is exactly what production has.
+--
+-- AND IT IS STILL WHAT PRODUCTION HAS, FOR THE TABLES THAT EXISTED THEN. This
+-- line reads as stale now that \`20261002000001_default_privileges_closed.sql\`
+-- revokes exactly what it grants, and deleting it would make the harness
+-- STRICTER than the database — the loop mistake above, in the other direction.
+--
+-- There are two epochs and both are real. Production granted this default to
+-- every table created before 2 October and nothing afterwards, because default
+-- privileges apply only at CREATE time. Granting here and revoking in that
+-- migration reproduces both: the migrations apply in filename order, so the
+-- thirty-odd tables created before it keep the grant and anything created after
+-- it gets nothing — which is the state a fresh Supabase project reaches by the
+-- same route.
+--
+-- THE ROLES HAVE TO MATCH OR THIS MODELS NOTHING. \`alter default privileges\`
+-- with no \`for role\` applies to the current role; the harness connects as
+-- \`postgres\` (see \`initdb -U postgres\` below) and the migration says
+-- \`for role postgres\` explicitly. Connect as anything else and the revoke
+-- silently misses, leaving the harness permissive where production is not.
 alter default privileges in schema public
   grant select, insert, update on tables to anon, authenticated;
 `;

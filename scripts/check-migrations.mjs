@@ -66,6 +66,103 @@ const AFTER_DEPLOY = /^--\s*AFTER-DEPLOY:\s*\S/m;
  */
 const REMOVES = /^--\s*REMOVES:\s*([a-z_]+)\b/gm;
 
+/**
+ * CLOSED BEFORE OPEN — the ordering a half-applied migration depends on.
+ *
+ * WHAT PROMPTED IT. `20261001000003_payouts.sql` timed out partway through. The
+ * table was created; the RLS enable, the trigger and the policies were not. For
+ * as long as that lasted production held a money-instruction table with RLS off
+ * and `anon` holding SELECT, INSERT, UPDATE and DELETE on it — through Supabase's
+ * default grant rather than through anything anybody wrote. Nothing was disclosed
+ * (the table was empty and unwritten) and the exposure was real.
+ *
+ * The source of that grant is closed in `20261002000001`, and this is the other
+ * half: ANY statement can be the last one that runs, so the order has to be such
+ * that stopping anywhere leaves something shut. Create, then `enable row level
+ * security` and the revokes, then triggers and constraints, then policies and
+ * grants. A migration that dies halfway must leave a table nobody can reach,
+ * never one anybody can write.
+ *
+ * Returns its problems rather than pushing them, so it can be self-tested below
+ * against a known-bad file. A rule that has quietly stopped biting reads exactly
+ * like a tree with nothing wrong in it.
+ */
+function orderingFailures(file, src) {
+  const out = [];
+
+  for (const made of src.matchAll(
+    /create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(\w+)/gis,
+  )) {
+    const table = made[1];
+
+    const rls = src.search(
+      new RegExp(
+        `alter\\s+table\\s+public\\.${table}\\s+enable\\s+row\\s+level\\s+security`,
+        "is",
+      ),
+    );
+
+    if (rls < 0) {
+      out.push(
+        `${file} creates public.${table} and never enables row level security on it.\n` +
+          `    Enable it in the same file, immediately after the create — even for a\n` +
+          `    table only the service role touches, where it costs nothing and is what\n` +
+          `    stops the next policy somebody adds being the first one that matters.`,
+      );
+      continue;
+    }
+
+    const opens = [
+      ...[
+        ...src.matchAll(
+          new RegExp(`create\\s+policy[\\s\\S]{0,400}?\\bon\\s+public\\.${table}\\b`, "gis"),
+        ),
+      ].map((m) => ["a policy", m.index]),
+      ...[
+        ...src.matchAll(
+          new RegExp(`\\bgrant\\s+[\\s\\S]{0,120}?\\bon\\s+(?:table\\s+)?public\\.${table}\\b`, "gis"),
+        ),
+      ].map((m) => ["a grant", m.index]),
+    ].filter(([, at]) => at < rls);
+
+    if (opens.length) {
+      out.push(
+        `${file} opens public.${table} before it closes it — ${opens[0][0]} at offset ` +
+          `${opens[0][1]}, row level security only at ${rls}.\n` +
+          `    Stopping between the two leaves the table open, which is how\n` +
+          `    public.payouts spent a window fully writable from a browser.\n` +
+          `    Order it: create, then enable row level security, then the triggers,\n` +
+          `    then the policies and grants.`,
+      );
+    }
+  }
+
+  return out;
+}
+
+/*
+ * THE RULE SELF-TESTS ON EVERY RUN, like `check:messages` and `check:contacts`.
+ * Both directions, because a rule that fires on everything gets switched off as
+ * fast as one that fires on nothing.
+ */
+{
+  const closedFirst = `create table public.t (id int);
+alter table public.t enable row level security;
+create policy "p" on public.t for select to authenticated using (true);`;
+  const openFirst = `create table public.t (id int);
+create policy "p" on public.t for select to authenticated using (true);
+alter table public.t enable row level security;`;
+
+  if (orderingFailures("good.sql", closedFirst).length !== 0) {
+    console.error("\nMigration check is broken: it flags a correctly ordered file.\n");
+    process.exit(1);
+  }
+  if (orderingFailures("bad.sql", openFirst).length !== 1) {
+    console.error("\nMigration check is broken: it no longer flags a policy before RLS.\n");
+    process.exit(1);
+  }
+}
+
 const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
 const failures = [];
 const notes = [];
@@ -105,6 +202,9 @@ for (const file of files) {
         `    Add a header saying what has to ship first, and apply this one AFTER that deploy.`,
     );
   }
+
+  // ---- Closed before open -------------------------------------------------
+  failures.push(...orderingFailures(file, src));
 
   // ---- Stale rebuilds -----------------------------------------------------
   const re =
@@ -274,4 +374,7 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("  Nothing destructive is unannounced and no function lost a line quietly.\n");
+console.log(
+  "  Nothing destructive is unannounced, every new table is closed before it is\n" +
+    "  opened, and no function lost a line quietly.\n",
+);
