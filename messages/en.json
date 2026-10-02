@@ -1759,6 +1759,10 @@
           "name": "Price bands",
           "what": "What we publish per trade, and what our own jobs suggest instead"
         },
+        "revenue": {
+          "name": "Revenue",
+          "what": "What we earned by week and by trade, each line naming its source"
+        },
         "audit": {
           "name": "Audit log",
           "what": "Who looked at what, and who decided what."
@@ -1840,6 +1844,33 @@
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",
+    "revenue": {
+      "title": "Revenue",
+      "lead": "What we earned, by week and by trade. Every line is a figure somebody else froze or a ledger row somebody else wrote — nothing on this screen is recalculated.",
+      "unreadable": "We could not read the ledger just now. This is us, not a bad week — no figure below would be trustworthy, so none is shown.",
+      "owedToUs": "Cash commission still owed to us",
+      "owedToUsSource": "The sum of the negative balances on provider_ledger. It is settled by future payouts being smaller, not by a payment, which is why it is a position rather than a week's line.",
+      "notAccountedFor": "Some figures could not be placed in a week, so the weeks below do not account for everything:",
+      "unattributed": "{count, plural, one {# settled payment carries} other {# settled payments carry}} no frozen fee. That should never happen — the fee is written at settlement.",
+      "undated": "{n} of returned commission was agreed but never dated, so it is in no week.",
+      "empty": "Nothing has settled yet.",
+      "emptyWhen": "A week appears here once a booking has been paid for and the fee frozen against it.",
+      "byWeek": "By week",
+      "byCategory": "By trade",
+      "weekOf": "Week of {date}",
+      "netIs": "Commission earned less commission returned, from {count, plural, one {# settlement} other {# settlements}}.",
+      "jobsCount": "{count, plural, one {# job} other {# jobs}}",
+      "lessReturned": "less {n} returned",
+      "sources": "Commission earned: bookings.platform_fee, frozen at settlement, settled payments only. Commission returned: refundFunding over the same frozen split, on refunds a person agreed. Cash billed, redo cost, written off and payouts sent: provider_ledger. Weeks start Monday 00:00 UTC, the same weeks the payout run uses.",
+      "lines": {
+        "earned": "Commission earned",
+        "returned": "Commission returned on refunds",
+        "cashBilled": "Cash commission billed",
+        "redoCost": "Guarantee re-dos we funded",
+        "writtenOff": "Written off",
+        "payoutsSent": "Paid out to professionals"
+      }
+    },
     "surveyFees": {
       "title": "Survey trips",
       "lead": "Somebody crossed the Valley to look at a job that did not happen. Nothing here has been paid — that is what this screen decides. The question is whether we cover this trip, not whether anybody did anything wrong.",

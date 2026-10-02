@@ -114,7 +114,7 @@ export const GUARDED_ROUTES = [
   // Public route, page-level redirect: arriving with no number must not show
   // six code boxes that can never succeed.
   "/verify",
-  // The admin surface. Fourteen screens, none of which had a live check before.
+  // The admin surface. Fifteen screens, none of which had a live check before.
   "/admin",
   "/admin/appeals",
   "/admin/applications",
@@ -126,6 +126,7 @@ export const GUARDED_ROUTES = [
   "/admin/mismatches",
   "/admin/payout-destinations",
   "/admin/payouts",
+  "/admin/revenue",
   "/admin/signals",
   "/admin/survey-fees",
   "/admin/triage-accuracy",

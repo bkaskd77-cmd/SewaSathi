@@ -17,7 +17,7 @@
  */
 
 export type AdminTool = {
-  key: "lookup" | "signals" | "bands" | "triageAccuracy" | "audit";
+  key: "lookup" | "signals" | "bands" | "revenue" | "triageAccuracy" | "audit";
   /** Unprefixed; the caller's `Link` adds the locale. */
   href: string;
 };
@@ -33,6 +33,12 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * proposal is evidence to weigh, not work outstanding.
    */
   { key: "bands", href: "/admin/bands" },
+  /*
+   * Also not a queue: there is no list and nothing drains. A count would be
+   * meaningless and a figure on the index would be the one number nobody should
+   * read without its sources beside it.
+   */
+  { key: "revenue", href: "/admin/revenue" },
   /*
    * Beside signals rather than in the queues, for the same reason as the rest
    * of this group: it has no list that drains and no number that is a call to

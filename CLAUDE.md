@@ -1368,6 +1368,33 @@ follows from that.
   It is not a ranking input and not a signal in the enforcement ladder.
 - Ranking is deliberately **not** a payout lever — list position must not
   depend on how the customer chose to pay.
+- **The owner can see what the platform earned, and it is a grouping rather than a
+  calculation.** `lib/data/revenue.ts` sums things other code froze: nothing on
+  `/admin/revenue` recomputes a fee, and the test reads the module's source to keep
+  it that way — a screen that derived 15% of an amount would agree with the frozen
+  column on every fixture ever written and disagree the first time a rate changed,
+  leaving the owner's figure and the professional's statement both arguable.
+  **"From the ledger only" was asked for and is not possible**, which is worth
+  recording as a fact about the schema rather than a decision: `provider_ledger` has
+  no kind for our fee on a digital job — `commission_due` is cash only, what the
+  professional owes us because they hold the notes — so a ledger-only reading would
+  have reported cash fees and silently omitted every digital one. Commission earned
+  is `bookings.platform_fee`, frozen at settlement, settled payments only; the ledger
+  supplies cash billed, redo cost, write-offs and payouts sent.
+  **Commission returned on a refund is its own line and is never netted**, computed
+  by `refundFunding` — the same pure function `agreeRefund` runs, over the same two
+  frozen columns — so a week with a large refund shows the refund rather than a
+  quietly smaller total. `/admin/payouts`'s `carried` rule, one screen over.
+  **Two figures exist to be zero and are printed rather than filtered**: a settled
+  payment with no frozen fee, and a refund agreed with no date. Dropping either would
+  leave weekly columns that look complete and are not — the `/services` rule, where a
+  failed read must never render as a measured zero. The week is Monday 00:00 UTC, the
+  same ISO week the payout run uses, because two week definitions in one product make
+  the two screens unreconcilable.
+  **Cash commission outstanding is a position, not a flow**: there is no "we were
+  paid" ledger kind, since a cash fee is settled by a later payout simply being
+  smaller. It is the sum of the negative balances, and netting the positives in would
+  answer a different question.
 - **The refund screen shows signals and a consequence, and neither decides
   anything.** `/admin/guarantee-claims` used to print one number — the ceiling
   — while the button behind it did three things: pay the customer, return our
