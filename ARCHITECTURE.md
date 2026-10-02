@@ -326,6 +326,14 @@ Where a change on one side cannot reach the other.
   surface — approve, mark sent with the rail's reference, confirm, fail — each
   behind `adminActor()`, a fifteen-minute `amr` proof and a recorded reason, with
   `revealDestination` as the one path that shows an account number.
+- **`providerMoney` is the one read of a professional's money**, and the two screens
+  that show it both render that object rather than computing anything.
+  `/provider/payouts` owns the full view; `/provider` shows a summary and links to
+  it. It replaced `getProviderDashboard.owedRupees`, which derived money from
+  `bookings` and was wrong in four ways at once — cash jobs counted as ours to pay,
+  deferred quarters counted as due, and no payout ever brought it down.
+  `provider_balance` is the number; the test that matters reads both page sources and
+  fails on any arithmetic of their own.
 - **A balance has an end, and the end is not a removal.** `sweepWriteOffs`
   (`lib/data/recovery.ts`) writes off what is owed by anybody with no completed
   job for `PAYOUT_RULES.writeOffAfterMonths`, then closes the listing through

@@ -410,6 +410,22 @@ professional, refused by the database rather than remembered by the caller.
 **`usable_from` is the 72-hour takeover window**, stamped at insert rather than
 derived at payout time so the rule cannot be forgotten by a caller.
 
+### What a professional may read about their own money
+
+`providerMoney(providerId)` in `lib/data/payouts.ts` is the one read, and the
+listing id comes from the session every time — `getMyProvider(profile.id)` on
+`/provider/payouts` and `getProviderDashboard(profile.id)` on `/provider`. **No
+provider id crosses the wire on either screen**, which is the shape all three
+authorization holes found in this product had in common: an id arrived from a
+browser and nothing asked whose it was. It reads through the service role like
+every other money surface, so the RLS policies on `payouts` and `provider_ledger`
+are a floor under it rather than the filter — the filter is the id from the session.
+
+It returns **no account number**. The destination is masked by
+`currentDestination` before it leaves its own data layer, and `revealDestination`
+remains the only path in the product that returns digits, reachable only from
+`/admin/payouts` and only with a recorded reason.
+
 ### The payout run, and what it cannot do
 
 `public.payouts` grants **no insert or update to anybody** — the same posture as

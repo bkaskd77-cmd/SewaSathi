@@ -114,6 +114,23 @@ export default async function AdminIndexPage() {
                 <span className="mt-1 block text-body-sm text-muted-foreground">
                   {t(`queues.${queue.key}.what`)}
                 </span>
+                {/*
+                 * THE AGE, ON THE ONE QUEUE THAT REPORTS ONE, and only when there
+                 * is something to date. `oldest` and `total` are two different
+                 * nulls: a failed count says nothing about ages, and a queue with
+                 * no age reported must not read as empty because of it. So this
+                 * asks `total` first — a count of zero or an unreadable one prints
+                 * no age at all, rather than a stale date that would send somebody
+                 * to an empty screen.
+                 */}
+                {queue.oldest !== null && (queue.total ?? 0) > 0 ? (
+                  <span className="mt-1 block text-caption text-warning-ink">
+                    {t("oldestWaited", {
+                      count: daysWaiting(queue.oldest),
+                      n: String(daysWaiting(queue.oldest)),
+                    })}
+                  </span>
+                ) : null}
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
@@ -190,4 +207,17 @@ export default async function AdminIndexPage() {
       </ul>
     </section>
   );
+}
+
+/**
+ * Whole days since a timestamp, floored.
+ *
+ * FLOORED SO THIS MORNING IS NOT YESTERDAY. A draft made at 03:00 and read at
+ * 09:00 has waited no days, and rounding up would put "1 day" on every fresh run —
+ * which is how an age stops being read at all.
+ */
+function daysWaiting(since: string): number {
+  const elapsed = Date.now() - Date.parse(since);
+  if (!Number.isFinite(elapsed) || elapsed < 0) return 0;
+  return Math.floor(elapsed / 86_400_000);
 }

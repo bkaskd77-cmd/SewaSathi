@@ -15,6 +15,10 @@ import {
   DESTINATION_WATCH_CAP,
   destinationsInCooldownCount,
 } from "@/lib/data/payout-destinations";
+import {
+  PAYOUT_QUEUE_CAP,
+  unresolvedPayoutsQueue,
+} from "@/lib/data/payouts";
 import type { AdminQueueCount } from "@/lib/data/queue";
 import { NO_SHOW_QUEUE_CAP, openNoShowClaimsCount } from "@/lib/data/review";
 import {
@@ -58,6 +62,7 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
     appeals,
     mismatches,
     destinations,
+    payouts,
   ] = await Promise.all([
     reviewQueueCount(),
     openNoShowClaimsCount(),
@@ -66,6 +71,7 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
     openCommissionAppealsCount(),
     openAmountMismatchesCount(),
     destinationsInCooldownCount(),
+    unresolvedPayoutsQueue(),
   ]);
 
   return [
@@ -74,36 +80,42 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/applications",
       total: applications,
       cap: REVIEW_QUEUE_CAP,
+      oldest: null,
     },
     {
       key: "claims",
       href: "/admin/claims",
       total: claims,
       cap: NO_SHOW_QUEUE_CAP,
+      oldest: null,
     },
     {
       key: "refunds",
       href: "/admin/guarantee-claims",
       total: refunds.awaitingPayment,
       cap: REFUND_QUEUE_CAP,
+      oldest: null,
     },
     {
       key: "verdicts",
       href: "/admin/guarantee-claims",
       total: refunds.decidable,
       cap: REFUND_DECIDABLE_CAP,
+      oldest: null,
     },
     {
       key: "surveyFees",
       href: "/admin/survey-fees",
       total: surveyFees,
       cap: SURVEY_FEE_QUEUE_CAP,
+      oldest: null,
     },
     {
       key: "appeals",
       href: "/admin/appeals",
       total: appeals,
       cap: APPEAL_QUEUE_CAP,
+      oldest: null,
     },
     /*
      * Last in the list and first in urgency, which the index's own ordering
@@ -115,6 +127,7 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/mismatches",
       total: mismatches,
       cap: MISMATCH_QUEUE_CAP,
+      oldest: null,
     },
     /*
      * A WATCH RATHER THAN A BACKLOG, and the only queue here where zero is the
@@ -129,6 +142,21 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/payout-destinations",
       total: destinations,
       cap: DESTINATION_WATCH_CAP,
+      oldest: null,
+    },
+    /*
+     * THE ONLY QUEUE HERE THAT REPORTS AN AGE, because it is the only one where
+     * waiting has a compounding cost: an unresolved payout stops the next week
+     * being drafted for that professional, so every day it sits is a day they are
+     * not paid and a week that cannot be totalled. A count alone would read as a
+     * backlog; the date is what says whether it is this morning's or last month's.
+     */
+    {
+      key: "payouts",
+      href: "/admin/payouts",
+      total: payouts.total,
+      cap: PAYOUT_QUEUE_CAP,
+      oldest: payouts.oldest,
     },
   ];
 }

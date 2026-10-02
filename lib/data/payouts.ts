@@ -8,10 +8,13 @@ import { hasSupabaseConfig } from "@/lib/env";
 import {
   heldReasonFor,
   needsReversal,
+  whyWaiting,
   UNRESOLVED_PAYOUT_STATUSES,
   payableTranches,
   type PayableTranche,
+  type PayoutHeldReason,
   type PayoutStatus,
+  type PayoutWait,
   type SettledBooking,
 } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1034,5 +1037,308 @@ export async function payoutsForReview(): Promise<PayoutForReview[] | null> {
   } catch (thrown) {
     console.error(`[payouts] review read threw — ${describeError(thrown)}`);
     return null;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * What a professional is owed, and when it arrives
+ * ------------------------------------------------------------------ */
+
+/** One finished or in-flight payout, as the professional reads it. */
+export type PayoutRecord = {
+  id: string;
+  periodStart: Date;
+  periodEnd: Date;
+  status: PayoutStatus;
+  net: number;
+  /** Why nothing will be sent, or null. The closed set the column allows. */
+  heldReason: PayoutHeldReason | null;
+  reference: string | null;
+  failureReason: string | null;
+  /** When the rail confirmed it arrived. Null until it has. */
+  settledAt: Date | null;
+  /**
+   * When the row was drafted, which is what the age is measured from.
+   *
+   * NOT `period_end`. The period is when the work happened; `created_at` is when
+   * the draft started waiting, and those diverge by exactly the amount that makes
+   * the age worth printing — a run that caught up three missed weeks drafts them
+   * all today, and dating their wait from the period would report three weeks of
+   * delay that nobody caused.
+   */
+  createdAt: Date;
+};
+
+/** A quarter held back on a long-guarantee job, with the date it is released. */
+export type HeldBack = {
+  bookingId: string;
+  reference: string | null;
+  rupees: number;
+  releasesAt: Date;
+};
+
+/**
+ * Everything the professional's money view and the dashboard summary both read.
+ *
+ * ONE FUNCTION, TWO SURFACES, AND THAT IS THE POINT. `/provider/payouts` owns the
+ * money view and `/provider` shows a summary of it; the summary calls this rather
+ * than doing its own arithmetic, so the two can never disagree about what somebody
+ * is owed. `tests/db/provider-money.test.ts` asserts the equality directly.
+ *
+ * WHAT IT REPLACES, WHICH WAS WRONG IN FOUR WAYS. `getProviderDashboard` summed
+ * `provider_earning` across every booking with `payment_status = 'paid'`, under a
+ * comment reading "what is due but not yet released":
+ *
+ *   1. There was no `payout_due_at` filter at all — the comment described a
+ *      behaviour the query did not have, which is the class this repository keeps
+ *      paying for.
+ *   2. Cash jobs counted as money WE owe. On cash the professional holds the notes
+ *      and owes us the fee, so every cash job inflated the figure by a whole
+ *      earning — the number was wrong in the direction that makes somebody feel
+ *      short-changed when it corrects.
+ *   3. The holdback split was ignored, so a quarter deferred for 30 days read as
+ *      due now.
+ *   4. It could never go down. Reading bookings rather than the ledger meant a
+ *      professional paid in full on Tuesday still saw the whole sum as owed on
+ *      Wednesday, and `/providers/standards` promises a balance "you can watch
+ *      going down".
+ *
+ * `provider_balance` is the correct number and already counts `recovery` on both
+ * accounts (`CROSS_KINDS`). So this is not a new feature; it is a screen stopping
+ * re-deriving money from the wrong table.
+ *
+ * `ok: false` IS ITS OWN STATE rather than zeroes. "You are owed nothing" from a
+ * broken query is the single most expensive sentence this screen could print.
+ */
+export type ProviderMoney = {
+  ok: boolean;
+  /** What we owe them now. Negative means they owe us — a week of cash work. */
+  balance: number;
+  /** Redo debt still outstanding. Netted forward, never chased backward. */
+  debt: number;
+  /** Rupees recovered against that debt so far, so it is visible going down. */
+  recovered: number;
+  /** Commission owed to us on cash jobs, which is the other direction. */
+  commissionDue: number;
+  /** The unresolved payout, if there is one. */
+  current: PayoutRecord | null;
+  /** Finished payouts, newest first. */
+  history: PayoutRecord[];
+  /** Quarters held on long-guarantee jobs, with their release dates. */
+  heldBack: HeldBack[];
+  /**
+   * Is there anything in the ledger or a payout yet?
+   *
+   * NOT "HAS A JOB SETTLED", and the difference matters for one sentence on the
+   * screen. A job finished on Monday is settled; its week is totalled on Tuesday,
+   * and until then there is no ledger row and nothing for this view to show. The
+   * copy therefore says nothing has been **totalled** rather than nothing has
+   * settled, which would be false to somebody who finished a job yesterday.
+   *
+   * `false` means no evidence and never zero — a professional at the start is not
+   * "owed Rs 0", which reads as a disappointing result rather than an empty start.
+   */
+  hasSettled: boolean;
+};
+
+const NO_MONEY: ProviderMoney = {
+  ok: false,
+  balance: 0,
+  debt: 0,
+  recovered: 0,
+  commissionDue: 0,
+  current: null,
+  history: [],
+  heldBack: [],
+  hasSettled: false,
+};
+
+function toRecord(row: Record<string, unknown>): PayoutRecord {
+  return {
+    id: String(row.id),
+    periodStart: new Date(String(row.period_start)),
+    periodEnd: new Date(String(row.period_end)),
+    status: row.status as PayoutStatus,
+    net: Number(row.net_rupees ?? 0),
+    heldReason: (row.held_reason as PayoutHeldReason | null) ?? null,
+    reference: (row.external_reference as string | null) ?? null,
+    failureReason: (row.failure_reason as string | null) ?? null,
+    settledAt: row.settled_at ? new Date(String(row.settled_at)) : null,
+    createdAt: new Date(String(row.created_at)),
+  };
+}
+
+export async function providerMoney(providerId: string): Promise<ProviderMoney> {
+  if (!hasSupabaseConfig()) return NO_MONEY;
+
+  try {
+    const admin = createAdminClient();
+
+    /*
+     * ONE WAVE. Nothing here depends on anything else here, and the standing
+     * latency rule is that a round trip is the unit of cost — this screen is read
+     * from Kathmandu against a database in Singapore.
+     */
+    const [balanceRead, debtRead, ledgerRead, payoutRead, holdbackRead] =
+      await Promise.all([
+        admin.rpc("provider_balance", { target: providerId }),
+        admin.rpc("provider_outstanding", { target: providerId }),
+        admin
+          .from("provider_ledger")
+          .select("kind, amount_rupees")
+          .eq("provider_id", providerId),
+        admin
+          .from("payouts")
+          .select(
+            "id, period_start, period_end, status, net_rupees, held_reason, external_reference, failure_reason, settled_at, created_at",
+          )
+          .eq("provider_id", providerId)
+          .order("period_start", { ascending: false })
+          .limit(50),
+        admin
+          .from("bookings")
+          .select("id, reference, payout_holdback_rupees, payout_holdback_until")
+          .eq("provider_id", providerId)
+          .eq("payment_status", "paid")
+          .gt("payout_holdback_rupees", 0)
+          .order("payout_holdback_until", { ascending: true }),
+      ]);
+
+    if (balanceRead.error || debtRead.error || payoutRead.error) {
+      console.error(
+        `[payouts] money read failed for ${providerId} — ${describeError(
+          balanceRead.error ?? debtRead.error ?? payoutRead.error,
+        )}`,
+      );
+      return NO_MONEY;
+    }
+
+    const ledger = (ledgerRead.data ?? []) as {
+      kind: string;
+      amount_rupees: number;
+    }[];
+    const sum = (kind: string) =>
+      ledger
+        .filter((row) => row.kind === kind)
+        .reduce((total, row) => total + Number(row.amount_rupees ?? 0), 0);
+
+    const payouts = (payoutRead.data ?? []) as Record<string, unknown>[];
+    const unresolved = payouts.find((row) =>
+      (UNRESOLVED_PAYOUT_STATUSES as readonly string[]).includes(
+        String(row.status),
+      ),
+    );
+
+    /*
+     * THE HELD QUARTER IS ONLY NEWS UNTIL IT IS RELEASED. A date in the past is
+     * money that has already joined a payout, and listing it as "coming on the
+     * 14th" when the 14th has gone would be a promise made twice.
+     */
+    const now = Date.now();
+    const heldBack = ((holdbackRead.data ?? []) as Record<string, unknown>[])
+      .filter(
+        (row) =>
+          row.payout_holdback_until !== null &&
+          Date.parse(String(row.payout_holdback_until)) > now,
+      )
+      .map((row) => ({
+        bookingId: String(row.id),
+        reference: (row.reference as string | null) ?? null,
+        rupees: Number(row.payout_holdback_rupees ?? 0),
+        releasesAt: new Date(String(row.payout_holdback_until)),
+      }));
+
+    return {
+      ok: true,
+      balance: Number(balanceRead.data ?? 0),
+      debt: Number(debtRead.data ?? 0),
+      recovered: sum("recovery"),
+      /*
+       * COMMISSION DUE IS A LEDGER SUM AND NOT A SUBTRACTION. It is what they owe
+       * us on cash work; `balance` already nets it, so printing it separately is
+       * how a professional sees WHY a week came to less rather than only that it
+       * did. Named as our fee on their cash jobs, never as a deduction from a
+       * payout — the two read very differently to the person being paid.
+       */
+      commissionDue: sum("commission_due"),
+      current: unresolved ? toRecord(unresolved) : null,
+      history: payouts
+        .filter((row) => !(UNRESOLVED_PAYOUT_STATUSES as readonly string[]).includes(String(row.status)))
+        .map(toRecord),
+      heldBack,
+      /*
+       * EVIDENCE, NOT A ZERO. Anything in the ledger, any payout, or a quarter
+       * waiting to be released all count: each is something this view can show. A
+       * professional with none of them has nothing to measure yet, and the screen
+       * says so rather than printing a figure.
+       */
+      hasSettled: ledger.length > 0 || payouts.length > 0 || heldBack.length > 0,
+    };
+  } catch (thrown) {
+    console.error(`[payouts] money read threw — ${describeError(thrown)}`);
+    return NO_MONEY;
+  }
+}
+
+/**
+ * Why this week is waiting, asked once so no surface re-shapes the row itself.
+ *
+ * `whyWaiting` is pure and takes the three fields it judges on; this is the one
+ * adapter from the read to it, so the professional's screen and the dashboard
+ * summary cannot end up asking slightly different questions.
+ */
+export function waitFor(money: ProviderMoney, now?: Date): PayoutWait {
+  return whyWaiting(money.current, { readable: money.ok, now });
+}
+
+/* ------------------------------------------------------------------ *
+ * What the admin index needs to know
+ * ------------------------------------------------------------------ */
+
+/** The ceiling `/admin/payouts` itself applies, so the card can say what it is. */
+export const PAYOUT_QUEUE_CAP = 100;
+
+/**
+ * How many payouts are unresolved, and how long the oldest has been waiting.
+ *
+ * WHY THE AGE IS HALF THE ANSWER. An unresolved payout stops the next week being
+ * drafted for that professional — `payouts_one_in_flight_idx` — so a draft nobody
+ * approves is not a tidy backlog item, it is somebody going unpaid for as long as
+ * it sits there. "Six waiting" does not say whether that is this morning's run or
+ * a month of silence, and only the second one is an emergency.
+ *
+ * ONE QUERY, NOT TWO. `count: "exact"` on the same select that orders oldest-first
+ * gives both, so the number and the date cannot come to disagree the way a
+ * separately-fetched count eventually would — the `QueuePage` reasoning, applied
+ * where the extra fact is a timestamp rather than a cap.
+ *
+ * NULL IN THE COUNT IS A FAILED READ and null in the date is "nothing waiting".
+ * Collapsing them would let a broken query print "nothing to approve" on the screen
+ * that decides whether anybody gets paid this week.
+ */
+export async function unresolvedPayoutsQueue(): Promise<{
+  total: number | null;
+  oldest: string | null;
+}> {
+  if (!hasSupabaseConfig()) return { total: null, oldest: null };
+
+  try {
+    const { data, error, count } = await createAdminClient()
+      .from("payouts")
+      .select("created_at", { count: "exact" })
+      .in("status", UNRESOLVED_PAYOUT_STATUSES)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (error) {
+      console.error(`[payouts] queue count failed — ${describeError(error)}`);
+      return { total: null, oldest: null };
+    }
+
+    const first = (data ?? [])[0] as { created_at: string } | undefined;
+    return { total: count ?? 0, oldest: first?.created_at ?? null };
+  } catch (thrown) {
+    console.error(`[payouts] queue count threw — ${describeError(thrown)}`);
+    return { total: null, oldest: null };
   }
 }

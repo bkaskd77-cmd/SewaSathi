@@ -19,11 +19,12 @@ import {
  * broken and the work is piling up behind it.
  */
 
-const q = (total: number | null) => ({
+const q = (total: number | null, oldest: string | null = null) => ({
   key: "applications" as AdminQueueKey,
   href: "/admin/applications",
   total,
   cap: QUEUE_CAP,
+  oldest,
 });
 
 describe("does anything need a person", () => {
@@ -98,4 +99,28 @@ describe("every queue on the index has words in both languages", () => {
       expect(Object.keys(queues).sort()).toEqual([...KEYS].sort());
     });
   }
+});
+
+describe("the two nulls on a queue card mean different things", () => {
+  /*
+   * `total` null is "the count failed"; `oldest` null is "nothing is waiting, or
+   * this queue reports no age". A screen that read them as one fact would print
+   * "nothing to approve" on a broken query — the sentence that tells somebody to
+   * go home while a professional goes unpaid.
+   */
+  it("an unreadable count with no date is still unreadable, not clear", () => {
+    expect(queuesState([q(null, null)])).toBe("unknown");
+  });
+
+  it("a queue with work and no age reported still says waiting", () => {
+    // Seven of the eight queues report no age at all. Their cards must not read
+    // as empty because of it.
+    expect(queuesState([q(3, null)])).toBe("waiting");
+  });
+
+  it("an age never makes an empty queue read as waiting", () => {
+    // A stale date beside a zero count would be the inverse mistake: it would
+    // send somebody to a queue that has nothing in it.
+    expect(queuesState([q(0, "2026-09-01T00:00:00.000Z")])).toBe("clear");
+  });
 });

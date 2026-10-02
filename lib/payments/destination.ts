@@ -149,3 +149,78 @@ export function heldReasonFor(
       return "no_destination";
   }
 }
+
+/**
+ * Why this week's payout has not arrived, in the professional's terms.
+ *
+ * WHAT THIS IS FOR. `payouts_one_in_flight_idx` refuses a second unresolved
+ * payout, which is what stops two drafts describing the same money — and the cost
+ * is that an unapproved draft stops the next week being drafted at all. The run
+ * counts that as `blocked` in a `cron_runs` summary nobody opens. A guard whose
+ * cost only shows up in a log is how somebody's week quietly becomes a month, so
+ * the person it happens to is told.
+ *
+ * PURE, and in this module rather than in `lib/data/payouts.ts`, for the reason
+ * `heldReasonFor` is here: a judgement inside a `server-only` module is one no test
+ * can reach, which this repository has paid for five times now — the last of them
+ * in the commit that added `heldReasonFor` itself.
+ *
+ * `waiting` IS NOT THE SAME AS `held`, and that distinction is the whole value of
+ * the function. A held payout is waiting on something nameable — an account inside
+ * its cooldown, one nobody has checked, no account at all. A drafted one that is
+ * not held is waiting on **us**: a person has to approve it, and saying "held"
+ * about that would blame the professional's own paperwork for our queue.
+ */
+export type PayoutWait =
+  /** Nothing drafted and nothing owed. The ordinary state between weeks. */
+  | { state: "nothing" }
+  /** Drafted, unheld: a person here has to approve it. Carries its age in days. */
+  | { state: "approval"; days: number }
+  /** Approved and not yet sent, or sent and not yet confirmed. */
+  | { state: "onItsWay" }
+  /** Held, and `reason` says which. */
+  | { state: "held"; reason: PayoutHeldReason }
+  /** We could not read it — never rendered as "nothing is waiting". */
+  | { state: "unreadable" };
+
+export function whyWaiting(
+  payout:
+    | {
+        status: "draft" | "approved" | "sent" | "confirmed" | "failed";
+        heldReason: PayoutHeldReason | null;
+        createdAt: Date;
+      }
+    | null,
+  options: { readable: boolean; now?: Date } = { readable: true },
+): PayoutWait {
+  /*
+   * UNREADABLE OUTRANKS EVERYTHING. A failed read has no payout to describe, and
+   * `null` from a broken query looks exactly like `null` from a quiet week — rule
+   * 6 on the screen where the professional is asking where their money is.
+   */
+  if (!options.readable) return { state: "unreadable" };
+  if (!payout) return { state: "nothing" };
+
+  if (payout.heldReason) return { state: "held", reason: payout.heldReason };
+
+  if (payout.status === "approved" || payout.status === "sent") {
+    return { state: "onItsWay" };
+  }
+
+  if (payout.status === "draft") {
+    const now = options.now ?? new Date();
+    const elapsed = now.getTime() - payout.createdAt.getTime();
+    /*
+     * FLOORED, so a draft made this morning reads as 0 days rather than 1. The age
+     * is what makes the sentence actionable — "waiting since Tuesday" is a
+     * different fact from "waiting since last month" — and rounding it up would
+     * make every fresh draft look a day stale.
+     */
+    const days = Math.max(0, Math.floor(elapsed / 86_400_000));
+    return { state: "approval", days };
+  }
+
+  // `confirmed` and `failed` are finished. Neither is waiting on anything, and a
+  // failed one is reported by its own line rather than as a wait.
+  return { state: "nothing" };
+}

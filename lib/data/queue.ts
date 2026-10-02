@@ -84,6 +84,7 @@ export const ADMIN_QUEUE_KEYS = [
   "appeals",
   "mismatches",
   "payoutDestinations",
+  "payouts",
 ] as const;
 
 export type AdminQueueKey = (typeof ADMIN_QUEUE_KEYS)[number];
@@ -96,6 +97,23 @@ export type AdminQueueCount = {
   total: number | null;
   /** The ceiling that queue's own screen applies. */
   cap: number;
+  /**
+   * When the oldest waiting item started waiting, where the queue reports it.
+   *
+   * TWO NULLS THAT MEAN DIFFERENT THINGS, AND THEY MUST NOT COLLAPSE. `total` is
+   * null when the COUNT failed; this is null when nothing is waiting, when the
+   * queue does not report an age at all, or when the count failed and there was
+   * nothing to date. So a screen reads `total` first to decide whether it knows
+   * anything, and only then reads this — the same ordering `/api/health` uses
+   * between "not looking" and "nothing wrong".
+   *
+   * WHY AN AGE AT ALL. Six items waiting is one fact; the oldest having waited
+   * nine days is the one that decides whether somebody opens the queue now. On
+   * `payouts` it is the whole point: a draft nobody approves stops the next week
+   * being drafted for that professional, so the age is how long they have gone
+   * unpaid.
+   */
+  oldest: string | null;
 };
 
 /**

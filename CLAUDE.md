@@ -1198,6 +1198,45 @@ follows from that.
   twin are what make a double payment a database refusal rather than something the
   application remembers not to do; proven by dropping the index and watching the
   case go red.
+- **The professional can see their own money now, and the figure they used to see
+  was wrong four ways over.** `getProviderDashboard.owedRupees` summed
+  `provider_earning` across every booking with `payment_status = 'paid'`, under a
+  comment claiming it was "what is due but not yet released" — a comment describing
+  behaviour the query did not have, which is the class this file keeps recording.
+  There was no `payout_due_at` filter at all; **cash jobs counted as money WE
+  owed**, when on cash the professional holds the notes and owes us the fee, so
+  every cash job inflated it by a whole earning; the holdback split was ignored, so
+  a quarter deferred for 30 days read as due now; and **it could never go down**,
+  because bookings do not know about payouts — somebody paid in full on Tuesday saw
+  the whole sum on Wednesday, while `/providers/standards` promises a balance "you
+  can watch going down".
+  `provider_balance` was already the right number and no screen was reading it.
+  **`providerMoney` in `lib/data/payouts.ts` is the one money read**, and
+  `/provider/payouts` owns the view: balance, the next Tuesday, each held quarter
+  with its release date, the debt beside what has come off it, our fee on their cash
+  jobs named as the other direction, and the payout history with its references.
+  **The dashboard renders a summary of the same object and computes nothing**, which
+  is what makes the two unable to disagree — `tests/unit/provider-money-one-source.test.ts`
+  reads both page sources and fails on any arithmetic of their own, stripping
+  comments first because naming `provider_earning` in order to warn about it is
+  documentation and not a read. A failed read is its own sentence and a professional
+  with nothing settled is told there is nothing to measure, never shown Rs 0.
+- **A blocked payout is visible on both sides, because a guard whose cost only
+  shows in a log is how a week becomes a month.** `payouts_one_in_flight_idx` stops
+  a second unresolved payout — which is what keeps two drafts from describing the
+  same money — and the cost is that an unapproved draft stops the next week being
+  drafted for that professional. `/admin` has a `payouts` card **carrying the age of
+  the oldest draft**, the only queue there that reports one, because a count says
+  whether there is a backlog and only the date says whether it is this morning's run
+  or a month of silence. `AdminQueueCount.oldest` and `.total` are **two different
+  nulls that must not collapse**: `total` null is a failed count, `oldest` null is
+  nothing waiting or no age reported, so a screen reads `total` first — the
+  `/api/health` ordering between "not looking" and "nothing wrong". And `whyWaiting`
+  (pure, in `lib/payments/destination.ts` beside `heldReasonFor`) gives the
+  professional the sentence: held for a cooling or unconfirmed account, held because
+  we were never told where to send it, or **waiting on us** — which is said as ours
+  rather than coloured as their problem, because blaming somebody's paperwork for
+  our queue is how a working process comes to feel arbitrary.
 - **The guarantee is on the workmanship, so the parts come off the refund
   ceiling — but only on a recorded answer, and never by more than half.**
   `bookings.materials_rupees` is stated by the professional at settlement;

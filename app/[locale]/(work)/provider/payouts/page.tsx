@@ -4,6 +4,7 @@ import { getMessages, getTranslations } from "next-intl/server";
 import { Wallet } from "lucide-react";
 
 import { DestinationForm } from "@/components/provider/destination-form";
+import { MoneyView } from "@/components/provider/money";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
@@ -12,6 +13,7 @@ import {
   currentDestination,
   lastChangedAt,
 } from "@/lib/data/payout-destinations";
+import { providerMoney, waitFor } from "@/lib/data/payouts";
 import { getMyProvider } from "@/lib/data/provider-jobs";
 import { formatInstant } from "@/lib/booking";
 
@@ -63,9 +65,14 @@ export default async function PayoutsPage({
   const me = await getMyProvider(profile!.id);
   if (!me) redirect({ href: "/provider", locale });
 
-  const [read, changedAt] = await Promise.all([
+  /*
+   * ONE WAVE. Three reads, none depending on another — the standing latency rule,
+   * and this screen is opened from Kathmandu against a database in Singapore.
+   */
+  const [read, changedAt, money] = await Promise.all([
     currentDestination(me!.providerId),
     lastChangedAt(me!.providerId),
+    providerMoney(me!.providerId),
   ]);
 
   const destination = read.ok ? read.destination : null;
@@ -85,6 +92,14 @@ export default async function PayoutsPage({
         </h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
+
+      {/*
+        THE MONEY FIRST, THE ADDRESS SECOND. Somebody opening this screen is asking
+        "where is my money", not "what account is on file" — the address is how the
+        answer gets delivered, not the answer. It was the whole page until now
+        because there was nothing to pay out; there is now.
+      */}
+      <MoneyView money={money} wait={waitFor(money)} locale={locale} />
 
       {!read.ok ? (
         /*

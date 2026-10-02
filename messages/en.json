@@ -1498,12 +1498,6 @@
         "noTrade": "Add a trade to your listing before setting a price.",
         "failed": "That did not save. Try again."
       },
-      "money": {
-        "heading": "Your money",
-        "owed": "Earned on finished jobs",
-        "outstanding": "Owed back to us",
-        "outstandingExplained": "Somebody else went back on a job of yours. We take a quarter of a payout at most until it is clear, and we never ask you for cash."
-      },
       "claims": {
         "heading": "Jobs that came back",
         "none": "Nothing has come back.",
@@ -1601,6 +1595,41 @@
         "notSignedIn": "Sign in to change this.",
         "generic": "That did not save. Try again."
       }
+    },
+    "money": {
+      "heading": "Your money",
+      "noEvidence": "Nothing has been totalled up yet, so there is no balance to show. Work you finish appears here after the Tuesday it is paid out for.",
+      "unreadable": "We cannot load your money right now — this a problem at our end, not yours. Nothing is lost; try again shortly.",
+      "balance": "We owe you",
+      "owing": "You owe us",
+      "owingWhy": "Cash jobs: you took the money on the day, so our fee on them is yours to settle. It comes off your next payout.",
+      "nextRun": "Payouts go out every Tuesday.",
+      "waiting": {
+        "approval": "This week's payout is worked out and waiting for somebody here to release it. {count, plural, =0 {Since today} one {Waiting {n} day} other {Waiting {n} days}}.",
+        "onItsWay": "This week's payout has been released and is on its way.",
+        "cooling": "This week's payout is waiting because your account was changed recently. Money goes to a new account three days after the change — that wait is there so nobody can move your earnings quietly.",
+        "unconfirmed": "This week's payout is waiting for somebody here to check your account before the first payment goes to it.",
+        "no_destination": "This week's payout is waiting because we do not know where to send it. Add an account below.",
+        "negative": "Nothing is going out this week: our fee on your cash jobs comes to more than you are owed. It comes off what you earn next — we will not ask you for cash."
+      },
+      "debtTitle": "A refund you are carrying",
+      "debtBody": "Somebody else went back on a job of yours and was paid for their work. At most a quarter of any one payout goes towards it, so no week of yours goes to nothing.",
+      "debtLeft": "Left to clear",
+      "debtCleared": "Cleared so far",
+      "heldTitle": "Held until later",
+      "heldBody": "On work with a guarantee of 90 days or more, a quarter of your earning arrives 30 days after the rest. It is held, not taken — the two parts add up to everything you earned.",
+      "heldOn": "On {reference}",
+      "releases": "Arrives {date}",
+      "historyTitle": "Paid out",
+      "historyNone": "Nothing has been paid out yet.",
+      "historyPeriod": "{from} to {to}",
+      "historyReference": "Reference {reference}",
+      "historyFailed": "This one did not arrive, so the amount went back onto your balance.",
+      "statuses": {
+        "confirmed": "arrived",
+        "failed": "did not arrive"
+      },
+      "toFull": "See all of it"
     }
   },
   "admin": {
@@ -1671,6 +1700,10 @@
         "payoutDestinations": {
           "name": "Payout accounts just changed",
           "what": "A professional's account was replaced and is inside its three-day wait. Nobody can be told by text yet, so this is the only place it shows."
+        },
+        "payouts": {
+          "name": "Payouts to approve",
+          "what": "Each one is a week nobody has released. Until it is approved or failed, that professional's next week cannot be totalled either — so the wait compounds."
         }
       },
       "toolsTitle": "Look things up",
@@ -1691,7 +1724,8 @@
           "name": "Was the triage right",
           "what": "Whether the AI's answer matched what the customer booked and what the job came to."
         }
-      }
+      },
+      "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}."
     },
     "extent": {
       "showing": "Showing {shown} of {total}, oldest first. This screen loads {cap} at a time — clearing these brings the next ones up.",

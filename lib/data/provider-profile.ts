@@ -58,10 +58,24 @@ export type ProviderDashboard = {
   band: { low: number; high: number } | null;
   /** What they typed, when it differed from what we could store. */
   requestedRate: number | null;
-  /** Settled jobs whose payout has not been released yet, in rupees. */
-  owedRupees: number;
-  /** Redo debt still outstanding. Netted forward, never chased. */
-  outstandingRupees: number;
+  /*
+   * THE MONEY FIELDS ARE GONE FROM HERE, deliberately, and this is the note that
+   * stops them coming back.
+   *
+   * `owedRupees` summed `provider_earning` across every booking with
+   * `payment_status = 'paid'`, under a comment that claimed it was "what is due but
+   * not yet released". It was wrong four ways: there was no `payout_due_at` filter
+   * at all; cash jobs counted as money WE owed, when on cash the professional holds
+   * the notes and owes us the fee; the holdback split was ignored, so a quarter
+   * deferred for 30 days read as due now; and it could never go DOWN, because it
+   * read bookings rather than the ledger — a professional paid in full on Tuesday
+   * still saw the whole sum on Wednesday, while /providers/standards promises a
+   * balance "you can watch going down".
+   *
+   * `provider_balance` is the correct number and `providerMoney()` in
+   * `lib/data/payouts.ts` is the one read of it. Both the dashboard summary and
+   * `/provider/payouts` call that, so they cannot disagree.
+   */
   jobsCompleted: number;
   /** Their own record, so the dashboard can show what they have built. */
   ratingAvg: number;
@@ -90,27 +104,17 @@ export async function getProviderDashboard(
     if (!provider) return null;
     const providerId = provider.id as string;
 
-    const [{ data: trades }, { data: stats }, { data: owed }, { data: owing }] =
-      await Promise.all([
-        admin
-          .from("provider_categories")
-          .select("category_slug")
-          .eq("provider_id", providerId),
-        admin
-          .from("provider_stats")
-          .select("jobs_completed, rating_avg, rating_count")
-          .eq("provider_id", providerId)
-          .maybeSingle(),
-        // What is due but not yet released. `payout_due_at` is stamped at
-        // settlement, so this is the professional's own arithmetic rather than
-        // a promise we recompute every time the hold changes.
-        admin
-          .from("bookings")
-          .select("provider_earning")
-          .eq("provider_id", providerId)
-          .eq("payment_status", "paid"),
-        admin.rpc("provider_outstanding", { target: providerId }),
-      ]);
+    const [{ data: trades }, { data: stats }] = await Promise.all([
+      admin
+        .from("provider_categories")
+        .select("category_slug")
+        .eq("provider_id", providerId),
+      admin
+        .from("provider_stats")
+        .select("jobs_completed, rating_avg, rating_count")
+        .eq("provider_id", providerId)
+        .maybeSingle(),
+    ]);
 
     const tradeSlugs = ((trades ?? []) as { category_slug: string }[]).map(
       (row) => row.category_slug,
@@ -118,10 +122,6 @@ export async function getProviderDashboard(
 
     const bands = await getPriceBands();
     const band = bandForTrades(tradeSlugs, bands);
-
-    const earnings = ((owed ?? []) as { provider_earning: number | null }[])
-      .map((row) => Number(row.provider_earning ?? 0))
-      .filter((n) => Number.isFinite(n) && n > 0);
 
     const requested = provider.base_rate_requested as number | null;
 
@@ -155,8 +155,6 @@ export async function getProviderDashboard(
         requested != null && requested !== Number(provider.base_rate ?? 0)
           ? requested
           : null,
-      owedRupees: earnings.reduce((total, n) => total + n, 0),
-      outstandingRupees: Number(owing ?? 0),
       jobsCompleted: Number(stats?.jobs_completed ?? 0),
       ratingAvg: Number(stats?.rating_avg ?? 0),
       ratingCount: Number(stats?.rating_count ?? 0),
@@ -169,8 +167,7 @@ export async function getProviderDashboard(
 }
 
 export type RateWriteResult =
-  | { ok: true; verdict: RateVerdict }
-  | { ok: false; reason: string };
+  { ok: true; verdict: RateVerdict } | { ok: false; reason: string };
 
 /**
  * Their starting price, forced into the published band.
@@ -382,7 +379,9 @@ export async function setBusyUntil(input: {
       state: providerState({
         onJobSince: provider.on_job_since as string | null,
         busyUntil: until,
-        availableUntil: until ? null : (provider.available_until as string | null),
+        availableUntil: until
+          ? null
+          : (provider.available_until as string | null),
         base: provider.availability as BaseAvailability,
       }),
       until: until ? until.toISOString() : null,

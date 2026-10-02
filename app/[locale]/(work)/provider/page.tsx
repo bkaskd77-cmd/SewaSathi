@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { Route, ShieldAlert, Wallet } from "lucide-react";
+import { Route, ShieldAlert } from "lucide-react";
 
 import { AvailabilityControls } from "@/components/provider/availability-toggle";
 import { ClaimCard } from "@/components/provider/claim-card";
 import { RateField } from "@/components/provider/rate-field";
+import { MoneySummary } from "@/components/provider/money";
 import { RecordPanel } from "@/components/provider/record-panel";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { claimsForProvider, openClaimsForTrade } from "@/lib/data/claims";
+import { providerMoney, waitFor } from "@/lib/data/payouts";
 import { mySurveyFees } from "@/lib/data/survey";
 import { getProviderDashboard } from "@/lib/data/provider-profile";
 import { formatInstant, formatMonth } from "@/lib/booking";
@@ -83,7 +85,7 @@ export default async function ProviderDashboardPage() {
    * claim whose professional cannot return used to sit open where nobody could
    * see or take it; these are the ones now offered to the rest of the trade.
    */
-  const [claims, openToMe, surveyFees] = await Promise.all([
+  const [claims, openToMe, surveyFees, money] = await Promise.all([
     claimsForProvider(dashboard.providerId),
     openClaimsForTrade({ providerId: dashboard.providerId }),
     /*
@@ -94,6 +96,14 @@ export default async function ProviderDashboardPage() {
      * this, but a policy is a floor and the admin one sits beside it.
      */
     mySurveyFees(dashboard.providerId),
+    /*
+     * THE SAME READ THE MONEY VIEW USES, not a second opinion about it. The
+     * summary below renders whatever this returns and computes nothing of its own,
+     * which is what `tests/db/provider-money.test.ts` asserts — two screens doing
+     * their own arithmetic on one week's work is how a professional comes to be
+     * told two different figures.
+     */
+    providerMoney(dashboard.providerId),
   ]);
   const live = claims.filter((claim) =>
     ["open", "dispatched", "attended"].includes(claim.status),
@@ -189,39 +199,13 @@ export default async function ProviderDashboardPage() {
         </div>
       </section>
 
-      {/* Money. Two numbers, and the second one is a deduction, so it is
-          explained rather than printed on its own. */}
-      <section className="animate-rise mt-4 rounded-xl border border-border bg-card p-4 sm:p-5">
-        <h2 className="text-body-sm flex items-center gap-2 font-semibold text-foreground">
-          <Wallet aria-hidden="true" className="size-4 text-primary" />
-          {t("money.heading")}
-        </h2>
-        <dl className="mt-3 space-y-2">
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-caption text-muted-foreground">
-              {t("money.owed")}
-            </dt>
-            <dd className="text-body-sm font-semibold text-foreground">
-              {formatNpr(dashboard.owedRupees, { locale })}
-            </dd>
-          </div>
-          {dashboard.outstandingRupees > 0 ? (
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-caption text-muted-foreground">
-                {t("money.outstanding")}
-              </dt>
-              <dd className="text-body-sm font-semibold text-foreground">
-                {formatNpr(dashboard.outstandingRupees, { locale })}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-        {dashboard.outstandingRupees > 0 ? (
-          <p className="text-caption mt-3 text-muted-foreground">
-            {t("money.outstandingExplained")}
-          </p>
-        ) : null}
-      </section>
+      {/* MONEY — a summary of `/provider/payouts`, which owns the figures.
+          It used to be two numbers computed here, and the first of them was
+          wrong four ways over: `owedRupees` summed `provider_earning` across
+          every paid booking, so cash jobs counted as money we owed, a deferred
+          quarter read as due now, and nothing ever came off it when somebody was
+          actually paid. `provider_balance` is the number; this renders it. */}
+      <MoneySummary money={money} wait={waitFor(money)} locale={locale} />
 
       {/* SURVEY TRIPS, AND WHERE EACH ONE HAS GOT TO.
           Every row is a journey somebody made for a job that did not happen.

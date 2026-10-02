@@ -75,8 +75,10 @@ export {
   destinationUsableFrom,
   heldReasonFor,
   maskAccountRef,
+  whyWaiting,
   type DestinationReadiness,
   type PayoutHeldReason,
+  type PayoutWait,
 } from "./destination";
 
 /*
