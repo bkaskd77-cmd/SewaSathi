@@ -1670,9 +1670,14 @@ never reaches the agent, so the call sits until the timeout and rolls back whole
 - **A migration whose POINT is a drop cannot be applied from here at all.** Write the
   file, leave it unapplied, and put the statement in the handover's **Your turn** with
   the state said plainly rather than left to be discovered.
-  `20261002000006_drop_customer_match_keys.sql` is that case: the table is empty and
-  unreferenced, the db suite runs the drop (which is what proves the SQL), and
-  production still holds it.
+  `20261002000006_drop_customer_match_keys.sql` was that case, and is **done**: the
+  file was written and left unapplied, the db suite ran the drop (which is what
+  proved the SQL), the handover carried the one statement, and a person ran it in the
+  Supabase SQL editor — where the confirmation prompt can actually be answered —
+  on 2026-10-03. Verified from here afterwards: `to_regclass` null, no orphan policy,
+  `schema_migrations` recorded. **Say WHERE, not just what**: the first handover said
+  "one statement, by hand" and it was pasted into PowerShell, which is a fair reading
+  of a sentence that named no destination.
 
 Everything the paragraph below establishes about a `DO` block's atomicity remains
 true and useful when a block does go through — one statement to the transport, one

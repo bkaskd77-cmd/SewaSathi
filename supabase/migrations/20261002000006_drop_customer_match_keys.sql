@@ -40,19 +40,22 @@
 -- hand us deliberately.
 --
 -- ------------------------------------------------------------------------
--- NOT APPLIED FROM THE AGENT SANDBOX, AND IT CANNOT BE. The Supabase MCP
--- transport cannot execute a statement whose first keyword is `DROP` — proven by
--- sending `drop table if exists public.zz_nonexistent_probe`, a parse-level
--- no-op naming a table that has never existed, and watching it hang for the full
+-- APPLIED BY HAND ON 2026-10-03, AND IT HAD TO BE. The Supabase MCP transport
+-- cannot execute a statement whose first keyword is `DROP` — proven by sending
+-- `drop table if exists public.zz_nonexistent_probe`, a parse-level no-op
+-- naming a table that has never existed, and watching it hang for the full
 -- 60-second timeout. (`alter table ... drop constraint` is fine; only a leading
--- `DROP` is gated.) See CLAUDE.md § Schema for the whole measured table. The file is
--- the source of truth and the db suite runs it, so a fresh project and every
--- test see the table gone; production still holds it — empty, unreferenced,
--- with its one policy — until somebody runs this statement by hand. That is in
--- the handover's "Your turn" rather than left to be discovered.
+-- `DROP` is gated, because the tool asks for a confirmation that never reaches
+-- the agent.) See CLAUDE.md § Schema for the whole measured table.
 --
--- Nothing is at risk in the meantime: 0 rows (verified before the attempt), no
--- reader and no writer anywhere in the tree.
+-- So this one went through the Supabase SQL editor, where a person can answer
+-- that prompt. Verified afterwards from here: `to_regclass` is null and no
+-- orphan policy survives. Recorded in `schema_migrations` to match.
+--
+-- The cost was nil: 0 rows before the drop, no reader and no writer anywhere in
+-- the tree. **The lesson is the one to keep** — a migration whose point is a
+-- drop cannot be applied by the agent, so it is written, left unapplied, and
+-- put in the handover's "Your turn" rather than left to be discovered.
 -- ------------------------------------------------------------------------
 
 -- The policies, the grants and the index go with the table — `drop table` takes
