@@ -1341,6 +1341,43 @@ follows from that.
   `provider_ledger_trip_once_idx` makes a re-decided claim a database refusal rather
   than something the application remembers not to do, and a unique violation is read
   as "already paid" and allowed through so the claim row can catch up.
+- **No no-show claim pays itself any more, and funding them is what changed.**
+  `judgeNoShowClaim` had an `upheld` outcome that `claimNoShow` settled immediately
+  with `decidedBy: null` — a decision with no decider, which was survivable while
+  `trip_rupees_paid` was a column nothing paid. The moment `trip_compensation` made
+  it real money, that branch became a standing offer of Rs 350 to anybody willing to
+  tap "arrived" at the end of the road, on evidence that is **a tap, two numbers the
+  professional types, and a location from their own phone**. The outcome is gone from
+  the type, so nothing can route around it; `evidenceComplete` survives as a *reason*
+  that tells the reviewer there is no contradiction to resolve, only a judgement.
+  `settleNoShowClaim` is now reachable from `/admin/claims` and nowhere else.
+  **The screen says what the evidence is worth**: the wait and the call count are
+  labelled as the professional's own figures, and the location reads
+  *phone-reported, unverified* — we hold no coordinates for an address to compare it
+  against, so it is never shown as proof. That changes when addresses get a map pin
+  and not before. **Their claim rate is on the screen too**, with its denominator
+  (`claimRateWorthReading`'s rule), because we fund this now — and it is review, not
+  punishment: nothing scores it and nothing acts on it. `maxPaidClaimsPerPeriod` is
+  **null and unarmed**, the `arrearsPauseRupees` shape: two claims in the product's
+  history is no basis for a number, and guessing low means a professional who had a
+  bad month goes unpaid for real trips.
+- **"A past-tense money column is a claim, not a payment" is a mechanical check
+  now.** It had happened three times — `owedRupees`, `applyRedoRecovery`,
+  `trip_rupees_paid` — always the same shape: a column records a decision and
+  everybody reads it as money that moved. `lib/config/money-assertions.ts` declares
+  every `*_paid`/`*_refunded` column with the row that backs it and whether the
+  backing may lag (`guarantee_claims.refund_rupees` legitimately does: approving a
+  refund and sending it are two events, because two of three rails cannot move money
+  from inside this product). `tests/unit/money-assertions.test.ts` scans the
+  migrations and **fails on any such column nobody has declared**, so the question
+  "and what pays this?" is asked when the column is invented rather than five phases
+  later; the db half asserts the backing rows are really there, in both directions —
+  no claim without a payment, and no payment without a claim.
+  **The guard can still be dodged by naming**: `refund_rupees` ends in a noun and the
+  pattern does not catch it. That is written down rather than fixed by widening the
+  regex, because sweeping in every `_rupees` and `_amount` column makes the list long
+  enough that nobody reads it — which is exactly how `trip_rupees_paid` survived in
+  plain sight.
 - **A receipt goes to both sides on every settlement**, carrying the recorded
   amount. Somebody who paid 2,000 and receives a receipt for 1,000 notices —
   afterwards, when the professional has left and saying so costs nothing. It is

@@ -339,12 +339,19 @@ export async function claimNoShow(input: {
     })
     .eq("booking_id", input.bookingId);
 
+  /*
+   * EVERY CLAIM WAITS FOR A PERSON. This used to open as `open` when the evidence
+   * was complete and then settle itself two lines below — which was survivable
+   * while `trip_rupees_paid` was a column nothing paid, and is not now that
+   * `trip_compensation` moves real money. `needs_person` is the only status a
+   * claim can be created in.
+   */
   const { error } = await db.from("no_show_claims").upsert(
     {
       booking_id: input.bookingId,
       provider_id: provider.id as string,
       customer_id: booking.customer_id as string,
-      status: verdict.outcome === "upheld" ? "open" : "needs_person",
+      status: "needs_person",
     },
     { onConflict: "booking_id" },
   );
@@ -353,17 +360,13 @@ export async function claimNoShow(input: {
     return { ok: false };
   }
 
-  // An auto-upheld claim still goes through the same settle path, so there is
-  // exactly one place that pays a professional and marks a customer.
-  if (verdict.outcome === "upheld") {
-    await settleNoShowClaim({
-      bookingId: input.bookingId,
-      decidedBy: null,
-      uphold: true,
-      reason: "Evidence complete and nothing suggested a real door.",
-    });
-  }
-
+  /*
+   * NOTHING IS SETTLED HERE. `settleNoShowClaim` is reached from `/admin/claims`
+   * and from nowhere else, so the one place that pays a professional and marks a
+   * customer is always a person pressing a button with the evidence in front of
+   * them. The auto-settle that used to live here passed `decidedBy: null`, which
+   * is itself the tell: a decision with no decider.
+   */
   return { ok: true, verdict };
 }
 

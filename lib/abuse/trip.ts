@@ -56,6 +56,28 @@ export const TRIP_COMPENSATION = {
    * platform again, which loses the rest of the debt along with the customer.
    */
   recoveryCapBps: 2500,
+  /**
+   * The most no-show claims one professional may be paid for in a period.
+   *
+   * **NULL, AND UNARMED ON PURPOSE** — the `arrearsPauseRupees` shape. Null means
+   * no cap: every claim a person upholds is paid, however many that professional
+   * has made. It is a constant rather than a missing feature so that the day a
+   * number is wanted, it is one edit with a paragraph beside it instead of a new
+   * mechanism argued from scratch under pressure.
+   *
+   * WHY IT IS NOT A NUMBER TODAY. Nobody has the runs to choose one. There are
+   * two claims in the product's whole history, so any figure would be a guess
+   * frozen into the codebase as a standard — and the cost of guessing low is a
+   * professional who genuinely had a bad month going unpaid for real trips, which
+   * is the exact harm the trip payment exists to prevent. The claim rate is on
+   * `/admin/claims` instead: a person reads it and decides, which is what we have
+   * while the numbers are this small.
+   *
+   * A cap would also be the first rule here that refuses a professional money
+   * automatically, so it needs the enforcement ladder's treatment — published,
+   * with what triggers it and how it lifts — before it is switched on.
+   */
+  maxPaidClaimsPerPeriod: null as number | null,
 } as const;
 
 /* ------------------------------------------------------------------ *
@@ -89,12 +111,35 @@ export type ArrivalEvidence = {
 /** How long somebody has to wait before it counts as nobody being there. */
 export const MIN_WAIT_MINUTES = 10;
 
+/**
+ * THERE IS NO `upheld` OUTCOME ANY MORE, and removing it is the point.
+ *
+ * Until the trip was actually funded, an auto-uphold cost nothing but a row: the
+ * claim said `trip_rupees_paid` and no money moved. Now that `trip_compensation`
+ * is a real ledger entry, the same branch pays Rs 350 out of our own money with
+ * **nobody having looked**, on evidence that is almost entirely self-reported —
+ * a tap, two numbers the professional types, and a location from their own phone.
+ * That is a standing offer to anybody willing to tap "arrived" at the end of the
+ * road.
+ *
+ * So every complete claim is a person's decision. The outcomes are now "a person
+ * looks" and "this is not filled in yet", and `incomplete` is still not a refusal:
+ * it names what is missing so the professional can finish it.
+ */
 export type NoShowVerdict =
-  | { outcome: "upheld"; rupees: number; reason: "evidenceComplete" }
   | { outcome: "needsPerson"; reason: NoShowReview }
   | { outcome: "incomplete"; missing: string[] };
 
 export type NoShowReview =
+  /**
+   * Nothing contradicts the claim — and it is still a person's call.
+   *
+   * This used to be the auto-pay branch. It is kept as a distinct reason rather
+   * than folded into the others because it tells the reviewer something true and
+   * useful: there is no contradiction to resolve here, only a judgement about
+   * whether the evidence is enough to pay on.
+   */
+  | "evidenceComplete"
   | "customerConfirmed"
   | "addressProven"
   | "noLocation"
@@ -103,17 +148,18 @@ export type NoShowReview =
 /**
  * Judge one no-show claim.
  *
- * IT NEVER AUTO-REFUSES. The two outcomes are "pay it" and "a person looks" —
- * there is no branch that quietly tells a professional they were not really
- * there. `incomplete` is not a refusal either: it is the claim not having been
- * filled in yet, and it names what is missing so the professional can finish
- * it rather than being told no.
+ * IT NEVER AUTO-REFUSES AND IT NO LONGER AUTO-PAYS. Every complete claim goes to
+ * a person; `incomplete` is not a refusal but the claim not being filled in yet,
+ * and it names what is missing so the professional can finish it rather than
+ * being told no. There is still no branch that quietly tells a professional they
+ * were not really there.
  *
- * Auto-upheld only when the evidence is complete AND the customer never
- * confirmed AND the address was unproven — the case where nothing at all
- * suggests a real door. Everything else goes to a person, because the cost of
- * wrongly marking a real customer is a customer, and this is cheap to review
- * at the volumes involved.
+ * WHAT THE REASON IS FOR. It no longer decides anything — it tells the reviewer
+ * which question they are being asked. `customerConfirmed` is a contradiction to
+ * resolve, `addressProven` means a job has been done at this door before,
+ * `noLocation` means the phone gave nothing, and `evidenceComplete` means nothing
+ * contradicts the claim and the judgement is simply whether this is enough to pay
+ * on. That last one used to pay automatically.
  */
 export function judgeNoShowClaim(input: {
   evidence: ArrivalEvidence;
@@ -144,11 +190,7 @@ export function judgeNoShowClaim(input: {
     return { outcome: "needsPerson", reason: "noLocation" };
   }
 
-  return {
-    outcome: "upheld",
-    rupees: TRIP_COMPENSATION.rupees,
-    reason: "evidenceComplete",
-  };
+  return { outcome: "needsPerson", reason: "evidenceComplete" };
 }
 
 /* ------------------------------------------------------------------ *

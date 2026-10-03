@@ -1840,7 +1840,11 @@
       "open": "Open",
       "paid": "Paid {amount}",
       "absorbed": "First one — we absorb it",
-      "recovered": "Added to their next bill"
+      "recovered": "Added to their next bill",
+      "selfReported": "The wait and the call count are the professional's own figures — nothing checks them. Only the arrival time is ours.",
+      "locatedUnverified": "Phone-reported location, unverified — we have no coordinates for this address to compare it against, so it is not proof of anything",
+      "claimRate": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional, across {jobCount, plural, one {# finished job} other {# finished jobs}}.",
+      "claimRateUnreadable": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional. We could not read how many jobs they have finished, so there is no rate to read here."
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",

@@ -200,6 +200,19 @@ describe("the claim and the customer's record", () => {
        values ($1, $2, $3, 'upheld', 350, 0)`,
       [anitaBooking, manojProvider, ANITA],
     );
+    /*
+     * AND THE PAYMENT IT CLAIMS. This fixture set `trip_rupees_paid = 350` with no
+     * ledger row — which was an accurate model of the product until
+     * `trip_compensation` existed, and is now exactly the state "a past-tense money
+     * column has money behind it" exists to catch. A fixture that cannot satisfy the
+     * invariant is a fixture describing a bug.
+     */
+    await pg.admin.query(
+      `insert into public.provider_ledger
+         (provider_id, booking_id, kind, amount_rupees)
+       values ($1, $2, 'trip_compensation', 350)`,
+      [manojProvider, anitaBooking],
+    );
     await pg.admin.query(
       `insert into public.customer_risk (profile_id, no_shows, trip_debt_rupees)
        values ($1, 1, 0)`,
@@ -566,13 +579,26 @@ describe("the professional is actually paid for the trip", () => {
     return bookingRows[0].id as string;
   }
 
-  /** The row `settleNoShowClaim` writes, as the data layer writes it. */
+  /**
+   * The rows `settleNoShowClaim` writes, in its order: the ledger first, then the
+   * claim. Both, because a payment with no claim behind it is the converse fault and
+   * the invariant cases below check for it — a fixture that writes only half of what
+   * the product writes would make one of them fail for a reason the product does not
+   * have.
+   */
   async function payTrip(bookingId: string): Promise<void> {
     await pg.admin.query(
       `insert into public.provider_ledger
          (provider_id, booking_id, kind, amount_rupees, note)
        values ($1, $2, 'trip_compensation', 350, 'Trip to an address where nobody answered')`,
       [manojProvider, bookingId],
+    );
+    await pg.admin.query(
+      `insert into public.no_show_claims
+         (booking_id, provider_id, customer_id, status, trip_rupees_paid)
+       values ($1, $2, $3, 'upheld', 350)
+       on conflict (booking_id) do update set trip_rupees_paid = 350`,
+      [bookingId, manojProvider, ANITA],
     );
   }
 
@@ -625,5 +651,53 @@ describe("the professional is actually paid for the trip", () => {
     );
 
     expect(after[0].owed).toBe(before[0].owed);
+  });
+});
+
+describe("a past-tense money column has money behind it", () => {
+  /**
+   * THE OTHER HALF OF `tests/unit/money-assertions.test.ts`. That one makes a new
+   * `*_paid` column impossible to add without declaring what pays it; this one
+   * checks the payment is actually there, against a database, for the declarations
+   * whose timing is `immediate`.
+   *
+   * It is written against the rows rather than against `settleNoShowClaim`, because
+   * the failure it exists to catch was never in that function's logic — the figure
+   * was always right. What was missing was a row somewhere else entirely, and only a
+   * query that starts from the claim and goes looking can tell those apart.
+   */
+  it("pays every upheld no-show claim it says it paid", async () => {
+    const { rows } = await pg.admin.query(`
+      select c.booking_id, c.trip_rupees_paid,
+             (select count(*) from public.provider_ledger l
+               where l.booking_id = c.booking_id
+                 and l.kind = 'trip_compensation') as ledger_rows
+        from public.no_show_claims c
+       where c.trip_rupees_paid > 0
+    `);
+
+    const unpaid = rows.filter((row) => Number(row.ledger_rows) === 0);
+    expect(
+      unpaid.map((row) => row.booking_id),
+      "these claims say they paid the professional and no trip_compensation row exists",
+    ).toEqual([]);
+  });
+
+  /*
+   * And the converse, which is the one a double-payment would trip: a ledger row
+   * for a trip nobody claimed. The partial unique index stops two rows per booking;
+   * this stops a row with no claim behind it at all.
+   */
+  it("pays nothing for a trip nobody claimed", async () => {
+    const { rows } = await pg.admin.query(`
+      select l.booking_id
+        from public.provider_ledger l
+       where l.kind = 'trip_compensation'
+         and not exists (
+           select 1 from public.no_show_claims c where c.booking_id = l.booking_id
+         )
+    `);
+
+    expect(rows.map((row) => row.booking_id)).toEqual([]);
   });
 });

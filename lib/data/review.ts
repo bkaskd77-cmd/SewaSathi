@@ -736,6 +736,25 @@ export type OpenClaim = {
    * thin evidence differently from somebody about to charge a customer.
    */
   wouldBeAbsorbed: boolean;
+  /**
+   * How often this professional claims a no-show, and out of how many jobs.
+   *
+   * ON THIS SCREEN BECAUSE WE NOW FUND THE CLAIM. Until `trip_compensation`
+   * existed, upholding one moved no money and the only cost of a weak claim was a
+   * mark against a customer. It is our Rs 350 now, so the reviewer needs to know
+   * whether this is somebody's first claim in forty jobs or their fourth in five.
+   *
+   * EVERY COUNT CARRIES ITS DENOMINATOR, the `claimRateWorthReading` rule: four
+   * claims out of four jobs and out of four hundred are different facts, and a
+   * bare count is exactly how they come to look the same. `jobs` null means the
+   * count could not be read — never 0, which would read as "they have never
+   * worked" and make any rate look infinite.
+   *
+   * REVIEW, NOT PUNISHMENT. It is not a ranking input, not a step on the
+   * enforcement ladder, and nothing computes a threshold from it. A professional
+   * who serves a neighbourhood where people are out a lot is not a liar.
+   */
+  claimHistory: { claims: number; jobs: number | null };
 };
 
 export const NO_SHOW_QUEUE_CAP = QUEUE_CAP;
@@ -829,6 +848,26 @@ export async function openNoShowClaims(input?: {
     const history = await customerHistory(row.customer_id as string);
     const ladder = judgeCustomerLadder(history);
 
+    /*
+     * The professional's own record. Both counts are reads rather than stored
+     * columns, for the reason the completed-jobs count above is: a stale copy
+     * quietly stops meaning anything, and this one is read while somebody decides
+     * whether to pay.
+     */
+    const providerId = row.provider_id as string;
+    const [{ count: claimCount }, { count: jobCount, error: jobError }] =
+      await Promise.all([
+        db
+          .from("no_show_claims")
+          .select("id", { count: "exact", head: true })
+          .eq("provider_id", providerId),
+        db
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("provider_id", providerId)
+          .eq("status", "completed"),
+      ]);
+
     claims.push({
       id: row.id as string,
       bookingId,
@@ -849,6 +888,11 @@ export async function openNoShowClaims(input?: {
           effectiveStrikesBefore: ladder.effectiveStrikes,
           depositStep: CUSTOMER_LADDER.depositAt,
         }) === 0,
+      claimHistory: {
+        claims: claimCount ?? 0,
+        // A failed count is null, never 0 — rule 6 on the denominator.
+        jobs: jobError ? null : (jobCount ?? 0),
+      },
     });
   }
 

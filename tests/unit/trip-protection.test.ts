@@ -217,12 +217,41 @@ describe("a claim without evidence is one person's word", () => {
     );
   });
 
-  it("upholds a complete claim against an unproven address", () => {
+  /*
+   * THIS CASE USED TO ASSERT AN AUTOMATIC PAYMENT, and the inversion is the point.
+   * While `trip_rupees_paid` was a column nothing paid, auto-upholding a complete
+   * claim cost a row. Now `trip_compensation` moves Rs 350 of our money, and the
+   * evidence behind "complete" is a tap, two numbers the professional types and a
+   * location from their own phone — so the same branch would be a standing offer
+   * to anybody willing to tap "arrived" at the end of the road.
+   */
+  it("sends even a complete, uncontradicted claim to a person", () => {
     const verdict = judgeNoShowClaim({ ...clean, evidence: FULL_EVIDENCE });
-    expect(verdict.outcome).toBe("upheld");
-    expect(verdict.outcome === "upheld" && verdict.rupees).toBe(
-      TRIP_COMPENSATION.rupees,
+    expect(verdict.outcome).toBe("needsPerson");
+    expect(verdict.outcome === "needsPerson" && verdict.reason).toBe(
+      "evidenceComplete",
     );
+  });
+
+  /*
+   * The stronger statement, and the one that cannot be satisfied by renaming an
+   * outcome: no input of any shape produces a verdict that pays by itself. If an
+   * auto-pay branch is ever added back, this fails whatever it is called.
+   */
+  it("has no outcome at all that pays without a person", () => {
+    const everything = [
+      { ...clean, evidence: FULL_EVIDENCE },
+      { ...clean, evidence: FULL_EVIDENCE, customerConfirmed: true },
+      { ...clean, evidence: FULL_EVIDENCE, addressProven: true },
+      { ...clean, evidence: FULL_EVIDENCE, customerDisputed: true },
+      { ...clean, evidence: { ...FULL_EVIDENCE, coarseLocation: null } },
+      { ...clean, evidence: { ...FULL_EVIDENCE, contactAttempts: 0 } },
+    ];
+    for (const input of everything) {
+      const verdict = judgeNoShowClaim(input);
+      expect(["needsPerson", "incomplete"]).toContain(verdict.outcome);
+      expect(verdict).not.toHaveProperty("rupees");
+    }
   });
 
   it("sends it to a person when the customer said they would be there", () => {
@@ -271,7 +300,7 @@ describe("a claim without evidence is one person's word", () => {
     ];
     for (const input of cases) {
       const verdict = judgeNoShowClaim(input);
-      expect(["upheld", "needsPerson"]).toContain(verdict.outcome);
+      expect(verdict.outcome).toBe("needsPerson");
     }
   });
 });

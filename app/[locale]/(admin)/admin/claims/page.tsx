@@ -93,6 +93,37 @@ export default async function ClaimsQueuePage() {
                 })}
               </p>
 
+              {/*
+                WHAT THE EVIDENCE ACTUALLY IS, said on the screen where somebody
+                decides to pay. The wait and the call count are numbers the
+                professional typed; only the arrival stamp is ours. A reviewer
+                weighing "waited 20 minutes, rang 3 times" needs to know nothing
+                checked either figure, or they are reading a claim as a record.
+              */}
+              <p className="text-caption mt-1 text-muted-foreground">
+                {t("selfReported")}
+              </p>
+
+              {/*
+                THEIR OWN RECORD, with its denominator. We fund this now, so the
+                question "is this their first claim in forty jobs or their fourth
+                in five" is part of the decision. It is review, not punishment:
+                nothing scores it and nothing acts on it.
+              */}
+              <p className="text-caption mt-1 text-muted-foreground">
+                {claim.claimHistory.jobs === null
+                  ? t("claimRateUnreadable", {
+                      n: String(claim.claimHistory.claims),
+                      count: claim.claimHistory.claims,
+                    })
+                  : t("claimRate", {
+                      n: String(claim.claimHistory.claims),
+                      count: claim.claimHistory.claims,
+                      jobs: String(claim.claimHistory.jobs),
+                      jobCount: claim.claimHistory.jobs,
+                    })}
+              </p>
+
               <ul className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
                 <li className="flex items-center gap-1.5">
                   {claim.hasLocation ? (
@@ -100,7 +131,7 @@ export default async function ClaimsQueuePage() {
                   ) : (
                     <MapPinOff aria-hidden="true" className="size-4" />
                   )}
-                  {claim.hasLocation ? t("located") : t("noLocation")}
+                  {claim.hasLocation ? t("locatedUnverified") : t("noLocation")}
                 </li>
                 {claim.customerConfirmed ? (
                   <li className="flex items-center gap-1.5 text-warning-ink">
