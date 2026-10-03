@@ -41,10 +41,11 @@
 --
 -- ------------------------------------------------------------------------
 -- NOT APPLIED FROM THE AGENT SANDBOX, AND IT CANNOT BE. The Supabase MCP
--- transport cannot execute a `DROP` — proven by sending
--- `drop table if exists public.zz_nonexistent_probe`, a parse-level no-op
--- naming a table that has never existed, and watching it hang for the full
--- 60-second timeout like every other drop. See CLAUDE.md § Schema. The file is
+-- transport cannot execute a statement whose first keyword is `DROP` — proven by
+-- sending `drop table if exists public.zz_nonexistent_probe`, a parse-level
+-- no-op naming a table that has never existed, and watching it hang for the full
+-- 60-second timeout. (`alter table ... drop constraint` is fine; only a leading
+-- `DROP` is gated.) See CLAUDE.md § Schema for the whole measured table. The file is
 -- the source of truth and the db suite runs it, so a fresh project and every
 -- test see the table gone; production still holds it — empty, unreferenced,
 -- with its one policy — until somebody runs this statement by hand. That is in

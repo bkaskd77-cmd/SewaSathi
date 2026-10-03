@@ -42,6 +42,25 @@ export const LEDGER_KINDS = [
   "payout_reversal",
   /** Withholding tax. Zero until an accountant confirms the rule. */
   "tax_withheld",
+  /**
+   * The trip a professional made to a door nobody answered.
+   *
+   * WHY THIS KIND EXISTS AT ALL: `no_show_claims.trip_rupees_paid` has been
+   * written since Phase 10 under a column comment reading "What we paid the
+   * professional", the terms say we pay it, `/providers/standards` says we pay it
+   * — and **no money ever moved.** There was no ledger row, no payout line and
+   * nothing anywhere that a payout run could see. The claim row asserted a payment
+   * that did not exist, which is `owedRupees` and `applyRedoRecovery` a third
+   * time.
+   *
+   * It is OURS TO THEM and has nothing to do with a guarantee, so it belongs in
+   * `MONEY_KINDS` and not in `GUARANTEE_KINDS`: the customer's debt for that trip
+   * lives on `customer_risk.trip_debt_rupees`, is recovered from the customer, and
+   * never touches this account. Paid unconditionally when the claim is upheld,
+   * because a payment conditional on recovery is no payment at all — it would move
+   * the uncertainty onto the person who already lost the hour.
+   */
+  "trip_compensation",
 ] as const;
 
 export type LedgerKind = (typeof LEDGER_KINDS)[number];
@@ -75,6 +94,13 @@ export const MONEY_KINDS = [
   "payout_reversal",
   "tax_withheld",
   "recovery",
+  /*
+   * Money we owe them for a wasted trip. On the money account and NOT on the
+   * guarantee one: the matching debt is the customer's, on
+   * `customer_risk.trip_debt_rupees`, and recovering it never credits this row
+   * back — we paid, and whether the customer ever repays us is our problem.
+   */
+  "trip_compensation",
 ] as const;
 
 /**

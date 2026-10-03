@@ -1503,7 +1503,8 @@ export type Database = {
             | "commission_due"
             | "payout"
             | "payout_reversal"
-            | "tax_withheld";
+            | "tax_withheld"
+            | "trip_compensation";
           /**
            * The remittance this row belongs to.
            *
@@ -1531,7 +1532,8 @@ export type Database = {
             | "commission_due"
             | "payout"
             | "payout_reversal"
-            | "tax_withheld";
+            | "tax_withheld"
+            | "trip_compensation";
           amount_rupees: number;
           note?: string | null;
           created_at?: string;

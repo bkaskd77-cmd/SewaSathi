@@ -17,24 +17,43 @@ import {
  * migration, the same arrangement as `LOGGABLE_REASONS` and `CRON_JOBS`.
  */
 describe("the ledger kinds match the column's check constraint", () => {
+  /*
+   * THE LAST DEFINITION WINS, AND NAMING ONE FILE WAS THE TRAP. This read used to
+   * open `20260929000001_ledger_kinds.sql` by name. The day `trip_compensation` was
+   * added the constraint's authoritative definition moved to a later migration, and
+   * this case failed while the schema was perfectly consistent — pointing at the
+   * wrong file and reporting the list as drifted.
+   *
+   * It is the same trap CLAUDE.md records for policies ("breaking one to test it
+   * means editing its LAST definition"), one object type over, and here it bit the
+   * test rather than a break-test. So the kinds are read from the last migration
+   * that defines the constraint, in filename order — which is the order Postgres
+   * applied them in, so the last definition is what the database has.
+   */
   it("permits exactly the same kinds in TypeScript and in SQL", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const sql = await readFile(
-      new URL(
-        "../../supabase/migrations/20260929000001_ledger_kinds.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
+    const { readFile, readdir } = await import("node:fs/promises");
+    const dir = new URL("../../supabase/migrations/", import.meta.url);
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
-    // `[\s\S]` rather than the `s` flag: this project targets an older ES
-    // level and tsc refuses `/s` outright.
-    const list = sql.match(/check \(kind in \(([\s\S]*?)\)\)/)?.[1] ?? "";
-    const inSql = (list.match(/'[a-z_]+'/g) ?? [])
-      .map((quoted) => quoted.slice(1, -1))
-      .sort();
+    let inSql: string[] | null = null;
+    let from = "";
+    for (const file of files) {
+      const sql = await readFile(new URL(file, dir), "utf8");
+      if (!sql.includes("provider_ledger_kind_check")) continue;
+      // `[\s\S]` rather than the `s` flag: this project targets an older ES
+      // level and tsc refuses `/s` outright.
+      const list = sql.match(/check \(kind in \(([\s\S]*?)\)\)/)?.[1];
+      if (list === undefined) continue;
+      inSql = (list.match(/'[a-z_]+'/g) ?? [])
+        .map((quoted) => quoted.slice(1, -1))
+        .sort();
+      from = file;
+    }
 
-    expect(inSql).toEqual([...LEDGER_KINDS].sort());
+    // A list nobody defines is not a passing state: it would mean the constraint
+    // has been deleted, and this case would otherwise go green on null.
+    expect(inSql, "no migration defines provider_ledger_kind_check").not.toBeNull();
+    expect(inSql, `the list in ${from}`).toEqual([...LEDGER_KINDS].sort());
   });
 
   it("matches the hand-written database types as well", async () => {

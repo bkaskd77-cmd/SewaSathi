@@ -124,8 +124,8 @@
     "file": "20261001000003_payouts.sql"
   },
   "provider_balance": {
-    "sha": "8e0b0997e31f4eea",
-    "file": "20261001000002_balance_counts_recovery.sql"
+    "sha": "af3ba9b2ea6a44f2",
+    "file": "20261002000007_trip_compensation.sql"
   },
   "provider_can_serve": {
     "sha": "44c6b266ce54561d",

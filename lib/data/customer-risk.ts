@@ -424,6 +424,46 @@ export async function settleNoShowClaim(input: {
     depositStep: CUSTOMER_LADDER.depositAt,
   });
 
+  /*
+   * PAY THEM, WHICH IS THE PART THAT NEVER HAPPENED.
+   *
+   * `trip_rupees_paid` has been written here since Phase 10 under a column comment
+   * reading "What we paid the professional", and no money ever moved — no ledger
+   * row, so nothing for the payout run to find, nothing in `provider_balance`,
+   * nothing on their own money screen. The claim asserted a payment that did not
+   * exist.
+   *
+   * THE LEDGER ROW GOES FIRST, before the claim is marked upheld. If the ledger
+   * write fails, the claim stays open and a person sees it again — recoverable. The
+   * other order would mark it paid with nothing paid, which is the state this is
+   * fixing. `provider_ledger_trip_once_idx` makes a second attempt on the same
+   * booking a database refusal rather than a double payment, so a re-decided claim
+   * cannot pay twice: the insert errors, the claim is left alone, and the ledger
+   * carries exactly one row.
+   */
+  const { error: ledgerError } = await db.from("provider_ledger").insert({
+    provider_id: claim.provider_id as string,
+    booking_id: input.bookingId,
+    kind: "trip_compensation",
+    amount_rupees: TRIP_COMPENSATION.rupees,
+    note: "Trip to an address where nobody answered",
+  });
+
+  if (ledgerError) {
+    /*
+     * A unique violation means this claim was already paid — the decision is simply
+     * being re-recorded, so carry on and let the claim row catch up. Anything else
+     * leaves the claim open rather than marking a payment nobody made.
+     */
+    const duplicate = (ledgerError as { code?: string }).code === "23505";
+    if (!duplicate) {
+      console.error(
+        `[customer-risk] trip not paid, claim left open — ${describeError(ledgerError)}`,
+      );
+      return false;
+    }
+  }
+
   await db
     .from("no_show_claims")
     .update({

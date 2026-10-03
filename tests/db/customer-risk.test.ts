@@ -535,3 +535,95 @@ describe("one incident counts once, however many ways it was recorded", () => {
     await manoj.end();
   });
 });
+
+describe("the professional is actually paid for the trip", () => {
+  /**
+   * WHY THIS IS A DATABASE TEST AND NOT A UNIT ONE. The gap it closes was never a
+   * wrong calculation — `TRIP_COMPENSATION.rupees` has been correct and written onto
+   * `no_show_claims.trip_rupees_paid` since Phase 10. What was missing is that no row
+   * existed anywhere a payout could find, so only a test that looks at
+   * `provider_ledger` and `provider_balance` can tell the two states apart. A unit
+   * test of the amount would have passed throughout.
+   */
+  /*
+   * Each booking gets its own slot: `enforce_slot_capacity` refuses a second one for
+   * the same professional at the same time, which is correct and nothing to do with
+   * trips — three cases failed on it before the offset was added.
+   */
+  let slot = 90;
+
+  async function upheldClaim(reference: string): Promise<string> {
+    slot += 1;
+    const { rows: bookingRows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, scheduled_for)
+       values ($1, $2, $3, 'plumbing', $4, 'Nobody home', 900, 4500,
+               now() + ($5 || ' days')::interval)
+       returning id`,
+      [reference, ANITA, manojProvider, anitaAddress, String(slot)],
+    );
+    return bookingRows[0].id as string;
+  }
+
+  /** The row `settleNoShowClaim` writes, as the data layer writes it. */
+  async function payTrip(bookingId: string): Promise<void> {
+    await pg.admin.query(
+      `insert into public.provider_ledger
+         (provider_id, booking_id, kind, amount_rupees, note)
+       values ($1, $2, 'trip_compensation', 350, 'Trip to an address where nobody answered')`,
+      [manojProvider, bookingId],
+    );
+  }
+
+  it("raises what we owe them, which is what a payout run can see", async () => {
+    const booking = await upheldClaim("SK-TRIP1");
+
+    const { rows: before } = await pg.admin.query(
+      "select public.provider_balance($1) as balance",
+      [manojProvider],
+    );
+    await payTrip(booking);
+    const { rows: after } = await pg.admin.query(
+      "select public.provider_balance($1) as balance",
+      [manojProvider],
+    );
+
+    expect(after[0].balance - before[0].balance).toBe(350);
+  });
+
+  /*
+   * ONE PAYMENT PER BOOKING, REFUSED BY THE DATABASE. A claim can be looked at again
+   * — the queue allows it — and `settleNoShowClaim` is an ordinary update that cannot
+   * know whether it has run before. The index is the rule, not the application's
+   * memory, which is the idiom `our_reference` and the recovery indexes already use.
+   */
+  it("refuses a second payment for the same trip", async () => {
+    const booking = await upheldClaim("SK-TRIP2");
+    await payTrip(booking);
+
+    await expect(payTrip(booking)).rejects.toThrow();
+  });
+
+  /*
+   * THE DEBT IS THE CUSTOMER'S AND IS NOT ON THIS ACCOUNT. If `trip_compensation`
+   * ever reached `provider_outstanding`, paying somebody for a wasted trip would read
+   * as them owing us money and the redo sweep would start recovering it out of their
+   * next payout — the opposite of what the terms promise.
+   */
+  it("is not a guarantee debt against the professional", async () => {
+    const booking = await upheldClaim("SK-TRIP3");
+
+    const { rows: before } = await pg.admin.query(
+      "select public.provider_outstanding($1) as owed",
+      [manojProvider],
+    );
+    await payTrip(booking);
+    const { rows: after } = await pg.admin.query(
+      "select public.provider_outstanding($1) as owed",
+      [manojProvider],
+    );
+
+    expect(after[0].owed).toBe(before[0].owed);
+  });
+});

@@ -1318,6 +1318,29 @@ follows from that.
   affect anything seen more often than a guarantee claim. The cap is never
   silent: the adjudicator sees what was entered beside what came off, because
   hiding the clamped figure would hide the one signal worth weighing.
+- **The professional is paid for a wasted trip now, and the claim had asserted that
+  payment since Phase 10 with no money behind it.** `settleNoShowClaim` wrote
+  `no_show_claims.trip_rupees_paid = 350` under a column comment reading "What we paid
+  the professional"; the terms say we pay it, `/providers/standards` says we pay it,
+  the audit row said we paid it, and **there was no ledger row** — so nothing for the
+  payout run to find, nothing in `provider_balance`, nothing on their own money
+  screen. `owedRupees` and `applyRedoRecovery` were the first two of this exact shape;
+  this is the third, and the pattern worth naming is that **a column whose name is a
+  past-tense verb is a claim, not a payment** — `trip_rupees_paid`, like
+  `trip_debt_added_rupees` will be, has to be read as "what we decided" and the money
+  looked for separately.
+  `trip_compensation` is the ledger kind, in `MONEY_KINDS` and deliberately **not** in
+  `GUARANTEE_KINDS`: it is ours to them, and the matching debt is the *customer's* on
+  `customer_risk.trip_debt_rupees`. If it ever reached `provider_outstanding`, paying
+  somebody for a wasted trip would read as them owing us money and the redo sweep
+  would recover it out of their next payout — the exact opposite of the promise, which
+  is why that is pinned as its own db case.
+  **The ledger row is written BEFORE the claim is marked upheld.** A failed ledger
+  write leaves the claim open for a person to see again; the other order marks a
+  payment nobody made, which is the state being fixed.
+  `provider_ledger_trip_once_idx` makes a re-decided claim a database refusal rather
+  than something the application remembers not to do, and a unique violation is read
+  as "already paid" and allowed through so the claim row can catch up.
 - **A receipt goes to both sides on every settlement**, carrying the recorded
   amount. Somebody who paid 2,000 and receives a receipt for 1,000 notices —
   afterwards, when the professional has left and saying so costs nothing. It is
@@ -1608,41 +1631,52 @@ actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
 `pg_proc`. The file is still what the db suite runs and what a fresh project
 gets; applying it by hand from a dashboard is how the two drift apart.
 
-**The MCP transport cannot execute a `DROP` at all, and that single fact explains
-every hang this project has blamed on something else.** Twice now this paragraph has
-described the behaviour and got the cause wrong — first "multi-statement DDL hangs",
-then "it is unreliable and the fix is one bare statement" — so here is what is
-actually measured, with the experiment that settles it:
+**A statement whose FIRST keyword is `DROP` hangs on the MCP transport. Nothing
+else does.** This paragraph has now been wrong twice and over-general once, so it is
+written as the measurements rather than as a theory. Every row was run against the
+live project:
 
 ```
-create table + alter + revoke, in ONE large DO block   applied, instantly
-DO block holding an index + `drop trigger if exists`   timed out 60s, 3 times
-   the same two statements sent bare, WITHOUT the drop  applied, instantly
-create policy / grant / comment on / alter table add   applied, instantly
-drop table public.customer_match_keys                  timed out 60s, twice
-drop table if exists public.zz_nonexistent_probe       timed out 60s
+drop table public.customer_match_keys                        hangs 60s  (x2)
+drop table if exists public.zz_nonexistent_probe             hangs 60s
+drop trigger if exists zz_probe on public.provider_ledger    hangs 60s
+drop policy if exists "zz probe" on public.provider_ledger   hangs 60s
+alter table ... drop constraint if exists zz_probe           INSTANT
+create table / index / trigger / policy, alter table add,
+  grant, revoke, comment on, create or replace function      INSTANT
+one LARGE `DO` block of creates, alters and revokes          INSTANT
+a SMALL `DO` block containing one `drop trigger if exists`   hangs 60s  (x3)
 ```
 
-**That last line is the proof.** It names a table that has never existed, so it
-touches nothing, locks nothing and is a parse-level no-op — and it still hangs for a
-full minute. Nothing about size, statement count, blocks, locks or the pooler can
-explain that; the only property it shares with the other failures is the word `DROP`.
-The `execute_sql` tool's own description says destructive statements may require the
-user to confirm, and that confirmation never reaches the agent, so the call sits until
-the 60-second timeout and rolls back.
+**The probes are what make this a fact rather than a guess.** Three of them name
+objects that have never existed — a table, a trigger and a policy — so they touch
+nothing, lock nothing and are parse-level no-ops, and they still hang for the full
+minute. Size, statement count, locks, the pooler and the `DO` block are all ruled out
+by the rows above: the small block hung because of the `drop trigger` inside it, and
+the large one succeeded because it contained no drop. `execute_sql`'s own description
+says destructive statements may require the user to confirm, and that confirmation
+never reaches the agent, so the call sits until the timeout and rolls back whole.
 
-**So: never send a `DROP` through the MCP** — not bare, not inside a `DO` block, not
-as the `drop trigger if exists` or `drop policy if exists` half of the
-drop-and-recreate idiom this repo uses everywhere. Send the `create` half alone (the
-object does not exist yet on a fresh apply, and `create or replace` covers a rebuild),
-and **a migration whose point IS a drop cannot be applied from here**: write the file,
-leave it unapplied, and put the one statement in the handover's **Your turn** with the
-state said plainly. `20261002000006_drop_customer_match_keys.sql` is exactly that case
-and is recorded as such.
+**What follows, practically:**
 
-Everything the paragraph below establishes about a `DO` block's atomicity is still
-true and still worth having when a block does go through — a block is one statement to
-the transport and one implicit transaction. It was simply never the fix for a hang.
+- **`ALTER TABLE … DROP CONSTRAINT` is fine**, which is what matters most, because
+  that is how every check constraint in this schema is changed — drop it and add it
+  back, both as `alter table`. Changing the ledger's kind list is applicable from
+  here.
+- **The `drop X` + `create X` idiom this repo uses everywhere is not.** Send the
+  `create` half alone: on a fresh apply the object does not exist, and
+  `create or replace` covers a rebuild. The file keeps both halves, because the db
+  suite and a fresh project need the drop.
+- **A migration whose POINT is a drop cannot be applied from here at all.** Write the
+  file, leave it unapplied, and put the statement in the handover's **Your turn** with
+  the state said plainly rather than left to be discovered.
+  `20261002000006_drop_customer_match_keys.sql` is that case: the table is empty and
+  unreferenced, the db suite runs the drop (which is what proves the SQL), and
+  production still holds it.
+
+Everything the paragraph below establishes about a `DO` block's atomicity remains
+true and useful when a block does go through — one statement to the transport, one
+implicit transaction. It was simply never the fix for a hang.
 
 **Multi-statement DDL over that connection also hangs, which is what the `DO`
 block was for.** Reproduced with two trivial statements — a `create
