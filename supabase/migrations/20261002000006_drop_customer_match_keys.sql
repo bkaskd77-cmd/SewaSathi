@@ -1,0 +1,61 @@
+-- AFTER-DEPLOY: nothing reads or writes this table, so the drop is safe in any
+--   order relative to a deploy. It is listed as after-deploy anyway because the
+--   generated types stop naming it in the same commit, and a build serving the
+--   old types against a dropped table would be the ordinary version of this
+--   hazard even though this particular table had no queries at all.
+
+-- REMOVES: customer_match_keys — the whole table. See below.
+
+-- ---------------------------------------------------------------------------
+-- Stop holding hashed customer names and wards.
+--
+-- WHAT IT WAS FOR. `recordCustomerKeys` hashed a customer's name and ward into
+-- this table and `bannedAccountMatches` compared those hashes to spot a banned
+-- account wearing a new SIM. Neither function ever had a caller, so **not one row
+-- was ever written** and the matcher had nothing to match — a dead path that read,
+-- across three comments, like a control.
+--
+-- WHY DROPPED RATHER THAN WIRED, which is a decision about collecting identity
+-- data and not a tidy-up:
+--
+--   1. THE KEYS ARE WEAK BY CONSTRUCTION. Thousands of people in Kathmandu share
+--      a first name and a ward, so a hit was never evidence of anything — the
+--      design said so itself, calling it a reason to ask for confirmation and
+--      never a reason to refuse somebody a plumber.
+--   2. THE GATE IT WOULD HAVE FED IS ALREADY CLOSED. `armConfirmation` is wired
+--      now, and it asks for an active confirmation from ANY address nobody has
+--      proved — which is the same protection, reached without a second durable
+--      record of who somebody is. The matcher's entire output would have been an
+--      input to a check that already runs.
+--   3. SO THE TABLE WAS PERSONAL DATA KEPT FOR NOTHING. Collecting now and
+--      deciding later is the wrong order for personal data, and "later" here had
+--      already lasted four phases.
+--
+-- IF BAN EVASION TURNS OUT TO BE REAL, this comes back with a measurement behind
+-- it and a stronger key than a first name. That is a different table with a
+-- different argument, not this one restored.
+--
+-- `matchKeysFor` and `MatchKeyKind` are untouched in `lib/verification`: the
+-- provider side matches on document numbers, which are strong keys that applicants
+-- hand us deliberately.
+--
+-- ------------------------------------------------------------------------
+-- NOT APPLIED FROM THE AGENT SANDBOX, AND IT CANNOT BE. The Supabase MCP
+-- transport cannot execute a `DROP` — proven by sending
+-- `drop table if exists public.zz_nonexistent_probe`, a parse-level no-op
+-- naming a table that has never existed, and watching it hang for the full
+-- 60-second timeout like every other drop. See CLAUDE.md § Schema. The file is
+-- the source of truth and the db suite runs it, so a fresh project and every
+-- test see the table gone; production still holds it — empty, unreferenced,
+-- with its one policy — until somebody runs this statement by hand. That is in
+-- the handover's "Your turn" rather than left to be discovered.
+--
+-- Nothing is at risk in the meantime: 0 rows (verified before the attempt), no
+-- reader and no writer anywhere in the tree.
+-- ------------------------------------------------------------------------
+
+-- The policies, the grants and the index go with the table — `drop table` takes
+-- every dependent object, and there is nothing else referencing it.
+-- ---------------------------------------------------------------------------
+
+drop table if exists public.customer_match_keys;

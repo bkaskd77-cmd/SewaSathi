@@ -1,7 +1,5 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import {
   TRIP_COMPENSATION,
   addressTrust,
@@ -20,7 +18,6 @@ import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { matchKeysFor, type MatchKeyKind } from "@/lib/verification";
 
 /**
  * The customer's side of the fraud problem, and the professional who was
@@ -35,11 +32,6 @@ import { matchKeysFor, type MatchKeyKind } from "@/lib/verification";
  * separately. A trip payment conditional on recovery would be no payment at
  * all — it would move the uncertainty onto the person least able to absorb it.
  */
-
-/** Same shape as the provider side, kind included so kinds cannot collide. */
-function hashKey(kind: MatchKeyKind, value: string): string {
-  return createHash("sha256").update(`${kind}:${value}`).digest("hex");
-}
 
 /* ------------------------------------------------------------------ *
  * The customer's record
@@ -74,94 +66,33 @@ export async function customerHistory(
   };
 }
 
-/**
- * Store the keys that make a ban outlive a phone number.
+/*
+ * WHAT USED TO BE HERE, AND WHY IT IS NOT.
  *
- * NOTHING CALLS THIS. The comment used to say "called when an address is
- * saved", which was the intent and never the fact — the address path does not
- * reach it, so no customer key has ever been recorded and the two functions
- * below have nothing to read. Wiring it or deleting it is decided after
- * payouts; until then this is a capability, not a feature.
+ * `recordCustomerKeys` hashed a customer's name and ward into
+ * `customer_match_keys`, and `bannedAccountMatches` looked for a banned account
+ * wearing a new SIM by comparing those hashes. Neither ever had a caller, so not one
+ * key was ever written and the matcher had nothing to match — a dead path that read,
+ * across three comments, like a control.
  *
- * The intent, kept because it is the argument for wiring it: an address is the
- * first moment a customer gives us anything durable — a name and a ward.
- * Deliberately fewer keys than the provider side: we do not ask a customer for
- * a citizenship number, and we are not going to start in order to police them.
+ * DELETED RATHER THAN WIRED, which is a decision about collecting identity data and
+ * not a tidy-up. The keys are weak by construction: thousands of people in Kathmandu
+ * share a first name and a ward, so a hit was never evidence of anything, and the
+ * design said so itself — a reason to ask for confirmation, never a reason to refuse
+ * somebody a plumber. **We now ask for that confirmation anyway**, from any address
+ * nobody has proved, which is `armConfirmation` below and is wired. So the matcher's
+ * entire output would have been an input to a gate that is already closed, and the
+ * table was personal data held for nothing.
+ *
+ * Collecting now and deciding later is the wrong order for personal data. The honest
+ * version of "later": if ban evasion turns out to be real, this comes back with a
+ * measurement behind it and a stronger key than a first name. The table is dropped
+ * in `20261002000006`.
+ *
+ * `matchKeysFor` and `MatchKeyKind` survive in `lib/verification` — the provider side
+ * matches on document numbers, which are strong keys that applicants give us
+ * deliberately.
  */
-export async function recordCustomerKeys(input: {
-  profileId: string;
-  fullName?: string | null;
-  areaKeys?: string[];
-  deviceFingerprint?: string | null;
-}): Promise<void> {
-  if (!hasSupabaseConfig()) return;
-
-  const keys = matchKeysFor({
-    fullName: input.fullName ?? "",
-    areaKeys: input.areaKeys ?? [],
-    deviceFingerprint: input.deviceFingerprint ?? undefined,
-  });
-  if (keys.length === 0) return;
-
-  const db = createAdminClient();
-  await db.from("customer_match_keys").upsert(
-    keys.map((key) => ({
-      profile_id: input.profileId,
-      kind: key.kind,
-      key_hash: hashKey(key.kind, key.value),
-    })),
-    { onConflict: "profile_id,kind,key_hash", ignoreDuplicates: true },
-  );
-}
-
-/**
- * Is this person a banned account wearing a new SIM?
- *
- * NOTHING CALLS THIS AT ALL, which is a stronger statement than the one this
- * comment used to make. It said nothing calls it to AUTO-BLOCK — true, and it
- * read as though something called it to warn. Nothing does, and
- * `recordCustomerKeys` above has never written a key, so today it would have
- * nothing to match against even if it were wired.
- *
- * The design still holds and is why it should be wired rather than deleted: it
- * returns evidence rather than a verdict. A name and a ward are weak keys —
- * thousands of people share both — so a hit is a reason to ask for
- * confirmation, never a reason to refuse somebody their plumber.
- */
-export async function bannedAccountMatches(
-  profileId: string,
-): Promise<Array<{ kind: MatchKeyKind; profileId: string }>> {
-  if (!hasSupabaseConfig()) return [];
-  const db = createAdminClient();
-
-  const { data: mine } = await db
-    .from("customer_match_keys")
-    .select("kind, key_hash")
-    .eq("profile_id", profileId);
-
-  if (!mine || mine.length === 0) return [];
-
-  const { data: others } = await db
-    .from("customer_match_keys")
-    .select("kind, key_hash, profile_id, customer_risk(banned_at)")
-    .in(
-      "key_hash",
-      mine.map((row) => row.key_hash as string),
-    )
-    .neq("profile_id", profileId);
-
-  return (others ?? [])
-    .filter((row) => {
-      const risk = (row as Record<string, unknown>).customer_risk as
-        | { banned_at: string | null }
-        | null;
-      return risk?.banned_at != null;
-    })
-    .map((row) => ({
-      kind: row.kind as MatchKeyKind,
-      profileId: row.profile_id as string,
-    }));
-}
 
 /* ------------------------------------------------------------------ *
  * Address trust and the confirmation gate

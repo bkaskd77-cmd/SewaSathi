@@ -1608,20 +1608,41 @@ actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
 `pg_proc`. The file is still what the db suite runs and what a fresh project
 gets; applying it by hand from a dashboard is how the two drift apart.
 
-**The transport is unreliable in a way neither "statement count" nor "DO block"
-explains, and the reliable path is one bare statement per call.** This note used
-to say a `DO` block was the way through. Applying
-`20261002000004_category_price_revisions.sql` measured otherwise: one LARGE `DO`
-block (create table, alter, revoke) applied instantly; one SMALL `DO` block (an
-index and a trigger) timed out at 60 seconds **three times**, through
-`apply_migration` and `execute_sql` alike; and each of those same statements, sent
-bare, applied instantly. `pg_locks` was empty, `pg_stat_activity` idle, nothing
-waiting, and every timed-out attempt rolled back whole. So **send one statement per
-call** and order the file closed-before-open, because without the block there is no
-atomicity to lean on and any statement can be the last one that runs. The paragraph
-below is kept because what it established about a block's atomicity is still true
-and still useful when a block does go through — it is just not a way to avoid
-hanging.
+**The MCP transport cannot execute a `DROP` at all, and that single fact explains
+every hang this project has blamed on something else.** Twice now this paragraph has
+described the behaviour and got the cause wrong — first "multi-statement DDL hangs",
+then "it is unreliable and the fix is one bare statement" — so here is what is
+actually measured, with the experiment that settles it:
+
+```
+create table + alter + revoke, in ONE large DO block   applied, instantly
+DO block holding an index + `drop trigger if exists`   timed out 60s, 3 times
+   the same two statements sent bare, WITHOUT the drop  applied, instantly
+create policy / grant / comment on / alter table add   applied, instantly
+drop table public.customer_match_keys                  timed out 60s, twice
+drop table if exists public.zz_nonexistent_probe       timed out 60s
+```
+
+**That last line is the proof.** It names a table that has never existed, so it
+touches nothing, locks nothing and is a parse-level no-op — and it still hangs for a
+full minute. Nothing about size, statement count, blocks, locks or the pooler can
+explain that; the only property it shares with the other failures is the word `DROP`.
+The `execute_sql` tool's own description says destructive statements may require the
+user to confirm, and that confirmation never reaches the agent, so the call sits until
+the 60-second timeout and rolls back.
+
+**So: never send a `DROP` through the MCP** — not bare, not inside a `DO` block, not
+as the `drop trigger if exists` or `drop policy if exists` half of the
+drop-and-recreate idiom this repo uses everywhere. Send the `create` half alone (the
+object does not exist yet on a fresh apply, and `create or replace` covers a rebuild),
+and **a migration whose point IS a drop cannot be applied from here**: write the file,
+leave it unapplied, and put the one statement in the handover's **Your turn** with the
+state said plainly. `20261002000006_drop_customer_match_keys.sql` is exactly that case
+and is recorded as such.
+
+Everything the paragraph below establishes about a `DO` block's atomicity is still
+true and still worth having when a block does go through — a block is one statement to
+the transport and one implicit transaction. It was simply never the fix for a hang.
 
 **Multi-statement DDL over that connection also hangs, which is what the `DO`
 block was for.** Reproduced with two trivial statements — a `create

@@ -14,6 +14,7 @@ import {
 import { providerCapacity } from "@/lib/data/capacity";
 import { isSurveyPriced } from "@/lib/config/services";
 import { getCategory, getSubBands } from "@/lib/data/categories";
+import { armConfirmation } from "@/lib/data/customer-risk";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -622,6 +623,40 @@ export async function createBooking(
         .single();
 
       if (!error && data) {
+        /*
+         * ARM THE TRIP CONFIRMATION, which is the step that had never existed.
+         *
+         * `bookings.confirmation_required` and its trigger have been in the schema
+         * for phases and the db suite proves a customer cannot clear the flag from a
+         * browser — but nothing ever SET it, so the guard protected nothing. The
+         * same four-phase sin as `applyRedoRecovery` with no caller, in the one
+         * place where the cost is a professional riding across Kathmandu to an
+         * address nobody is at.
+         *
+         * AFTER THE INSERT AND NOT INSIDE IT, because `armConfirmation` reads this
+         * address's history — upheld no-shows against completed jobs — and the
+         * booking row has to exist before anything can be written onto it. The hold
+         * is a window before dispatch rather than a block on the booking, so an
+         * extra round trip here delays nothing a customer is waiting on.
+         *
+         * IT NEVER FAILS THE BOOKING. `notify()`'s rule: the booking already
+         * happened, and a customer whose job vanished because an anti-fraud flag
+         * could not be written is a worse outcome than a trip we might have held.
+         * An unarmed booking dispatches as every booking did before this line
+         * existed.
+         */
+        try {
+          await armConfirmation({
+            bookingId: data.id as string,
+            addressId: parsed.data.addressId,
+            isEmergency: parsed.data.urgency === "emergency",
+          });
+        } catch (thrown) {
+          console.error(
+            `[bookings] confirmation not armed — ${describeError(thrown)}`,
+          );
+        }
+
         return {
           ok: true,
           reference: data.reference as string,

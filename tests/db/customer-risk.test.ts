@@ -262,41 +262,14 @@ describe("the claim and the customer's record", () => {
   });
 });
 
-describe("customer match keys are hashed and out of reach", () => {
-  beforeAll(async () => {
-    await pg.admin.query(
-      `insert into public.customer_match_keys (profile_id, kind, key_hash)
-       values ($1, 'name', repeat('a', 64))`,
-      [ANITA],
-    );
-  });
-
-  it("is readable by an admin only", async () => {
-    const admin = await pg.asUser(ADMIN);
-    const { rows: adminRows } = await admin.query(
-      "select id from public.customer_match_keys",
-    );
-    expect(adminRows).toHaveLength(1);
-    await admin.end();
-
-    const owner = await pg.asUser(ANITA);
-    const { rows: ownerRows } = await owner.query(
-      "select id from public.customer_match_keys",
-    );
-    expect(ownerRows).toHaveLength(0);
-    await owner.end();
-  });
-
-  it("refuses a hash that is not one", async () => {
-    await expect(
-      pg.admin.query(
-        `insert into public.customer_match_keys (profile_id, kind, key_hash)
-         values ($1, 'name', 'plain text')`,
-        [MANOJ],
-      ),
-    ).rejects.toThrow();
-  });
-});
+/*
+ * WHAT USED TO BE HERE: two cases over `customer_match_keys` — that only an admin
+ * could read it, and that a non-hash was refused. Both were correct and both are
+ * gone with the table (`20261002000006`), because nothing ever wrote a key and the
+ * gate the matcher would have fed is `armConfirmation`, which is wired. Deleting a
+ * passing test is worth a sentence: these did not become wrong, their subject
+ * stopped existing.
+ */
 
 describe("an upheld no-show marks the door, not just the account", () => {
   it("counts against the address", async () => {

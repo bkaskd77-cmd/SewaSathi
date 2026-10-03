@@ -755,26 +755,6 @@ export type Database = {
         Relationships: [];
       };
 
-      customer_match_keys: {
-        Row: {
-          id: string;
-          profile_id: string;
-          kind: string;
-          key_hash: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          profile_id: string;
-          kind: string;
-          key_hash: string;
-          created_at?: string;
-        };
-        Update: Partial<
-          Database["public"]["Tables"]["customer_match_keys"]["Insert"]
-        >;
-        Relationships: [];
-      };
 
       provider_applications: {
         Row: {

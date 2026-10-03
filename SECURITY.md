@@ -802,6 +802,20 @@ What we hold, why, who can read it, how long.
 - **No email, no password.** Phone and OTP only, so there is no password
   database to leak and no reused password to test elsewhere.
 - **No card details, ever.** eSewa and Khalti hold them; we hold a reference.
+- **No hashed customer names or wards.** `customer_match_keys` held a SHA-256 of a
+  customer's first name and each ward they had given us, so a banned account could be
+  recognised behind a new SIM. It is dropped (`20261002000006`). Nothing ever wrote a
+  row — both functions were uncalled — and the keys were weak by construction, since
+  thousands of people in Kathmandu share a first name and a ward; a hit was never
+  evidence, which the design itself said. The protection it was meant to feed is
+  `armConfirmation`, which asks for an active confirmation from any address nobody has
+  proved and is wired now, so the matcher's whole output would have been an input to a
+  check that already runs.
+  **And it was never in the table above**, which is the part worth keeping: a store of
+  hashed customer identity data existed for four phases and the inventory that exists
+  to list exactly that did not mention it. The lesson is not about this table — it is
+  that an inventory maintained by hand beside a schema is complete until somebody
+  forgets, and nothing here compares the two. Adding a table means adding a row.
 
 ---
 
