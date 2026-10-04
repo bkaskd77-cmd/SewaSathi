@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
+  "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
   "crons": [
     {
       "path": "/api/payments/reconcile",
