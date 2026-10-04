@@ -243,9 +243,23 @@ function selfTest() {
     bad += 1;
   }
 
-  // And the coverage rule itself must bite: a page nobody listed is a gap.
-  const invented = coverageGaps(["app/[locale]/(admin)/admin/payouts/page.tsx"]);
-  if (invented.length !== 1 || invented[0].route !== "/admin/payouts") {
+  /*
+   * And the coverage rule itself must bite: a page nobody listed is a gap.
+   *
+   * THE ROUTE HERE IS INVENTED ON PURPOSE, AND IT WAS NOT. This used
+   * `/admin/payouts` — a real screen — which worked until that screen was added to
+   * `GUARDED_ROUTES`, at which point it stopped being unlisted and this self-test
+   * started failing on every run. It had been failing for some time: this script runs
+   * in neither CI nor the agent sandbox, and `tests/unit/deploy-check.test.ts` exercises
+   * the rules without calling `--self-test`, so between one human run and the next
+   * nothing said so.
+   *
+   * A self-test whose premise is a real route is a self-test that breaks the day
+   * somebody does the right thing. `/admin/__never__` cannot be listed, because it
+   * cannot exist.
+   */
+  const invented = coverageGaps(["app/[locale]/(admin)/admin/__never__/page.tsx"]);
+  if (invented.length !== 1 || invented[0].route !== "/admin/__never__") {
     console.error(
       "  self-test FAILED — coverageGaps did not report an unlisted admin page",
     );

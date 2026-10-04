@@ -17,7 +17,14 @@
  */
 
 export type AdminTool = {
-  key: "lookup" | "signals" | "bands" | "revenue" | "triageAccuracy" | "audit";
+  key:
+    | "lookup"
+    | "signals"
+    | "bands"
+    | "revenue"
+    | "content"
+    | "triageAccuracy"
+    | "audit";
   /** Unprefixed; the caller's `Link` adds the locale. */
   href: string;
 };
@@ -45,5 +52,11 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * action. It answers "is the AI right", which is a standing question.
    */
   { key: "triageAccuracy", href: "/admin/triage-accuracy" },
+  /*
+   * Also not a queue, and the distinction matters here more than most: 1,300 editable
+   * strings is a list that never drains, and a count of them would read as work
+   * outstanding when it is simply how many words the product contains.
+   */
+  { key: "content", href: "/admin/content" },
   { key: "audit", href: "/admin/audit" },
 ];

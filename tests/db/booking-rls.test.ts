@@ -2052,6 +2052,22 @@ describe("RLS covers every table, including ones nobody has written a test for",
     "provider_categories",
     "provider_reviews",
     "provider_stats",
+    /*
+     * THE WORDS ON A PAGE ANYBODY CAN OPEN, which is what makes a `using (true)` the
+     * right policy here rather than a hole. `content_strings` is what the landing page
+     * says; `content_documents` and `content_document_versions` are the terms, the
+     * privacy page and the enforcement ladder, all four of which are published and
+     * linked before anybody signs up.
+     *
+     * Decided out loud, as this set requires, and the boundary is drawn one table
+     * across: `content_string_revisions` is NOT here, because it carries who changed
+     * what — which is about people rather than about the words — and is admin-only.
+     * `updated_by` on `content_strings` is a staff id and no read in the application
+     * selects it.
+     */
+    "content_strings",
+    "content_documents",
+    "content_document_versions",
   ]);
 
   /** The one table a stranger may write to: the "join us" form. */

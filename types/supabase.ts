@@ -269,6 +269,8 @@ export type Database = {
           payment_status: string;
           triage_log_id: string | null;
           locale: string;
+          /** Null means the booking predates versioning — never version 1. */
+          terms_version: number | null;
           created_at: string;
           updated_at: string;
           accepted_at: string | null;
@@ -414,6 +416,7 @@ export type Database = {
           payment_status?: string;
           triage_log_id?: string | null;
           locale?: string;
+          terms_version?: number | null;
           created_at?: string;
           updated_at?: string;
           accepted_at?: string | null;
@@ -694,6 +697,102 @@ export type Database = {
         };
         Update: Partial<
           Database["public"]["Tables"]["booking_arrivals"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      content_strings: {
+        Row: {
+          id: string;
+          message_key: string;
+          locale: "en" | "ne";
+          value: string;
+          tier: "money" | "safety" | "legal" | "staff" | "none";
+          updated_by: string | null;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_key: string;
+          locale: "en" | "ne";
+          value: string;
+          tier: "money" | "safety" | "legal" | "staff" | "none";
+          updated_by?: string | null;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["content_strings"]["Insert"]>;
+        Relationships: [];
+      };
+
+      content_string_revisions: {
+        Row: {
+          id: string;
+          message_key: string;
+          locale: "en" | "ne";
+          /** Null means there was no override — the key was reading from the JSON. */
+          previous_value: string | null;
+          new_value: string;
+          tier: string;
+          changed_by: string | null;
+          changed_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_key: string;
+          locale: "en" | "ne";
+          previous_value?: string | null;
+          new_value: string;
+          tier: string;
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["content_string_revisions"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      content_documents: {
+        Row: {
+          slug: "terms" | "privacy" | "refunds" | "standards";
+          /** Null until somebody publishes a version. */
+          live_version: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          slug: "terms" | "privacy" | "refunds" | "standards";
+          live_version?: number | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["content_documents"]["Insert"]>;
+        Relationships: [];
+      };
+
+      content_document_versions: {
+        Row: {
+          id: string;
+          slug: "terms" | "privacy" | "refunds" | "standards";
+          version: number;
+          body_en: string;
+          body_ne: string;
+          effective_from: string;
+          published_by: string | null;
+          published_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: "terms" | "privacy" | "refunds" | "standards";
+          version: number;
+          body_en: string;
+          body_ne: string;
+          effective_from: string;
+          published_by?: string | null;
+          published_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["content_document_versions"]["Insert"]
         >;
         Relationships: [];
       };

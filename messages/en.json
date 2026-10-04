@@ -1803,6 +1803,10 @@
         "triageAccuracy": {
           "name": "Was the triage right",
           "what": "Whether the AI's answer matched what the customer booked and what the job came to."
+        },
+        "content": {
+          "name": "Words",
+          "what": "Change what the product says, in both languages, without a deploy."
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}."
@@ -2353,6 +2357,33 @@
         "destinationChanged": "The account changed after this was drafted. This payout cannot be sent.",
         "notFound": "That payout is no longer there.",
         "generic": "That did not go through. Try again."
+      }
+    },
+    "content": {
+      "title": "Words",
+      "lead": "Change what the product says, in both languages, without a deploy. The catalogue in the repository stays the source — this lays your wording over it, and the original is always shown underneath so you can see what you are changing.",
+      "namespace": "Part of the product",
+      "allNamespaces": "All",
+      "tier": "What it carries",
+      "allTiers": "All",
+      "filter": "Show these",
+      "showing": "{count, plural, one {# string} other {# strings}}",
+      "showingCapped": "Showing the first {n} of {total}. Narrow it with the filters above.",
+      "empty": "Nothing matches those filters.",
+      "english": "English",
+      "nepali": "नेपाली",
+      "save": "Save",
+      "originally": "Originally: {value}",
+      "showHistory": "What this used to say",
+      "noHistory": "This has never been changed.",
+      "fromCatalogue": "the original wording",
+      "rollback": "Put this back",
+      "tiers": {
+        "money": "Money",
+        "safety": "Safety",
+        "legal": "Terms",
+        "staff": "Staff only",
+        "none": "Ordinary"
       }
     }
   }

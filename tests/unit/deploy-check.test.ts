@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -392,5 +393,36 @@ describe("the routes a schedule points at", () => {
     const verdict = judgeCron({ path: "/api/payments/reconcile", status: 405 });
     expect(verdict.ok).toBe(false);
     expect(verdict.failure).toMatch(/GET/);
+  });
+});
+
+describe("the script's own self-test actually passes", () => {
+  /**
+   * WHY THIS CASE EXISTS, AND IT IS A FIX FOR A BUG THE SELF-TEST ITSELF HAD.
+   * `check-deployed.mjs --self-test` runs its rules with no network, and it had been
+   * failing for some time without anybody knowing: its coverage assertion named
+   * `/admin/payouts` as a page nobody had listed, which stopped being true the day that
+   * screen was added to `GUARDED_ROUTES`.
+   *
+   * It went unnoticed because of exactly the gap the script's own comment warns about —
+   * this script runs in neither CI nor the agent sandbox, and the cases above exercise
+   * the rules directly without ever invoking `--self-test`. So the self-test was the one
+   * thing with nothing watching it.
+   *
+   * Running it from here closes that: `npm run verify` and CI both run this file, so a
+   * self-test that stops passing now fails somewhere a person looks. The premise it
+   * checks is an invented route that can never be listed, so doing the right thing
+   * elsewhere cannot break it again.
+   */
+  it("exits zero with no network", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/check-deployed.mjs", "--self-test"],
+      { encoding: "utf8" },
+    );
+    expect(
+      result.status,
+      `self-test output:\n${result.stdout}\n${result.stderr}`,
+    ).toBe(0);
   });
 });

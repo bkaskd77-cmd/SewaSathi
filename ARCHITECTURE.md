@@ -29,6 +29,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
 | **content** | `@/lib/content/*` | Legal and information prose, both languages |
 | **config** | `@/lib/config/*` | Categories, areas, brand strings, the guarantee windows |
+| **content** | `@/lib/content/*` | Legal and information prose, both languages — plus `tiers.ts`, which answers what a message key is worth. That answer is imported from `scripts/ne-review-scope.mjs` rather than restated: the same rule decides which Nepali strings block a launch and which edits keep a revision, and two copies of it would agree until somebody edited one. |
 | **geo** | `@/lib/geo` (isomorphic) | Distance, what counts as a coordinate, and the approximate centre of a ward. Isomorphic because the booking form validates a pin in the browser and the ranking measures one on the server. `./tiles` is deliberately **not** re-exported — see the adapter table. |
 
 `auth` has three entries rather than one and the split is forced, not
@@ -1458,6 +1459,65 @@ happened to the first version of `20260903000001`.
 backed by a session setting instead of a JWT, the same shape Supabase's local
 tooling uses. Every policy, constraint and trigger under test is the one that
 ships. A green run proves our policies are right — not that Supabase's auth is.
+
+## Words a person can change without a deploy
+
+`/admin/content` edits interface strings in both languages. Four tables carry it:
+`content_strings`, `content_string_revisions`, `content_documents`,
+`content_document_versions`.
+
+**An override, never a copy.** `messages/en.json` and `messages/ne.json` stay the
+source of truth — 1,855 keys each — and `content_strings` holds only what somebody
+changed. That is what keeps three existing guards working rather than needing
+rebuilding: `check:messages` comparing the catalogues key by key, `check:keys`
+proving every key the code asks for exists, and a fresh clone with no database
+rendering the whole product. An empty table is the normal state.
+
+**A failed read renders the catalogue, and that is the most important line in the
+module.** `i18n/request.ts` is the single path every rendered string passes
+through, so an unreachable table must not produce empty strings — it would not
+degrade one screen, it would empty all of them, including the ones that would
+normally explain what went wrong. Rule 6 in the shape it takes for copy, and
+sharper than the `/services` case it comes from: there a failed read can say "this
+is us, not you", and here there would be no sentence left to say it with.
+
+**An override for a key the catalogue does not have is ignored, not added.** A key
+only in the database is one no code asks for; adding it would let a typo'd edit
+become a message nobody renders, leaving somebody sure they fixed a line that
+still reads the old way. The catalogue decides what keys exist; the override
+decides what they say.
+
+**`admin.*` is not editable.** 551 of the keys are strings only staff read,
+including the ones on the editing screen. An admin who breaks the save button has
+broken the thing they would need to fix it, and no customer sees the benefit.
+Refused in the data layer as well as hidden from the form, because a server action
+is a public POST endpoint.
+
+**Money, safety and legal edits keep a revision** — the same three tiers that block
+a launch, for the same reason: a wrong word there costs somebody money or safety
+and cannot be noticed by reading the screen it is on. Rollback re-applies a
+revision rather than trusting an undo, and a rollback to a null `previous_value`
+**deletes the override** instead of writing an empty string: "put it back to what
+the developers wrote" is not the same as blanking the line.
+
+**No AI on these screens**, as decided. Nothing suggests a translation or rewrites
+a sentence; the words a customer reads are a person's responsibility.
+
+### Image uploads — deferred until after launch
+
+Category cards render a lucide icon by name, and the admin picks from
+`CATEGORY_ICONS` (`lib/config/icons.ts`). **There are no images in this product at
+all** — no `public/` directory, and `app/icon.svg` is the only one in the
+repository — so "edit the category image" would have been net-new infrastructure
+rather than an edit screen: a public bucket, an upload path, a size budget against
+Supabase's free tier, and a moderation question nobody has answered.
+
+Deferred until there are real photographs to put in it. Meanwhile the icon set
+gives one consistent visual language, and the picker is constrained by a check
+constraint so a name no card can draw cannot be stored — **that constraint earned
+its place immediately**: the first version of its list was written from the seed
+file's opening rows with the rest guessed, and Postgres refused it, because
+`ac-servicing` is `AirVent` and had been guessed as `Wind`.
 
 ## Chat — dropped, and what replaces it
 

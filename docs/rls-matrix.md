@@ -33,6 +33,10 @@ default as a measurement.
 | `category_price_bands` | 36 | all | all | all | all | all | all |
 | `category_price_revisions` | 0 | no data | no data | no data | no data | no data | no data |
 | `commission_appeals` | 0 | no data | no data | no data | no data | no data | no data |
+| `content_document_versions` | 0 | no data | no data | no data | no data | no data | no data |
+| `content_documents` | 0 | no data | no data | no data | no data | no data | no data |
+| `content_string_revisions` | 0 | no data | no data | no data | no data | no data | no data |
+| `content_strings` | 0 | no data | no data | no data | no data | no data | no data |
 | `cron_runs` | 0 | no data | no data | no data | no data | no data | no data |
 | `customer_risk` | 0 | no data | no data | no data | no data | no data | no data |
 | `customer_visit_flags` | 0 | no data | no data | no data | no data | no data | no data |
