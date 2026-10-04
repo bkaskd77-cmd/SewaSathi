@@ -135,7 +135,20 @@ export function columnManifest() {
     const src = readFileSync(file, "utf8");
     const consts = constants(src);
 
-    const re = /\.from\(\s*"([a-z_]+)"\s*\)([\s\S]{0,300}?)\.select\(/g;
+    /*
+     * THE GAP MAY NOT CONTAIN ANOTHER `.from(`, and without that this mis-attributes.
+     * The pattern is non-greedy over 300 characters, so a `.from("a").upsert(…)`
+     * followed by a `.from("b").select("x")` paired `x` with table `a` — and because
+     * the match consumed both, table `b` was never scanned at all. Found when
+     * `publishDocument` wrote exactly that shape and the manifest reported
+     * `content_documents.version`, a column that does not exist there.
+     *
+     * Tempered rather than split on `;`, because a chain can be written across
+     * statements in ways a semicolon does not bound, and "another .from() starts here"
+     * is the actual boundary being looked for. The same mistake the money-assertions
+     * scanner made by spanning statements.
+     */
+    const re = /\.from\(\s*"([a-z_]+)"\s*\)((?:(?!\.from\()[\s\S]){0,300}?)\.select\(/g;
     let m;
     while ((m = re.exec(src))) {
       const table = m[1];

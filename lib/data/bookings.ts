@@ -14,6 +14,7 @@ import {
 import { providerCapacity } from "@/lib/data/capacity";
 import { isSurveyPriced } from "@/lib/config/services";
 import { getCategory, getSubBands } from "@/lib/data/categories";
+import { liveTermsVersion } from "@/lib/content/documents";
 import { armConfirmation } from "@/lib/data/customer-risk";
 import { getProvider } from "@/lib/data/providers";
 import { describeError } from "@/lib/data/source";
@@ -571,6 +572,9 @@ export async function createBooking(
 
   if (!address) return { ok: false, errors: { address: "pickAddress" } };
 
+  /* Once, outside the retry loop: a reference clash is not a reason to ask again. */
+  const termsVersion = await liveTermsVersion();
+
   // One retry, because the only way this collides is a reference clash, and a
   // customer should never see that as an error.
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -598,6 +602,19 @@ export async function createBooking(
           // job being widened to other professionals. See lib/booking/dispatch.
           first_choice_provider_id: parsed.data.provider ?? null,
           triage_log_id: parsed.data.triageLogId || null,
+          /*
+           * WHICH TERMS THIS CUSTOMER IS AGREEING TO. Null while nothing is published,
+           * which is the state today and is honest — the text has never been versioned,
+           * so there is no version to name. Every booking taken before versioning
+           * existed keeps its null and is not backfilled: a version invented for a
+           * document nobody showed somebody is the manufactured record this schema
+           * refuses elsewhere.
+           *
+           * Read before the insert rather than by a trigger, because a trigger would
+           * have to reach `content_documents` on every booking write and this is one
+           * cached read that never throws.
+           */
+          terms_version: termsVersion,
           /*
            * The product, which is where the duration comes from — a trigger
            * copies the sub-band's researched length onto the row rather than

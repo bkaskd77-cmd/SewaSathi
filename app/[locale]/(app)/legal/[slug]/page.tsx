@@ -4,7 +4,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { ProseDocumentView } from "@/components/shared/prose-document";
 import type { Locale } from "@/i18n/routing";
-import { isLegalSlug, legalDocument, LEGAL_SLUGS } from "@/lib/content/legal";
+import { liveDocument } from "@/lib/content/documents";
+import { isLegalSlug, LEGAL_SLUGS } from "@/lib/content/legal";
 import { openGraphFor } from "@/lib/seo";
 
 /**
@@ -28,7 +29,9 @@ export async function generateMetadata(props: {
   if (!isLegalSlug(params.slug)) return {};
 
   const locale = params.locale as Locale;
-  const doc = legalDocument(params.slug, locale);
+  /* The published version, so a republished title cannot disagree with the body below
+     it. `liveDocument` is cached, so this costs nothing per request. */
+  const doc = (await liveDocument(params.slug, locale)).document;
 
   return {
     title: doc.title,
@@ -53,5 +56,14 @@ export default async function LegalPage(props: {
   // dotted key path into a document somebody is agreeing to.
   await getTranslations("legal");
 
-  return <ProseDocumentView doc={legalDocument(params.slug, locale)} />;
+  /*
+   * THE PUBLISHED VERSION WHERE THERE IS ONE, THE FILE OTHERWISE. `liveDocument` falls
+   * back to the file in `lib/content/legal` on anything it does not like — nothing published, an
+   * unreachable table, a stored body that will not parse — because a legal page that
+   * renders as nothing is worse than one showing slightly older words. Today nothing is
+   * published, so this is the file, and the fallback is the whole behaviour rather than
+   * an edge of it.
+   */
+  const live = await liveDocument(params.slug, locale);
+  return <ProseDocumentView doc={live.document} />;
 }

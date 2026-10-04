@@ -419,3 +419,106 @@ export async function stringHistory(
     return null;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Categories
+ * ------------------------------------------------------------------ */
+
+/**
+ * Change a category's words, its icon or where it sits in the grid.
+ *
+ * STRAIGHT TO `categories`, WHICH IS ALREADY THE LIVE SOURCE. There is no override
+ * table here and there should not be: `lib/data/seed/categories.json` seeds the table
+ * and is the fallback when Supabase is unreachable, so the table IS the editable copy.
+ * Adding an override layer on top of something already editable would be two places to
+ * look for one answer.
+ *
+ * NOTHING ABOUT PRICE IS TOUCHED. `base_price_min` and `base_price_max` are a published
+ * band, and moving one is `/admin/bands` — where a proposal carries its evidence, a
+ * rejection is stored, and `category_price_revisions` records who decided. Letting this
+ * screen edit a number that `freeze_booking_band` stamps onto every booking would route
+ * around all of that. Words, icon and order only.
+ *
+ * THE ICON IS CHECKED HERE AND IN THE DATABASE. The constraint is what actually stops a
+ * blank card, and this is what gives the admin a sentence instead of a failed write.
+ */
+export async function setCategoryContent(input: {
+  slug: string;
+  nameEn: string;
+  nameNe: string;
+  descriptor: string;
+  descriptorNe: string;
+  description: string;
+  descriptionNe: string;
+  ctaLabel: string;
+  ctaLabelNe: string;
+  icon: string;
+  sortOrder: number;
+  actorId: string;
+}): Promise<{ ok: boolean; reason?: "badIcon" | "failed" }> {
+  const { isCategoryIcon } = await import("@/lib/config/icons");
+  if (!isCategoryIcon(input.icon)) return { ok: false, reason: "badIcon" };
+  if (!hasSupabaseConfig()) return { ok: false, reason: "failed" };
+
+  const text = (value: string) => value.trim();
+  if ([input.nameEn, input.nameNe].some((v) => text(v).length === 0)) {
+    return { ok: false, reason: "failed" };
+  }
+
+  try {
+    const { error } = await createAdminClient()
+      .from("categories")
+      .update({
+        name_en: text(input.nameEn),
+        name_ne: text(input.nameNe),
+        descriptor: text(input.descriptor),
+        descriptor_ne: text(input.descriptorNe),
+        description: text(input.description),
+        description_ne: text(input.descriptionNe),
+        cta_label: text(input.ctaLabel),
+        cta_label_ne: text(input.ctaLabelNe),
+        icon: input.icon,
+        sort_order: input.sortOrder,
+      })
+      .eq("slug", input.slug);
+
+    if (error) {
+      console.error(`[content] category write — ${describeError(error)}`);
+      return { ok: false, reason: "failed" };
+    }
+    return { ok: true };
+  } catch (thrown) {
+    console.error(`[content] category threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Support numbers — deliberately NOT editable here
+ * ------------------------------------------------------------------ */
+
+/*
+ * THE PHONE AND WHATSAPP NUMBERS STAY ENVIRONMENT VARIABLES, and this note is here
+ * because they were on the list for this screen and a reader should find out why they
+ * are not, rather than assuming it was forgotten.
+ *
+ * A `supportNumbers()` reading them from `content_strings` with the environment value as
+ * a fallback was written and then removed, because it could not be wired without a half
+ * of it. Seven surfaces show the number and two of them — `components/auth/verify-form.tsx`
+ * and `components/auth/sign-in-fallback.tsx` — are Client Components that read
+ * `site.supportPhone` at module level. Making those honour an override means threading a
+ * prop from the login page through `PhoneForm` into the fallback card: a change to the
+ * exact screen somebody reaches when sign-in is broken, which is the one place in this
+ * product where a mistake is both most likely to be met and least likely to be
+ * recoverable.
+ *
+ * SHIPPING IT FOR THE OTHER FIVE WOULD BE WORSE THAN NOT SHIPPING IT. Two sources for
+ * one number means an admin changes it, sees it change on their account page, and the
+ * login fallback goes on offering the old one — which is the dead-number failure that
+ * `site.supportPhone` exists to prevent, reintroduced by the feature meant to make it
+ * easier to fix.
+ *
+ * WHAT IT COSTS AS IT STANDS: changing the number is one Vercel environment variable and
+ * a redeploy, which is a minute of somebody's time and no code change. That is a far
+ * smaller cost than the risk above, and it is already the documented path.
+ */
