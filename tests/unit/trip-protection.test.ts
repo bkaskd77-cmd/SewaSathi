@@ -14,6 +14,8 @@ import {
   requiresConfirmation,
   tripDebtFor,
   type ArrivalEvidence,
+  tripDebtNotice,
+  tripDebtOnBill,
 } from "@/lib/abuse";
 
 /**
@@ -404,5 +406,166 @@ describe("dispatch waits for an answer rather than guessing", () => {
     expect(
       dispatchIsHeld({ confirmation_required: false, confirmed_at: null }),
     ).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * What a past debt adds to this bill
+ * ------------------------------------------------------------------ */
+
+describe("recovering a trip debt from a later bill", () => {
+  const BILL = 4000;
+
+  it("adds at most a quarter of the bill, which is what the terms promise", () => {
+    const result = tripDebtOnBill({
+      billRupees: BILL,
+      outstanding: 3000,
+      disputedAt: null,
+      alreadyAdded: null,
+    });
+
+    expect(result.outcome).toBe("add");
+    expect(result.outcome === "add" && result.rupees).toBe(1000);
+    expect(result.outcome === "add" && result.remaining).toBe(2000);
+  });
+
+  it("never adds more than is owed", () => {
+    const result = tripDebtOnBill({
+      billRupees: BILL,
+      outstanding: 350,
+      disputedAt: null,
+      alreadyAdded: null,
+    });
+    expect(result.outcome === "add" && result.rupees).toBe(350);
+    expect(result.outcome === "add" && result.remaining).toBe(0);
+  });
+
+  /*
+   * THE CASE THE IDEMPOTENCY COLUMN EXISTS FOR. A professional correcting a typed
+   * figure re-enters `recordFinalAmount`; without this the debt would be recovered
+   * again, from a customer who has already been charged once.
+   */
+  it("recovers nothing a second time, whatever the arithmetic says", () => {
+    const result = tripDebtOnBill({
+      billRupees: BILL,
+      outstanding: 3000,
+      disputedAt: null,
+      alreadyAdded: 1000,
+    });
+    expect(result.outcome).toBe("alreadyDone");
+  });
+
+  /*
+   * AND ZERO IS A DECISION, NOT AN ABSENCE. A booking judged to owe nothing records
+   * 0, and a re-record must read that as "done" rather than as "not considered" —
+   * which is why null and 0 are different values rather than one falsy one.
+   */
+  it("treats a recorded zero as done, not as nobody having looked", () => {
+    const result = tripDebtOnBill({
+      billRupees: BILL,
+      outstanding: 3000,
+      disputedAt: null,
+      alreadyAdded: 0,
+    });
+    expect(result.outcome).toBe("alreadyDone");
+    expect(result.outcome === "alreadyDone" && result.rupees).toBe(0);
+  });
+
+  /*
+   * A DISPUTE HOLDS THE WHOLE DEBT OFF THE BILL, not a smaller slice of it.
+   * Recovering mid-complaint means the money is gone and the argument is about
+   * getting it back.
+   */
+  it("adds nothing at all while the customer is disputing", () => {
+    const result = tripDebtOnBill({
+      billRupees: BILL,
+      outstanding: 3000,
+      disputedAt: "2026-10-04T06:00:00.000Z",
+      alreadyAdded: null,
+    });
+    expect(result.outcome).toBe("disputed");
+  });
+
+  it("adds nothing when nothing is owed", () => {
+    expect(
+      tripDebtOnBill({
+        billRupees: BILL,
+        outstanding: 0,
+        disputedAt: null,
+        alreadyAdded: null,
+      }).outcome,
+    ).toBe("nothingOwed");
+  });
+
+  /*
+   * A quarter of a tiny bill rounds to nothing. That is `nothingOwed`, so the caller
+   * writes 0 and no customer ever sees a line item for zero rupees.
+   */
+  it("says nothing is owed rather than adding a line for nothing", () => {
+    expect(
+      tripDebtOnBill({
+        billRupees: 3,
+        outstanding: 3000,
+        disputedAt: null,
+        alreadyAdded: null,
+      }).outcome,
+    ).toBe("nothingOwed");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * What the customer is told before they confirm
+ * ------------------------------------------------------------------ */
+
+describe("telling a customer about a carried trip charge", () => {
+  /*
+   * THE ONE THAT MATTERS: nothing is said to somebody who owes nothing. A panel
+   * reading "you owe nothing" in front of every customer would be a charge introduced
+   * to people who have never been near one.
+   */
+  it("says nothing at all when nothing is owed", () => {
+    expect(tripDebtNotice({ outstanding: 0, disputedAt: null }).show).toBe(false);
+    expect(tripDebtNotice({ outstanding: -50, disputedAt: null }).show).toBe(false);
+  });
+
+  it("states the whole balance, not a slice of it", () => {
+    const notice = tripDebtNotice({ outstanding: 700, disputedAt: null });
+    expect(notice.show).toBe(true);
+    // 700 bounds the total across however many jobs it takes; a quarter of some
+    // imagined bill would bound nothing and would read as this job's charge.
+    if (notice.show) expect(notice.outstanding).toBe(700);
+  });
+
+  /*
+   * THE SENTENCE AND THE ARITHMETIC ARE ONE RULE, and this is the case that goes red
+   * if somebody writes the percentage into the copy by hand. It asserts the share the
+   * screen prints against what `applyTripRecovery` actually takes off a bill — two
+   * different code paths reading one constant, rather than a constant compared with
+   * itself.
+   */
+  it("prints the share the recovery actually takes", () => {
+    const notice = tripDebtNotice({ outstanding: 100_000, disputedAt: null });
+    if (!notice.show) throw new Error("expected a notice");
+
+    const bill = 4000;
+    const { recovered } = applyTripRecovery({
+      billRupees: bill,
+      outstanding: 100_000,
+    });
+    expect(recovered).toBe((bill * notice.sharePercent) / 100);
+  });
+
+  /*
+   * A DISPUTED CHARGE IS STILL SHOWN. Hiding it would leave somebody who objected
+   * wondering whether we heard; the flag is what changes the sentence to "nothing is
+   * being taken while somebody looks".
+   */
+  it("keeps showing a disputed charge, and says it is disputed", () => {
+    const notice = tripDebtNotice({
+      outstanding: 350,
+      disputedAt: "2026-10-04T05:00:00.000Z",
+    });
+    expect(notice.show).toBe(true);
+    if (notice.show) expect(notice.disputed).toBe(true);
   });
 });

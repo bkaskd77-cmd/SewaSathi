@@ -78,6 +78,7 @@ export function unreadableQueue<T>(cap: number): QueuePage<T> {
 export const ADMIN_QUEUE_KEYS = [
   "applications",
   "claims",
+  "tripDisputes",
   "refunds",
   "verdicts",
   "surveyFees",

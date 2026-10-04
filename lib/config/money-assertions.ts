@@ -56,6 +56,13 @@ export const MONEY_ASSERTIONS: MoneyAssertion[] = [
     why: "The claim and the payment are one decision: `settleNoShowClaim` writes the ledger row first and only then marks the claim upheld, so a failed write leaves the claim open rather than a payment nobody made. This is the column that went five phases with nothing behind it.",
   },
   {
+    column: "bookings.trip_debt_added_rupees",
+    backedBy:
+      "payments.amount (digital) or provider_ledger.kind = 'commission_due' (cash)",
+    timing: "mayLag",
+    why: "It is a charge ADDED to a bill, so the money arrives the way the rest of the bill does — and on a cash job it never reaches us directly at all: the professional collects those rupees with everything else and owes them on, which is the `commission_due` row netted off a later payout. `mayLag` is therefore honest rather than lenient: at the moment this column is written the customer has not paid anything yet, on either rail. What WOULD be a fault is the cash half missing, because then the recovery is a gift to whoever happened to collect it — `tests/db/customer-risk.test.ts` asserts that row exists for every cash booking carrying a recovery.",
+  },
+  {
     column: "guarantee_claims.refund_rupees",
     backedBy: "refunds",
     timing: "mayLag",
@@ -75,23 +82,39 @@ export const MONEY_ASSERTIONS: MoneyAssertion[] = [
 export const MONEY_ASSERTING_PATTERN = /_(paid|refunded|sent|disbursed|remitted)$/;
 
 /**
- * A NAMING GAP, RECORDED RATHER THAN QUIETLY PATCHED. `guarantee_claims.refund_rupees`
- * is declared above and this pattern does not match it — it ends in `_rupees`, not
- * `_refunded`. So the mechanical half of this guard can be dodged by choosing a noun
- * instead of a verb, and that is worth knowing about the guard rather than hiding by
- * widening the regex until it catches everything.
+ * Columns that assert money moved without matching the pattern, named one by one.
  *
- * It is not widened because the cost runs the other way: `_rupees` and `_amount`
- * appear on a dozen columns that price a job rather than assert a payment, and a
- * list long enough to include them is a list nobody reads — which is how
- * `trip_rupees_paid` survived five phases in plain sight. The scanner catches the
- * verb forms; a reviewer adding a money column under any other name is the gap, and
- * the declarations above are where they are expected to land.
+ * `guarantee_claims.refund_rupees` is the reason this list exists: it is the same
+ * class as `trip_rupees_paid` — a figure that says money is going back to somebody —
+ * and it ends in a noun, so the pattern never saw it. Naming it is the narrow fix.
+ *
+ * WHY NAME THEM RATHER THAN WIDEN THE REGEX. `_rupees` and `_amount` are on a dozen
+ * columns that price a job rather than assert a payment — `final_amount`,
+ * `quoted_min`, `band_min`. A pattern catching those makes the declaration list long
+ * enough that nobody reads it, which is exactly how `trip_rupees_paid` survived five
+ * phases in plain sight. A name costs one line and says what it means.
+ *
+ * THE GAP THAT REMAINS, smaller and still worth saying: a column named neither way —
+ * no past-tense verb, not on this list — is invisible to the scanner. What catches
+ * that is a person adding a money column and finding `MONEY_ASSERTIONS` already
+ * expecting them, which is the point of the file rather than of the regex.
  */
+export const MONEY_ASSERTING_NAMES = [
+  "guarantee_claims.refund_rupees",
+  /*
+   * What we added to a customer's bill to recover a trip they did not answer the
+   * door for. It is money moving between the customer and us, so it carries the
+   * same question: `trip_debt_added_rupees` is what we DECIDED, and the recovery
+   * itself is the `commission_due` row on a cash job or the larger charge on a
+   * digital one.
+   */
+  "bookings.trip_debt_added_rupees",
+];
 
 /** Does this column name claim money moved? */
-export function assertsMoneyMoved(column: string): boolean {
-  return MONEY_ASSERTING_PATTERN.test(column);
+export function assertsMoneyMoved(column: string, qualified?: string): boolean {
+  if (MONEY_ASSERTING_PATTERN.test(column)) return true;
+  return qualified !== undefined && MONEY_ASSERTING_NAMES.includes(qualified);
 }
 
 /** The declaration for a column, or null when nobody has made one. */

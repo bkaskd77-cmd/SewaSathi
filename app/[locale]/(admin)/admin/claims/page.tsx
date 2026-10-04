@@ -5,11 +5,13 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { MapPin, MapPinOff, Phone } from "lucide-react";
 
 import { ClaimDecision } from "@/components/admin/claim-decision";
+import { DisputeDecision } from "@/components/admin/dispute-decision";
 import { QueueExtent } from "@/components/admin/queue-extent";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
-import { openNoShowClaims } from "@/lib/data/review";
+import { formatInstant } from "@/lib/booking";
+import { openNoShowClaims, openTripDebtDisputes } from "@/lib/data/review";
 import { formatNpr } from "@/lib/utils";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -50,10 +52,17 @@ export default async function ClaimsQueuePage() {
     redirect({ href: "/account/security?next=/admin/claims", locale });
   }
 
-  const [queue, messages] = await Promise.all([
+  const [queue, disputes, messages] = await Promise.all([
     // Passed so the queue can log that it put customer risk on screen —
     // see `recordRiskAccess` and the note in `openNoShowClaims`.
     openNoShowClaims({ adminId: gate.profile.id }),
+    /*
+     * THE OTHER HALF OF THE SAME STORY, ON THE SAME SCREEN. A dispute is a customer
+     * objecting to a charge that came out of one of the claims above, so a reviewer
+     * reading one wants the other in reach. It is a separate queue because it is a
+     * separate decision — whether to COLLECT, not whether to pay.
+     */
+    openTripDebtDisputes({ adminId: gate.profile.id }),
     getMessages(),
   ]);
 
@@ -170,6 +179,87 @@ export default async function ClaimsQueuePage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* ---------------- disputed trip charges ---------------- */}
+      {/*
+        BELOW THE CLAIMS, NOT MIXED INTO THEM. The forms do different things: one
+        decides whether the professional is paid and who carries it, the other whether
+        a charge already decided should be collected. One list with two kinds of card
+        is how somebody submits the wrong one.
+
+        NOTHING IS RENDERED WHEN THE QUEUE IS EMPTY AND THE READ WORKED — an empty
+        heading is padding. A FAILED read is said out loud, because "no disputes" and
+        "we could not ask" must not look alike on a screen where somebody concludes
+        there is nothing to do.
+      */}
+      {disputes.total === null ? (
+        <p className="animate-rise mt-10 rounded-lg border border-warning/40 bg-warning/5 p-4 text-body-sm">
+          {t("disputesUnreadable")}
+        </p>
+      ) : disputes.rows.length === 0 ? null : (
+        <>
+          <h2 className="animate-rise font-display mt-12 text-heading-sm">
+            {t("disputesTitle")}
+          </h2>
+          <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+            {t("disputesLead")}
+          </p>
+          <QueueExtent page={disputes} />
+
+          <ul className="mt-6 space-y-4">
+            {disputes.rows.map((dispute, index) => (
+              <li
+                key={dispute.customerId}
+                className="animate-rise rounded-lg border border-border p-5"
+                style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-display text-heading-sm">
+                    {dispute.customerName ?? "—"}
+                  </span>
+                  <span className="text-body-md tabular-nums">
+                    {formatNpr(dispute.debtRupees, { locale })}
+                  </span>
+                </div>
+
+                <p className="text-caption mt-1 text-muted-foreground">
+                  {t("disputeOpened", {
+                    date: formatInstant(dispute.disputedAt, locale),
+                  })}
+                </p>
+
+                {/*
+                  THEIR RECORD WITH ITS DENOMINATOR, the same rule as the claim cards:
+                  one missed door in forty jobs and one in one are different facts, and
+                  a bare count invites the wrong conclusion.
+                */}
+                <p className="text-caption mt-1 text-muted-foreground">
+                  {t("disputeRecord", {
+                    n: String(dispute.upheldNoShows),
+                    count: dispute.upheldNoShows,
+                    jobs: String(dispute.completedJobs),
+                    jobCount: dispute.completedJobs,
+                  })}
+                </p>
+
+                {/* Their own words, unclassified — see `disputeTripDebt`. */}
+                {dispute.note ? (
+                  <p className="mt-3 rounded-md border border-border p-3 text-body-sm">
+                    {dispute.note}
+                  </p>
+                ) : null}
+
+                <NextIntlClientProvider
+                  locale={locale}
+                  messages={{ admin: messages.admin }}
+                >
+                  <DisputeDecision customerId={dispute.customerId} />
+                </NextIntlClientProvider>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

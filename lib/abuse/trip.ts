@@ -251,3 +251,116 @@ export function applyTripRecovery(input: {
     remaining: input.outstanding - recovered,
   };
 }
+
+/**
+ * What a past trip debt adds to THIS bill, and whether it may be added at all.
+ *
+ * WHY THIS IS A SEPARATE FUNCTION FROM `applyTripRecovery`. That one does the
+ * arithmetic — a quarter of the bill, capped at what is owed. This one answers the
+ * question that comes first and is easy to forget: *should anything be recovered
+ * right now*. Three things can stop it, and only one of them is about the money.
+ *
+ * A DISPUTE HOLDS THE WHOLE DEBT OFF THE BILL. Not a smaller slice, not a pause on a
+ * counter: nothing. Recovering while somebody is saying "that is not mine" is how a
+ * complaint becomes a grievance — the money is already gone and the argument is now
+ * about getting it back. Nothing is lost by waiting, because the debt stays on
+ * `customer_risk` and the next booking recovers it if an admin upholds the claim.
+ *
+ * ALREADY CONSIDERED MEANS ALREADY CONSIDERED. `trip_debt_added_rupees` is null
+ * until this booking has been judged and a number — including 0 — after. The caller
+ * passes that through, so a re-recorded final amount recovers nothing: not because
+ * the arithmetic comes out the same, but because this returns `alreadyDone`.
+ */
+export type TripDebtOnBill =
+  /** Add this much. Zero is never returned here — `nothingOwed` says that. */
+  | { outcome: "add"; rupees: number; remaining: number }
+  | { outcome: "nothingOwed" }
+  | { outcome: "disputed" }
+  | { outcome: "alreadyDone"; rupees: number };
+
+export function tripDebtOnBill(input: {
+  billRupees: number;
+  /** What the customer still owes for past trips. */
+  outstanding: number;
+  /** Set while the customer is disputing the debt. */
+  disputedAt: string | null;
+  /** `bookings.trip_debt_added_rupees` — null until this booking was judged. */
+  alreadyAdded: number | null;
+}): TripDebtOnBill {
+  if (input.alreadyAdded !== null) {
+    return { outcome: "alreadyDone", rupees: input.alreadyAdded };
+  }
+  if (input.disputedAt !== null) return { outcome: "disputed" };
+  if (input.outstanding <= 0 || input.billRupees <= 0) {
+    return { outcome: "nothingOwed" };
+  }
+
+  const applied = applyTripRecovery({
+    billRupees: input.billRupees,
+    outstanding: input.outstanding,
+  });
+
+  /*
+   * A quarter of a very small bill rounds to nothing. That is `nothingOwed` rather
+   * than an `add` of 0, so the caller writes 0 — considered, nothing added — and
+   * never shows a customer a line item for zero rupees.
+   */
+  if (applied.recovered <= 0) return { outcome: "nothingOwed" };
+
+  return {
+    outcome: "add",
+    rupees: applied.recovered,
+    remaining: applied.remaining,
+  };
+}
+
+/**
+ * What to tell a customer about a carried trip debt BEFORE they confirm a booking.
+ *
+ * WHY THIS EXISTS AT ALL. The recovery happens at settlement, which is the right
+ * moment to take it — it comes off work they chose to book rather than being demanded
+ * from them cold. But a charge that first appears on the final bill is a charge added
+ * unseen, and the one thing on this platform a customer can be billed for beyond the
+ * work itself must not arrive as a surprise. So the review screen says it before the
+ * confirm button, and this is the rule it reads.
+ *
+ * IT STATES THE BALANCE AND THE RULE, AND DELIBERATELY NOT A FIGURE FOR THIS JOB.
+ * The obvious version — a quarter of the quoted maximum — looks more helpful and is
+ * not a ceiling: the final amount is agreed on site and may legitimately exceed the
+ * band (up to 2×, which `lib/payments/pricing.ts` allows on an approved overrun), so
+ * a quarter of it can be more than a quarter of the quote. Printing a confident
+ * number that the bill can then exceed is worse than printing none, because it reads
+ * as a promise. What IS true and worth saying is the two facts this returns: the
+ * whole balance, which bounds the total however many jobs it takes, and the share of
+ * any one bill, which the copy carries from `recoveryCapBps`.
+ *
+ * A DISPUTED DEBT IS STILL SHOWN, with `disputed` set. Hiding it would be worse than
+ * showing it: somebody who has disputed a charge wants to see that we know, and the
+ * line is what tells them nothing is being taken while a person looks.
+ */
+export type TripDebtNotice =
+  | { show: false }
+  | {
+      show: true;
+      /** The whole balance carried. It bounds the total, across however many jobs. */
+      outstanding: number;
+      /** The share of any one bill, as a percentage, straight off the constant. */
+      sharePercent: number;
+      disputed: boolean;
+    };
+
+export function tripDebtNotice(input: {
+  outstanding: number;
+  disputedAt: string | null;
+}): TripDebtNotice {
+  if (input.outstanding <= 0) return { show: false };
+
+  return {
+    show: true,
+    outstanding: input.outstanding,
+    // From the constant the recovery itself uses, so the sentence and the arithmetic
+    // cannot drift — the duplication this repository keeps paying for.
+    sharePercent: TRIP_COMPENSATION.recoveryCapBps / 100,
+    disputed: input.disputedAt !== null,
+  };
+}

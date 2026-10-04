@@ -3,7 +3,6 @@ import "server-only";
 import {
   TRIP_COMPENSATION,
   addressTrust,
-  applyTripRecovery,
   confirmationPlan,
   judgeCustomerLadder,
   judgeNoShowClaim,
@@ -39,13 +38,33 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function customerHistory(
   profileId: string,
-): Promise<CustomerHistory & { tripDebt: number; banned: boolean }> {
+): Promise<
+  CustomerHistory & {
+    tripDebt: number;
+    banned: boolean;
+    /**
+     * Set while the customer says the trip debt is not theirs.
+     *
+     * NULL IS "NOT DISPUTED", and here that reading is safe where it usually is not:
+     * the column is only ever written by somebody disputing, and a failed read
+     * returns the empty object below — which holds no debt, so nothing is recovered
+     * on a read that did not work. The unsafe arrangement would be the other way
+     * round: a debt surviving a failed read while the dispute that holds it off did
+     * not.
+     */
+    tripDebtDisputedAt: string | null;
+    /** The customer's own words, kept for whoever decides. Null when not disputed. */
+    tripDebtDisputeNote: string | null;
+  }
+> {
   const empty = {
     noShows: 0,
     falseAddresses: 0,
     completedJobs: 0,
     tripDebt: 0,
     banned: false,
+    tripDebtDisputedAt: null,
+    tripDebtDisputeNote: null,
   };
   if (!hasSupabaseConfig()) return empty;
 
@@ -63,6 +82,8 @@ export async function customerHistory(
     completedJobs: data.completed_jobs as number,
     tripDebt: data.trip_debt_rupees as number,
     banned: data.banned_at !== null,
+    tripDebtDisputedAt: (data.trip_debt_disputed_at as string | null) ?? null,
+    tripDebtDisputeNote: (data.trip_debt_dispute_note as string | null) ?? null,
   };
 }
 
@@ -534,43 +555,174 @@ export async function settleNoShowClaim(input: {
   return true;
 }
 
-/**
- * What this customer's next bill actually is.
+/*
+ * WHAT USED TO BE HERE: `applyTripDebtToBill`.
  *
- * NOTHING CALLS THIS, so a trip debt is recorded and never recovered — the
- * same shape as `applyRedoRecovery` sitting uncalled for four phases while
- * `/providers/standards` described the balance going down. The comment said
- * "called at settlement", which was the plan.
+ * It read the balance, took its quarter and wrote the remainder — and nothing called
+ * it, under a comment that said so. The fix was never to find it a caller, because
+ * the function could not safely have one: it wrote the customer's balance and NOTHING
+ * ELSE, so a professional correcting a typed figure ran it twice and the second pass
+ * took another quarter off a debt that had already been settled on that bill. There
+ * was no record on the booking to ask.
  *
- * The plan is still right and is the argument for wiring it: recovering at
- * settlement takes the debt out of work the customer chose to book rather than
- * demanding it from them. Returns the bill unchanged when nothing is owed,
- * which is almost always.
+ * `recordFinalAmount` owns the recovery now (`lib/data/payments.ts`), and the record
+ * is `bookings.trip_debt_added_rupees`: written in the same update as `final_amount`,
+ * null meaning nobody has judged this bill yet and 0 meaning somebody judged it and
+ * nothing was owed. The rule itself is `tripDebtOnBill` in `lib/abuse/trip.ts`, pure
+ * and tested, which composes `applyTripRecovery` rather than restating the cap.
+ *
+ * So this is a deletion rather than a wiring, and the reason is worth keeping: a
+ * money function with no caller is not half-built, it is unexamined — the question
+ * "what happens the second time this runs?" had never been asked of it.
  */
-export async function applyTripDebtToBill(input: {
+
+/* ------------------------------------------------------------------ *
+ * Disputing a trip debt
+ * ------------------------------------------------------------------ */
+
+/**
+ * The customer says the trip debt is not theirs.
+ *
+ * WHAT A DISPUTE DOES AND DOES NOT DO. It holds the whole debt off every bill until a
+ * person decides — `tripDebtOnBill` returns `disputed` and `recordFinalAmount` writes
+ * nothing, not even a zero, so the next booking asks again. It does not cancel the
+ * debt and it does not delete the claim that produced it: the balance stays exactly
+ * where it was, which is what makes this safe to allow with no gate on it.
+ *
+ * NOTHING IS LOST BY WAITING, which is the whole argument for holding rather than
+ * recovering-and-arguing. The money is still owed if the dispute fails; if we had
+ * taken it first, the customer would be arguing to get money back instead of arguing
+ * about whether it was ever due, and those two conversations do not go the same way.
+ *
+ * A REASON IS REQUIRED, and it is stored as the customer's own words. Nothing
+ * classifies it: a closed list here would be us deciding in advance what the possible
+ * objections are, on the one surface where somebody is telling us we got something
+ * wrong. `booking_refusals.reason_code` can be a closed set because the professional
+ * is choosing from grounds we already understand; this is not that.
+ *
+ * THE ACTOR COMES FROM THE SESSION. The caller passes an id it read from
+ * `getSessionProfile`, and this writes only that row — there is no id on the form.
+ */
+export async function disputeTripDebt(input: {
   profileId: string;
-  billRupees: number;
-}): Promise<{ charged: number; recovered: number }> {
+  note: string;
+}): Promise<{ ok: boolean; reason?: "nothingOwed" | "alreadyOpen" | "failed" }> {
+  const note = input.note.trim();
+  if (note.length === 0) return { ok: false, reason: "failed" };
+  if (!hasSupabaseConfig()) return { ok: false, reason: "failed" };
+
   const history = await customerHistory(input.profileId);
-  if (history.tripDebt <= 0) {
-    return { charged: input.billRupees, recovered: 0 };
+  /*
+   * A dispute over nothing is refused rather than stored. It would otherwise sit on
+   * the row for ever holding off a debt that does not exist, and the next genuine
+   * one would read as "already open" — a dispute nobody could file.
+   */
+  if (history.tripDebt <= 0) return { ok: false, reason: "nothingOwed" };
+  if (history.tripDebtDisputedAt !== null) {
+    return { ok: false, reason: "alreadyOpen" };
   }
 
-  const result = applyTripRecovery({
-    billRupees: input.billRupees,
-    outstanding: history.tripDebt,
+  const db = createAdminClient();
+  const { error } = await db
+    .from("customer_risk")
+    .update({
+      trip_debt_disputed_at: new Date().toISOString(),
+      // 1000 characters is the column; trimming here rather than letting Postgres
+      // refuse means a long explanation is kept rather than losing the whole write.
+      trip_debt_dispute_note: note.slice(0, 1000),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", input.profileId)
+    .is("trip_debt_disputed_at", null);
+
+  if (error) {
+    console.error(`[trip-debt] dispute failed — ${describeError(error)}`);
+    return { ok: false, reason: "failed" };
+  }
+
+  await recordSecurityEvent({
+    kind: "admin.action",
+    actorRole: "customer",
+    actorId: input.profileId,
+    subjectType: "profile",
+    subjectId: input.profileId,
+    detail: {
+      action: "tripDebt.disputed",
+      debtRupees: history.tripDebt,
+      // The words themselves live on `customer_risk`; the log records that a dispute
+      // was opened and over how much, which is what a timeline needs.
+      noteLength: note.length,
+    },
   });
 
-  if (hasSupabaseConfig() && result.recovered > 0) {
-    const db = createAdminClient();
-    await db
-      .from("customer_risk")
-      .update({
-        trip_debt_rupees: result.remaining,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("profile_id", input.profileId);
+  return { ok: true };
+}
+
+/**
+ * A person decides the dispute.
+ *
+ * TWO OUTCOMES AND THEY ARE NOT SYMMETRICAL. `cancel` says the debt was wrong, so the
+ * balance goes to zero — the trip is absorbed by us, which is what the first-one-free
+ * rule already does in the ordinary case and is the cheap side of being wrong.
+ * `stands` says it was right, so the stamp clears and the next booking recovers as it
+ * would have. Neither touches the no-show claim or the professional's payment: they
+ * were paid when the claim was upheld, and whether we recover it from the customer was
+ * always a separate question. That ordering is the design, not a convenience.
+ *
+ * THE REASON IS REQUIRED AND IS THE DECIDER'S OWN, same as a band rejection: a
+ * decision that reduces or confirms what somebody owes has to be answerable later by
+ * reading one row.
+ */
+export async function resolveTripDebtDispute(input: {
+  customerId: string;
+  actorId: string;
+  outcome: "cancel" | "stands";
+  note: string;
+}): Promise<boolean> {
+  const note = input.note.trim();
+  if (note.length === 0) return false;
+  if (!hasSupabaseConfig()) return false;
+
+  const history = await customerHistory(input.customerId);
+  if (history.tripDebtDisputedAt === null) return false;
+
+  const db = createAdminClient();
+  const { error } = await db
+    .from("customer_risk")
+    .update({
+      trip_debt_disputed_at: null,
+      trip_debt_dispute_note: null,
+      ...(input.outcome === "cancel" ? { trip_debt_rupees: 0 } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", input.customerId)
+    .not("trip_debt_disputed_at", "is", null);
+
+  if (error) {
+    console.error(`[trip-debt] resolution failed — ${describeError(error)}`);
+    return false;
   }
 
-  return { charged: result.charged, recovered: result.recovered };
+  await recordSecurityEvent({
+    kind: "admin.action",
+    actorRole: "admin",
+    actorId: input.actorId,
+    subjectType: "profile",
+    subjectId: input.customerId,
+    detail: {
+      action:
+        input.outcome === "cancel"
+          ? "tripDebt.disputeUpheld"
+          : "tripDebt.disputeRejected",
+      // What was at stake, so the row answers "how much" without a join.
+      debtRupees: history.tripDebt,
+      reason: note.slice(0, 500),
+      // The customer's own words, carried into the log because the resolution
+      // clears them from `customer_risk` — a decision whose grounds vanished with
+      // the row is not answerable later.
+      disputeNote: history.tripDebtDisputeNote,
+    },
+  });
+
+  return true;
 }

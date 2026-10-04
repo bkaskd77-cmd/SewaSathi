@@ -5,10 +5,12 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import type { SavedAddress } from "@/components/booking/step-address";
 import type { Locale } from "@/i18n/routing";
+import { tripDebtNotice } from "@/lib/abuse";
 import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
 import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
+import { customerHistory } from "@/lib/data/customer-risk";
 import { getCategories } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import { getProvider } from "@/lib/data/providers";
@@ -78,10 +80,19 @@ export default async function BookPage({
    */
   const messages = await getMessages();
 
-  const [categories, addresses, provider] = await Promise.all([
+  const [categories, addresses, provider, risk] = await Promise.all([
     getCategories(),
     profile ? listAddresses() : Promise.resolve([]),
     providerId ? getProvider(providerId) : Promise.resolve(null),
+    /*
+     * A CARRIED TRIP DEBT, IN THE SAME WAVE. It is read here rather than at
+     * settlement-time only because the review screen has to say it before the confirm
+     * button: the recovery is the one charge on this platform beyond the work itself,
+     * and a charge that first appears on the final bill is a charge added unseen.
+     * Signed out there is nobody to owe anything, and the flow asks for a sign-in at
+     * the professional step — by which point this page has re-rendered.
+     */
+    profile ? customerHistory(profile.id) : Promise.resolve(null),
   ]);
 
   /*
@@ -96,6 +107,28 @@ export default async function BookPage({
       : undefined;
 
   const ward = (n: number) => tServices("ward", { n: String(n) });
+
+  /*
+   * FORMATTED HERE, like `quoteLabel` beside it and for the same reason: a formatter
+   * cannot cross the server/client boundary, and the locale's currency and numeral
+   * rules belong on the server. `sharePercent` goes over as a string because `ne`
+   * renders digits as Devanagari and this one sits in a sentence rather than beside a
+   * figure the reader has to match.
+   */
+  const debtNotice = risk
+    ? tripDebtNotice({
+        outstanding: risk.tripDebt,
+        disputedAt: risk.tripDebtDisputedAt,
+      })
+    : { show: false as const };
+
+  const tripDebt = debtNotice.show
+    ? {
+        outstandingLabel: formatNpr(debtNotice.outstanding, { locale }),
+        sharePercent: String(debtNotice.sharePercent),
+        disputed: debtNotice.disputed,
+      }
+    : null;
 
   const savedAddresses: SavedAddress[] = addresses.map((address) => {
     const area = findArea(address.areaKey);
@@ -212,6 +245,7 @@ export default async function BookPage({
                 }
               : null
           }
+          tripDebt={tripDebt}
           signedIn={Boolean(profile)}
           loginHref={loginHref}
           areaLabels={areaLabels}

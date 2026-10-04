@@ -945,3 +945,121 @@ export async function openNoShowClaimsCount(): Promise<number | null> {
   }
   return count ?? null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Trip-debt disputes
+ * ------------------------------------------------------------------ */
+
+/**
+ * One customer saying a carried trip charge is not theirs.
+ *
+ * SEPARATE FROM THE CLAIM QUEUE ABOVE, AND THAT IS THE DESIGN RATHER THAN A
+ * CONVENIENCE. A no-show claim decides whether the professional is paid and who
+ * carries the cost; this decides whether a charge already decided should be collected
+ * at all. They are different questions, taken at different times, and one of them is
+ * raised by the customer rather than by us. Merging them would mean a reviewer facing
+ * one form for two decisions.
+ */
+export type OpenTripDebtDispute = {
+  customerId: string;
+  customerName: string | null;
+  debtRupees: number;
+  /** The customer's own words. Required when the dispute was opened. */
+  note: string | null;
+  disputedAt: string;
+  /**
+   * Their record, so the reviewer can see whether this is a first objection or a
+   * pattern — with the denominator, `claimRateWorthReading`'s rule.
+   */
+  upheldNoShows: number;
+  completedJobs: number;
+};
+
+export const TRIP_DISPUTE_QUEUE_CAP = QUEUE_CAP;
+
+export async function openTripDebtDisputes(input?: {
+  adminId?: string | null;
+}): Promise<QueuePage<OpenTripDebtDispute>> {
+  if (!hasSupabaseConfig()) return unreadableQueue(TRIP_DISPUTE_QUEUE_CAP);
+  const db = createAdminClient();
+
+  const { data, error, count } = await db
+    .from("customer_risk")
+    .select(
+      "profile_id, trip_debt_rupees, trip_debt_disputed_at, trip_debt_dispute_note, no_shows, completed_jobs",
+      { count: "exact" },
+    )
+    .not("trip_debt_disputed_at", "is", null)
+    // Oldest first: somebody waiting on a decision about money they are being asked
+    // for should not be overtaken by a newer objection.
+    .order("trip_debt_disputed_at", { ascending: true })
+    .limit(TRIP_DISPUTE_QUEUE_CAP);
+
+  if (error) {
+    console.error(`[claims] dispute queue — ${describeError(error)}`);
+    return unreadableQueue(TRIP_DISPUTE_QUEUE_CAP);
+  }
+
+  const total = count ?? null;
+  const rows = data ?? [];
+  if (rows.length === 0) {
+    return { rows: [], total, cap: TRIP_DISPUTE_QUEUE_CAP };
+  }
+
+  const { data: profiles } = await db
+    .from("profiles")
+    .select("id, full_name")
+    .in(
+      "id",
+      rows.map((row) => row.profile_id as string),
+    );
+  const nameBy = new Map(
+    (profiles ?? []).map((row) => [row.id as string, row.full_name]),
+  );
+
+  const disputes: OpenTripDebtDispute[] = rows.map((row) => ({
+    customerId: row.profile_id as string,
+    customerName: (nameBy.get(row.profile_id as string) as string | null) ?? null,
+    debtRupees: row.trip_debt_rupees as number,
+    note: (row.trip_debt_dispute_note as string | null) ?? null,
+    disputedAt: row.trip_debt_disputed_at as string,
+    upheldNoShows: row.no_shows as number,
+    completedJobs: row.completed_jobs as number,
+  }));
+
+  /*
+   * The same log and the same reasoning as the claim queue: this screen renders
+   * somebody's no-show record, which is the most prejudicial thing we hold about a
+   * customer, and counted-not-named because a queue has no single subject.
+   */
+  if (input?.adminId) {
+    await recordSecurityEvent({
+      kind: "customerRisk.viewed",
+      actorId: input.adminId,
+      actorRole: "admin",
+      detail: {
+        reason: "Opened the trip-charge dispute queue.",
+        customers: disputes.length,
+        action: "nothing",
+      },
+    });
+  }
+
+  return { rows: disputes, total, cap: TRIP_DISPUTE_QUEUE_CAP };
+}
+
+/** How many disputes are waiting, without fetching any. */
+export async function openTripDebtDisputesCount(): Promise<number | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  const { count, error } = await createAdminClient()
+    .from("customer_risk")
+    .select("profile_id", { count: "exact", head: true })
+    .not("trip_debt_disputed_at", "is", null);
+
+  if (error) {
+    console.error(`[claims] dispute count — ${describeError(error)}`);
+    return null;
+  }
+  return count ?? null;
+}

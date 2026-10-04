@@ -357,19 +357,29 @@ async function destinationFor(
   // SEALED, through `sealSecret`, because `payout_destinations_account_ref_sealed`
   // refuses anything that is not an envelope — which it did the first time this
   // fixture hand-rolled one, and that refusal is the constraint working.
+  /*
+   * ANCHORED ON THE RUN'S OWN CLOCK, NOT ON `now()`, and this was a real failure
+   * rather than tidiness. The dates were `now() - interval '5 days'` while every run
+   * in this file is at the fixed TUESDAY, so whether a destination counted as out of
+   * its cooling window depended on today's date: it passed for weeks and went red on
+   * the morning `now() - 5 days` crossed back over that Tuesday. A fixture whose
+   * verdict moves with the calendar proves nothing on either side of the change.
+   */
   const { rows } = await pg.admin.query(
     `insert into public.payout_destinations
        (provider_id, kind, account_ref, account_name, usable_from,
         first_payout_confirmed_at)
      values ($1, 'bank', $4, 'Krishna Tamang',
-             case when $2 then now() + interval '2 days' else now() - interval '5 days' end,
-             case when $3 then now() - interval '1 day' else null end)
+             case when $2 then $5::timestamptz + interval '2 days'
+                  else $5::timestamptz - interval '5 days' end,
+             case when $3 then $5::timestamptz - interval '1 day' else null end)
      returning id`,
     [
       providerId,
       options.cooling ?? false,
       options.confirmed ?? true,
       sealSecret(`97798${String(seq).padStart(8, "0")}`),
+      TUESDAY.toISOString(),
     ],
   );
   return rows[0].id as string;

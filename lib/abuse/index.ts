@@ -30,9 +30,13 @@ export {
   applyTripRecovery,
   judgeNoShowClaim,
   tripDebtFor,
+  tripDebtNotice,
+  tripDebtOnBill,
   type ArrivalEvidence,
   type NoShowReview,
   type NoShowVerdict,
+  type TripDebtNotice,
+  type TripDebtOnBill,
 } from "./trip";
 
 export {

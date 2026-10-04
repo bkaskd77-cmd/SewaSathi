@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Eye, EyeOff, LogOut, Phone, User } from "lucide-react";
+import { Eye, EyeOff, LogOut, Phone, ReceiptText, User } from "lucide-react";
 
-import { setActivityOptOutAction } from "@/app/[locale]/(app)/account/actions";
+import {
+  disputeTripDebtAction,
+  setActivityOptOutAction,
+} from "@/app/[locale]/(app)/account/actions";
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import { tripDebtNotice } from "@/lib/abuse";
+import { customerHistory } from "@/lib/data/customer-risk";
 import { readActivityOptOut } from "@/lib/data/profile-prefs";
 import { formatE164ForDisplay } from "@/lib/auth";
+import { formatNpr } from "@/lib/utils";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 
 export async function generateMetadata({
@@ -56,7 +62,26 @@ export default async function AccountPage() {
    * read it already makes is not made cheaper by carrying a column nobody else
    * asks for.
    */
-  const hiddenFromActivity = await readActivityOptOut(profile.id);
+  const [hiddenFromActivity, risk] = await Promise.all([
+    readActivityOptOut(profile.id),
+    /*
+     * The carried trip charge, so this screen can say what is owed and take the
+     * objection. One wave with the preference above it — neither depends on the other,
+     * and a round trip is the unit of cost since the region move.
+     */
+    customerHistory(profile.id),
+  ]);
+
+  /*
+   * The same rule the review screen reads, so the balance and the share are one
+   * sentence written once. `show: false` is the ordinary case — almost nobody owes
+   * anything, and a permanent panel reading "you owe nothing" would put a charge in
+   * front of every customer who has never been near one.
+   */
+  const debt = tripDebtNotice({
+    outstanding: risk.tripDebt,
+    disputedAt: risk.tripDebtDisputedAt,
+  });
 
   const rows = [
     {
@@ -202,6 +227,75 @@ export default async function AccountPage() {
           </form>
         )}
       </Card>
+
+      {/* ---------------- a carried trip charge ---------------- */}
+      {/*
+        ONLY RENDERED WHERE SOMETHING IS OWED, which is almost nobody. A permanent
+        panel reading "you owe nothing" would put a charge in front of every customer
+        who has never been near one.
+
+        THE OBJECTION LIVES HERE RATHER THAN IN THE BOOKING FLOW. The review screen
+        names the charge before the confirm button and links to this panel: a dispute
+        form mid-flow would mean leaving the booking anyway, and this is the screen
+        somebody can find again afterwards — the activity opt-out's argument, one panel
+        down.
+
+        A REASON IS REQUIRED BY THE FIELD AS WELL AS BY THE SERVER. `required` keeps
+        this page free of client JavaScript while still refusing an empty submission,
+        and `disputeTripDebt` refuses one too — a browser check is a convenience and
+        never the rule.
+      */}
+      {debt.show ? (
+        <Card
+          className="animate-rise mt-8 border-warning/40 bg-warning/5 p-5"
+          style={{ animationDelay: "165ms" }}
+        >
+          <h2 className="flex items-center gap-2.5 text-body-md font-semibold">
+            <ReceiptText aria-hidden="true" className="size-4 shrink-0" />
+            {t("tripDebtTitle")}
+          </h2>
+          <p className="mt-2 text-heading-sm font-display tabular-nums">
+            {formatNpr(debt.outstanding, { locale })}
+          </p>
+          <p className="mt-2 text-body-sm text-muted-foreground">
+            {/* The share comes off `recoveryCapBps` through `tripDebtNotice`, the
+                same function the review screen reads, so the two sentences cannot
+                come to state different percentages of the same rule. */}
+            {t("tripDebtBody", { percent: String(debt.sharePercent) })}
+          </p>
+
+          {debt.disputed ? (
+            <p className="mt-4 rounded-lg border border-border bg-background p-3 text-body-sm">
+              {t("tripDebtDisputeOpen")}
+            </p>
+          ) : (
+            <form action={disputeTripDebtAction} className="mt-4">
+              <label
+                htmlFor="trip-debt-note"
+                className="text-body-sm font-medium"
+              >
+                {t("tripDebtDisputeLabel")}
+              </label>
+              <textarea
+                id="trip-debt-note"
+                name="note"
+                required
+                rows={3}
+                maxLength={1000}
+                placeholder={t("tripDebtDisputePlaceholder")}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background p-3 text-body-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                className="btn-tactile mt-3"
+              >
+                {t("tripDebtDisputeSubmit")}
+              </Button>
+            </form>
+          )}
+        </Card>
+      ) : null}
 
       {/*
         Log out is in the header menu too, but that menu is a hover-sized

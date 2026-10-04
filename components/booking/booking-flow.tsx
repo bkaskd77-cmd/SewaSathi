@@ -16,7 +16,11 @@ import {
   type CategoryOption,
 } from "@/components/booking/step-problem";
 import { StepProvider } from "@/components/booking/step-provider";
-import { StepReview, type ReviewRow } from "@/components/booking/step-review";
+import {
+  StepReview,
+  type CarriedTripDebt,
+  type ReviewRow,
+} from "@/components/booking/step-review";
 import { StepWhen } from "@/components/booking/step-when";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
@@ -73,6 +77,7 @@ export function BookingFlow({
   savedAddresses,
   areas,
   preselectedProvider,
+  tripDebt,
   signedIn,
   loginHref,
   areaLabels,
@@ -91,6 +96,14 @@ export function BookingFlow({
   savedAddresses: SavedAddress[];
   areas: AreaGroup[];
   preselectedProvider: ShortlistEntry | null;
+  /**
+   * A trip debt carried from an earlier visit nobody answered the door for.
+   *
+   * PRE-FORMATTED AND PASSED DOWN rather than computed here, like `areaLabels`: the
+   * figure is currency in the reader's locale and the rule comes off a constant the
+   * server already holds. Null is the ordinary case — almost nobody owes anything.
+   */
+  tripDebt: CarriedTripDebt | null;
   signedIn: boolean;
   /** Where to send a signed-out customer at the provider step. */
   loginHref: string;
@@ -477,6 +490,7 @@ export function BookingFlow({
               })}
               quoteLabel={quoteLabel}
               surveyPriced={selectedCategory?.surveyPriced ?? false}
+              tripDebt={tripDebt}
               payment={state.paymentMethod}
               error={errors.form ?? errors.provider ?? errors.category}
               serving={

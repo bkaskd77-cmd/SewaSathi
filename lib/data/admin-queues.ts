@@ -20,7 +20,12 @@ import {
   unresolvedPayoutsQueue,
 } from "@/lib/data/payouts";
 import type { AdminQueueCount } from "@/lib/data/queue";
-import { NO_SHOW_QUEUE_CAP, openNoShowClaimsCount } from "@/lib/data/review";
+import {
+  NO_SHOW_QUEUE_CAP,
+  TRIP_DISPUTE_QUEUE_CAP,
+  openNoShowClaimsCount,
+  openTripDebtDisputesCount,
+} from "@/lib/data/review";
 import {
   SURVEY_FEE_QUEUE_CAP,
   pendingSurveyFeesCount,
@@ -63,6 +68,7 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
     mismatches,
     destinations,
     payouts,
+    tripDisputes,
   ] = await Promise.all([
     reviewQueueCount(),
     openNoShowClaimsCount(),
@@ -72,6 +78,7 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
     openAmountMismatchesCount(),
     destinationsInCooldownCount(),
     unresolvedPayoutsQueue(),
+    openTripDebtDisputesCount(),
   ]);
 
   return [
@@ -87,6 +94,20 @@ export async function adminQueueCounts(): Promise<AdminQueueCount[]> {
       href: "/admin/claims",
       total: claims,
       cap: NO_SHOW_QUEUE_CAP,
+      oldest: null,
+    },
+    /*
+     * ITS OWN CARD RATHER THAN A NUMBER FOLDED INTO `claims`, because an undecided
+     * dispute has a cost nothing else surfaces: it holds the whole charge off every
+     * bill for as long as it sits there, so a forgotten one is money quietly never
+     * collected. Summing it into the claims count would hide exactly that — the
+     * `payouts` card's argument, where a guard's cost showed only in a log.
+     */
+    {
+      key: "tripDisputes",
+      href: "/admin/claims",
+      total: tripDisputes,
+      cap: TRIP_DISPUTE_QUEUE_CAP,
       oldest: null,
     },
     {

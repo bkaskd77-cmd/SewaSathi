@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
+import { tripDebtOnBill } from "@/lib/abuse";
 import {
   canSettle,
   commissionBasis,
@@ -101,7 +102,7 @@ async function readBooking(bookingId: string) {
   const { data } = await createAdminClient()
     .from("bookings")
     .select(
-      "id, reference, customer_id, provider_id, category_slug, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at",
+      "id, reference, customer_id, provider_id, category_slug, status, quoted_min, quoted_max, final_amount, final_amount_approved_at, payment_method, commission_floor_waived, customer_reported_amount, amount_mismatch_at, amount_mismatch_resolved_at, trip_debt_added_rupees",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -110,6 +111,8 @@ async function readBooking(bookingId: string) {
     reference: string;
     customer_id: string;
     provider_id: string | null;
+    /** Null until this booking has been judged for a past trip debt; 0 after. */
+    trip_debt_added_rupees: number | null;
     /*
      * WHICH TRADE, because the payout shape depends on it. `payoutPlan` holds a
      * quarter back where the guarantee window runs long, and the window is read
@@ -177,6 +180,128 @@ async function canBill(
  * three outcomes and the reasoning behind each boundary are in
  * lib/payments/pricing.ts.
  */
+/**
+ * What a past trip debt should add to this bill, and whether it was already decided.
+ *
+ * READ-ONLY AND NEVER THROWS. It sits in front of the one money write this product
+ * lets a professional make, so a failure here must not stop them recording what they
+ * were paid: an unreadable `customer_risk` row returns `decided: false`, the column
+ * stays null, and the recovery happens on the customer's next booking where the debt
+ * still sits. The alternative — refusing a settlement because an anti-fraud read
+ * failed — would be the wrong trade by a long way.
+ *
+ * `tripDebtOnBill` is the rule and lives in `lib/abuse`, pure and tested without a
+ * database. This is only the read around it.
+ */
+async function tripDebtToAdd(input: {
+  customerId: string;
+  billRupees: number;
+  alreadyAdded: number | null;
+}): Promise<{ decided: boolean; rupees: number; remaining: number }> {
+  // Already judged — including a recorded 0 — so nothing more is decided here.
+  if (input.alreadyAdded !== null) {
+    return { decided: false, rupees: input.alreadyAdded, remaining: 0 };
+  }
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("customer_risk")
+      .select("trip_debt_rupees, trip_debt_disputed_at")
+      .eq("profile_id", input.customerId)
+      .maybeSingle();
+
+    if (error) {
+      console.error(`[payments] trip debt unread — ${describeError(error)}`);
+      return { decided: false, rupees: 0, remaining: 0 };
+    }
+
+    const verdict = tripDebtOnBill({
+      billRupees: input.billRupees,
+      outstanding: (data?.trip_debt_rupees as number | undefined) ?? 0,
+      disputedAt: (data?.trip_debt_disputed_at as string | null) ?? null,
+      alreadyAdded: null,
+    });
+
+    /*
+     * A DISPUTE RECORDS NOTHING AT ALL, deliberately. Writing 0 would mark this
+     * booking as judged, and the debt would never be recovered on it even after an
+     * admin decided the dispute. `nothingOwed` is a real answer and is recorded;
+     * `disputed` is "ask again later".
+     */
+    if (verdict.outcome === "disputed") {
+      return { decided: false, rupees: 0, remaining: 0 };
+    }
+    if (verdict.outcome === "nothingOwed") {
+      return { decided: true, rupees: 0, remaining: 0 };
+    }
+    if (verdict.outcome === "alreadyDone") {
+      return { decided: false, rupees: verdict.rupees, remaining: 0 };
+    }
+    return {
+      decided: true,
+      rupees: verdict.rupees,
+      remaining: verdict.remaining,
+    };
+  } catch (thrown) {
+    console.error(`[payments] trip debt threw — ${describeError(thrown)}`);
+    return { decided: false, rupees: 0, remaining: 0 };
+  }
+}
+
+/**
+ * Bring the customer's debt down, and route the money the right way.
+ *
+ * TWO DIRECTIONS, AND THEY ARE NOT MIRROR IMAGES. On a digital job the extra rupees
+ * arrive with the rest of the customer's payment, so there is nothing to record
+ * against anybody — we hold it. On a **cash** job the collecting professional
+ * physically takes those notes along with the bill, so they owe it on: a
+ * `commission_due` row, carried by the same two-way net that already handles cash
+ * commission. Writing nothing on the cash path would quietly hand the recovery to
+ * whoever happened to collect it.
+ *
+ * IT NEVER THROWS. The booking write has already succeeded by the time this runs.
+ */
+async function settleTripDebt(input: {
+  customerId: string;
+  bookingId: string;
+  providerId: string | null;
+  isCash: boolean;
+  rupees: number;
+  remaining: number;
+}): Promise<void> {
+  const db = createAdminClient();
+
+  try {
+    await db
+      .from("customer_risk")
+      .update({
+        trip_debt_rupees: input.remaining,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", input.customerId);
+
+    if (input.isCash && input.providerId) {
+      const { error } = await db.from("provider_ledger").insert({
+        provider_id: input.providerId,
+        booking_id: input.bookingId,
+        kind: "commission_due",
+        amount_rupees: input.rupees,
+        note: "Trip debt collected in cash with the bill",
+      });
+      /*
+       * `provider_ledger_commission_once_idx` is unique per (booking, tranche), so a
+       * retried settlement is refused rather than double-counted. A duplicate here
+       * means the row is already there, which is the state we wanted.
+       */
+      if (error && (error as { code?: string }).code !== "23505") {
+        console.error(`[payments] trip debt not billed on — ${describeError(error)}`);
+      }
+    }
+  } catch (thrown) {
+    console.error(`[payments] trip debt settle threw — ${describeError(thrown)}`);
+  }
+}
+
 export async function recordFinalAmount(input: {
   bookingId: string;
   amount: number;
@@ -255,6 +380,33 @@ export async function recordFinalAmount(input: {
     }
   }
 
+  /*
+   * THE TRIP DEBT, DECIDED ONCE AND WRITTEN IN THE SAME UPDATE AS THE AMOUNT.
+   *
+   * The terms promise this in plain words — "the cost of the trip is added to your
+   * next booking: at most a quarter of that bill at a time" — and nothing has ever
+   * done it. What makes it safe to do here is `bookings.trip_debt_added_rupees`:
+   * null until this booking has been judged, a number (0 included) after.
+   * `recordFinalAmount` is re-enterable by design — a professional correcting a typo
+   * runs it again — and without that column each re-record would recover from a
+   * customer who has already been charged.
+   *
+   * ONE STATEMENT, so the figure and the fact that it was decided cannot come apart:
+   * a crash between two writes would otherwise leave a bill carrying a recovery that
+   * nothing recorded, and the next record would add it again.
+   *
+   * IT NEVER BLOCKS THE SETTLEMENT. A failed read of the customer's debt leaves the
+   * column null and the amount recorded — the recovery is retried on their next
+   * booking, where the debt still sits. Refusing to let a professional record what
+   * they were paid because an anti-fraud read failed would be the wrong trade by a
+   * long way.
+   */
+  const recovery = await tripDebtToAdd({
+    customerId: booking.customer_id as string,
+    billRupees: input.amount,
+    alreadyAdded: (booking.trip_debt_added_rupees as number | null) ?? null,
+  });
+
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("bookings")
@@ -265,12 +417,29 @@ export async function recordFinalAmount(input: {
       // Within the band is already agreed; over it waits for the customer.
       final_amount_approved_at:
         verdict.outcome === "within-band" ? new Date().toISOString() : null,
+      ...(recovery.decided ? { trip_debt_added_rupees: recovery.rupees } : {}),
     })
     .eq("id", input.bookingId);
 
   if (error) {
     console.error(`[payments] final amount failed — ${describeError(error)}`);
     return { ok: false, reason: "saveFailed" };
+  }
+
+  /*
+   * The customer's own balance comes down only after the booking write succeeded,
+   * so a failure leaves the debt whole rather than discharged against a bill that
+   * was never recorded. The reverse order loses the customer money on an error.
+   */
+  if (recovery.decided && recovery.rupees > 0) {
+    await settleTripDebt({
+      customerId: booking.customer_id as string,
+      bookingId: input.bookingId,
+      providerId: (booking.provider_id as string | null) ?? null,
+      isCash: (booking.payment_method as string) === "cash",
+      rupees: recovery.rupees,
+      remaining: recovery.remaining,
+    });
   }
 
   /*

@@ -262,6 +262,8 @@ export type Database = {
           band_min: number | null;
           /** The approved band revision in force at quote time. Null: none on record — the band came from the launch research, or the quote was a survey. Never backfilled. */
           band_revision_id: string | null;
+          /** What a past no-show trip added to this bill. NULL = not considered, 0 = considered and nothing owed. */
+          trip_debt_added_rupees: number | null;
           final_amount: number | null;
           payment_method: string;
           payment_status: string;
@@ -406,6 +408,7 @@ export type Database = {
           /** Filled by `freeze_booking_band` when omitted, so never required. */
           band_min?: number | null;
           band_revision_id?: string | null;
+          trip_debt_added_rupees?: number | null;
           final_amount?: number | null;
           payment_method?: string;
           payment_status?: string;
@@ -735,6 +738,9 @@ export type Database = {
           false_addresses: number;
           completed_jobs: number;
           trip_debt_rupees: number;
+          /** Set while the customer is disputing the debt. Nothing is recovered while it is set. */
+          trip_debt_disputed_at: string | null;
+          trip_debt_dispute_note: string | null;
           banned_at: string | null;
           banned_reason: string | null;
           updated_at: string;
@@ -745,6 +751,8 @@ export type Database = {
           false_addresses?: number;
           completed_jobs?: number;
           trip_debt_rupees?: number;
+          trip_debt_disputed_at?: string | null;
+          trip_debt_dispute_note?: string | null;
           banned_at?: string | null;
           banned_reason?: string | null;
           updated_at?: string;

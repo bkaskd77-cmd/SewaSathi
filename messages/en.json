@@ -488,7 +488,13 @@
       "activityHideMe": "Keep my jobs off the homepage",
       "activityShowMe": "Let my jobs appear again",
       "changeNote": "Need to change something? Call <phone>{number}</phone> and we’ll update it — editing here arrives with addresses and payment.",
-      "changeNoteNoPhone": "Editing here arrives with addresses and payment."
+      "changeNoteNoPhone": "Editing here arrives with addresses and payment.",
+      "tripDebtTitle": "A charge carried from an earlier visit",
+      "tripDebtBody": "A professional travelled to your address on an earlier booking and nobody answered. We paid them for the trip, and this is what is still to come off your next bills — at most {percent}% of each one.",
+      "tripDebtDisputeLabel": "Tell us why this is not yours",
+      "tripDebtDisputePlaceholder": "What happened that day",
+      "tripDebtDisputeSubmit": "Dispute this charge",
+      "tripDebtDisputeOpen": "We have your objection. Nothing is added to your bills while somebody looks at it, and you do not need to do anything else."
     },
     "flow": {
       "title": "Book a professional",
@@ -623,7 +629,11 @@
         "estimateBadge": "No work begins until you agree the price",
         "surveyTitle": "We come and look first, free",
         "surveyBody": "Nobody quotes a move without seeing how much there is. Somebody comes at the time you picked, looks, and sends you a price. You approve it before anything is loaded — and if you say no, you pay nothing.",
-        "surveyBadge": "The survey costs you nothing"
+        "surveyBadge": "The survey costs you nothing",
+        "tripDebtTitle": "A charge carried from an earlier visit",
+        "tripDebtBody": "Nobody answered the door on an earlier booking, and the professional was paid for the trip. We never take it all at once — at most {percent}% of each bill until it is cleared.",
+        "tripDebtDisputed": "You have told us this is not yours. Nothing is added to this bill while somebody looks at it.",
+        "tripDebtDispute": "This is not mine"
       },
       "success": {
         "title": "Booked",
@@ -1714,7 +1724,7 @@
         },
         "claims": {
           "name": "Nobody arrived",
-          "what": "Customers saying a professional did not turn up."
+          "what": "Professionals saying nobody answered the door. Deciding who carries the trip."
         },
         "refunds": {
           "name": "Refunds to send",
@@ -1743,6 +1753,10 @@
         "payouts": {
           "name": "Payouts to approve",
           "what": "Each one is a week nobody has released. Until it is approved or failed, that professional's next week cannot be totalled either — so the wait compounds."
+        },
+        "tripDisputes": {
+          "name": "Disputed trip charges",
+          "what": "Customers saying a trip charge is not theirs. Nothing is collected until one is decided."
         }
       },
       "toolsTitle": "Look things up",
@@ -1844,7 +1858,14 @@
       "selfReported": "The wait and the call count are the professional's own figures — nothing checks them. Only the arrival time is ours.",
       "locatedUnverified": "Phone-reported location, unverified — we have no coordinates for this address to compare it against, so it is not proof of anything",
       "claimRate": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional, across {jobCount, plural, one {# finished job} other {# finished jobs}}.",
-      "claimRateUnreadable": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional. We could not read how many jobs they have finished, so there is no rate to read here."
+      "claimRateUnreadable": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional. We could not read how many jobs they have finished, so there is no rate to read here.",
+      "disputesTitle": "Disputed trip charges",
+      "disputesLead": "A customer says a trip charge is not theirs. Nothing is collected while one sits here, so an undecided dispute is money never recovered. The professional has been paid either way.",
+      "disputesUnreadable": "We could not read the disputed charges. That is not the same as there being none.",
+      "disputeOpened": "Disputed on {date}",
+      "disputeRecord": "{count, plural, one {# missed visit} other {# missed visits}} on record, across {jobCount, plural, one {# finished job} other {# finished jobs}}.",
+      "disputeCancel": "Cancel the charge — we absorb it",
+      "disputeStands": "The charge stands"
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",

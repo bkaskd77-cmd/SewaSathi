@@ -1,9 +1,17 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Banknote, Info, Pencil, Smartphone, Wallet } from "lucide-react";
+import {
+  Banknote,
+  Info,
+  Pencil,
+  ReceiptText,
+  Smartphone,
+  Wallet,
+} from "lucide-react";
 
 import { FieldError } from "@/components/auth/field-error";
+import { Link } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import type { FlowStep } from "@/lib/booking";
 import { CannotCome } from "@/components/booking/cannot-come";
@@ -18,6 +26,23 @@ const PAYMENTS: Array<{ value: PaymentMethod; icon: typeof Wallet }> = [
   { value: "esewa", icon: Smartphone },
   { value: "khalti", icon: Wallet },
 ];
+
+/**
+ * A trip debt the customer is carrying into this booking.
+ *
+ * WHY IT IS ON THIS SCREEN. It is the only charge on this platform beyond the work
+ * itself, and the recovery happens at settlement — so without a line here it would
+ * first appear on the final bill, which is a charge added unseen. Every field arrives
+ * formatted, because a currency formatter cannot cross the server boundary.
+ */
+export type CarriedTripDebt = {
+  /** The whole balance, formatted. It bounds the total across however many jobs. */
+  outstandingLabel: string;
+  /** The share of any one bill, as a plain number string off `recoveryCapBps`. */
+  sharePercent: string;
+  /** True while the customer is disputing it, in which case nothing is taken. */
+  disputed: boolean;
+};
 
 export type ReviewRow = {
   step: FlowStep;
@@ -63,6 +88,7 @@ export function StepReview({
   rows,
   quoteLabel,
   surveyPriced = false,
+  tripDebt = null,
   payment,
   error,
   serving,
@@ -81,6 +107,8 @@ export function StepReview({
    * and you approve the price before anything is loaded".
    */
   surveyPriced?: boolean;
+  /** Null for almost everybody — see `CarriedTripDebt`. */
+  tripDebt?: CarriedTripDebt | null;
   payment: PaymentMethod;
   error?: string | null;
   /** Null when the customer let us assign, or when nobody is chosen yet. */
@@ -205,6 +233,53 @@ export function StepReview({
           {t(surveyPriced ? "surveyBadge" : "estimateBadge")}
         </Badge>
       </div>
+
+      {/*
+        THE CARRIED TRIP CHARGE, BELOW THE ESTIMATE AND ABOVE THE CONFIRM BUTTON.
+        Deliberately its own panel rather than a row in the summary: the summary rows
+        are things the customer chose and can edit, and this is neither. Warning
+        colouring rather than destructive — it is money owed for a visit that happened,
+        not a problem with this booking, and a red panel on the confirm screen reads as
+        "something is wrong with what you are doing".
+
+        A DISPUTE CHANGES THE SENTENCE, NOT THE VISIBILITY. While one is open nothing
+        is taken, and saying so is the point: somebody who has objected wants to see
+        that we know rather than to find the line gone and wonder.
+      */}
+      {tripDebt ? (
+        <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+          <p className="flex items-center gap-2 text-body-sm font-semibold">
+            <ReceiptText aria-hidden="true" className="size-4 shrink-0" />
+            {t("tripDebtTitle")}
+          </p>
+          <p className="mt-1.5 text-body-md tabular-nums">
+            {tripDebt.outstandingLabel}
+          </p>
+          <p className="mt-1.5 text-body-sm text-muted-foreground">
+            {tripDebt.disputed
+              ? t("tripDebtDisputed")
+              : t("tripDebtBody", { percent: tripDebt.sharePercent })}
+          </p>
+          {tripDebt.disputed ? null : (
+            /*
+             * TO `/account`, NOT A FORM HERE. A dispute opened mid-flow would mean
+             * leaving the booking anyway, and the objection belongs on the screen
+             * somebody can find again — the activity opt-out's argument one panel
+             * over. The draft is in sessionStorage, so coming back restores it.
+             *
+             * `Link` from `@/i18n/navigation`, so a Nepali reader lands on
+             * `/ne/account`. One stray `next/link` drops them into English and
+             * nothing fails.
+             */
+            <Link
+              href="/account"
+              className="mt-2 inline-block text-body-sm underline underline-offset-2"
+            >
+              {t("tripDebtDispute")}
+            </Link>
+          )}
+        </div>
+      ) : null}
 
       <FieldError id="confirm-error" message={error ? tErr(error) : null} />
     </div>

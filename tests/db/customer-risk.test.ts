@@ -701,3 +701,290 @@ describe("a past-tense money column has money behind it", () => {
     expect(rows.map((row) => row.booking_id)).toEqual([]);
   });
 });
+
+describe("a trip debt comes off a later bill, once", () => {
+  /**
+   * WHAT THIS PINS. The terms promise the debt is added to the next booking, capped
+   * at a quarter of that bill. `recordFinalAmount` is re-enterable — a professional
+   * correcting a typed figure runs it again — so the thing worth proving against a
+   * database is not the arithmetic (that is `tripDebtOnBill`, pure and tested) but
+   * that the second pass through recovers nothing.
+   *
+   * The rows are written the way `recordFinalAmount` writes them: the booking column
+   * and the customer's balance, in that order.
+   */
+  /*
+   * ITS OWN CUSTOMER AND ITS OWN DOOR, for the reason the block above states: the
+   * cases here read a balance going down, so sharing a customer with a describe that
+   * writes claims would make every figure depend on what ran before it.
+   */
+  const DEBTOR = "eeeeeeee-5555-4555-8555-eeeeeeeeeeee";
+  let debtorAddress: string;
+
+  beforeAll(async () => {
+    await pg.admin.query("insert into auth.users (id) values ($1)", [DEBTOR]);
+    await pg.admin.query(
+      `insert into public.profiles (id, full_name, phone, role)
+       values ($1, 'Bina Shrestha', '+9779812222555', 'customer')
+       on conflict (id) do nothing`,
+      [DEBTOR],
+    );
+    const { rows } = await pg.admin.query(
+      `insert into public.addresses
+         (profile_id, label, area_key, city, ward_number, tole, landmark)
+       values ($1, 'home', 'lalitpur-4', 'Lalitpur', 4, 'Jhamsikhel', 'Blue gate')
+       returning id`,
+      [DEBTOR],
+    );
+    debtorAddress = rows[0].id as string;
+  });
+
+  let slot = 200;
+
+  async function billableBooking(
+    reference: string,
+    method: string,
+    finish = true,
+  ): Promise<string> {
+    slot += 1;
+    const { rows } = await pg.admin.query(
+      `insert into public.bookings
+         (reference, customer_id, provider_id, category_slug, address_id,
+          description, quoted_min, quoted_max, payment_method, scheduled_for)
+       values ($1, $2, $3, 'plumbing', $4, 'Tap again', 900, 4500, $5,
+               now() + ($6 || ' days')::interval)
+       returning id`,
+      [reference, DEBTOR, manojProvider, debtorAddress, method, String(slot)],
+    );
+    const id = rows[0].id as string;
+    /* A final amount is only legal on a finished job — `bookings_final_amount_shape`
+       — and the status machine refuses a jump, so the walk is the fixture. */
+    if (finish) {
+      for (const step of ["accepted", "en_route", "in_progress", "completed"]) {
+        await pg.admin.query("update public.bookings set status = $1 where id = $2", [
+          step,
+          id,
+        ]);
+      }
+    }
+    return id;
+  }
+
+  async function setDebt(rupees: number): Promise<void> {
+    await pg.admin.query(
+      `insert into public.customer_risk (profile_id, trip_debt_rupees)
+       values ($1, $2)
+       on conflict (profile_id) do update set trip_debt_rupees = $2,
+         trip_debt_disputed_at = null`,
+      [DEBTOR, rupees],
+    );
+  }
+
+  async function debtNow(): Promise<number> {
+    const { rows } = await pg.admin.query(
+      "select trip_debt_rupees from public.customer_risk where profile_id = $1",
+      [DEBTOR],
+    );
+    return rows[0]?.trip_debt_rupees as number;
+  }
+
+  /** One pass of what `recordFinalAmount` does, guarded on the column. */
+  async function record(bookingId: string, amount: number): Promise<void> {
+    const { rows } = await pg.admin.query(
+      "select trip_debt_added_rupees, payment_method, provider_id from public.bookings where id = $1",
+      [bookingId],
+    );
+    if (rows[0].trip_debt_added_rupees !== null) return; // already judged
+
+    /* The dispute check `tripDebtOnBill` makes, in the same order: a held debt stops
+       the recovery before any arithmetic and leaves the column null. */
+    const { rows: risk } = await pg.admin.query(
+      "select trip_debt_rupees, trip_debt_disputed_at from public.customer_risk where profile_id = $1",
+      [DEBTOR],
+    );
+    if (risk[0]?.trip_debt_disputed_at !== null) {
+      await pg.admin.query(
+        "update public.bookings set final_amount = $1 where id = $2",
+        [amount, bookingId],
+      );
+      return;
+    }
+
+    const outstanding = await debtNow();
+    const add = Math.min(outstanding, Math.floor((amount * 2500) / 10_000));
+
+    await pg.admin.query(
+      "update public.bookings set final_amount = $1, trip_debt_added_rupees = $2 where id = $3",
+      [amount, add, bookingId],
+    );
+    if (add > 0) {
+      await pg.admin.query(
+        "update public.customer_risk set trip_debt_rupees = $1 where profile_id = $2",
+        [outstanding - add, DEBTOR],
+      );
+      if (rows[0].payment_method === "cash") {
+        await pg.admin.query(
+          `insert into public.provider_ledger (provider_id, booking_id, kind, amount_rupees, note)
+           values ($1, $2, 'commission_due', $3, 'Trip debt collected in cash with the bill')`,
+          [rows[0].provider_id, bookingId, add],
+        );
+      }
+    }
+  }
+
+  it("takes a quarter of the bill and no more", async () => {
+    await setDebt(3000);
+    const booking = await billableBooking("SK-DEBT1", "esewa");
+    await record(booking, 4000);
+
+    const { rows } = await pg.admin.query(
+      "select trip_debt_added_rupees from public.bookings where id = $1",
+      [booking],
+    );
+    expect(rows[0].trip_debt_added_rupees).toBe(1000);
+    expect(await debtNow()).toBe(2000);
+  });
+
+  /*
+   * THE CASE THE COLUMN EXISTS FOR. Without it the second call recovers again, from
+   * a customer already charged once on this booking.
+   */
+  it("recovers nothing when the amount is recorded a second time", async () => {
+    await setDebt(3000);
+    const booking = await billableBooking("SK-DEBT2", "esewa");
+
+    await record(booking, 4000);
+    const afterFirst = await debtNow();
+    await record(booking, 4200);
+    expect(await debtNow()).toBe(afterFirst);
+
+    const { rows } = await pg.admin.query(
+      "select trip_debt_added_rupees from public.bookings where id = $1",
+      [booking],
+    );
+    expect(rows[0].trip_debt_added_rupees).toBe(1000);
+  });
+
+  /*
+   * CASH IS THE OTHER DIRECTION. The collecting professional physically takes those
+   * rupees with the bill, so they owe them on — otherwise the recovery is quietly a
+   * gift to whoever happened to collect it.
+   */
+  it("bills a cash collector for what they took", async () => {
+    await setDebt(2000);
+    const booking = await billableBooking("SK-DEBT3", "cash");
+    await record(booking, 4000);
+
+    const { rows } = await pg.admin.query(
+      `select amount_rupees from public.provider_ledger
+        where booking_id = $1 and kind = 'commission_due'`,
+      [booking],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount_rupees).toBe(1000);
+  });
+
+  it("bills nobody on a digital job, where the money reaches us directly", async () => {
+    await setDebt(2000);
+    const booking = await billableBooking("SK-DEBT4", "khalti");
+    await record(booking, 4000);
+
+    const { rows } = await pg.admin.query(
+      `select 1 from public.provider_ledger
+        where booking_id = $1 and kind = 'commission_due'`,
+      [booking],
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  /*
+   * THE DISPUTE HOLDS THE WHOLE CHARGE OFF THE BILL, which is the condition this
+   * phase was built to meet. Not a smaller slice and not a zero written to the
+   * column: nothing at all, so the column stays null and the NEXT booking asks
+   * again once a person has decided. Writing 0 here would read as "considered,
+   * nothing owed" and quietly forgive a debt nobody cancelled.
+   */
+  it("adds nothing while the customer is disputing, and keeps the question open", async () => {
+    await setDebt(3000);
+    await pg.admin.query(
+      `update public.customer_risk
+          set trip_debt_disputed_at = now(), trip_debt_dispute_note = 'I was in all day'
+        where profile_id = $1`,
+      [DEBTOR],
+    );
+
+    const booking = await billableBooking("SK-DEBT6", "cash");
+    await record(booking, 4000);
+
+    const { rows } = await pg.admin.query(
+      "select trip_debt_added_rupees from public.bookings where id = $1",
+      [booking],
+    );
+    expect(rows[0].trip_debt_added_rupees).toBeNull();
+    expect(await debtNow()).toBe(3000);
+
+    // And nobody was billed for collecting what was never added.
+    const { rows: ledger } = await pg.admin.query(
+      `select 1 from public.provider_ledger
+        where booking_id = $1 and kind = 'commission_due'`,
+      [booking],
+    );
+    expect(ledger).toHaveLength(0);
+  });
+
+  /*
+   * A customer cannot clear or forge the figure from their own browser. RLS is
+   * row-level, so the policy that lets them cancel their own booking would otherwise
+   * let them write this column — zero to dodge the charge, null to be charged twice.
+   *
+   * THE BOOKING IS LEFT PENDING ON PURPOSE, and getting that wrong is what this
+   * comment is for: on a finished booking the customer's update policy matches no row
+   * at all, so the statement affects nothing and the trigger never runs. That passes
+   * an `expect().rejects` written loosely and proves the policy rather than the guard.
+   * Pending is the state where the policy DOES let them through, which is where the
+   * column guard is the only thing standing between them and the figure.
+   */
+  it("refuses a customer editing the recovery on their own booking", async () => {
+    const booking = await billableBooking("SK-DEBT5", "cash", false);
+    const client = await pg.asUser(DEBTOR);
+
+    await expect(
+      client.query(
+        "update public.bookings set trip_debt_added_rupees = 0 where id = $1",
+        [booking],
+      ),
+    ).rejects.toThrow(/not editable from a browser/i);
+    await client.end();
+  });
+});
+
+describe("a recovery collected in cash is owed on", () => {
+  /**
+   * THE WHOLE-TABLE VERSION of the cash case above, and the reason it is separate is
+   * the reason `MONEY_ASSERTIONS` exists: `bookings.trip_debt_added_rupees` is a
+   * past-tense money column, so the question is not whether the arithmetic was right
+   * but whether anything moved. On a cash job the professional physically takes those
+   * rupees with the bill — if no `commission_due` row follows, the recovery is a gift
+   * to whoever happened to collect it and we have simply forgiven the debt while
+   * telling the customer we charged them for it.
+   *
+   * Written against the rows rather than against `recordFinalAmount`, like the claims
+   * case above: the failure this catches has never been in the arithmetic.
+   */
+  it("bills the collector on every cash booking that recovered something", async () => {
+    const { rows } = await pg.admin.query(`
+      select b.id, b.trip_debt_added_rupees,
+             (select count(*) from public.provider_ledger l
+               where l.booking_id = b.id and l.kind = 'commission_due') as ledger_rows
+        from public.bookings b
+       where b.payment_method = 'cash'
+         and coalesce(b.trip_debt_added_rupees, 0) > 0
+    `);
+
+    const uncollected = rows.filter((row) => Number(row.ledger_rows) === 0);
+    expect(
+      uncollected.map((row) => row.id),
+      "these cash bookings added a trip charge and nobody was billed for collecting it",
+    ).toEqual([]);
+  });
+});

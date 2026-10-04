@@ -73,7 +73,9 @@ describe("a column that says money moved", () => {
    */
   it("is declared with the row that backs it", () => {
     const undeclared = columnsInSchema()
-      .filter((qualified) => assertsMoneyMoved(qualified.split(".")[1] ?? ""))
+      .filter((qualified) =>
+        assertsMoneyMoved(qualified.split(".")[1] ?? "", qualified),
+      )
       .filter((qualified) => assertionFor(qualified) === null);
 
     expect(
@@ -117,7 +119,17 @@ describe("a column that says money moved", () => {
     // which is how trip_rupees_paid survived in plain sight.
     expect(assertsMoneyMoved("final_amount")).toBe(false);
     expect(assertsMoneyMoved("quoted_min")).toBe(false);
+    // The bare name still does not match the pattern...
     expect(assertsMoneyMoved("refund_rupees")).toBe(false);
+    // ...and the qualified one is caught by name, which is the narrow fix.
+    expect(
+      assertsMoneyMoved("refund_rupees", "guarantee_claims.refund_rupees"),
+    ).toBe(true);
+    // A different table's identically-named column is NOT caught, deliberately:
+    // the list names columns, not words, so it cannot quietly widen.
+    expect(assertsMoneyMoved("refund_rupees", "payments.refund_rupees")).toBe(
+      false,
+    );
   });
 
   it("gives every declaration a backing row and a reason", () => {

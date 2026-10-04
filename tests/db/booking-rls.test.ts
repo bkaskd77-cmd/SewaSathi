@@ -1663,6 +1663,16 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["payout_holdback_rupees", "0", /not editable from a browser/i],
     ["payout_holdback_until", "now()", /not editable from a browser/i],
     ["payment_status", "'paid'", /not editable from a browser/i],
+    /*
+     * WHAT WE ADDED TO THIS BILL TO RECOVER AN EARLIER WASTED TRIP. Both
+     * directions cost somebody: a customer writing 0 dodges a charge the terms
+     * say they owe, and a customer writing null makes the booking look
+     * unjudged — so the next settlement recovers a second time from the same
+     * bill. It sits in the money block rather than needing its own, because it
+     * is the only column here that changes what a customer is asked to pay
+     * beyond the work itself.
+     */
+    ["trip_debt_added_rupees", "0", /not editable from a browser/i],
 
     // The surveyed price and its approval — the 2x overcharge ceiling hangs
     // off these, so a browser writing one would be setting its own ceiling.
