@@ -2,9 +2,13 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { Loader2, MapPin, Phone } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 
 import { ArrivalPanel } from "@/components/provider/arrival-panel";
+import {
+  ContactButtons,
+  type ContactChannel,
+} from "@/components/provider/contact-buttons";
 import {
   CorrectionPanel,
   type CorrectionProduct,
@@ -93,6 +97,14 @@ export type JobCardProps = {
   finalLabel: string | null;
   customerName: string | null;
   customerPhone: string | null;
+  /**
+   * `wa.me` for the same number, built on the server.
+   *
+   * BUILT THERE RATHER THAN HERE because `whatsappHref` strips the `+` one way for
+   * every surface, and a `+` left on opens the app with no recipient — which looks
+   * like our bug and is. Null when there is no number to offer.
+   */
+  customerWhatsappHref?: string | null;
   addressLine: string | null;
   landmark: string | null;
   /**
@@ -194,6 +206,26 @@ export type JobCardProps = {
 
 export function JobCard(props: JobCardProps) {
   const t = useTranslations("provider.jobs");
+
+  /*
+   * ONE TAP, ONE ROW, AND NOTHING WAITS ON IT. `claimNoShow` counts these rows as the
+   * evidence that somebody tried to reach the customer, so the write has to happen —
+   * but it must never delay the navigation: the anchor is a real anchor and the dialler
+   * opens while this is in flight. A lost row costs a count; a blocked tap costs the
+   * call, which is the worse of the two by a long way.
+   */
+  const logContact = (channel: ContactChannel) => {
+    void (async () => {
+      try {
+        const { recordContactAttemptAction } = await import(
+          "@/app/[locale]/(work)/provider/jobs/actions"
+        );
+        await recordContactAttemptAction({ bookingId: props.id, channel });
+      } catch {
+        /* Offline, or the page is being unloaded by the dialler. Not worth saying. */
+      }
+    })();
+  };
   const tSurvey = useTranslations("provider.jobs.survey");
   const tOverbook = useTranslations("provider.jobs.overbook");
 
@@ -356,14 +388,14 @@ export function JobCard(props: JobCardProps) {
           reasoning as the customer's own call button: this is what somebody
           standing at the wrong gate actually needs. Not while pending —
           nobody has agreed to anything yet. */}
-      {props.customerPhone && props.status !== "pending" ? (
-        <a
-          href={`tel:${props.customerPhone}`}
-          className="mt-3 inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary underline-offset-4 hover:underline"
-        >
-          <Phone aria-hidden="true" className="size-3.5" />
-          {props.customerName ?? t("callCustomer")}
-        </a>
+      {props.status !== "pending" ? (
+        <ContactButtons
+          phone={props.customerPhone}
+          whatsappHref={props.customerWhatsappHref ?? null}
+          label={props.customerName ?? t("callCustomer")}
+          layout="link"
+          onAttempt={logContact}
+        />
       ) : null}
 
       {/*
@@ -394,6 +426,9 @@ export function JobCard(props: JobCardProps) {
         <ArrivalPanel
           bookingId={props.id}
           customerPhone={props.customerPhone}
+          whatsappHref={props.customerWhatsappHref ?? null}
+          customerLabel={props.customerName ?? t("callCustomer")}
+          onContact={logContact}
           arrivedAt={props.arrivedAt ?? null}
           claimed={Boolean(props.noShowClaimed)}
           recordArrival={async (input) => {

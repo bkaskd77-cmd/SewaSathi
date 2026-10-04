@@ -23,6 +23,17 @@ export type NotificationKind =
   | "booking.declined"
   /** The customer picked this professional after somebody else refused. */
   | "booking.assigned"
+  /**
+   * The professional is at the door.
+   *
+   * THE ONE NOTIFICATION THAT EXISTS TO PREVENT A CLAIM RATHER THAN REPORT ONE.
+   * `MIN_WAIT_MINUTES` has to pass before a wasted trip can be claimed, and somebody
+   * who is in the house with the tap running has no way of knowing anybody is outside
+   * a locked gate. This is sent at the arrival tap, so the window is theirs to use.
+   * It costs us nothing and the alternative is funding a trip that did not need to be
+   * wasted.
+   */
+  | "booking.providerArrived"
   | "booking.amountEntered"
   | "booking.paid"
   /**
@@ -216,6 +227,7 @@ const LIST_NOTES: Partial<Record<NotificationKind, string>> = {
   "booking.cancelled": "cancelled",
   "booking.declined": "declined",
   "booking.assigned": "assigned",
+  "booking.providerArrived": "providerArrived",
   "booking.amountEntered": "amountEntered",
   "booking.paid": "paid",
   "booking.widened": "widened",

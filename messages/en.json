@@ -32,7 +32,8 @@
     "from": "from",
     "typicalRange": "typical range",
     "priceSeparator": "–",
-    "currencyPrefix": "Rs"
+    "currencyPrefix": "Rs",
+    "whatsapp": "WhatsApp"
   },
   "nav": {
     "main": "Main",
@@ -753,7 +754,8 @@
         "widenNote": "{name} can still take it. This only means you stop waiting for them alone.",
         "failed": "That did not work. Try again."
       },
-      "overbookOffered": "{name} offered to fit you in alongside another job. If they cannot make it they will tell you straight away and we will find somebody else."
+      "overbookOffered": "{name} offered to fit you in alongside another job. If they cannot make it they will tell you straight away and we will find somebody else.",
+      "supportWhatsappText": "Hello — I need help with booking {reference}."
     },
     "payment": {
       "methods": {
@@ -850,6 +852,7 @@
       "completed": "Work done",
       "cancelled": "Cancelled",
       "declined": "Professional withdrew",
+      "providerArrived": "At your door",
       "amountEntered": "Amount to check",
       "paid": "Paid",
       "widened": "Still looking",
@@ -1439,11 +1442,15 @@
       "callCustomer": "Call the customer",
       "waitLonger": "Give it {minutes} more minutes before reporting nobody is here.",
       "nobodyHere": "Nobody is here",
-      "confirmBody": "You waited {minutes} minutes and called {calls} times. We will pay you for this trip and look into it.",
+      "confirmBody": "You waited {minutes} minutes and we have a record of every time you tried to reach them. We will pay you for this trip and look into it.",
       "confirmNoShow": "Yes — nobody came",
       "stillWaiting": "I'll keep waiting",
       "claimed": "Reported. We will pay you for the trip and let you know.",
-      "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything."
+      "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything.",
+      "whatsapp": "WhatsApp",
+      "addPhoto": "Add a photo of the door",
+      "photoAttached": "Photo added",
+      "photoTooBig": "That photo is too large to send. Report it without one — it changes nothing about your claim."
     },
     "correction": {
       "open": "This is a different job",
@@ -1842,7 +1849,7 @@
       "title": "Wasted trips",
       "lead": "A professional turned up and nobody was there. They are paid either way; this decides who carries it.",
       "empty": "Nothing waiting.",
-      "waited": "Waited {minutes} minutes, called {calls} times",
+      "waited": "Waited {minutes} minutes, {count, plural, one {# attempt to reach them} other {# attempts to reach them}}",
       "noLocation": "The phone gave no location",
       "located": "Location recorded",
       "customerConfirmed": "The customer had confirmed they would be there",
@@ -1855,7 +1862,7 @@
       "paid": "Paid {amount}",
       "absorbed": "First one — we absorb it",
       "recovered": "Added to their next bill",
-      "selfReported": "The wait and the call count are the professional's own figures — nothing checks them. Only the arrival time is ours.",
+      "selfReported": "The wait is the professional's own figure — nothing checks it. The attempts and the arrival time are ours: a row is written when a button opens, which is not proof that anybody was reached.",
       "locatedUnverified": "Phone-reported location, unverified — we have no coordinates for this address to compare it against, so it is not proof of anything",
       "claimRate": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional, across {jobCount, plural, one {# finished job} other {# finished jobs}}.",
       "claimRateUnreadable": "{count, plural, one {# no-show claim} other {# no-show claims}} from this professional. We could not read how many jobs they have finished, so there is no rate to read here.",
@@ -1865,7 +1872,14 @@
       "disputeOpened": "Disputed on {date}",
       "disputeRecord": "{count, plural, one {# missed visit} other {# missed visits}} on record, across {jobCount, plural, one {# finished job} other {# finished jobs}}.",
       "disputeCancel": "Cancel the charge — we absorb it",
-      "disputeStands": "The charge stands"
+      "disputeStands": "The charge stands",
+      "channels": "{callCount, plural, one {# call} other {# calls}} · {messageCount, plural, one {# WhatsApp message} other {# WhatsApp messages}}",
+      "photoMissing": "A photograph was taken but we could not open it just now. Decide on the rest.",
+      "photoAlt": "The door, photographed when the professional said they arrived",
+      "skewUnknown": "The photograph carries no clock of its own, which is ordinary — most do not. Nothing here says when it was taken.",
+      "skewMatches": "The camera's clock matches when we received it.",
+      "skewEarlier": "The camera's clock says {minutes} minutes before we received it.",
+      "skewLater": "The camera's clock says {minutes} minutes after we received it, so that phone is running ahead."
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",

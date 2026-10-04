@@ -98,16 +98,33 @@ export default async function ClaimsQueuePage() {
               <p className="mt-2 text-body-sm">
                 {t("waited", {
                   minutes: String(claim.waitedMinutes),
-                  calls: String(claim.contactAttempts),
+                  count: claim.contactAttempts,
                 })}
               </p>
 
               {/*
+                WHICH BUTTON, because a call and a message are not the same attempt.
+                A missed call tells a customer somebody wants them; a WhatsApp message
+                sits unread in an app. Only shown when there is a breakdown worth
+                showing — a line reading "0 calls, 0 messages" repeats the sentence
+                above it.
+              */}
+              {claim.contactAttempts > 0 ? (
+                <p className="text-caption mt-1 text-muted-foreground">
+                  {t("channels", {
+                    callCount: claim.contactChannels.call,
+                    messageCount: claim.contactChannels.whatsapp,
+                  })}
+                </p>
+              ) : null}
+
+              {/*
                 WHAT THE EVIDENCE ACTUALLY IS, said on the screen where somebody
-                decides to pay. The wait and the call count are numbers the
-                professional typed; only the arrival stamp is ours. A reviewer
-                weighing "waited 20 minutes, rang 3 times" needs to know nothing
-                checked either figure, or they are reading a claim as a record.
+                decides to pay. The WAIT is still a number the professional typed; the
+                attempts and the arrival stamp are ours. The sentence was rewritten
+                when the call count stopped being typed — leaving it saying both were
+                self-reported would have been a comment describing behaviour the code
+                no longer had, in the place it does the most harm.
               */}
               <p className="text-caption mt-1 text-muted-foreground">
                 {t("selfReported")}
@@ -132,6 +149,25 @@ export default async function ClaimsQueuePage() {
                       jobCount: claim.claimHistory.jobs,
                     })}
               </p>
+
+              {/*
+                THE PHOTOGRAPH AND WHAT ITS CLOCK SAID. The picture is the strongest
+                thing a professional can offer and it is still not proof — it is a
+                photograph of *a* door. What makes it worth funding a payment on is the
+                skew: one taken three hours before the visit is a different claim.
+
+                "NOT RECORDED" IS SAID OUT LOUD rather than left as a blank, because
+                most photographs carry no EXIF at all — our own compressor strips it,
+                and so does every messaging app. A silent absence reads as agreement.
+              */}
+              {claim.photoPath ? (
+                <ClaimPhoto
+                  bookingId={claim.bookingId}
+                  path={claim.photoPath}
+                  adminId={gate.profile.id}
+                  skewMinutes={claim.photoSkewMinutes}
+                />
+              ) : null}
 
               <ul className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
                 <li className="flex items-center gap-1.5">
@@ -262,5 +298,59 @@ export default async function ClaimsQueuePage() {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * The photograph, behind a signed URL, with the read on the log.
+ *
+ * ITS OWN COMPONENT SO THE SIGNING AND THE LOGGING CANNOT COME APART.
+ * `signArrivalPhotoForAdmin` writes the audit row and returns the URL in one call —
+ * the `recordDocumentAccess` arrangement — so there is no path that renders an image
+ * without a row saying who looked. A second call site that signed and forgot to log
+ * is exactly what a separate helper invites.
+ *
+ * A MISSING PHOTOGRAPH IS NOT AN ERROR. The claim still has to be decidable, so a
+ * failed sign renders the sentence and nothing else.
+ */
+async function ClaimPhoto({
+  bookingId,
+  path,
+  adminId,
+  skewMinutes,
+}: {
+  bookingId: string;
+  path: string;
+  adminId: string;
+  skewMinutes: number | null;
+}) {
+  const t = await getTranslations("admin.claims");
+  const { signArrivalPhotoForAdmin } = await import("@/lib/data/arrival-photos");
+  const url = await signArrivalPhotoForAdmin({ path, adminId, bookingId });
+
+  return (
+    <div className="mt-3">
+      {url === null ? (
+        <p className="text-caption text-muted-foreground">{t("photoMissing")}</p>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed
+           URL on a private bucket; next/image would proxy and cache it, which is the
+           opposite of what a ten-minute link is for. */
+        <img
+          src={url}
+          alt={t("photoAlt")}
+          className="max-h-64 w-auto rounded-md border border-border"
+        />
+      )}
+      <p className="text-caption mt-1 text-muted-foreground">
+        {skewMinutes === null
+          ? t("skewUnknown")
+          : Math.abs(skewMinutes) <= 2
+            ? t("skewMatches")
+            : skewMinutes < 0
+              ? t("skewEarlier", { minutes: String(Math.abs(skewMinutes)) })
+              : t("skewLater", { minutes: String(skewMinutes) })}
+      </p>
+    </div>
   );
 }

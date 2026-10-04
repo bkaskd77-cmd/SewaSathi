@@ -20,6 +20,7 @@ import {
   hasRoom,
   quoteState,
 } from "@/lib/booking";
+import { whatsappHref } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategory, getSubBands } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
@@ -348,6 +349,9 @@ export default async function ProviderJobsPage() {
                   }
                   customerName={job.customerName}
                   customerPhone={job.customerPhone}
+                  customerWhatsappHref={
+                    job.customerPhone ? whatsappHref(job.customerPhone) : null
+                  }
                   addressLine={job.addressLine}
                   landmark={job.landmark}
                   quotedMax={job.quotedMax}

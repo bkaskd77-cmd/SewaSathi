@@ -2,8 +2,12 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { CloudOff, Loader2, MapPin, Phone } from "lucide-react";
+import { Camera, CloudOff, Loader2, MapPin } from "lucide-react";
 
+import {
+  ContactButtons,
+  type ContactChannel,
+} from "@/components/provider/contact-buttons";
 import { Button } from "@/components/ui/button";
 import { MIN_WAIT_MINUTES } from "@/lib/abuse";
 import { cn } from "@/lib/utils";
@@ -46,14 +50,18 @@ import { cn } from "@/lib/utils";
 
 const QUEUE_KEY = "sk:arrival-queue";
 
+/**
+ * THE PHOTOGRAPH IS NOT QUEUED, and that is a size decision rather than an oversight.
+ * A queued action goes into `localStorage`, which is a handful of megabytes shared
+ * with everything else this origin stores — and an uncompressed phone photo is two of
+ * them. Queueing one would risk a quota error that loses the CLAIM as well, which is
+ * the failure this queue exists to prevent. So an arrival that could not reach the
+ * server is retried without its picture, and a claim with no photograph is an ordinary
+ * claim.
+ */
 type QueuedAction =
   | { kind: "arrived"; bookingId: string; lat?: number; lng?: number }
-  | {
-      kind: "noShow";
-      bookingId: string;
-      waitedMinutes: number;
-      contactAttempts: number;
-    };
+  | { kind: "noShow"; bookingId: string; waitedMinutes: number };
 
 /** Everything about the queue in one place, and it never throws. */
 const queue = {
@@ -107,13 +115,54 @@ export type ArrivalPanelProps = {
     bookingId: string;
     lat?: number;
     lng?: number;
+    photoBase64?: string;
   }) => Promise<{ ok: boolean }>;
   claimNoShow: (input: {
     bookingId: string;
     waitedMinutes: number;
-    contactAttempts: number;
   }) => Promise<{ ok: boolean; reason?: string }>;
+  /** Built on the server from `site.supportWhatsapp`'s sibling — the customer's own. */
+  whatsappHref: string | null;
+  /** The customer's name, or a fallback label. */
+  customerLabel: string;
+  /** Fired on each tap. Unawaited by design — see `ContactButtons`. */
+  onContact: (channel: ContactChannel) => void;
 };
+
+/**
+ * The original file, base64, with no re-encode.
+ *
+ * DELIBERATELY NOT `prepareImage`. That compresses through a canvas, which is right
+ * for every other upload here and destroys EXIF — and the camera clock is the whole
+ * reason this photograph is taken. So the bytes go up as the phone wrote them and the
+ * server strips the metadata after reading the one field it wants.
+ *
+ * REFUSED IN THE BROWSER WHEN IT IS TOO BIG, rather than sent and rejected. A server
+ * action argument over the body limit is refused by the framework before any of our
+ * code runs — which is exactly how every document upload in the application form once
+ * failed with nothing in the logs. Null here means "no photograph", which the claim
+ * handles as the ordinary case.
+ */
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+async function rawPhoto(file: File): Promise<string | null> {
+  if (!file.type.startsWith("image/") || file.size > MAX_PHOTO_BYTES) return null;
+  try {
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    // Chunked: `String.fromCharCode(...bytes)` on two megabytes blows the argument
+    // limit and throws on exactly the phones this has to work on.
+    for (let i = 0; i < bytes.length; i += 8192) {
+      // `Array.from` rather than a spread: the repo targets a lower lib and a
+      // typed-array spread needs downlevelIteration.
+      binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + 8192)));
+    }
+    return window.btoa(binary);
+  } catch {
+    return null;
+  }
+}
 
 /** Ask once, briefly, and carry on regardless. */
 function coarsePosition(): Promise<{ lat: number; lng: number } | null> {
@@ -145,7 +194,13 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
   const [confirming, setConfirming] = React.useState(false);
   const [queued, setQueued] = React.useState(false);
   const [claimed, setClaimed] = React.useState(props.claimed);
-  const [contactAttempts, setContactAttempts] = React.useState(0);
+  /*
+   * The photograph is held in state until the arrival tap rather than uploaded on
+   * selection, so one tap does one thing: the person is standing in a street and a
+   * two-step upload is a second chance to lose their connection.
+   */
+  const [photo, setPhoto] = React.useState<string | null>(null);
+  const [photoTooBig, setPhotoTooBig] = React.useState(false);
   const [now, setNow] = React.useState(() => Date.now());
 
   // The timer counts up on its own so nobody has to remember when they got
@@ -182,7 +237,6 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
             : await props.claimNoShow({
                 bookingId: action.bookingId,
                 waitedMinutes: action.waitedMinutes,
-                contactAttempts: action.contactAttempts,
               });
         if (result.ok) {
           queue.remove(action);
@@ -223,6 +277,7 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
         bookingId: props.bookingId,
         lat: position?.lat,
         lng: position?.lng,
+        photoBase64: photo ?? undefined,
       });
       if (!result.ok) throw new Error("refused");
     } catch {
@@ -242,14 +297,12 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
       kind: "noShow",
       bookingId: props.bookingId,
       waitedMinutes,
-      contactAttempts,
     };
 
     try {
       const result = await props.claimNoShow({
         bookingId: props.bookingId,
         waitedMinutes,
-        contactAttempts,
       });
       if (!result.ok) throw new Error(result.reason ?? "refused");
       setClaimed(true);
@@ -293,6 +346,41 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
         <p className="mt-2 text-caption text-muted-foreground">
           {t("arrivedHint")}
         </p>
+
+        {/*
+          THE PHOTOGRAPH, OFFERED AND NEVER REQUIRED. We fund wasted trips now, and a
+          picture of a locked gate is the strongest thing a professional can show —
+          but requiring one would mean somebody whose camera will not open, or whose
+          hands are full, cannot report what happened to them. So it is a second,
+          quieter control beside the arrival button, and the claim is unaffected by
+          whether it was used.
+
+          `capture="environment"` opens the rear camera straight away on a phone,
+          which is the difference between one tap and a trip through a gallery while
+          standing in the rain. On a desktop it is an ordinary file picker.
+        */}
+        <label className="mt-3 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-body-sm transition-colors hover:border-primary/40 hover:bg-muted/40">
+          <Camera aria-hidden="true" className="size-4 shrink-0" />
+          {photo ? t("photoAttached") : t("addPhoto")}
+          <input
+            type="file"
+            accept="image/jpeg,image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              const encoded = await rawPhoto(file);
+              setPhoto(encoded);
+              // Said plainly rather than silently dropped: somebody who thinks they
+              // attached a photograph and did not has weaker evidence and no idea.
+              setPhotoTooBig(encoded === null);
+            }}
+          />
+        </label>
+        {photoTooBig ? (
+          <p className="mt-1.5 text-caption text-warning-ink">{t("photoTooBig")}</p>
+        ) : null}
       </div>
     );
   }
@@ -306,19 +394,13 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
 
       {queued ? <Queued label={t("queued")} /> : null}
 
-      {props.customerPhone ? (
-        <Button
-          variant="outline"
-          className="btn-tactile mt-3 h-12 w-full"
-          asChild
-          onClick={() => setContactAttempts((count) => count + 1)}
-        >
-          <a href={`tel:${props.customerPhone}`}>
-            <Phone aria-hidden="true" />
-            {t("callCustomer")}
-          </a>
-        </Button>
-      ) : null}
+      <ContactButtons
+        phone={props.customerPhone}
+        whatsappHref={props.whatsappHref}
+        label={props.customerLabel}
+        layout="buttons"
+        onAttempt={props.onContact}
+      />
 
       {!canClaim ? (
         <p className="mt-3 text-body-sm text-muted-foreground">
@@ -345,11 +427,15 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
          * actually being said rather than asking "are you sure?".
          */
         <div className="mt-3 animate-rise rounded-md border border-warning/40 bg-warning/5 p-4">
+          {/*
+            THE SENTENCE NO LONGER QUOTES A CALL COUNT. It used to read "waited 20
+            minutes, rang 3 times" off a counter this component kept — and that counter
+            was also the evidence on the claim. The count is server-side now (one row
+            per tap), so repeating a browser's idea of it here would be stating a number
+            that is not the one a reviewer will see.
+          */}
           <p className="text-body-md">
-            {t("confirmBody", {
-              minutes: String(waitedMinutes),
-              calls: String(contactAttempts),
-            })}
+            {t("confirmBody", { minutes: String(waitedMinutes) })}
           </p>
           <Button
             type="button"

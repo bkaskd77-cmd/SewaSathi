@@ -1457,6 +1457,39 @@ backed by a session setting instead of a JWT, the same shape Supabase's local
 tooling uses. Every policy, constraint and trigger under test is the one that
 ships. A green run proves our policies are right — not that Supabase's auth is.
 
+## Chat — dropped, and what replaces it
+
+**There is no in-app chat in this product and one is not being built.** The slot
+existed in the plan as "messaging between a customer and a professional", and it
+is closed rather than postponed, because leaving it open as a coming feature is
+how the two ends of a job keep waiting for a channel that never arrives.
+
+**`wa.me` links instead, from one constant.** WhatsApp is the app both sides of
+every job already have, with their own notifications, their own history and
+their own search, and it costs nothing to run. `whatsappHref` in
+`lib/config/site.ts` builds every link, because `wa.me` wants the number with no
+`+` and a stray one opens the app with no recipient — which looks like our bug
+and is. Three surfaces use it: the professional's job screen beside the call
+button (`components/provider/contact-buttons.tsx`), the customer's booking page,
+and support (`components/shared/support-contact.tsx`).
+
+**What this costs, said plainly.** A conversation that happens in WhatsApp is a
+conversation we cannot read, so it cannot be evidence in a dispute, cannot be
+searched when somebody rings support, and cannot be moderated. That is the trade:
+a channel people actually use, against a record we do not have. The parts that
+had to be evidence were built as their own things instead — `booking_contact_attempts`
+records that a button opened, the correction flow carries a reason in a column, and
+a settlement disagreement is `amount_mismatch_at` rather than an argument in a
+thread.
+
+**A masked relay is the version that gets both**, and it is deferred until there
+is income to pay for it: a virtual-number service bills per minute or per
+message, which is a real monthly cost before the first rupee of commission. Until
+then the buttons open the customer's real number, inside the window
+`provider_contacts` already releases it in — live job only, taken away at
+`completed`. When the relay arrives it replaces the `href` behind those two
+components and nothing else, which is the reason the link is built in one place.
+
 ## Deferred, with a date
 
 Two things were found in the Phase 9 audit, judged, and deliberately not done.

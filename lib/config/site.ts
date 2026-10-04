@@ -52,6 +52,22 @@ export const site = {
    * stale one is always the one on the screen that matters most.
    */
   supportPhone: readSupportPhone(),
+
+  /**
+   * The WhatsApp number support answers on, or `null` when there is not one.
+   *
+   * SEPARATE FROM `supportPhone` DELIBERATELY, although today they will almost
+   * certainly be the same digits. A line that takes calls and a line that answers
+   * WhatsApp are two different commitments: one needs somebody to pick up, the other
+   * needs somebody watching an app, and the day those are different people or
+   * different hours this is one variable rather than a code change. Offering WhatsApp
+   * on a number nobody reads is the placeholder-phone mistake in a new shape.
+   *
+   * SAME NULL RULE. No number means the link is not offered and nothing is said about
+   * it — never a dead `wa.me` link, which fails worse than a missing one because it
+   * opens an app and then a wall.
+   */
+  supportWhatsapp: readSupportWhatsapp(),
 } as const;
 
 /** Formatted for reading aloud — `+977 98XX XXX XXX`. Null when unset. */
@@ -73,6 +89,34 @@ function readSupportPhone(): string | null {
   if (!configured) return null;
   const checked = checkNepaliMobile(configured);
   return checked.ok ? checked.e164 : null;
+}
+
+/**
+ * The same validation as the phone, because `wa.me` wants the same digits.
+ *
+ * A BAD VALUE BECOMES NULL rather than reaching a screen — a typo in a dashboard is
+ * exactly as unreachable as a placeholder, and `checkNepaliMobile` is what already
+ * decides whether a Nepali mobile number is real anywhere else in this product.
+ */
+function readSupportWhatsapp(): string | null {
+  const configured = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.trim();
+  if (!configured) return null;
+  const checked = checkNepaliMobile(configured);
+  return checked.ok ? checked.e164 : null;
+}
+
+/**
+ * `wa.me` wants the number with no `+` and no spaces, and nothing else.
+ *
+ * ONE FUNCTION SO THE LINK IS BUILT ONE WAY. Three surfaces offer WhatsApp — the
+ * professional's job screen, the customer's booking and support — and a `+` left on by
+ * one of them opens the app with no recipient, which looks like our bug and is.
+ * `text` is pre-filled message text; it is encoded here rather than by each caller.
+ */
+export function whatsappHref(e164: string, text?: string): string {
+  const digits = e164.replace(/\D/g, "");
+  const query = text ? `?text=${encodeURIComponent(text)}` : "";
+  return `https://wa.me/${digits}${query}`;
 }
 
 function siteUrl(): string {

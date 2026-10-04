@@ -119,8 +119,23 @@ const nextConfig = {
    * a budget that only just fits is a budget that fails on the one phone whose
    * camera encodes differently.
    */
+  /*
+   * RAISED TO 3 MB FOR THE ARRIVAL PHOTOGRAPH, AND THE REASON IS THE ONE THING THAT
+   * PHOTOGRAPH IS FOR. Every other upload in this product goes through
+   * `prepareImage`, which re-encodes through a canvas to a 700 KB budget — and a
+   * canvas re-encode destroys EXIF, including the camera clock. That is fine for a
+   * photo of a tap and fatal for a wasted-trip claim, where the whole value of the
+   * picture is whether it was taken at the door at the time of the visit. So the
+   * arrival photograph is sent as the ORIGINAL bytes and the server strips it, which
+   * means the request carries a phone's own JPEG plus a third for base64.
+   *
+   * 3 MB COVERS A TYPICAL PHONE PHOTO AND NOT EVERY ONE. The bucket refuses anything
+   * over 2 MB stored anyway, so this is deliberately not a licence to send whatever a
+   * camera produces: the panel refuses an oversized file in the browser with a
+   * sentence and the claim proceeds with no photograph, which is an ordinary claim.
+   */
   experimental: {
-    serverActions: { bodySizeLimit: "2mb" },
+    serverActions: { bodySizeLimit: "3mb" },
   },
   env: {
     BUILD_COMMIT: buildCommit(),

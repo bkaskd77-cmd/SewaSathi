@@ -179,6 +179,8 @@ export async function recordArrivalAction(input: {
   bookingId: string;
   lat?: number;
   lng?: number;
+  /** A photograph of the door, base64. Optional and never a condition. */
+  photoBase64?: string;
 }): Promise<{ ok: boolean }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false };
@@ -189,24 +191,62 @@ export async function recordArrivalAction(input: {
     providerProfileId: profile.id,
     lat: input.lat,
     lng: input.lng,
+    photoBase64: input.photoBase64,
   });
 
   return { ok };
 }
 
 /**
+ * The call or WhatsApp button was pressed.
+ *
+ * WHY THIS IS AN ACTION AND NOT A NUMBER ON THE CLAIM. `claimNoShow` used to take a
+ * `contactAttempts` figure from the browser and store it as evidence — a number the
+ * claimant chose, on the screen where somebody decides whether to pay them. It counts
+ * rows now, and this is what writes them.
+ *
+ * IT CANNOT HOLD UP THE CALL. The buttons are links; this runs beside the navigation
+ * and its result is not waited on by anything the professional can see. Somebody on a
+ * doorstep must never find the dialler refusing to open because a log write failed.
+ */
+export async function recordContactAttemptAction(input: {
+  bookingId: string;
+  channel: "call" | "whatsapp";
+}): Promise<{ ok: boolean }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false };
+
+  // Anything but the two known channels is refused rather than stored as one of them:
+  // the check constraint would reject it and lose the row in the same statement.
+  if (input.channel !== "call" && input.channel !== "whatsapp") {
+    return { ok: false };
+  }
+
+  const { recordContactAttempt } = await import("@/lib/data/customer-risk");
+  return { ok: await recordContactAttempt({
+    bookingId: input.bookingId,
+    providerProfileId: profile.id,
+    channel: input.channel,
+  }) };
+}
+
+/**
  * "Nobody is here."
  *
- * The waited minutes and contact attempts come from the browser, which is the
- * only place that knows them — but they are not taken on trust for the money:
- * `claimNoShow` re-reads the recorded arrival and computes the verdict from
- * what is stored. A phone that claims an hour's wait against an arrival
- * stamped two minutes ago produces evidence a person looks at, not a payment.
+ * THE WAITED MINUTES STILL COME FROM THE BROWSER, because that is the only place that
+ * knows them — but they are not taken on trust for the money: `claimNoShow` re-reads
+ * the recorded arrival and computes the verdict from what is stored. A phone claiming
+ * an hour's wait against an arrival stamped two minutes ago produces evidence a person
+ * looks at, not a payment.
+ *
+ * THE CONTACT ATTEMPTS NO LONGER COME FROM HERE AT ALL. They were a number the
+ * claimant typed; `claimNoShow` counts `booking_contact_attempts` rows instead, each
+ * written when a button actually opened. Removed from this signature rather than
+ * ignored inside it, so there is nothing left to pass.
  */
 export async function claimNoShowAction(input: {
   bookingId: string;
   waitedMinutes: number;
-  contactAttempts: number;
 }): Promise<{ ok: boolean; reason?: string }> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, reason: "notSignedIn" };
@@ -216,7 +256,6 @@ export async function claimNoShowAction(input: {
     bookingId: input.bookingId,
     providerProfileId: profile.id,
     waitedMinutes: Math.max(0, Math.floor(input.waitedMinutes)),
-    contactAttempts: Math.max(0, Math.floor(input.contactAttempts)),
   });
 
   if (!result.ok) {

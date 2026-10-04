@@ -672,6 +672,10 @@ export type Database = {
           gave_up_at: string | null;
           waited_minutes: number;
           contact_attempts: number;
+          /** Object key in the private arrival-photos bucket. Null: none offered. */
+          photo_path: string | null;
+          /** Camera clock minus our receipt time, signed. Null: not recorded. */
+          exif_skew_minutes: number | null;
           created_at: string;
         };
         Insert: {
@@ -684,10 +688,33 @@ export type Database = {
           gave_up_at?: string | null;
           waited_minutes?: number;
           contact_attempts?: number;
+          photo_path?: string | null;
+          exif_skew_minutes?: number | null;
           created_at?: string;
         };
         Update: Partial<
           Database["public"]["Tables"]["booking_arrivals"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      booking_contact_attempts: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          channel: "call" | "whatsapp";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          channel: "call" | "whatsapp";
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["booking_contact_attempts"]["Insert"]
         >;
         Relationships: [];
       };

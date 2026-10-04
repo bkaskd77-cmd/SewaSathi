@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { WorkHeader } from "@/components/provider/work-header";
-import { site, supportPhoneDisplay } from "@/lib/config/site";
+import { SupportContact } from "@/components/shared/support-contact";
 import { getSessionProfile } from "@/lib/auth/session";
 
 /**
@@ -50,14 +50,10 @@ export default async function WorkLayout({
       <footer className="border-t border-border py-6">
         <div className="container flex flex-wrap items-center justify-between gap-2">
           <p className="text-caption text-muted-foreground">{t("footerNote")}</p>
-          {site.supportPhone ? (
-            <a
-              href={`tel:${site.supportPhone}`}
-              className="text-caption font-medium text-primary underline-offset-4 hover:underline"
-            >
-              {supportPhoneDisplay}
-            </a>
-          ) : null}
+          {/* The number and WhatsApp from one component, so a professional who
+              cannot reach us one way has the other without this footer knowing
+              which constants exist. */}
+          <SupportContact />
         </div>
       </footer>
     </div>

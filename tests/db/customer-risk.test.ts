@@ -988,3 +988,92 @@ describe("a recovery collected in cash is owed on", () => {
     ).toEqual([]);
   });
 });
+
+describe("a contact attempt is a row, not a number somebody typed", () => {
+  /**
+   * WHAT THIS CLOSES. `claimNoShow` took `contactAttempts` from the browser and stored
+   * it on the claim as evidence — a figure chosen by the person the claim pays, read by
+   * a reviewer deciding whether to pay them. It counts rows now, one per tap on the
+   * call or WhatsApp button, and these cases are about who may write them.
+   *
+   * A ROW IS STILL NOT PROOF ANYBODY WAS REACHED, which `/admin/claims` says in words.
+   * What changed is that the number is no longer theirs to pick.
+   */
+  it("cannot be written from a browser, by either side", async () => {
+    const booking = await pg.admin.query(
+      "select id, customer_id from public.bookings where id = $1",
+      [anitaBooking],
+    );
+    const customerId = booking.rows[0].customer_id as string;
+
+    for (const [who, id] of [
+      ["the professional", MANOJ],
+      ["the customer", customerId],
+    ] as const) {
+      const client = await pg.asUser(id);
+      const result = await client
+        .query(
+          `insert into public.booking_contact_attempts (booking_id, provider_id, channel)
+           values ($1, $2, 'call')`,
+          [anitaBooking, manojProvider],
+        )
+        .then(
+          () => "allowed",
+          (error: { message: string }) => error.message,
+        );
+      expect(result, `${who} must not be able to write one`).toMatch(
+        /permission denied/i,
+      );
+      await client.end();
+    }
+  });
+
+  /*
+   * BOTH SIDES READ THEM, and the customer's half is the one worth asserting: the count
+   * is part of a claim against them, so being unable to see how many times somebody
+   * says they tried would make it an accusation they cannot examine.
+   */
+  it("is readable by both sides of the job and by nobody else", async () => {
+    await pg.admin.query(
+      `insert into public.booking_contact_attempts (booking_id, provider_id, channel)
+       values ($1, $2, 'whatsapp')`,
+      [anitaBooking, manojProvider],
+    );
+
+    for (const id of [ANITA, MANOJ]) {
+      const client = await pg.asUser(id);
+      const { rows } = await client.query(
+        "select channel from public.booking_contact_attempts where booking_id = $1",
+        [anitaBooking],
+      );
+      expect(rows).toHaveLength(1);
+      await client.end();
+    }
+
+    /* An ordinary signed-in customer with no part in this job. Reusing the debtor
+       fixture rather than creating a fourth account: what matters is that the session
+       is real and unrelated. */
+    const stranger = await pg.asUser("eeeeeeee-5555-4555-8555-eeeeeeeeeeee");
+    const { rows } = await stranger.query(
+      "select channel from public.booking_contact_attempts where booking_id = $1",
+      [anitaBooking],
+    );
+    expect(rows).toEqual([]);
+    await stranger.end();
+  });
+
+  /*
+   * THE CHANNEL IS A CLOSED SET. The screen offers two buttons and the column admits
+   * two values, so a third would be a write the constraint refuses — losing the row in
+   * the same statement that tried to make it, which is the `reason_code` lesson.
+   */
+  it("refuses a channel the buttons cannot produce", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.booking_contact_attempts (booking_id, provider_id, channel)
+         values ($1, $2, 'telepathy')`,
+        [anitaBooking, manojProvider],
+      ),
+    ).rejects.toThrow(/channel/i);
+  });
+});

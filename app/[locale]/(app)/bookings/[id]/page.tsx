@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { ArrowLeft, MapPin, Phone, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  MapPin,
+  MessageCircle,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
 
 import {
   Alternatives,
@@ -35,7 +41,7 @@ import {
 import { customerCanCancel } from "@/lib/booking";
 import { areaLabel, findArea } from "@/lib/config/areas";
 import { guaranteeFor } from "@/lib/config/guarantee";
-import { site } from "@/lib/config/site";
+import { site, whatsappHref } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
@@ -93,6 +99,8 @@ export default async function BookingDetailPage({
 }) {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.detail");
+  // `common` carries the one word "WhatsApp", which belongs to no screen.
+  const tCommon = await getTranslations("common");
   const tServices = await getTranslations("services");
   const tAlternatives = await getTranslations("booking.alternatives");
 
@@ -775,6 +783,28 @@ export default async function BookingDetailPage({
             <a href={`tel:${site.supportPhone}`}>
               <Phone aria-hidden="true" />
               {t("callSupport")}
+            </a>
+          </Button>
+        ) : null}
+        {/*
+          WHATSAPP BESIDE THE CALL, on the one screen a customer opens when they are
+          not sure anybody is coming. Not a replacement for the number: somebody with
+          water coming through a ceiling rings, and somebody who wants a record of what
+          was agreed writes. There is no in-app chat and will not be before launch —
+          this is the app they already have.
+        */}
+        {site.supportWhatsapp ? (
+          <Button variant="ghost" size="sm" asChild>
+            <a
+              href={whatsappHref(
+                site.supportWhatsapp,
+                t("supportWhatsappText", { reference: booking.reference }),
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle aria-hidden="true" />
+              {tCommon("whatsapp")}
             </a>
           </Button>
         ) : null}

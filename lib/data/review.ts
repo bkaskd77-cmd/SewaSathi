@@ -721,7 +721,25 @@ export type OpenClaim = {
   reference: string;
   providerName: string | null;
   waitedMinutes: number;
+  /**
+   * How many times a call or WhatsApp button actually opened.
+   *
+   * A COUNT OF ROWS NOW, NOT A NUMBER THE CLAIMANT TYPED. It was the latter for the
+   * whole life of this screen — evidence chosen by the person it pays. It is still
+   * not proof anybody was reached, and the screen says so.
+   */
   contactAttempts: number;
+  /** Which buttons were used, so the reviewer can see a call from a message. */
+  contactChannels: { call: number; whatsapp: number };
+  /** The stored object key, for the signed URL. Null when none was offered. */
+  photoPath: string | null;
+  /**
+   * Camera clock minus our receipt time, in minutes, signed.
+   *
+   * NULL IS "NOT RECORDED" AND IS THE COMMON CASE, so the screen says that rather
+   * than implying the clocks agreed — rule 6. Most photographs carry no EXIF at all.
+   */
+  photoSkewMinutes: number | null;
   hasLocation: boolean;
   customerConfirmed: boolean;
   addressProven: boolean;
@@ -806,7 +824,9 @@ export async function openNoShowClaims(input?: {
     await Promise.all([
       db
         .from("booking_arrivals")
-        .select("booking_id, waited_minutes, contact_attempts, coarse_lat")
+        .select(
+          "booking_id, waited_minutes, contact_attempts, coarse_lat, photo_path, exif_skew_minutes",
+        )
         .in("booking_id", bookingIds),
       db
         .from("bookings")
@@ -820,6 +840,16 @@ export async function openNoShowClaims(input?: {
           rows.map((row) => row.provider_id as string),
         ),
     ]);
+
+  /*
+   * ONE READ FOR EVERY CLAIM'S ATTEMPTS RATHER THAN ONE PER CLAIM. The queue is capped
+   * and the table is small, so a single `in` is one round trip where a loop would be
+   * one per row — the standing latency rule since the region move.
+   */
+  const { data: attempts } = await db
+    .from("booking_contact_attempts")
+    .select("booking_id, channel")
+    .in("booking_id", bookingIds);
 
   const arrivalBy = new Map(
     (arrivals ?? []).map((row) => [row.booking_id as string, row]),
@@ -877,6 +907,16 @@ export async function openNoShowClaims(input?: {
         null,
       waitedMinutes: (arrival?.waited_minutes as number) ?? 0,
       contactAttempts: (arrival?.contact_attempts as number) ?? 0,
+      contactChannels: {
+        call: (attempts ?? []).filter(
+          (row) => row.booking_id === bookingId && row.channel === "call",
+        ).length,
+        whatsapp: (attempts ?? []).filter(
+          (row) => row.booking_id === bookingId && row.channel === "whatsapp",
+        ).length,
+      },
+      photoPath: (arrival?.photo_path as string | null) ?? null,
+      photoSkewMinutes: (arrival?.exif_skew_minutes as number | null) ?? null,
       hasLocation: arrival?.coarse_lat != null,
       customerConfirmed: booking?.confirmed_at != null,
       addressProven: (count ?? 0) > 0,

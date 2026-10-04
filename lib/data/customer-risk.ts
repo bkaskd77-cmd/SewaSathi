@@ -15,6 +15,7 @@ import {
 } from "@/lib/abuse";
 import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
+import { notify } from "@/lib/notify";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -253,6 +254,8 @@ export async function recordArrival(input: {
   providerProfileId: string;
   lat?: number | null;
   lng?: number | null;
+  /** A photograph of the door, base64. Optional, and a failure never blocks. */
+  photoBase64?: string | null;
 }): Promise<boolean> {
   if (!hasSupabaseConfig()) return false;
   const db = createAdminClient();
@@ -266,7 +269,7 @@ export async function recordArrival(input: {
 
   const { data: booking } = await db
     .from("bookings")
-    .select("id, provider_id, status")
+    .select("id, provider_id, customer_id, reference, status")
     .eq("id", input.bookingId)
     .maybeSingle();
 
@@ -274,18 +277,135 @@ export async function recordArrival(input: {
   if (!booking || booking.provider_id !== provider.id) return false;
   if (!["en_route", "accepted"].includes(booking.status as string)) return false;
 
+  const arrivedAt = new Date();
+
+  /*
+   * THE PHOTOGRAPH IS STORED BEFORE THE ROW, so the row never names an object that
+   * is not there. The other order would leave `photo_path` pointing at nothing on a
+   * storage failure, and a reviewer opening a claim would see a missing picture and
+   * have no way to tell "they did not take one" from "we lost it".
+   *
+   * IT NEVER BLOCKS THE ARRIVAL. `storeArrivalPhoto` returns null on anything it does
+   * not like — not a JPEG, too large, storage down — and the arrival is recorded
+   * without it. Somebody is standing in a street; a claim with no photograph is an
+   * ordinary claim and was the only kind until this phase.
+   */
+  let photo: { path: string; skewMinutes: number | null } | null = null;
+  if (input.photoBase64) {
+    const { storeArrivalPhoto } = await import("@/lib/data/arrival-photos");
+    photo = await storeArrivalPhoto({
+      base64: input.photoBase64,
+      providerProfileId: input.providerProfileId,
+      bookingId: input.bookingId,
+      receivedAt: arrivedAt,
+    });
+  }
+
   const { error } = await db.from("booking_arrivals").upsert(
     {
       booking_id: input.bookingId,
       provider_id: provider.id as string,
-      arrived_at: new Date().toISOString(),
+      arrived_at: arrivedAt.toISOString(),
       coarse_lat: typeof input.lat === "number" ? coarsen(input.lat) : null,
       coarse_lng: typeof input.lng === "number" ? coarsen(input.lng) : null,
+      /*
+       * Only written when there is something to write. A retry that arrives without a
+       * photograph must not blank the one the first attempt stored — the arrival panel
+       * queues a failed call and drains it later, so a second pass is ordinary.
+       */
+      ...(photo ? { photo_path: photo.path, exif_skew_minutes: photo.skewMinutes } : {}),
     },
     { onConflict: "booking_id" },
   );
+  if (error) {
+    console.error(`[arrival] not recorded — ${describeError(error)}`);
+    return false;
+  }
 
-  return !error;
+  /*
+   * AND THE CUSTOMER IS TOLD, which is the point of doing it here rather than at the
+   * claim. `MIN_WAIT_MINUTES` has to pass before a wasted trip can be claimed, and
+   * somebody inside with the tap running has no way of knowing anybody is at a locked
+   * gate. This hands them that window. `notify` never throws — the arrival already
+   * happened, and a dead gateway must not undo it.
+   */
+  await notify({
+    recipientId: booking.customer_id as string,
+    kind: "booking.providerArrived",
+    params: { reference: booking.reference as string },
+    bookingId: input.bookingId,
+  });
+
+  return true;
+}
+
+/**
+ * One tap on the call or WhatsApp button, recorded.
+ *
+ * WHAT THIS REPLACES. `claimNoShow` took a `contactAttempts` number from the browser
+ * and wrote it into the claim as evidence — a figure the claimant chose, on the screen
+ * where somebody decides whether to pay them. A row written when the dialler opened is
+ * a weaker claim and a true one.
+ *
+ * IT IS STILL NOT PROOF, and `/admin/claims` says so. The row records that a link was
+ * opened: whether it rang, whether anybody answered and whether a word was exchanged
+ * are all invisible to us, and four taps can be made from the end of the road. What
+ * changes is that the number is no longer theirs to pick.
+ *
+ * THE ACTOR COMES FROM THE SESSION and the booking is re-read as theirs, which is why
+ * this is a server write rather than an RLS insert: a professional able to write these
+ * directly could manufacture a call history for any booking id they could name.
+ *
+ * NEVER THROWS AND NEVER BLOCKS THE CALL. The button is a link; the recording is a
+ * side effect. Somebody trying to reach a customer from a doorstep must not find the
+ * dialler refusing to open because a log write failed.
+ */
+export async function recordContactAttempt(input: {
+  bookingId: string;
+  providerProfileId: string;
+  channel: "call" | "whatsapp";
+}): Promise<boolean> {
+  if (!hasSupabaseConfig()) return false;
+
+  try {
+    const db = createAdminClient();
+
+    const { data: provider } = await db
+      .from("providers")
+      .select("id")
+      .eq("profile_id", input.providerProfileId)
+      .maybeSingle();
+    if (!provider) return false;
+
+    const { data: booking } = await db
+      .from("bookings")
+      .select("id, provider_id, status")
+      .eq("id", input.bookingId)
+      .maybeSingle();
+    if (!booking || booking.provider_id !== provider.id) return false;
+    /*
+     * The same window the customer's number is released in — `provider_contacts`
+     * allows it while a job of theirs is live, so recording an attempt outside that
+     * window would be recording a call they could not have made.
+     */
+    if (!["accepted", "en_route", "in_progress"].includes(booking.status as string)) {
+      return false;
+    }
+
+    const { error } = await db.from("booking_contact_attempts").insert({
+      booking_id: input.bookingId,
+      provider_id: provider.id as string,
+      channel: input.channel,
+    });
+    if (error) {
+      console.error(`[arrival] contact attempt — ${describeError(error)}`);
+      return false;
+    }
+    return true;
+  } catch (thrown) {
+    console.error(`[arrival] contact attempt threw — ${describeError(thrown)}`);
+    return false;
+  }
 }
 
 /**
@@ -299,7 +419,6 @@ export async function claimNoShow(input: {
   bookingId: string;
   providerProfileId: string;
   waitedMinutes: number;
-  contactAttempts: number;
 }): Promise<{ ok: boolean; verdict?: NoShowVerdict }> {
   if (!hasSupabaseConfig()) return { ok: false };
   const db = createAdminClient();
@@ -324,10 +443,30 @@ export async function claimNoShow(input: {
     .eq("booking_id", input.bookingId)
     .maybeSingle();
 
+  /*
+   * COUNTED, NOT TAKEN FROM THE BROWSER. This used to be a number the claimant typed
+   * into their own claim, read by a reviewer as evidence on the screen where the
+   * payment is decided. It is now the number of times the call or WhatsApp button
+   * actually opened — still not proof that anybody was reached, and no longer theirs
+   * to choose.
+   *
+   * A FAILED COUNT IS ZERO HERE AND THAT IS DELIBERATE, against rule 6's usual
+   * direction: `contact_attempts` is `not null default 0` and `judgeNoShowClaim` reads
+   * zero attempts as a REASON TO SEND IT TO A PERSON rather than as a mark against
+   * anybody. So an unreadable count fails towards review, which is the safe side; a
+   * null would have to become a number somewhere anyway, and inventing a flattering
+   * one is the alternative.
+   */
+  const { count: attemptCount } = await db
+    .from("booking_contact_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", input.bookingId);
+  const contactAttempts = attemptCount ?? 0;
+
   const evidence: ArrivalEvidence = {
     arrivedAt: (arrival?.arrived_at as string | null) ?? null,
     waitedMinutes: input.waitedMinutes,
-    contactAttempts: input.contactAttempts,
+    contactAttempts,
     coarseLocation:
       arrival?.coarse_lat != null && arrival?.coarse_lng != null
         ? {
@@ -356,7 +495,9 @@ export async function claimNoShow(input: {
     .update({
       gave_up_at: new Date().toISOString(),
       waited_minutes: input.waitedMinutes,
-      contact_attempts: input.contactAttempts,
+      // Frozen onto the row at the claim, so a tap made afterwards cannot change the
+      // evidence a reviewer is looking at.
+      contact_attempts: contactAttempts,
     })
     .eq("booking_id", input.bookingId);
 

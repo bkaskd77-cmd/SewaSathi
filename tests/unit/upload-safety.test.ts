@@ -215,3 +215,137 @@ describe("the data URL prefix", () => {
     if (!result.ok) expect(result.reason).toBe("unsupportedFormat");
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * The camera's own clock
+ * ------------------------------------------------------------------ */
+
+/**
+ * A JPEG carrying a genuine EXIF block with a `DateTimeOriginal`.
+ *
+ * BUILT PROPERLY RATHER THAN FAKED, which is the lesson `classifyProviderError`
+ * paid for: a hand-rolled stand-in proves a branch the real thing never reaches.
+ * So this is an actual TIFF header, an actual IFD0 with a sub-IFD pointer, and an
+ * actual EXIF IFD with tag 0x9003 as ASCII — little-endian, the way every phone
+ * writes it.
+ */
+function jpegWithTaken(
+  taken: string | null,
+  options: { tagInIfd0?: boolean } = {},
+): string {
+  const le16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
+  const le32 = (n: number) => [
+    n & 0xff,
+    (n >> 8) & 0xff,
+    (n >> 16) & 0xff,
+    (n >> 24) & 0xff,
+  ];
+
+  // Offsets below are from the start of the TIFF header, as EXIF requires.
+  const tiff: number[] = [0x49, 0x49, ...le16(0x002a), ...le32(8)];
+
+  const ascii = taken === null ? [] : Array.from(taken).map((c) => c.charCodeAt(0));
+  // 20 bytes: nineteen characters and the NUL the format expects.
+  const valueLength = ascii.length === 0 ? 0 : ascii.length + 1;
+
+  if (options.tagInIfd0) {
+    // IFD0 holding DateTime (0x0132) itself, no sub-IFD at all. The fallback path.
+    const ifd0Start = 8;
+    const valueAt = ifd0Start + 2 + 12 + 4;
+    tiff.push(
+      ...le16(1),
+      ...le16(0x0132), ...le16(2), ...le32(valueLength), ...le32(valueAt),
+      ...le32(0),
+      ...ascii, 0x00,
+    );
+  } else {
+    // IFD0 with one entry: the EXIF sub-IFD pointer. Then the sub-IFD.
+    const ifd0Start = 8;
+    const subStart = ifd0Start + 2 + 12 + 4;
+    const valueAt = subStart + 2 + 12 + 4;
+    tiff.push(
+      ...le16(1),
+      ...le16(0x8769), ...le16(4), ...le32(1), ...le32(subStart),
+      ...le32(0),
+      // the EXIF sub-IFD
+      ...le16(1),
+      ...le16(0x9003), ...le16(2), ...le32(valueLength), ...le32(valueAt),
+      ...le32(0),
+      ...ascii, 0x00,
+    );
+  }
+
+  const payload = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+  const length = payload.length + 2;
+
+  const parts: number[] = [0xff, 0xd8];
+  parts.push(0xff, 0xe1, (length >> 8) & 0xff, length & 0xff, ...payload);
+  parts.push(
+    0xff, 0xc0, 0x00, 0x0b, 0x08,
+    0x02, 0x58, 0x03, 0x20,
+    0x01, 0x01, 0x11, 0x00,
+  );
+  parts.push(0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00);
+  parts.push(0x12, 0x34, 0x56, 0x78, 0xff, 0xd9);
+
+  return Buffer.from(Uint8Array.from(parts)).toString("base64");
+}
+
+describe("the camera's own clock is read before EXIF is dropped", () => {
+  it("reads DateTimeOriginal out of the EXIF sub-IFD", () => {
+    const result = checkUploadedImage(jpegWithTaken("2026:10:04 14:35:09"));
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.takenAt?.toISOString()).toBe(
+      "2026-10-04T14:35:09.000Z",
+    );
+  });
+
+  /*
+   * The fallback, and it matters: a photograph that has been through an editor often
+   * keeps DateTime and loses DateTimeOriginal.
+   */
+  it("falls back to IFD0's DateTime when the shutter time is absent", () => {
+    const result = checkUploadedImage(
+      jpegWithTaken("2026:10:01 08:00:00", { tagInIfd0: true }),
+    );
+    expect(result.ok && result.takenAt?.toISOString()).toBe(
+      "2026-10-01T08:00:00.000Z",
+    );
+  });
+
+  /*
+   * NULL IS "THE FILE DID NOT SAY", AND THIS IS THE CASE THAT MATTERS MOST — rule 6
+   * one level down. Our own browser compressor re-encodes through a canvas and keeps
+   * no EXIF at all, so most photographs reaching this product arrive with nothing. A
+   * reader that returned "now" for those would hand every one of them a perfect skew.
+   */
+  it("says nothing rather than guessing when there is no timestamp", () => {
+    /* Hoisted rather than called twice inside the assertion: two calls are two
+       values and TypeScript cannot narrow the second from the first. */
+    const stub = checkUploadedImage(jpeg());
+    expect(stub.ok && stub.takenAt).toBe(null);
+    const noExif = checkUploadedImage(jpeg({ exif: false }));
+    expect(noExif.ok && noExif.takenAt).toBe(null);
+  });
+
+  /* A camera with no clock set writes zeroes, and that is not a time. */
+  it("refuses a zeroed clock and a malformed string", () => {
+    const zeroed = checkUploadedImage(jpegWithTaken("0000:00:00 00:00:00"));
+    expect(zeroed.ok && zeroed.takenAt).toBe(null);
+    const junk = checkUploadedImage(jpegWithTaken("not a date at all!!"));
+    expect(junk.ok && junk.takenAt).toBe(null);
+  });
+
+  /*
+   * AND IT STILL COMES OFF. Reading the timestamp must not become a reason to keep
+   * the block that carries the GPS of somebody's house — the whole point of stripping.
+   */
+  it("still strips the block it read the timestamp from", () => {
+    const result = checkUploadedImage(jpegWithTaken("2026:10:04 14:35:09"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const text = Buffer.from(result.bytes).toString("latin1");
+    expect(text).not.toContain("Exif");
+    expect(text).not.toContain("2026:10:04");
+  });
+});
