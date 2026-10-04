@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { StringEditor } from "@/components/admin/string-editor";
-import { redirect } from "@/i18n/navigation";
+import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { editableStrings } from "@/lib/data/content";
@@ -89,6 +89,15 @@ export default async function ContentPage({
       <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
+      </p>
+
+      <p className="animate-rise mt-3 text-body-sm">
+        <Link
+          href="/admin/content/categories"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          {t("goToCategories")}
+        </Link>
       </p>
 
       {/* A plain GET form, so a filtered view is a shareable URL and this page ships

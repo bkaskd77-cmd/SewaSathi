@@ -27,7 +27,6 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **auth** | `@/lib/auth` (isomorphic)<br>`@/lib/auth/session` (server)<br>`@/lib/auth/otp` (client) | Route rules, redirect safety, phone parsing, session reads, the SMS adapter |
 | **triage** | `@/lib/ai/*` | Prompt, schema, price clamp, safety floor, keyword fallback |
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
-| **content** | `@/lib/content/*` | Legal and information prose, both languages |
 | **config** | `@/lib/config/*` | Categories, areas, brand strings, the guarantee windows |
 | **content** | `@/lib/content/*` | Legal and information prose, both languages — plus `tiers.ts`, which answers what a message key is worth. That answer is imported from `scripts/ne-review-scope.mjs` rather than restated: the same rule decides which Nepali strings block a launch and which edits keep a revision, and two copies of it would agree until somebody edited one. |
 | **geo** | `@/lib/geo` (isomorphic) | Distance, what counts as a coordinate, and the approximate centre of a ward. Isomorphic because the booking form validates a pin in the browser and the ranking measures one on the server. `./tiles` is deliberately **not** re-exported — see the adapter table. |
@@ -1503,6 +1502,39 @@ the developers wrote" is not the same as blanking the line.
 **No AI on these screens**, as decided. Nothing suggests a translation or rewrites
 a sentence; the words a customer reads are a person's responsibility.
 
+### The services, edited straight in the table
+
+`/admin/content/categories` edits the ten trades: both names, the card's short line,
+the longer description, the word used in sentences, the sort order and the icon.
+
+**No override layer, deliberately, and it is the opposite call from the strings one
+file over.** The interface strings get an override because `messages/*.json` has to
+stay the source of truth — three guards read it. `categories` is already the live
+source and `lib/data/seed/categories.json` is already its fallback, so the table IS
+the editable copy and a layer on top would be two places to look for one answer.
+
+**Nothing about price.** `base_price_min` and `base_price_max` are a published band
+and `/admin/bands` is where one moves, with a proposal carrying its evidence and a
+rejection stored in `category_price_revisions`. A field here would route around all
+of that, on a number `freeze_booking_band` stamps onto every booking. The band is
+shown read-only beside the words.
+
+**The audit row is the history, which is why it carries the words.**
+`setStringAction` logs a length rather than a string, because
+`content_string_revisions` already holds the text and a second copy in a blob nobody
+can filter is worse than none. There is no revisions table for a category, so the
+trade-off inverts: `security_events` is append-only and the before-and-after goes in
+it. `changed` is **null when the previous row could not be read and `{}` when the
+form came back identical** — rule 6, and the difference is the whole value of the
+row: `{}` means somebody pressed Save and altered nothing, which is ordinary, while
+null means we changed a category and cannot say what it used to say. A save that
+changed nothing writes nothing and leaves no trail at all.
+
+**A failed read hides the forms rather than offering them.** If the page rendered
+from the seed, the table was unreachable, so an edit would write somewhere nothing
+is reading from and appear to do nothing. The screen says that instead — the
+`/services` rule, one surface across.
+
 ### Image uploads — deferred until after launch
 
 Category cards render a lucide icon by name, and the admin picks from
@@ -1518,6 +1550,19 @@ constraint so a name no card can draw cannot be stored — **that constraint ear
 its place immediately**: the first version of its list was written from the seed
 file's opening rows with the rest guessed, and Postgres refused it, because
 `ac-servicing` is `AirVent` and had been guessed as `Wind`.
+
+**And the offered set has to be the RENDERABLE set too, which was the half nothing
+checked.** `lib/config/services.ts` held a second `CATEGORY_ICONS` — a ten-entry map
+from name to component with `?? Wrench` behind it — while `lib/config/icons.ts`
+offered twenty names and the constraint accepted all twenty. So the ten spares stored
+cleanly, passed every guard, and drew a **wrench** on the customer's grid. The
+comment in `icons.ts` claimed the three sets agreed and the test asserted two of
+them; the one left out was the one that reaches a customer. One list written twice,
+found by building the picker that would have shipped it. **The map is the list now**
+— `CATEGORY_ICONS` is its keys and `CategoryIcon` is `keyof` it — so a name without a
+component is unrepresentable rather than merely tested for, and
+`tests/unit/category-icons.test.ts` keeps the case anyway for the next person who
+puts a `?? fallback` beside a picker.
 
 ## Chat — dropped, and what replaces it
 

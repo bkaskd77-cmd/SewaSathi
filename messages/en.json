@@ -2362,6 +2362,7 @@
     "content": {
       "title": "Words",
       "lead": "Change what the product says, in both languages, without a deploy. The catalogue in the repository stays the source — this lays your wording over it, and the original is always shown underneath so you can see what you are changing.",
+      "goToCategories": "Edit the service names and descriptions",
       "namespace": "Part of the product",
       "allNamespaces": "All",
       "tier": "What it carries",
@@ -2384,6 +2385,21 @@
         "legal": "Terms",
         "staff": "Staff only",
         "none": "Ordinary"
+      },
+      "categories": {
+        "title": "Services",
+        "lead": "The ten trades, in both languages. These words are the grid on the homepage, the catalogue, every category page and the price list the triage prompt is built from — so a name changed here changes it everywhere at once.",
+        "backToStrings": "Back to words",
+        "notEditable": "We cannot read the services table right now, so this page is showing the copy in the repository instead. Editing from here would write somewhere nothing is reading from, so the forms are hidden until the table answers again.",
+        "name": "Name",
+        "descriptor": "Short line on the card",
+        "description": "Longer description",
+        "ctaLabel": "Used in sentences",
+        "sortOrder": "Position",
+        "changeIcon": "Change the icon",
+        "iconSet": "Icons a card can draw",
+        "bandReadOnly": "Price band Rs {min}–{max} — moved on the bands screen, not here.",
+        "save": "Save"
       }
     }
   }

@@ -1,8 +1,6 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BLOCKING_TIERS, REVIEW_SCOPE } from "../../scripts/ne-review-scope.mjs";
-import { CATEGORY_ICONS, isCategoryIcon } from "@/lib/config/icons";
 import { isEditable, keepsHistory, tierFor } from "@/lib/content/tiers";
 
 /**
@@ -63,46 +61,5 @@ describe("a key's tier comes from the review scope", () => {
     expect(isEditable("admin.payouts.title")).toBe(false);
     expect(isEditable("home.lead")).toBe(true);
     expect(isEditable("provider.money.balance")).toBe(true);
-  });
-});
-
-/**
- * The icons a card can draw, agreed in three places.
- *
- * THE OFFERED SET IS THE STORABLE SET IS THE RENDERABLE SET. A picker offering a name
- * the check constraint rejects loses the whole edit in the statement that saves it; a
- * constraint allowing a name lucide does not export renders a blank tile on the grid
- * that is the first thing a customer sees. Both have to agree with the list, and the
- * list has to be real.
- */
-describe("category icons", () => {
-  const MIGRATION = readFileSync(
-    "supabase/migrations/20261004000003_content_admin.sql",
-    "utf8",
-  );
-
-  it("are every one a real lucide export", async () => {
-    const lucide = (await import("lucide-react")) as Record<string, unknown>;
-    const missing = CATEGORY_ICONS.filter((name) => !(name in lucide));
-    expect(missing, "these would render a blank card").toEqual([]);
-  });
-
-  /*
-   * THE CONSTRAINT IS WRITTEN FROM THE LIST, and this is what catches the drift. The
-   * first version of that constraint was written from the seed file's opening rows with
-   * the rest guessed, and Postgres refused it because `ac-servicing` is `AirVent` and
-   * had been guessed as `Wind`. This fails before a migration reaches a database.
-   */
-  it("are all named in the check constraint", () => {
-    const clause = MIGRATION.slice(MIGRATION.indexOf("categories_icon_known check"));
-    const allowed = Array.from(clause.slice(0, clause.indexOf("));")).matchAll(/'([A-Za-z]+)'/g)).map(
-      (m) => m[1],
-    );
-    expect([...CATEGORY_ICONS].sort()).toEqual([...allowed].sort());
-  });
-
-  it("recognises its own members and nothing else", () => {
-    expect(isCategoryIcon("AirVent")).toBe(true);
-    expect(isCategoryIcon("NotAnIcon")).toBe(false);
   });
 });

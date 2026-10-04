@@ -1,16 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  AirVent,
-  Bug,
-  Droplets,
-  Hammer,
-  PaintRoller,
-  Sparkles,
-  Truck,
-  WashingMachine,
-  Wrench,
-  Zap,
-} from "lucide-react";
+
+import { categoryIcon } from "@/lib/config/icons";
 
 import categorySeed from "@/lib/data/seed/categories.json";
 import subBandSeed from "@/lib/data/seed/price-bands.json";
@@ -152,7 +142,7 @@ export type Category = {
    * onto that would invent the one number nobody will state.
    */
   pricingModel: "band" | "survey";
-  /** Lucide icon name — resolved through CATEGORY_ICONS below. */
+  /** Lucide icon name — resolved through `categoryIcon` in lib/config/icons.ts. */
   icon: string;
   sortOrder: number;
 };
@@ -218,27 +208,14 @@ export const CATEGORY_SEED = categorySeed as Category[];
 export const SUB_BAND_SEED = subBandSeed as SubBand[];
 
 /**
- * Icon names to components.
+ * Icon names to components — ONE map, in `lib/config/icons.ts`.
  *
- * The database stores a name, not a component, so this map is the boundary.
- * A category with an unknown icon renders the wrench rather than nothing.
+ * This file used to hold its own ten-entry copy with `?? Wrench` behind it, while
+ * `icons.ts` offered twenty names and the check constraint accepted all twenty. The ten
+ * spares therefore stored fine, passed every guard and drew a wrench. Re-exported rather
+ * than re-imported at each call site so the existing callers did not have to move.
  */
-export const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  Wrench,
-  Zap,
-  Sparkles,
-  WashingMachine,
-  Hammer,
-  Bug,
-  PaintRoller,
-  AirVent,
-  Droplets,
-  Truck,
-};
-
-export function categoryIcon(name: string): LucideIcon {
-  return CATEGORY_ICONS[name] ?? Wrench;
-}
+export { categoryIcon };
 
 export type ServiceCategoryCard = Category & { Icon: LucideIcon };
 

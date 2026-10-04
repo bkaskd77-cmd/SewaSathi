@@ -441,7 +441,23 @@ export async function stringHistory(
  *
  * THE ICON IS CHECKED HERE AND IN THE DATABASE. The constraint is what actually stops a
  * blank card, and this is what gives the admin a sentence instead of a failed write.
+ *
+ * IT RETURNS WHAT CHANGED, because for a category the audit row is the only trail there
+ * is. A string edit writes `content_string_revisions`, which is why `setStringAction`
+ * logs a length rather than the words — a second copy of the same text in a blob nobody
+ * can filter. There is no revisions table here and there should not be one: `categories`
+ * is already the live source, and a category's words are a name and two short lines
+ * rather than four thousand characters. So the before and after go into
+ * `security_events`, which is append-only, and that is the history.
+ *
+ * `changed` IS NULL WHEN THE PREVIOUS ROW COULD NOT BE READ, never `{}` — rule 6, and
+ * the distinction matters on exactly this screen: `{}` means somebody pressed Save and
+ * altered nothing, which is a real and common thing to do, while null means we changed a
+ * category and cannot say what it used to say. An empty object renders as "no change"
+ * and would turn the second into the first.
  */
+export type CategoryChange = Record<string, { from: unknown; to: unknown }>;
+
 export async function setCategoryContent(input: {
   slug: string;
   nameEn: string;
@@ -455,7 +471,11 @@ export async function setCategoryContent(input: {
   icon: string;
   sortOrder: number;
   actorId: string;
-}): Promise<{ ok: boolean; reason?: "badIcon" | "failed" }> {
+}): Promise<{
+  ok: boolean;
+  reason?: "badIcon" | "failed";
+  changed?: CategoryChange | null;
+}> {
   const { isCategoryIcon } = await import("@/lib/config/icons");
   if (!isCategoryIcon(input.icon)) return { ok: false, reason: "badIcon" };
   if (!hasSupabaseConfig()) return { ok: false, reason: "failed" };
@@ -465,20 +485,62 @@ export async function setCategoryContent(input: {
     return { ok: false, reason: "failed" };
   }
 
+  const next = {
+    name_en: text(input.nameEn),
+    name_ne: text(input.nameNe),
+    descriptor: text(input.descriptor),
+    descriptor_ne: text(input.descriptorNe),
+    description: text(input.description),
+    description_ne: text(input.descriptionNe),
+    cta_label: text(input.ctaLabel),
+    cta_label_ne: text(input.ctaLabelNe),
+    icon: input.icon,
+    sort_order: input.sortOrder,
+  };
+
   try {
-    const { error } = await createAdminClient()
+    const db = createAdminClient();
+
+    /*
+     * The ADMIN client, not `getCategory` — that one falls back to the seed when a read
+     * fails, and a diff taken against the seed would log a "from" the table never held.
+     *
+     * THE COLUMN LIST IS WRITTEN OUT rather than derived from `next`. `check:columns`
+     * reads every `.select()` in the codebase statically, and `Object.keys(next).join()`
+     * is a select it cannot read — which it reported, correctly: a dynamic list is one no
+     * guard can compare against the schema. The two lists are kept honest by behaviour
+     * instead: a column missing here would silently never report as changed, and
+     * `tests/unit/content-categories.test.ts` moves all ten fields at once and counts
+     * them.
+     */
+    const { data: before } = await db
+      .from("categories")
+      .select(
+        "name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, icon, sort_order",
+      )
+      .eq("slug", input.slug)
+      .maybeSingle();
+
+    const was = (before ?? null) as Record<string, unknown> | null;
+
+    const changed: CategoryChange | null = was
+      ? Object.fromEntries(
+          Object.entries(next)
+            .filter(([key, value]) => was[key] !== value)
+            .map(([key, value]) => [key, { from: was[key], to: value }]),
+        )
+      : null;
+
+    /* Nothing to write, so nothing is written and the caller logs no change. Saving a
+       form somebody opened and closed should not leave a trail claiming an edit. */
+    if (changed !== null && Object.keys(changed).length === 0) {
+      return { ok: true, changed };
+    }
+
+    const { error } = await db
       .from("categories")
       .update({
-        name_en: text(input.nameEn),
-        name_ne: text(input.nameNe),
-        descriptor: text(input.descriptor),
-        descriptor_ne: text(input.descriptorNe),
-        description: text(input.description),
-        description_ne: text(input.descriptionNe),
-        cta_label: text(input.ctaLabel),
-        cta_label_ne: text(input.ctaLabelNe),
-        icon: input.icon,
-        sort_order: input.sortOrder,
+        ...next,
       })
       .eq("slug", input.slug);
 
@@ -486,7 +548,7 @@ export async function setCategoryContent(input: {
       console.error(`[content] category write — ${describeError(error)}`);
       return { ok: false, reason: "failed" };
     }
-    return { ok: true };
+    return { ok: true, changed };
   } catch (thrown) {
     console.error(`[content] category threw — ${describeError(thrown)}`);
     return { ok: false, reason: "failed" };
