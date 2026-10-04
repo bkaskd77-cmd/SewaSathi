@@ -6,6 +6,7 @@ import { Check, MapPin, Plus } from "lucide-react";
 import { FieldError } from "@/components/auth/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AddressPin } from "@/components/booking/address-pin";
 import type { NewAddressDraft } from "@/lib/booking";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,14 @@ export type SavedAddress = {
   /** Canonical ward key — the shortlist is ranked against it. */
   areaKey: string;
   areaLabel: string;
+  /**
+   * The pin saved with this address, if it has one.
+   *
+   * CARRIED SO A RETURNING CUSTOMER IS NOT ASKED AGAIN. The pin belongs to the place,
+   * not to the booking, so somebody who located their flat once gets sharper matching
+   * for every booking afterwards without touching the control.
+   */
+  at?: { lat: number; lng: number } | null;
 };
 
 export type AreaGroup = {
@@ -192,6 +201,24 @@ export function StepAddress({
               message={errors.landmark ? tErr(errors.landmark) : null}
             />
           </div>
+
+          {/*
+            THE PIN, AFTER THE LANDMARK AND BEFORE THE OPTIONAL FIELDS. Its position
+            is the argument: the landmark is what a professional actually navigates
+            by in a country with no usable house numbers, so the pin sits under it as
+            a refinement rather than above it as the real answer. Nothing below here
+            is required and neither is this.
+          */}
+          <AddressPin
+            at={
+              draft.lat !== null && draft.lng !== null
+                ? { lat: draft.lat, lng: draft.lng }
+                : null
+            }
+            onChange={(point) =>
+              onDraft({ lat: point?.lat ?? null, lng: point?.lng ?? null })
+            }
+          />
 
           <div>
             <Label htmlFor="directions">{t("directionsLabel")}</Label>

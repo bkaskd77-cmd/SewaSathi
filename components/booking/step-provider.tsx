@@ -39,6 +39,7 @@ import { cn, formatNpr } from "@/lib/utils";
 export function StepProvider({
   category,
   area,
+  at,
   urgency,
   providerId,
   autoAssign,
@@ -51,6 +52,11 @@ export function StepProvider({
 }: {
   category: string;
   area: string | null;
+  /**
+   * The job's pin, when one was dropped. Null is ordinary and ranking falls back to
+   * the ward — see `scoreParts`.
+   */
+  at?: { lat: number; lng: number } | null;
   urgency: string | null;
   providerId: string | null;
   autoAssign: boolean;
@@ -91,14 +97,22 @@ export function StepProvider({
       const { shortlistAction } = await import(
         "@/app/[locale]/(app)/book/actions"
       );
-      const result = await shortlistAction({ category, area, urgency });
+      const result = await shortlistAction({
+        category,
+        area,
+        urgency,
+        lat: at?.lat ?? null,
+        lng: at?.lng ?? null,
+      });
       if (!cancelled) setList(result);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [category, area, urgency]);
+    /* The pin is in the dependency list, so moving it re-ranks rather than leaving a
+       shortlist built from the old position on screen. */
+  }, [category, area, urgency, at?.lat, at?.lng]);
 
   // The preselected professional stays at the top even if the ranking would
   // not have put them there — the customer chose them, and quietly reordering

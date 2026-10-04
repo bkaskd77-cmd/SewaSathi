@@ -316,6 +316,17 @@ export function BookingFlow({
     : state.newAddress.area || null;
 
   /*
+   * THE PIN FOR WHICHEVER ADDRESS IS CHOSEN — the saved one's if they picked one,
+   * the draft's if they are typing a new one. Null for both is the ordinary case and
+   * ranking falls back to the ward, which is exactly what it did before pins existed.
+   */
+  const addressAt = state.addressId
+    ? (savedAddresses.find((a) => a.id === state.addressId)?.at ?? null)
+    : state.newAddress.lat !== null && state.newAddress.lng !== null
+      ? { lat: state.newAddress.lat, lng: state.newAddress.lng }
+      : null;
+
+  /*
    * WHEN THEY ARE NEEDED, which is what makes "can they come" answerable. An
    * emergency is always now whatever the form holds; everything else is the
    * slot they picked, or as-soon-as-possible.
@@ -467,6 +478,7 @@ export function BookingFlow({
             <StepProvider
               category={state.category}
               area={areaKey}
+              at={addressAt}
               urgency={state.timing === "emergency" ? "emergency" : null}
               providerId={state.providerId}
               autoAssign={state.autoAssign}
@@ -535,6 +547,7 @@ export function BookingFlow({
             variant="gold"
             size="lg"
             className="btn-tactile"
+            data-flow="advance"
             onClick={() => void confirm()}
             /* Blocked is a real stop, not a warning to click past. The server
                refuses it anyway; disabling here saves a round trip that can
@@ -559,6 +572,19 @@ export function BookingFlow({
             variant="gold"
             size="lg"
             className="btn-tactile"
+            /*
+             * A STABLE HOOK FOR THE FLOW CHECK, and it is here because the absence of
+             * one let that check break for the wrong reason. `check-flows.mjs` clicked
+             * `button.btn-tactile` — the first tactile button on the page — which was
+             * the step's primary action right up until the address step grew a "use my
+             * location" control above it. The check then drove the wrong button and
+             * reported the funnel broken when it was not.
+             *
+             * A class shared by every button in the product is not a selector for one
+             * of them. This names the step's primary action, so a button added above it
+             * tomorrow changes nothing.
+             */
+            data-flow="advance"
             onClick={next}
           >
             {state.step === "when" && !signedIn ? t("continueSignIn") : t("next")}

@@ -197,3 +197,75 @@ export async function listRankingEvidence(): Promise<Counted<StatsOnly[]>> {
     return uncounted();
   }
 }
+
+/**
+ * How much of the proximity weight is actually distance.
+ *
+ * WHY THIS IS NOT PART OF `weightEvidence`. That function answers the evidence question
+ * from `provider_stats` alone, and deliberately — a full `Provider` would mean a full
+ * read for a screen that needs counts. Proximity is the one term whose evidence lives
+ * somewhere else entirely: in the ward centroid seed and in `addresses.lat/lng`. So
+ * `weightEvidence` reports it as "always a fact", which is true of the ward half and
+ * silent about the half that was just added.
+ *
+ * THE SILENCE IS THE THING WORTH FIXING. `area-centroids.json` ships empty — the
+ * sandbox this was built in cannot reach OpenStreetMap — and every address has no pin
+ * until customers start using the button. Both are working states: ranking falls back
+ * to ward membership. But a refinement that is inert and a refinement that is working
+ * look identical from the ranking, which is the `applyRedoRecovery` shape, and the only
+ * way to tell them apart would be reading two files and counting rows.
+ *
+ * MEASURES AND DOES NOT GRADE. No threshold, no colour, no proposal — there is no
+ * number yet that says what share of pinned addresses makes distance worth retuning
+ * around, and a constant here would freeze a guess into the codebase as a standard.
+ */
+export type ProximityEvidence = {
+  /** Wards with a centre on record, out of the wards we sell in. */
+  wardsWithCentre: number;
+  wardsTotal: number;
+  /** Where those centres came from, and when. Null before the fetch has run. */
+  centroidSource: string;
+  centroidFetchedAt: string | null;
+  /** Addresses carrying a pin, out of all of them. Null total means the read failed. */
+  pinnedAddresses: number;
+  addressesTotal: number | null;
+};
+
+export async function proximityEvidence(): Promise<ProximityEvidence> {
+  const { AREAS } = await import("@/lib/config/areas");
+  const { CENTROID_PROVENANCE } = await import("@/lib/geo");
+
+  const base = {
+    wardsWithCentre: CENTROID_PROVENANCE.known,
+    wardsTotal: AREAS.length,
+    centroidSource: CENTROID_PROVENANCE.source,
+    centroidFetchedAt: CENTROID_PROVENANCE.fetchedAt,
+  };
+
+  if (!hasSupabaseConfig()) {
+    return { ...base, pinnedAddresses: 0, addressesTotal: null };
+  }
+
+  try {
+    const db = createAdminClient();
+    const [{ count: pinned }, { count: total, error }] = await Promise.all([
+      db
+        .from("addresses")
+        .select("id", { count: "exact", head: true })
+        .not("lat", "is", null)
+        .not("lng", "is", null),
+      db.from("addresses").select("id", { count: "exact", head: true }),
+    ]);
+
+    return {
+      ...base,
+      pinnedAddresses: pinned ?? 0,
+      // A failed total is null, never 0 — the denominator rule. "3 of 0 pinned" is
+      // worse than "we could not count them".
+      addressesTotal: error ? null : (total ?? 0),
+    };
+  } catch (thrown) {
+    console.error(`[concentration] address pins threw — ${describeError(thrown)}`);
+    return { ...base, pinnedAddresses: 0, addressesTotal: null };
+  }
+}

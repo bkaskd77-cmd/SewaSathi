@@ -17,6 +17,7 @@ import {
   openPayoutAccount,
 } from "@/lib/data/payout-account";
 import { describeError } from "@/lib/data/source";
+import { haversineKm, type Point } from "@/lib/geo";
 import { customerHistory } from "@/lib/data/customer-risk";
 import { findDuplicates, type DuplicateHit } from "@/lib/data/verification";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -741,6 +742,18 @@ export type OpenClaim = {
    */
   photoSkewMinutes: number | null;
   hasLocation: boolean;
+  /**
+   * How far the phone's reading was from the address's own pin, in km. Null when
+   * either end has no coordinates.
+   *
+   * THE THIRD STATE, AND IT IS STILL NOT PROOF. Until addresses could be pinned there
+   * was nothing to compare an arrival reading against, so `/admin/claims` could only
+   * label it *phone-reported, unverified*. With a pin there is a comparison — but
+   * `coarsen()` rounds the arrival to about a kilometre on purpose, so the honest claim
+   * is "plausibly at the address" and never "was at the address". Nothing gates on it
+   * and nothing scores it.
+   */
+  locationGapKm: number | null;
   customerConfirmed: boolean;
   addressProven: boolean;
   customerDisputed: boolean;
@@ -825,7 +838,7 @@ export async function openNoShowClaims(input?: {
       db
         .from("booking_arrivals")
         .select(
-          "booking_id, waited_minutes, contact_attempts, coarse_lat, photo_path, exif_skew_minutes",
+          "booking_id, waited_minutes, contact_attempts, coarse_lat, coarse_lng, photo_path, exif_skew_minutes",
         )
         .in("booking_id", bookingIds),
       db
@@ -840,6 +853,29 @@ export async function openNoShowClaims(input?: {
           rows.map((row) => row.provider_id as string),
         ),
     ]);
+
+  /*
+   * THE ADDRESSES' OWN PINS, so an arrival reading has something to be compared
+   * against. One read for the whole queue, like the attempts below — and most of these
+   * will be null for a long while, which is the ordinary state and not a fault.
+   */
+  const { data: addressRows } = await db
+    .from("addresses")
+    .select("id, lat, lng")
+    .in(
+      "id",
+      (bookings ?? [])
+        .map((row) => row.address_id as string | null)
+        .filter((id): id is string => id !== null),
+    );
+  const addressPinBy = new Map(
+    (addressRows ?? [])
+      .filter((row) => row.lat != null && row.lng != null)
+      .map((row) => [
+        row.id as string,
+        { lat: Number(row.lat), lng: Number(row.lng) },
+      ]),
+  );
 
   /*
    * ONE READ FOR EVERY CLAIM'S ATTEMPTS RATHER THAN ONE PER CLAIM. The queue is capped
@@ -918,6 +954,12 @@ export async function openNoShowClaims(input?: {
       photoPath: (arrival?.photo_path as string | null) ?? null,
       photoSkewMinutes: (arrival?.exif_skew_minutes as number | null) ?? null,
       hasLocation: arrival?.coarse_lat != null,
+      locationGapKm: gapKm(
+        arrival?.coarse_lat == null || arrival?.coarse_lng == null
+          ? null
+          : { lat: Number(arrival.coarse_lat), lng: Number(arrival.coarse_lng) },
+        addressPinBy.get((booking?.address_id as string) ?? "") ?? null,
+      ),
       customerConfirmed: booking?.confirmed_at != null,
       addressProven: (count ?? 0) > 0,
       customerDisputed: row.customer_disputed_at != null,
@@ -1000,6 +1042,18 @@ export async function openNoShowClaimsCount(): Promise<number | null> {
  * raised by the customer rather than by us. Merging them would mean a reviewer facing
  * one form for two decisions.
  */
+/**
+ * How far apart two readings are, or null when there is not a pair to compare.
+ *
+ * NULL RATHER THAN A LARGE NUMBER, the rule this whole phase turns on: "we cannot
+ * compare these" and "these are far apart" are different facts, and only one of them is
+ * evidence against anybody.
+ */
+function gapKm(from: Point | null, to: Point | null): number | null {
+  if (!from || !to) return null;
+  return haversineKm(from, to);
+}
+
 export type OpenTripDebtDispute = {
   customerId: string;
   customerName: string | null;

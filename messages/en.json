@@ -558,7 +558,19 @@
         "directionsPlaceholder": "Blue gate, third floor, ring the bottom bell",
         "labelLabel": "Save as",
         "labelPlaceholder": "home",
-        "saveForNextTime": "Save this address for next time"
+        "saveForNextTime": "Save this address for next time",
+        "pinTitle": "Pin it on the map (optional)",
+        "pinHelp": "Helps us find the professional closest to you. The landmark above is still what they navigate by.",
+        "pinUseLocation": "Use my location",
+        "pinAgain": "Update my location",
+        "pinAdjustOnMap": "Adjust on map",
+        "pinHideMap": "Hide the map",
+        "pinClear": "Remove the pin",
+        "pinSet": "Pinned. We will look for professionals near this spot.",
+        "pinRefused": "We could not get your location. That is fine — your ward and landmark are enough to book.",
+        "pinMapHelp": "Tap the map to move the pin.",
+        "pinMapLabel": "Map for placing a pin on your address",
+        "pinMapFailed": "The map did not load. Use my location instead, or carry on — the pin is optional."
       },
       "when": {
         "preselectedNote": "You told us this is an emergency, so we have selected the fastest option.",
@@ -1879,7 +1891,9 @@
       "skewUnknown": "The photograph carries no clock of its own, which is ordinary — most do not. Nothing here says when it was taken.",
       "skewMatches": "The camera's clock matches when we received it.",
       "skewEarlier": "The camera's clock says {minutes} minutes before we received it.",
-      "skewLater": "The camera's clock says {minutes} minutes after we received it, so that phone is running ahead."
+      "skewLater": "The camera's clock says {minutes} minutes after we received it, so that phone is running ahead.",
+      "locatedNearAddress": "The phone reported a position about a kilometre or less from the address pin — consistent, not proof. We round arrival positions to roughly a kilometre on purpose.",
+      "locatedAwayFromAddress": "The phone reported a position about {km} km from the address pin. Worth asking about; arrival positions are rounded to roughly a kilometre, so small gaps mean little."
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",
@@ -2071,7 +2085,15 @@
           "availability": "Availability",
           "response": "How fast they reply",
           "proximity": "How near they work"
-        }
+        },
+        "wards": "Wards with a centre",
+        "wardsValue": "{n} of {count, plural, one {# ward} other {# wards}}",
+        "pins": "Addresses with a pin",
+        "pinsValue": "{n} of {count, plural, one {# address} other {# addresses}}",
+        "pinsUnreadable": "We could not count the addresses, so there is no share to read here.",
+        "centroidSource": "Where the ward centres came from",
+        "centroidUnfetched": "Not fetched yet — distance is inert and every address scores on its ward. Run scripts/fetch-ward-centroids.mjs.",
+        "centroidFetched": "OpenStreetMap ward boundaries, {date}. Approximate, ward-level."
       },
       "concentration": {
         "title": "How concentrated the work is",

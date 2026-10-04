@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { AREA_KEYS, findArea } from "@/lib/config/areas";
+import { isPoint } from "@/lib/geo";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +31,15 @@ export type Address = {
   tole: string;
   landmark: string;
   directionsNote: string | null;
+  /**
+   * A pin for this address, when the customer gave one.
+   *
+   * NULL IS "NOBODY DROPPED ONE" and the ward remains the address — rule 6, in the
+   * shape it takes for geography: nothing may read a missing pin as a location, and
+   * `scoreParts` falls back to ward membership rather than scoring the distance as
+   * large. All rows are null until somebody uses the location button.
+   */
+  at: { lat: number; lng: number } | null;
   isDefault: boolean;
 };
 
@@ -44,6 +54,9 @@ export type AddressInput = {
   landmark: string;
   directionsNote?: string;
   saveForNextTime?: boolean;
+  /** Both or neither. A lone latitude is discarded at the write. */
+  lat?: number | null;
+  lng?: number | null;
 };
 
 const schema = z.object({
@@ -52,6 +65,14 @@ const schema = z.object({
   tole: z.string().trim().min(2).max(80),
   landmark: z.string().trim().min(2).max(120),
   directionsNote: z.string().trim().max(300).optional(),
+  /*
+   * THE PIN, VALIDATED THE SAME WAY THE RANKING READS IT. `isPoint` is the one
+   * definition of a usable coordinate in this product, so a value the form accepted
+   * cannot be one the catalogue then refuses to measure. Either both or neither:
+   * `booking_arrivals` learned the same lesson — a lone latitude is not a place.
+   */
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
 
 export function validateAddress(input: AddressInput): {
@@ -74,7 +95,7 @@ export function validateAddress(input: AddressInput): {
 }
 
 const COLUMNS =
-  "id, label, area_key, city, ward_number, tole, landmark, directions_note, is_default";
+  "id, label, area_key, city, ward_number, tole, landmark, directions_note, lat, lng, is_default";
 
 function rowToAddress(row: Record<string, unknown>): Address {
   return {
@@ -86,6 +107,10 @@ function rowToAddress(row: Record<string, unknown>): Address {
     tole: row.tole as string,
     landmark: row.landmark as string,
     directionsNote: (row.directions_note as string | null) ?? null,
+    /* Null unless both halves survived `isPoint` at the write. */
+    at: isPoint({ lat: row.lat, lng: row.lng })
+      ? { lat: row.lat as number, lng: row.lng as number }
+      : null,
     isDefault: Boolean(row.is_default),
   };
 }
@@ -226,6 +251,15 @@ export async function createAddress(
         tole: parsed.tole,
         landmark: parsed.landmark,
         directions_note: parsed.directionsNote || null,
+        /*
+         * STORED ONLY WHEN IT IS A REAL POINT. A half-filled pair, a zeroed sensor
+         * reading at (0, 0) and an out-of-range latitude all become null here rather
+         * than rows the ranking has to defend itself against later — the check belongs
+         * at the one write, not at every read.
+         */
+        ...(isPoint({ lat: parsed.lat, lng: parsed.lng })
+          ? { lat: parsed.lat, lng: parsed.lng }
+          : { lat: null, lng: null }),
         is_default: makeDefault,
       })
       .select("id")

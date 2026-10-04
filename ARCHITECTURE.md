@@ -29,6 +29,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
 | **content** | `@/lib/content/*` | Legal and information prose, both languages |
 | **config** | `@/lib/config/*` | Categories, areas, brand strings, the guarantee windows |
+| **geo** | `@/lib/geo` (isomorphic) | Distance, what counts as a coordinate, and the approximate centre of a ward. Isomorphic because the booking form validates a pin in the browser and the ranking measures one on the server. `./tiles` is deliberately **not** re-exported — see the adapter table. |
 
 `auth` has three entries rather than one and the split is forced, not
 stylistic: `session.ts` imports `server-only` and `otp.ts` is `"use client"`.
@@ -108,11 +109,12 @@ interface. Swapping a provider is then one file, not a hunt.
 | Cash | `lib/payments/cash.ts` | Not a degraded path — the common one. `isConfigured()` is always true, so the customer is never left with no way to pay, and `verify()` never self-settles: the customer confirming is the only oracle. |
 | In-app notifications | `lib/notify/in-app.ts` | A row in `notifications`, written under the service role. Always configured — there is no key to be missing, so something is always recorded. |
 | SMS / push notifications | *not built* | Phase 13. One file implementing `NotificationChannel` plus a line in `lib/notify/index.ts`; nothing that decides *what* to notify about changes. |
-| In-app chat | *not built* | In scope, after the Next 16 upgrade. The anti-leakage lever for the `provider_contacts` release window — see Seams. Not an adapter: no external service. |
+| In-app chat | **dropped** | Replaced by `wa.me` links — see *Chat — dropped, and what replaces it*. A masked relay is the version that keeps the record and is deferred until there is income to pay for it. |
 | Sealed values | `lib/security/secret-box.ts` | AES-256-GCM over `node:crypto`. The key is `PAYOUT_ENCRYPTION_KEY`, outside the database, so a leaked backup exposes no account numbers. A missing key throws rather than writing plaintext. |
 | Payout destination | `lib/payments/destination.ts` | Pure: masking and the 72-hour cooldown. One place decides how much of an account number a screen shows, so two surfaces cannot disagree about it. The table itself is reached by no browser. |
 | Remittance (payouts) | *not built* | One typed interface, first implementation manual. Until it exists nothing pays anybody — `LAUNCH-BLOCKERS.md § payouts-unbuilt`. |
-| Maps | *not built* | `addresses.lat/lng` exist and are unwritten. |
+| Map tiles | `lib/geo/tiles.ts` | OpenStreetMap's public tiles. The only file naming a tile host, and it earns the rule more than most: a tile request carries the viewport in its URL, so whoever serves them learns roughly where the person looking at the map lives. `TILE_ATTRIBUTION` is required by the ODbL and renders wherever `TILE_URL` is used. Leaflet and its stylesheet are reached only through `components/booking/leaflet-map.tsx`, which is dynamically imported, so neither is in any page's initial bundle. |
+| Geocoding | *not needed* | Nothing turns an address into coordinates. The customer places their own pin, and ward centres come from OpenStreetMap boundaries through `scripts/fetch-ward-centroids.mjs` — run by a person, committed as a seed, never called at runtime. |
 
 ---
 

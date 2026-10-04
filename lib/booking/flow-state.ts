@@ -30,6 +30,16 @@ export type NewAddressDraft = {
   landmark: string;
   directionsNote: string;
   saveForNextTime: boolean;
+  /**
+   * A pin for the address, when the customer offered one.
+   *
+   * NULL IS THE ORDINARY CASE AND THE BOOKING NEVER DEPENDS ON IT. Ward, tole and
+   * landmark remain the address — this is an extra signal that sharpens matching and
+   * nothing more. Somebody who refuses the location prompt, dismisses it, or never taps
+   * either control books exactly as before.
+   */
+  lat: number | null;
+  lng: number | null;
 };
 
 export type FlowState = {
@@ -80,6 +90,8 @@ export function emptyAddress(): NewAddressDraft {
     landmark: "",
     directionsNote: "",
     saveForNextTime: true,
+    lat: null,
+    lng: null,
   };
 }
 

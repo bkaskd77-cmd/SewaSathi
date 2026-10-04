@@ -18,6 +18,7 @@ import {
 import { providerCapacity } from "@/lib/data/capacity";
 import { listProviders } from "@/lib/data/providers";
 import { checkRateLimit } from "@/lib/server/rate-limit";
+import { isPoint } from "@/lib/geo";
 import { rankProviders } from "@/lib/data/ranking";
 
 /**
@@ -79,6 +80,17 @@ export async function shortlistAction(input: {
   category: string;
   area?: string | null;
   urgency?: string | null;
+  /**
+   * The job's pin, when the customer dropped one on the address step.
+   *
+   * ARRIVES FROM THE BROWSER AND THAT IS SAFE HERE, which is worth saying because
+   * three holes in this product have been "an id came from the browser and nothing
+   * asked whose it was". This is not an id and names nobody: it orders a list of
+   * public professionals and is validated by `isPoint` before any arithmetic. The
+   * worst a forged value can do is sort somebody's own shortlist badly.
+   */
+  lat?: number | null;
+  lng?: number | null;
 }): Promise<ShortlistEntry[]> {
   const providers = await listProviders({
     category: input.category,
@@ -91,6 +103,15 @@ export async function shortlistAction(input: {
   const ranked = rankProviders(providers, {
     urgency: input.urgency,
     area: input.area,
+    /*
+     * The pin where there is one, the ward where there is not. `isPoint` is the one
+     * definition of a usable coordinate, so a half-filled pair or a zeroed sensor
+     * reading falls back to ward membership rather than ranking against the Gulf of
+     * Guinea.
+     */
+    at: isPoint({ lat: input.lat, lng: input.lng })
+      ? { lat: input.lat as number, lng: input.lng as number }
+      : null,
   });
 
   const shortlist = ranked.slice(0, 5);

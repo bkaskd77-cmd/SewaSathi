@@ -1,0 +1,7 @@
+{
+  "source": "not yet fetched",
+  "fetchedAt": null,
+  "precision": "approximate, ward-level",
+  "note": "Run `node scripts/fetch-ward-centroids.mjs` to fill this in from OpenStreetMap ward boundaries. Until then `wardCentre` returns null for every ward and proximity scores on ward membership exactly as it did before distance existed — which is rule 6 and is deliberately indistinguishable from the old behaviour.",
+  "wards": {}
+}

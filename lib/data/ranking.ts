@@ -1,3 +1,4 @@
+import { nearestServedKm, type Point } from "@/lib/geo";
 import type { Provider } from "@/lib/data/providers";
 import {
   bayesianRating,
@@ -227,6 +228,36 @@ const AVAILABILITY_SCORE: Record<Provider["availability"], number> = {
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
+/**
+ * How far away stops counting against somebody, in kilometres.
+ *
+ * THE KATHMANDU VALLEY IS ABOUT 30 km ACROSS, so a ceiling of 15 means the score
+ * spends its whole range on distances that actually differ in travel time here. A
+ * ceiling of 100 would compress every real journey into the top of the scale and the
+ * term would separate nobody — which is exactly the mistake
+ * `RESPONSE_CEILING_MINUTES` was making at 120 when every real professional sat at the
+ * default.
+ *
+ * NOT A SERVICE RADIUS AND NOT A FILTER. Somebody 20 km away still appears, still
+ * ranks, and can still be booked: `jobFit` decides who is shown and this decides only
+ * order. Being far is a weight, never an exclusion — the same reason being outside the
+ * ward is deliberately not a `jobFit` reason.
+ */
+const DISTANCE_CEILING_KM = 15;
+
+/**
+ * What a journey of zero kilometres cannot beat: a ward match with no pin.
+ *
+ * WHY THIS IS NOT 1.0. A pinned address and a ward centroid two kilometres apart is
+ * the common case, and it scores about 0.87 — comfortably above the 0.6 a same-city
+ * ward match gets and below the 1.0 an exact ward match used to get for free. The two
+ * scales have to be comparable because both are in use at once: one address in a list
+ * may be pinned and another not, and a scoring change that made every pinned address
+ * outrank every unpinned one would be ranking the customer's willingness to share a
+ * location rather than the professional.
+ */
+const DISTANCE_SCORE_MAX = 1;
+
 
 /**
  * How much this professional's record of pulling out costs them, 0 to
@@ -266,7 +297,18 @@ export type ScoreParts = Record<keyof RankingWeights, number>;
 
 export function scoreParts(
   provider: Provider,
-  options: { area?: string | null } = {},
+  options: {
+    area?: string | null;
+    /**
+     * The job's own coordinates, when the customer dropped a pin.
+     *
+     * SEPARATE FROM `area` RATHER THAN REPLACING IT. Both arrive together: the ward is
+     * always known and the pin usually is not, so proximity reads the pin when it is
+     * there and the ward when it is not. Collapsing them into one optional field would
+     * make "no pin" and "no ward" the same absence, and only one of those is ordinary.
+     */
+    at?: Point | null;
+  } = {},
 ): ScoreParts {
   const { stats } = provider;
 
@@ -305,10 +347,28 @@ export function scoreParts(
     ? clamp01(1 - stats.avgResponseMinutes / RESPONSE_CEILING_MINUTES)
     : UNMEASURED_RESPONSE;
 
-  // With no ward chosen, proximity is neutral for everyone rather than zero —
-  // otherwise the term would just add noise to a list nobody has localised.
+  /*
+   * PROXIMITY: REAL DISTANCE WHERE BOTH ENDS ARE KNOWN, WARD MEMBERSHIP OTHERWISE.
+   *
+   * WHAT WAS WRONG WITH WARD MEMBERSHIP ALONE. It has three values, so somebody two
+   * streets away across a ward line scored 0.6 — exactly the same as somebody on the
+   * far side of the Valley, and less than somebody nominally in the ward but at its
+   * opposite edge. Travel is real time and real fuel here, which is what the 0.18
+   * weight is for, and a term with three steps cannot express it.
+   *
+   * AN UNPINNED ADDRESS SCORES EXACTLY AS IT DID BEFORE — rule 6, and the regression
+   * that would matter most. Most addresses have no pin (all of them, until this
+   * ships), so if "no coordinates" scored like "far away" every customer who declined
+   * the location prompt would be served their worst matches. `nearestServedKm` returns
+   * null rather than a large number precisely so this branch cannot be reached by
+   * accident.
+   */
   let proximity = 0.6;
-  if (options.area) {
+  const km = nearestServedKm(provider.serviceAreas, options.at ?? null);
+  if (km !== null) {
+    proximity =
+      DISTANCE_SCORE_MAX * clamp01(1 - km / DISTANCE_CEILING_KM);
+  } else if (options.area) {
     if (provider.serviceAreas.includes(options.area)) {
       proximity = 1;
     } else {
@@ -324,7 +384,12 @@ export function scoreParts(
 
 export function scoreProvider(
   provider: Provider,
-  options: { urgency?: string | null; area?: string | null } = {},
+  options: {
+    urgency?: string | null;
+    area?: string | null;
+    /** Passed straight through to `scoreParts` — see its note. */
+    at?: Point | null;
+  } = {},
 ): { score: number; parts: ScoreParts } {
   const weights =
     options.urgency === "emergency" ? EMERGENCY_WEIGHTS : RELEVANCE_WEIGHTS;
@@ -348,6 +413,14 @@ export function scoreProvider(
 export type RankOptions = {
   urgency?: string | null;
   area?: string | null;
+  /**
+   * The job's own coordinates, when the customer dropped a pin.
+   *
+   * Passed straight through to `scoreParts`, which scores real distance when both
+   * ends are known and ward membership when either is not. Null is the ordinary case
+   * and must never read as "far away" — see the proximity block there.
+   */
+  at?: Point | null;
   /**
    * Can each of these professionals do THIS job?
    *

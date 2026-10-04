@@ -141,6 +141,9 @@ export default async function BookPage({
       areaLabel: area
         ? areaLabel(area, locale, ward(area.wardNumber))
         : address.city,
+      /* Whatever pin this address already carries, so a returning customer is not
+         asked to locate a place they located once. */
+      at: address.at,
     };
   });
 

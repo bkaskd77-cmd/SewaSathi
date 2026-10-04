@@ -17,11 +17,13 @@ import {
   overallMix,
 } from "@/lib/data/payment-mix";
 import { BAND_REVIEW_THRESHOLD_PCT, needsBandReview } from "@/lib/data/pricing-signals";
+import { formatInstant } from "@/lib/booking";
 import { PAYOUT_RULES, holdbackTrades } from "@/lib/payments/client";
 import {
   listConcentration,
   listRankingEvidence,
   topShare,
+  proximityEvidence,
 } from "@/lib/data/concentration";
 import { RELEVANCE_WEIGHTS, weightEvidence } from "@/lib/data/ranking";
 import { formatBand, formatNpr } from "@/lib/utils";
@@ -67,11 +69,16 @@ export default async function SignalsPage() {
     redirect({ href: "/account/security?next=/admin/signals", locale });
   }
 
-  const [pricing, mix, categories, concentration] = await Promise.all([
+  const [pricing, mix, categories, concentration, proximity] = await Promise.all([
     listPricingSignals(),
     listPaymentMix(),
     getCategories(),
     listConcentration(),
+    /*
+     * The proximity term's own evidence, which `weightEvidence` cannot see: it reads
+     * `provider_stats` and this lives in the ward centroid seed and in the addresses.
+     */
+    proximityEvidence(),
   ]);
 
   const stats = await listRankingEvidence();
@@ -205,6 +212,50 @@ export default async function SignalsPage() {
               }
             />
           ))}
+        </dl>
+
+        {/*
+          THE PROXIMITY TERM'S OTHER HALF, because the line above it reads "always a
+          fact" and that is only true of ward membership. Distance needs a centre for
+          the ward and a pin on the address, and both can be absent — which is a
+          working state, since ranking falls back to the ward, and is indistinguishable
+          from a working one unless somebody says so here.
+
+          MEASURES AND DOES NOT GRADE: no threshold, no colour. Nobody knows yet what
+          share of pinned addresses makes retuning worth it, and a constant would freeze
+          that guess into the product as a standard.
+        */}
+        <dl className="mt-4 space-y-1.5 border-t border-border pt-4 text-body-sm text-muted-foreground">
+          <Row
+            label={t("weights.wards")}
+            value={t("weights.wardsValue", {
+              n: String(proximity.wardsWithCentre),
+              total: String(proximity.wardsTotal),
+              count: proximity.wardsTotal,
+            })}
+          />
+          <Row
+            label={t("weights.pins")}
+            value={
+              proximity.addressesTotal === null
+                ? t("weights.pinsUnreadable")
+                : t("weights.pinsValue", {
+                    n: String(proximity.pinnedAddresses),
+                    total: String(proximity.addressesTotal),
+                    count: proximity.addressesTotal,
+                  })
+            }
+          />
+          <Row
+            label={t("weights.centroidSource")}
+            value={
+              proximity.centroidFetchedAt === null
+                ? t("weights.centroidUnfetched")
+                : t("weights.centroidFetched", {
+                    date: formatInstant(proximity.centroidFetchedAt, locale),
+                  })
+            }
+          />
         </dl>
       </div>
 

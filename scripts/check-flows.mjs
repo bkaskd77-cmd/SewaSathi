@@ -68,7 +68,7 @@ async function waitForServer(url, timeoutMs = 60_000) {
 /** Fill steps a and b, which every case below needs. */
 async function fillProblemAndAddress(page, { tole, landmark }) {
   await page.fill("#description", "Kitchen tap has been leaking since morning");
-  await page.click("button.btn-tactile");
+  await page.click(ADVANCE);
   await page.waitForSelector("#area", { timeout: 10_000 });
 
   const area = await page.$eval("#area option:not([disabled])", (o) => o.value);
@@ -76,6 +76,18 @@ async function fillProblemAndAddress(page, { tole, landmark }) {
   await page.fill("#tole", tole);
   await page.fill("#landmark", landmark);
 }
+
+/**
+ * The step's primary action, by name rather than by shared class.
+ *
+ * IT WAS `button.btn-tactile` AND THAT BROKE FOR THE WRONG REASON. `.btn-tactile` is on
+ * every button in the product, so the selector meant "the first tactile button on the
+ * page" — which was the advance button right up until the address step grew a "use my
+ * location" control above it. Three cases then reported the funnel broken when the
+ * funnel was fine and the check was clicking the wrong thing. A selector that any new
+ * button can capture is not a selector for one button.
+ */
+const ADVANCE = '[data-flow="advance"]';
 
 const CASES = [
   {
@@ -96,13 +108,13 @@ const CASES = [
         tole: "Jhamsikhel",
         landmark: "Opposite the Patan Museum gate",
       });
-      await page.click("button.btn-tactile");
+      await page.click(ADVANCE);
       await page.waitForTimeout(400);
 
       // Step c, then the sign-in wall.
       await Promise.all([
         page.waitForURL(/\/login/, { timeout: 15_000 }),
-        page.click("button.btn-tactile"),
+        page.click(ADVANCE),
       ]);
 
       const url = new URL(page.url());
@@ -132,7 +144,7 @@ const CASES = [
         tole: "Baluwatar",
         landmark: "Beside the peepal tree",
       });
-      await page.click("button.btn-tactile");
+      await page.click(ADVANCE);
       await page.waitForTimeout(400);
 
       // A refresh is the cheap stand-in for a dropped connection.
@@ -151,13 +163,13 @@ const CASES = [
     async run(page, origin) {
       await page.goto(`${origin}/book?category=plumbing`, { waitUntil: "load" });
       await page.fill("#description", "Bathroom tap dripping constantly");
-      await page.click("button.btn-tactile");
+      await page.click(ADVANCE);
       await page.waitForSelector("#area", { timeout: 10_000 });
 
       const area = await page.$eval("#area option:not([disabled])", (o) => o.value);
       await page.selectOption("#area", area);
       await page.fill("#tole", "Sanepa");
-      await page.click("button.btn-tactile");
+      await page.click(ADVANCE);
       await page.waitForTimeout(300);
 
       const error = await page.$eval("#landmark-error", (el) =>
@@ -171,7 +183,7 @@ const CASES = [
     name: "a cold /book with no parameters still works",
     async run(page, origin) {
       await page.goto(`${origin}/book`, { waitUntil: "load" });
-      await page.click("button.btn-tactile");
+      await page.click(ADVANCE);
       await page.waitForTimeout(300);
 
       const error = await page.$eval("#description-error", (el) =>

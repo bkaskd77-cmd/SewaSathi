@@ -176,7 +176,24 @@ export default async function ClaimsQueuePage() {
                   ) : (
                     <MapPinOff aria-hidden="true" className="size-4" />
                   )}
-                  {claim.hasLocation ? t("locatedUnverified") : t("noLocation")}
+                  {/*
+                    THREE STATES NOW, AND THE NEW ONE IS STILL NOT PROOF. Before
+                    addresses could be pinned there was nothing to compare a phone's
+                    reading against, so the only honest label was "phone-reported,
+                    unverified". With a pin there is a comparison — but `coarsen()`
+                    rounds the arrival to about a kilometre deliberately, so the claim
+                    is "plausibly at the address", never "was at the address". A
+                    reviewer who reads it as proof has been misled by us.
+                  */}
+                  {!claim.hasLocation
+                    ? t("noLocation")
+                    : claim.locationGapKm === null
+                      ? t("locatedUnverified")
+                      : claim.locationGapKm <= 1.5
+                        ? t("locatedNearAddress")
+                        : t("locatedAwayFromAddress", {
+                            km: claim.locationGapKm.toFixed(1),
+                          })}
                 </li>
                 {claim.customerConfirmed ? (
                   <li className="flex items-center gap-1.5 text-warning-ink">
