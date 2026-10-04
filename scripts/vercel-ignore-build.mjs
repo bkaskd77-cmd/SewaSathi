@@ -22,9 +22,16 @@
  * preview is how somebody looks at a branch whose CI is still running, and gating that
  * would make the tool useless for the case it helps most.
  *
- * IT NEEDS `GITHUB_TOKEN` AS A VERCEL ENVIRONMENT VARIABLE — a fine-grained token with
- * read access to Checks on this repository and nothing else. Without it this skips
- * every production build, loudly, rather than quietly deploying unverified code.
+ * IT NEEDS NO CREDENTIAL, BECAUSE THIS REPOSITORY IS PUBLIC. GitHub answers
+ * `/commits/{sha}/check-runs` unauthenticated for a public repo — verified against this
+ * one — so the gate works with nothing configured but the Ignored Build Step itself.
+ *
+ * `GITHUB_TOKEN` IS STILL USED IF IT IS THERE, and the reason is the rate limit:
+ * unauthenticated requests are 60 per hour per IP, and Vercel's builders share IPs. If
+ * that ever bites, the symptom is a skipped production build whose log says `403` or
+ * `429` — fail-closed, visible — and the fix is adding a fine-grained token with
+ * Checks: read, with no change to this file. The repository going private has the same
+ * symptom and the same fix.
  */
 import process from "node:process";
 
@@ -46,18 +53,14 @@ if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {
 }
 
 if (!SHA) decide("No VERCEL_GIT_COMMIT_SHA, so there is no commit to check.", SKIP);
-if (!TOKEN) {
-  decide(
-    "No GITHUB_TOKEN set in Vercel, so CI cannot be read. Set one with Checks: read.",
-    SKIP,
-  );
-}
 
 const response = await fetch(
   `https://api.github.com/repos/${REPO}/commits/${SHA}/check-runs?per_page=100`,
   {
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      // Sent only if one happens to be configured — see the note above on the
+      // unauthenticated rate limit. Absent is the ordinary case and works.
+      ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
@@ -67,7 +70,13 @@ const response = await fetch(
 });
 
 if (!response.ok) {
-  decide(`GitHub answered ${response.status} for ${SHA.slice(0, 7)}.`, SKIP);
+  const hint =
+    response.status === 403 || response.status === 429
+      ? " Rate limited — set a GITHUB_TOKEN with Checks: read on the Vercel project."
+      : response.status === 404
+        ? " Repository not readable without a token — is it private now?"
+        : "";
+  decide(`GitHub answered ${response.status} for ${SHA.slice(0, 7)}.${hint}`, SKIP);
 }
 
 const { check_runs: runs = [] } = await response.json();
