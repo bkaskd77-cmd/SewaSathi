@@ -428,7 +428,7 @@ export async function recordConsent(input: {
 
   if (!application || application.profile_id !== input.actorId) return false;
 
-  const headerBag = headers();
+  const headerBag = await headers();
   const { error } = await db.from("application_consents").insert({
     application_id: input.applicationId,
     profile_id: input.actorId,

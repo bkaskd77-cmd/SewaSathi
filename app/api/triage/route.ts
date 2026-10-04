@@ -17,10 +17,7 @@ import {
 import { getTriagePrompt } from "@/lib/ai/prompt";
 import { getPriceBands } from "@/lib/ai/price-bands";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
-import {
-  classifyProviderError,
-  type LoggableReason,
-} from "@/lib/ai/reason";
+import { classifyProviderError, type LoggableReason } from "@/lib/ai/reason";
 import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";

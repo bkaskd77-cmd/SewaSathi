@@ -8,7 +8,10 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
-import { MAX_REVISION_MOVE, PROPOSAL_WINDOW_DAYS } from "@/lib/data/band-proposal";
+import {
+  MAX_REVISION_MOVE,
+  PROPOSAL_WINDOW_DAYS,
+} from "@/lib/data/band-proposal";
 import { bandRows, type BandRow } from "@/lib/data/bands";
 import { formatNpr } from "@/lib/utils/format";
 
@@ -65,7 +68,7 @@ export default async function BandsPage() {
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <header className="animate-rise">
-        <h1 className="font-display text-heading-lg">{t("title")}</h1>
+        <h1 className="text-heading-lg font-display">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
         <p className="mt-1 text-body-sm text-muted-foreground">
           {t("forwardOnly")}
@@ -113,12 +116,14 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
       <dl className="mt-3 space-y-1 text-body-sm">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4">
           <dt className="text-muted-foreground">{t("published")}</dt>
-          <dd className="tabular-nums">{band(row.current.low, row.current.high)}</dd>
+          <dd className="tabular-nums">
+            {band(row.current.low, row.current.high)}
+          </dd>
         </div>
       </dl>
 
       {row.note ? (
-        <p className="text-caption mt-1 text-muted-foreground">{row.note}</p>
+        <p className="mt-1 text-caption text-muted-foreground">{row.note}</p>
       ) : null}
 
       {/*
@@ -127,14 +132,17 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
         above already say. The line is absent rather than reading "nobody".
       */}
       {row.lastDecision ? (
-        <p className="text-caption mt-1 text-muted-foreground">
+        <p className="mt-1 text-caption text-muted-foreground">
           {t(
             row.lastDecision.decision === "approved"
               ? "lastApproved"
               : "lastRejected",
             {
               who: row.lastDecision.actorName ?? t("unnamed"),
-              when: formatInstant(row.lastDecision.decidedAt.toISOString(), locale),
+              when: formatInstant(
+                row.lastDecision.decidedAt.toISOString(),
+                locale,
+              ),
               why: row.lastDecision.reason,
             },
           )}
@@ -145,7 +153,7 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
       {row.spread ? (
         <div className="mt-4 border-t border-border pt-3">
           <h3 className="text-body-sm font-semibold">{t("observed")}</h3>
-          <p className="text-caption mt-1 text-muted-foreground">
+          <p className="mt-1 text-caption text-muted-foreground">
             {t("window", { days: String(PROPOSAL_WINDOW_DAYS) })}
           </p>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-body-sm sm:grid-cols-4">
@@ -186,12 +194,18 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
           <h3 className="text-body-sm font-semibold">{t("suppressedTitle")}</h3>
           <p className="mt-1 text-body-sm">
             {t("suppressedBody", {
-              band: band(row.suppressed.proposedLow, row.suppressed.proposedHigh),
-              when: formatInstant(row.suppressed.decidedAt.toISOString(), locale),
+              band: band(
+                row.suppressed.proposedLow,
+                row.suppressed.proposedHigh,
+              ),
+              when: formatInstant(
+                row.suppressed.decidedAt.toISOString(),
+                locale,
+              ),
               why: row.suppressed.reason,
             })}
           </p>
-          <p className="text-caption mt-1 text-muted-foreground">
+          <p className="mt-1 text-caption text-muted-foreground">
             {t("suppressedReturns", {
               n: String(Math.ceil(row.suppressed.sample * 1.5)),
             })}
@@ -201,7 +215,7 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
         <div className="mt-4 border-t border-border pt-3">
           <h3 className="text-body-sm font-semibold">{t("proposed")}</h3>
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 text-body-md">
-            <span className="text-muted-foreground tabular-nums">
+            <span className="tabular-nums text-muted-foreground">
               {band(row.current.low, row.current.high)}
             </span>
             <span aria-hidden className="text-muted-foreground">
@@ -211,7 +225,7 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
               {band(row.proposal.low, row.proposal.high)}
             </span>
           </div>
-          <p className="text-caption mt-2 text-muted-foreground">
+          <p className="mt-2 text-caption text-muted-foreground">
             {t("evidence", {
               n: String(row.proposal.sample),
               capped: String(row.proposal.winsorised),
@@ -227,7 +241,10 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
             <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-body-sm">
               {t("cappedNote", {
                 pct: String(Math.round(MAX_REVISION_MOVE * 100)),
-                band: band(row.proposal.uncapped.low, row.proposal.uncapped.high),
+                band: band(
+                  row.proposal.uncapped.low,
+                  row.proposal.uncapped.high,
+                ),
               })}
             </p>
           ) : null}

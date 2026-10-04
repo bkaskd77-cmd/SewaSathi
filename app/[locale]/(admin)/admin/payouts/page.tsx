@@ -68,12 +68,15 @@ export default async function PayoutsPage() {
     redirect({ href: "/account/security?next=/admin/payouts", locale });
   }
 
-  const [rows, messages] = await Promise.all([payoutsForReview(), getMessages()]);
+  const [rows, messages] = await Promise.all([
+    payoutsForReview(),
+    getMessages(),
+  ]);
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <header className="animate-rise">
-        <h1 className="font-display text-heading-lg">{t("title")}</h1>
+        <h1 className="text-heading-lg font-display">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
 
@@ -187,7 +190,8 @@ async function Row({ row, locale }: { row: PayoutForReview; locale: Locale }) {
         <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 p-3 text-body-sm">
           {t(`held.${row.heldReason}` as "held.cooling")}
         </p>
-      ) : row.destination === null || row.destination.id !== row.destinationId ? (
+      ) : row.destination === null ||
+        row.destination.id !== row.destinationId ? (
         /*
           THE ACCOUNT CHANGED SINCE THIS WAS DRAFTED, and no button is offered
           because both money-moving actions refuse it server-side — the screen

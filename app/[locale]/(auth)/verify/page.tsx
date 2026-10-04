@@ -8,20 +8,18 @@ import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { safeRedirect } from "@/lib/auth";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("verifyTitle"), robots: { index: false } };
 }
 
-export default async function VerifyPage({
-  searchParams,
-}: {
-  searchParams: { phone?: string; next?: string };
+export default async function VerifyPage(props: {
+  searchParams: Promise<{ phone?: string; next?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("auth.verify");
   const next = safeRedirect(searchParams.next);

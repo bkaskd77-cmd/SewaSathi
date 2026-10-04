@@ -45,11 +45,10 @@ import { formatNpr } from "@/lib/utils";
 
 const ALL_CHECKS: VerificationCheck[] = ["id", "background", "skill"];
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string; slug: string; providerId: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string; slug: string; providerId: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "meta" });
   const provider = await getProvider(params.providerId);
@@ -79,13 +78,12 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProviderProfilePage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string; providerId: string };
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function ProviderProfilePage(props: {
+  params: Promise<{ slug: string; providerId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const [provider, category, categories] = await Promise.all([
     getProvider(params.providerId),
     getCategory(params.slug),
@@ -218,7 +216,10 @@ export default async function ProviderProfilePage({
             </dt>
             {hasRating(stats) ? (
               <dd className="mt-0.5 flex items-center gap-1 font-display text-lg font-semibold tabular-nums">
-                <Star aria-hidden="true" className="size-4 fill-gold text-gold" />
+                <Star
+                  aria-hidden="true"
+                  className="size-4 fill-gold text-gold"
+                />
                 {stats.ratingAvg.toFixed(1)}
                 <span className="text-caption font-normal text-muted-foreground">
                   ({stats.ratingCount})

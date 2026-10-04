@@ -54,7 +54,7 @@ export default async function RevenuePage() {
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <header className="animate-rise">
-        <h1 className="font-display text-heading-lg">{t("title")}</h1>
+        <h1 className="text-heading-lg font-display">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
 
@@ -72,10 +72,10 @@ export default async function RevenuePage() {
           */}
           <div className="animate-rise mt-6 rounded-lg border border-border p-4">
             <h2 className="text-body-sm font-semibold">{t("owedToUs")}</h2>
-            <p className="font-display mt-1 text-heading-md tabular-nums">
+            <p className="text-heading-md mt-1 font-display tabular-nums">
               {money(read.data.cashCommissionOutstanding)}
             </p>
-            <p className="text-caption mt-1 text-muted-foreground">
+            <p className="mt-1 text-caption text-muted-foreground">
               {t("owedToUsSource")}
             </p>
           </div>
@@ -94,7 +94,9 @@ export default async function RevenuePage() {
                   </li>
                 ) : null}
                 {read.data.undatedReturns > 0 ? (
-                  <li>{t("undated", { n: money(read.data.undatedReturns) })}</li>
+                  <li>
+                    {t("undated", { n: money(read.data.undatedReturns) })}
+                  </li>
                 ) : null}
               </ul>
             </div>
@@ -109,7 +111,7 @@ export default async function RevenuePage() {
             </div>
           ) : (
             <>
-              <h2 className="animate-rise font-display mt-10 text-heading-sm">
+              <h2 className="animate-rise text-heading-sm mt-10 font-display">
                 {t("byWeek")}
               </h2>
               <ul className="mt-3 space-y-4">
@@ -117,7 +119,9 @@ export default async function RevenuePage() {
                   <li
                     key={week.weekStart.toISOString()}
                     className="animate-rise rounded-lg border border-border p-4"
-                    style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+                    style={{
+                      animationDelay: `${Math.min(index * 0.05, 0.25)}s`,
+                    }}
                   >
                     <Week week={week} locale={locale} />
                   </li>
@@ -128,7 +132,7 @@ export default async function RevenuePage() {
 
           {read.data.categories.length > 0 ? (
             <>
-              <h2 className="animate-rise font-display mt-10 text-heading-sm">
+              <h2 className="animate-rise text-heading-sm mt-10 font-display">
                 {t("byCategory")}
               </h2>
               <ul className="mt-3 space-y-2">
@@ -139,7 +143,7 @@ export default async function RevenuePage() {
                   >
                     <span>
                       {trade.slug}
-                      <span className="text-caption ml-2 text-muted-foreground">
+                      <span className="ml-2 text-caption text-muted-foreground">
                         {t("jobsCount", {
                           count: trade.jobs,
                           n: String(trade.jobs),
@@ -149,7 +153,7 @@ export default async function RevenuePage() {
                     <span className="tabular-nums">
                       {money(trade.commissionEarned)}
                       {trade.commissionReturned > 0 ? (
-                        <span className="text-caption ml-2 text-warning-ink">
+                        <span className="ml-2 text-caption text-warning-ink">
                           {t("lessReturned", {
                             n: money(trade.commissionReturned),
                           })}
@@ -162,7 +166,7 @@ export default async function RevenuePage() {
             </>
           ) : null}
 
-          <p className="text-caption mt-8 text-muted-foreground">
+          <p className="mt-8 text-caption text-muted-foreground">
             {t("sources")}
           </p>
         </>
@@ -202,7 +206,7 @@ async function Week({ week, locale }: { week: RevenueWeek; locale: Locale }) {
         </h3>
         <p className="text-body-md font-medium tabular-nums">{money(net)}</p>
       </div>
-      <p className="text-caption mt-0.5 text-muted-foreground">
+      <p className="mt-0.5 text-caption text-muted-foreground">
         {t("netIs", {
           count: week.jobs,
           n: String(week.jobs),

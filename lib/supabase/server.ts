@@ -15,20 +15,27 @@ import type { Database } from "@/types/supabase";
  * ./middleware.ts) — which is what Phase 3 wires up.
  */
 export function createClient() {
-  const cookieStore = cookies();
-
   return createServerClient<Database>(
     publicEnv.supabaseUrl,
     publicEnv.supabaseAnonKey,
     {
+      /*
+       * ASYNC, BECAUSE NEXT 16 MADE `cookies()` ASYNC — and the store is awaited
+       * INSIDE these two methods rather than once above them, which is what keeps
+       * `createClient()` synchronous for its fifty-two callers. `@supabase/ssr` types
+       * both hooks as returning a promise or a value, so this is the contract rather
+       * than a trick; the alternative was `await createClient()` at every call site,
+       * fifty-two chances to miss one and get a client with no session.
+       */
       cookies: {
-        getAll() {
-          return cookieStore.getAll();
+        async getAll() {
+          return (await cookies()).getAll();
         },
-        setAll(cookiesToSet) {
+        async setAll(cookiesToSet) {
           try {
+            const store = await cookies();
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+              store.set(name, value, options);
             }
           } catch {
             // Called from a Server Component, which cannot mutate cookies.

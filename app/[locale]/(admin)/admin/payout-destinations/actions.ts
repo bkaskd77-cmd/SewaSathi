@@ -28,7 +28,10 @@ export async function confirmDestinationAction(
   const destinationId = String(formData.get("destinationId") ?? "");
   if (!destinationId) return { ok: false, reason: "notFound" };
 
-  const result = await confirmFirstPayout({ destinationId, adminId: profile.id });
+  const result = await confirmFirstPayout({
+    destinationId,
+    adminId: profile.id,
+  });
   if (!result.ok) return { ok: false, reason: result.reason };
 
   revalidatePath("/[locale]/(admin)/admin/payout-destinations", "page");

@@ -69,11 +69,10 @@ import { formatBand, formatNpr } from "@/lib/utils";
 
 import { confirmTripAction } from "./actions";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return {
     title: t("bookingsTitle"),
@@ -83,8 +82,6 @@ export async function generateMetadata({
 
 export const dynamic = "force-dynamic";
 
-
-
 /**
  * One booking.
  *
@@ -92,11 +89,10 @@ export const dynamic = "force-dynamic";
  * things they actually came back for: where their job has got to, and what
  * happens next — stated in words, not implied by a badge.
  */
-export default async function BookingDetailPage({
-  params,
-}: {
-  params: { locale: string; id: string };
+export default async function BookingDetailPage(props: {
+  params: Promise<{ locale: string; id: string }>;
 }) {
+  const params = await props.params;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("booking.detail");
   // `common` carries the one word "WhatsApp", which belongs to no screen.
@@ -145,41 +141,40 @@ export default async function BookingDetailPage({
     providerPhone,
     review,
     refusalRows,
-  ] =
-    await Promise.all([
-      getCategory(booking.categorySlug),
-      // For the price correction: the products this trade publishes, so a
-      // slug can be named and its range shown. `cache()`d per request and
-      // seed-backed like every other catalogue read, and it depends on
-      // nothing, so it costs no extra wave.
-      getSubBands(),
-      getAddress(booking.addressId),
-      booking.providerId
-        ? getProvider(booking.providerId)
-        : Promise.resolve(null),
-      signBookingPhoto(booking.photoUrl),
-      listPaymentsForBooking(booking.id),
-      // Released only while the job is live, so an unassigned or finished
-      // booking simply gets null and the card falls back to support. The
-      // status goes with the id because the policy's window and ours have to
-      // be the same window — see the note on `getProviderPhone`.
-      booking.providerId
-        ? getProviderPhone({
-            providerId: booking.providerId,
-            bookingStatus: booking.status,
-          })
-        : Promise.resolve(null),
-      booking.status === "completed"
-        ? myReviewState(booking.id)
-        : Promise.resolve({ submitted: false, published: false }),
-      booking.status === "pending"
-        ? listRefusals(booking.id)
-        : Promise.resolve([]),
-      // Looking at the booking is reading the notifications about it. Guarded
-      // on `read_at is null`, so it is a no-op after the first render, and it
-      // is fire-and-forget: nothing on this page waits for a read receipt.
-      markBookingRead(profile!.id, booking.id),
-    ]);
+  ] = await Promise.all([
+    getCategory(booking.categorySlug),
+    // For the price correction: the products this trade publishes, so a
+    // slug can be named and its range shown. `cache()`d per request and
+    // seed-backed like every other catalogue read, and it depends on
+    // nothing, so it costs no extra wave.
+    getSubBands(),
+    getAddress(booking.addressId),
+    booking.providerId
+      ? getProvider(booking.providerId)
+      : Promise.resolve(null),
+    signBookingPhoto(booking.photoUrl),
+    listPaymentsForBooking(booking.id),
+    // Released only while the job is live, so an unassigned or finished
+    // booking simply gets null and the card falls back to support. The
+    // status goes with the id because the policy's window and ours have to
+    // be the same window — see the note on `getProviderPhone`.
+    booking.providerId
+      ? getProviderPhone({
+          providerId: booking.providerId,
+          bookingStatus: booking.status,
+        })
+      : Promise.resolve(null),
+    booking.status === "completed"
+      ? myReviewState(booking.id)
+      : Promise.resolve({ submitted: false, published: false }),
+    booking.status === "pending"
+      ? listRefusals(booking.id)
+      : Promise.resolve([]),
+    // Looking at the booking is reading the notifications about it. Guarded
+    // on `read_at is null`, so it is a no-op after the first render, and it
+    // is fire-and-forget: nothing on this page waits for a read receipt.
+    markBookingRead(profile!.id, booking.id),
+  ]);
 
   /*
    * DID SOMEBODY WALK AWAY FROM THIS JOB?
@@ -298,7 +293,8 @@ export default async function BookingDetailPage({
     ) !== "first-refusal";
 
   const area = address ? findArea(address.areaKey) : null;
-  const ended = booking.status === "cancelled" || booking.status === "no_provider_found";
+  const ended =
+    booking.status === "cancelled" || booking.status === "no_provider_found";
 
   // The contact card's window, and it mirrors the RLS policy on
   // provider_contacts exactly: the phone is released while a job is live and
@@ -330,7 +326,9 @@ export default async function BookingDetailPage({
     (p) => p.method !== "cash" && p.status === "initiated",
   );
   const cashWaiting = payments.find(
-    (p) => p.method === "cash" && (p.status === "pending" || p.status === "initiated"),
+    (p) =>
+      p.method === "cash" &&
+      (p.status === "pending" || p.status === "initiated"),
   );
   const lastFailed = payments.find((p) => p.status === "failed");
 
@@ -406,11 +404,13 @@ export default async function BookingDetailPage({
       <header className="animate-rise mt-3" style={{ animationDelay: "40ms" }}>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-display-md">
-            {category ? categoryCopy(category, locale).name : booking.categorySlug}
+            {category
+              ? categoryCopy(category, locale).name
+              : booking.categorySlug}
           </h1>
           <StatusBadge status={booking.status} />
         </div>
-        <p className="mt-2 font-display text-display-sm tracking-wide tabular-nums text-muted-foreground">
+        <p className="mt-2 font-display text-display-sm tabular-nums tracking-wide text-muted-foreground">
           {booking.reference}
         </p>
       </header>
@@ -571,7 +571,9 @@ export default async function BookingDetailPage({
           No warning colour: this is a professional going out of their way, not
           a fault.
        */}
-      {provider && showsProvider && booking.overbookOfferedBy === provider.id ? (
+      {provider &&
+      showsProvider &&
+      booking.overbookOfferedBy === provider.id ? (
         <p className="animate-pop-in mt-3 rounded-lg border border-border bg-muted/30 p-3 text-body-sm text-muted-foreground">
           {t("overbookOffered", { name: provider.displayName })}
         </p>
@@ -612,7 +614,9 @@ export default async function BookingDetailPage({
                 }`
               : t("addressMissing")
           }
-          hint={address ? t("landmarkHint", { landmark: address.landmark }) : null}
+          hint={
+            address ? t("landmarkHint", { landmark: address.landmark }) : null
+          }
           hintIcon={MapPin}
         />
 
@@ -630,9 +634,7 @@ export default async function BookingDetailPage({
           i={4}
           label={t("provider")}
           value={provider ? provider.displayName : t("providerPending")}
-          hint={
-            provider && provider.isVerified ? t("providerVerified") : null
-          }
+          hint={provider && provider.isVerified ? t("providerVerified") : null}
           hintIcon={ShieldCheck}
         />
 
@@ -644,10 +646,16 @@ export default async function BookingDetailPage({
               ? formatNpr(booking.finalAmount, { locale })
               : quoteLabel
           }
-          hint={booking.finalAmount === null ? t("priceEstimate") : t("priceFinal")}
+          hint={
+            booking.finalAmount === null ? t("priceEstimate") : t("priceFinal")
+          }
         />
 
-        <Row i={6} label={t("payment")} value={t(`payments.${booking.paymentMethod}`)} />
+        <Row
+          i={6}
+          label={t("payment")}
+          value={t(`payments.${booking.paymentMethod}`)}
+        />
       </dl>
 
       {/* Money. Hidden on a booking that ended before anyone worked — there

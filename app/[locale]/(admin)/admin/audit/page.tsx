@@ -43,23 +43,24 @@ export const dynamic = "force-dynamic";
  * invites working the wrong end of it. Nothing ever leaves a log, and what
  * somebody wants is rarely on the first page.
  */
-export default async function AuditPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function AuditPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.audit");
 
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/audit", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/audit", locale });
     if (gate.reason === "notAdmin") notFound();
     redirect({ href: "/account/security?next=/admin/audit", locale });
   }
 
   const one = (value: string | string[] | undefined) =>
-    ((Array.isArray(value) ? value[0] : value) ?? "").trim().slice(0, 120) || null;
+    ((Array.isArray(value) ? value[0] : value) ?? "").trim().slice(0, 120) ||
+    null;
 
   const filter = {
     actorId: one(searchParams.actor),
@@ -86,7 +87,9 @@ export default async function AuditPage({
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -163,13 +166,18 @@ export default async function AuditPage({
             <div className="mt-6">
               <Link
                 href={nextHref}
-                className={buttonVariants({ variant: "outline", className: "btn-tactile" })}
+                className={buttonVariants({
+                  variant: "outline",
+                  className: "btn-tactile",
+                })}
               >
                 {t("older")}
               </Link>
             </div>
           ) : (
-            <p className="mt-6 text-caption text-muted-foreground">{t("end")}</p>
+            <p className="mt-6 text-caption text-muted-foreground">
+              {t("end")}
+            </p>
           )}
         </>
       )}

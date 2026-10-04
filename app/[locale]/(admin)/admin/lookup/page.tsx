@@ -42,11 +42,10 @@ export const dynamic = "force-dynamic";
  * in the product: a name, a number, a home address and a risk history on one
  * page. Nothing here is summarised by anything that leaves the building.
  */
-export default async function LookupPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function LookupPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.lookup");
   /*
@@ -59,7 +58,8 @@ export default async function LookupPage({
 
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/lookup", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/lookup", locale });
     if (gate.reason === "notAdmin") notFound();
     redirect({ href: "/account/security?next=/admin/lookup", locale });
   }
@@ -81,7 +81,9 @@ export default async function LookupPage({
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -96,7 +98,10 @@ export default async function LookupPage({
           {t("label")}
         </label>
         <div className="flex h-11 w-full min-w-0 items-center gap-2.5 rounded-lg border border-input bg-card px-3 transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background sm:w-auto sm:max-w-md sm:flex-1">
-          <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <Search
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted-foreground"
+          />
           <input
             id="lookup-q"
             name="q"
@@ -107,7 +112,10 @@ export default async function LookupPage({
             className="h-full w-full min-w-0 bg-transparent text-body-md outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <button type="submit" className={buttonVariants({ className: "btn-tactile" })}>
+        <button
+          type="submit"
+          className={buttonVariants({ className: "btn-tactile" })}
+        >
           {t("submit")}
         </button>
       </form>
@@ -131,7 +139,7 @@ export default async function LookupPage({
         <div className="animate-rise mt-8 space-y-4" aria-live="polite">
           <div className="rounded-lg border border-border p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-display text-heading-sm">
+              <span className="text-heading-sm font-display">
                 {tradeName(result.booking.categorySlug)}
               </span>
               <span className="text-caption tabular-nums text-muted-foreground">
@@ -144,7 +152,10 @@ export default async function LookupPage({
                 label={t("band")}
                 value={
                   formatBand(
-                    { min: result.booking.quotedMin, max: result.booking.quotedMax },
+                    {
+                      min: result.booking.quotedMin,
+                      max: result.booking.quotedMax,
+                    },
                     { locale },
                   ) ?? t("unrecorded")
                 }
@@ -160,13 +171,23 @@ export default async function LookupPage({
             </dl>
           </div>
 
-          <Person title={t("customer")} person={result.customer} unknown={t("unrecorded")} />
-          <Person title={t("professional")} person={result.provider} unknown={t("unrecorded")} />
+          <Person
+            title={t("customer")}
+            person={result.customer}
+            unknown={t("unrecorded")}
+          />
+          <Person
+            title={t("professional")}
+            person={result.provider}
+            unknown={t("unrecorded")}
+          />
 
           <div className="rounded-lg border border-border p-5">
-            <h2 className="font-display text-heading-sm">{t("where")}</h2>
+            <h2 className="text-heading-sm font-display">{t("where")}</h2>
             {result.address === null ? (
-              <p className="mt-2 text-body-sm text-muted-foreground">{t("unrecorded")}</p>
+              <p className="mt-2 text-body-sm text-muted-foreground">
+                {t("unrecorded")}
+              </p>
             ) : (
               <dl className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
                 <Row
@@ -178,7 +199,10 @@ export default async function LookupPage({
                 <Row label={t("tole")} value={result.address.tole} />
                 <Row label={t("landmark")} value={result.address.landmark} />
                 {result.address.directionsNote ? (
-                  <Row label={t("directions")} value={result.address.directionsNote} />
+                  <Row
+                    label={t("directions")}
+                    value={result.address.directionsNote}
+                  />
                 ) : null}
               </dl>
             )}
@@ -187,13 +211,18 @@ export default async function LookupPage({
           {/* What happened, oldest first. `getBookingHistory` has existed since
               Phase 6 with no caller at all — this is its first. */}
           <div className="rounded-lg border border-border p-5">
-            <h2 className="font-display text-heading-sm">{t("history")}</h2>
+            <h2 className="text-heading-sm font-display">{t("history")}</h2>
             {result.history.length === 0 ? (
-              <p className="mt-2 text-body-sm text-muted-foreground">{t("noHistory")}</p>
+              <p className="mt-2 text-body-sm text-muted-foreground">
+                {t("noHistory")}
+              </p>
             ) : (
               <ol className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
                 {result.history.map((event, index) => (
-                  <li key={`${event.createdAt}-${index}`} className="flex gap-3">
+                  <li
+                    key={`${event.createdAt}-${index}`}
+                    className="flex gap-3"
+                  >
                     <span className="shrink-0 tabular-nums">
                       {formatInstant(event.createdAt, locale)}
                     </span>
@@ -208,18 +237,26 @@ export default async function LookupPage({
           </div>
 
           {/*
-            * RISK IS SHOWN AND NOT SCORED. The numbers are what happened —
-            * no-shows, false addresses, jobs completed. A verdict computed here
-            * would be a judgement about a person rendered next to their phone
-            * number, which is the shape of thing that gets acted on without
-            * anybody deciding to.
-            */}
+           * RISK IS SHOWN AND NOT SCORED. The numbers are what happened —
+           * no-shows, false addresses, jobs completed. A verdict computed here
+           * would be a judgement about a person rendered next to their phone
+           * number, which is the shape of thing that gets acted on without
+           * anybody deciding to.
+           */}
           <div className="rounded-lg border border-border p-5">
-            <h2 className="font-display text-heading-sm">{t("customerRecord")}</h2>
+            <h2 className="text-heading-sm font-display">
+              {t("customerRecord")}
+            </h2>
             <dl className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
-              <Row label={t("completedJobs")} value={String(result.risk.completedJobs)} />
+              <Row
+                label={t("completedJobs")}
+                value={String(result.risk.completedJobs)}
+              />
               <Row label={t("noShows")} value={String(result.risk.noShows)} />
-              <Row label={t("falseAddresses")} value={String(result.risk.falseAddresses)} />
+              <Row
+                label={t("falseAddresses")}
+                value={String(result.risk.falseAddresses)}
+              />
               {result.risk.tripDebt > 0 ? (
                 <Row
                   label={t("tripDebt")}
@@ -254,7 +291,7 @@ function Person({
 }) {
   return (
     <div className="rounded-lg border border-border p-5">
-      <h2 className="font-display text-heading-sm">{title}</h2>
+      <h2 className="text-heading-sm font-display">{title}</h2>
       <p className="mt-2 text-body-md">{person?.name ?? unknown}</p>
       {person?.phone ? (
         <a

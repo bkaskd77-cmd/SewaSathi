@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-migrations.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-secrets.mjs && node scripts/check-contacts.mjs",
+    "build": "node scripts/check-migrations.mjs && next build --webpack && node scripts/check-secrets.mjs && node scripts/check-contacts.mjs",
     "build:next": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint app components lib i18n types middleware.ts --ext .ts,.tsx",
     "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
@@ -33,7 +33,8 @@
     "check:contacts": "node scripts/check-contacts.mjs",
     "check:duration": "node scripts/check-duration.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
-    "check:advisories": "node scripts/check-advisories.mjs"
+    "check:advisories": "node scripts/check-advisories.mjs",
+    "check:bundle": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
@@ -48,11 +49,11 @@
     "framer-motion": "^13.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.34.0",
-    "next": "14.2.35",
+    "next": "^16.3.8",
     "next-intl": "^4.14.1",
     "next-themes": "^0.4.6",
-    "react": "^18",
-    "react-dom": "^18",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
@@ -61,8 +62,8 @@
     "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",

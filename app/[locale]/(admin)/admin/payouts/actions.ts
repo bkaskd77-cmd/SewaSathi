@@ -121,7 +121,12 @@ export async function markFailedAction(
  */
 export async function revealDestinationAction(
   data: FormData,
-): Promise<{ ok: boolean; accountRef?: string; accountName?: string; reason?: string }> {
+): Promise<{
+  ok: boolean;
+  accountRef?: string;
+  accountName?: string;
+  reason?: string;
+}> {
   const profile = await adminActor();
   if (!profile) return { ok: false, reason: "generic" };
 

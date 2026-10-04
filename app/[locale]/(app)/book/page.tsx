@@ -17,11 +17,10 @@ import { getProvider } from "@/lib/data/providers";
 import { TRIAGE_PARAM } from "@/lib/routes/booking";
 import { formatNpr } from "@/lib/utils";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("bookTitle"), robots: { index: false, follow: false } };
 }
@@ -44,11 +43,10 @@ export const dynamic = "force-dynamic";
  * them to sign in at the professional step, with the draft in sessionStorage
  * and the redirect intent in the URL. Gating step one is where funnels die.
  */
-export default async function BookPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function BookPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const first = (value: string | string[] | undefined) =>
     Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 
@@ -188,71 +186,71 @@ export default async function BookPage({
              spelling of the same word living inside the booking namespace. */
           messages={{ booking: messages.booking, common: messages.common }}
         >
-        <BookingFlow
-          seed={{
-            category: categorySlug,
-            provider: providerId,
-            urgency,
-            description: q,
-            triageLogId,
-            band,
-            bandSource,
-            asked,
-          }}
-          categories={categories.map((category) => {
-            /*
-             * A SURVEY TRADE CARRIES NO NUMBERS INTO THE FLOW AT ALL, not even
-             * as a value the screen then chooses to hide. Passing them down and
-             * trusting five components to remember is how the invented movers
-             * range survived on five screens after the data said otherwise.
-             */
-            const survey = isSurveyPriced(category);
-            return {
-              slug: category.slug,
-              label: categoryCopy(category, locale).name,
-              priceMin: survey ? null : category.basePriceMin,
-              priceMax: survey ? null : category.basePriceMax,
-              surveyPriced: survey,
-              // Formatted here rather than passed as a formatter: a function
-              // cannot cross the server/client boundary, and the locale-aware
-              // currency rules belong on the server anyway.
-              quoteLabel: survey
-                ? tServices("surveyPriced")
-                : `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
-            };
-          })}
-          savedAddresses={savedAddresses}
-          areas={areas}
-          preselectedProvider={
-            provider
-              ? {
-                  id: provider.id,
-                  displayName: provider.displayName,
-                  busyUntil: provider.busyUntil,
-                  photoUrl: provider.photoUrl,
-                  yearsExperience: provider.yearsExperience,
-                  isVerified: provider.isVerified,
-                  availability: provider.availability,
-                  ratingAvg: provider.stats.ratingAvg,
-                  ratingCount: provider.stats.ratingCount,
-                  jobsCompleted: provider.stats.jobsCompleted,
-                  avgResponseMinutes: provider.stats.avgResponseMinutes,
-                  responseSamples: provider.stats.responseSamples,
-                  baseRate: provider.baseRate,
-                  heldWindows: (preselectedCapacity?.held ?? []).map((job) =>
-                    typeof job.scheduledFor === "string"
-                      ? job.scheduledFor
-                      : (job.scheduledFor?.toISOString() ?? ""),
-                  ),
-                  capacity: preselectedCapacity?.capacity ?? 1,
-                }
-              : null
-          }
-          tripDebt={tripDebt}
-          signedIn={Boolean(profile)}
-          loginHref={loginHref}
-          areaLabels={areaLabels}
-        />
+          <BookingFlow
+            seed={{
+              category: categorySlug,
+              provider: providerId,
+              urgency,
+              description: q,
+              triageLogId,
+              band,
+              bandSource,
+              asked,
+            }}
+            categories={categories.map((category) => {
+              /*
+               * A SURVEY TRADE CARRIES NO NUMBERS INTO THE FLOW AT ALL, not even
+               * as a value the screen then chooses to hide. Passing them down and
+               * trusting five components to remember is how the invented movers
+               * range survived on five screens after the data said otherwise.
+               */
+              const survey = isSurveyPriced(category);
+              return {
+                slug: category.slug,
+                label: categoryCopy(category, locale).name,
+                priceMin: survey ? null : category.basePriceMin,
+                priceMax: survey ? null : category.basePriceMax,
+                surveyPriced: survey,
+                // Formatted here rather than passed as a formatter: a function
+                // cannot cross the server/client boundary, and the locale-aware
+                // currency rules belong on the server anyway.
+                quoteLabel: survey
+                  ? tServices("surveyPriced")
+                  : `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
+              };
+            })}
+            savedAddresses={savedAddresses}
+            areas={areas}
+            preselectedProvider={
+              provider
+                ? {
+                    id: provider.id,
+                    displayName: provider.displayName,
+                    busyUntil: provider.busyUntil,
+                    photoUrl: provider.photoUrl,
+                    yearsExperience: provider.yearsExperience,
+                    isVerified: provider.isVerified,
+                    availability: provider.availability,
+                    ratingAvg: provider.stats.ratingAvg,
+                    ratingCount: provider.stats.ratingCount,
+                    jobsCompleted: provider.stats.jobsCompleted,
+                    avgResponseMinutes: provider.stats.avgResponseMinutes,
+                    responseSamples: provider.stats.responseSamples,
+                    baseRate: provider.baseRate,
+                    heldWindows: (preselectedCapacity?.held ?? []).map((job) =>
+                      typeof job.scheduledFor === "string"
+                        ? job.scheduledFor
+                        : (job.scheduledFor?.toISOString() ?? ""),
+                    ),
+                    capacity: preselectedCapacity?.capacity ?? 1,
+                  }
+                : null
+            }
+            tripDebt={tripDebt}
+            signedIn={Boolean(profile)}
+            loginHref={loginHref}
+            areaLabels={areaLabels}
+          />
         </NextIntlClientProvider>
       </div>
     </div>

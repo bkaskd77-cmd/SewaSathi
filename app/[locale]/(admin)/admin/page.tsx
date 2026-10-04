@@ -10,11 +10,10 @@ import { ADMIN_TOOLS } from "@/lib/data/admin-tools";
 import { adminQueueCounts } from "@/lib/data/admin-queues";
 import { queuesState } from "@/lib/data/queue";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "admin.index",
@@ -72,7 +71,9 @@ export default async function AdminIndexPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -108,7 +109,7 @@ export default async function AdminIndexPage() {
               className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:border-primary/50"
             >
               <span>
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {t(`queues.${queue.key}.name`)}
                 </span>
                 <span className="mt-1 block text-body-sm text-muted-foreground">
@@ -144,7 +145,7 @@ export default async function AdminIndexPage() {
                     queue.total === null
                       ? "text-body-md text-warning-ink"
                       : queue.total > 0
-                        ? "font-display text-heading-sm text-foreground"
+                        ? "text-heading-sm font-display text-foreground"
                         : "text-body-md text-muted-foreground"
                   }
                 >
@@ -167,15 +168,15 @@ export default async function AdminIndexPage() {
       </p>
 
       {/*
-        * THE SECOND GROUP: everything that is not work waiting.
-        *
-        * Quieter than the queues on purpose — no counts, no numbers, smaller
-        * type. A full queue has to stand out from these, and it cannot if a
-        * row saying "1,482 audit events" sits beside it looking equally
-        * urgent. These cost no queries at all, so the one screen that should
-        * open instantly still does.
-        */}
-      <h2 className="animate-rise mt-10 font-display text-heading-sm">
+       * THE SECOND GROUP: everything that is not work waiting.
+       *
+       * Quieter than the queues on purpose — no counts, no numbers, smaller
+       * type. A full queue has to stand out from these, and it cannot if a
+       * row saying "1,482 audit events" sits beside it looking equally
+       * urgent. These cost no queries at all, so the one screen that should
+       * open instantly still does.
+       */}
+      <h2 className="animate-rise text-heading-sm mt-10 font-display">
         {t("toolsTitle")}
       </h2>
       <ul className="mt-3 space-y-2">

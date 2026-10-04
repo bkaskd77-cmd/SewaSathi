@@ -21,11 +21,10 @@ import { joinAction } from "./actions";
  * difference between launching with professionals and launching with none.
  */
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "join" });
 

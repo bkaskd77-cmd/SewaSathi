@@ -46,11 +46,10 @@ const first = (value: string | string[] | undefined): string | null =>
  */
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string; slug: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "meta" });
   const category = await getCategory(params.slug);
@@ -83,13 +82,12 @@ export async function generateMetadata({
   };
 }
 
-export default async function CategoryPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams: SearchParams;
+export default async function CategoryPage(props: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const category = await getCategory(params.slug);
   if (!category) notFound();
 

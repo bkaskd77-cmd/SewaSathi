@@ -21,11 +21,10 @@ export function generateStaticParams() {
   return LEGAL_SLUGS.map((slug) => ({ slug }));
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string; slug: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   if (!isLegalSlug(params.slug)) return {};
 
   const locale = params.locale as Locale;
@@ -43,11 +42,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function LegalPage({
-  params,
-}: {
-  params: { slug: string };
+export default async function LegalPage(props: {
+  params: Promise<{ slug: string }>;
 }) {
+  const params = await props.params;
   if (!isLegalSlug(params.slug)) notFound();
 
   const locale = (await getLocale()) as Locale;

@@ -49,7 +49,8 @@ export default async function AppealsPage() {
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/appeals", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/appeals", locale });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
@@ -70,7 +71,9 @@ export default async function AppealsPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -89,7 +92,7 @@ export default async function AppealsPage() {
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {appeal.providerName ?? "—"}
                 </span>
                 <span className="text-caption text-muted-foreground">

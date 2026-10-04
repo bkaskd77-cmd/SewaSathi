@@ -28,11 +28,10 @@ import {
   uploadDocumentAction,
 } from "./actions";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "join.apply.meta",
@@ -101,7 +100,8 @@ export default async function ApplyPage() {
   if (application.status !== "draft") {
     const days = application.submittedAt
       ? Math.floor(
-          (Date.now() - new Date(application.submittedAt).getTime()) / 86_400_000,
+          (Date.now() - new Date(application.submittedAt).getTime()) /
+            86_400_000,
         )
       : 0;
 
@@ -110,11 +110,17 @@ export default async function ApplyPage() {
         <div className="animate-rise rounded-lg border border-border p-6">
           <div className="flex items-center gap-2.5">
             {application.status === "approved" ? (
-              <CheckCircle2 aria-hidden="true" className="size-5 text-primary" />
+              <CheckCircle2
+                aria-hidden="true"
+                className="size-5 text-primary"
+              />
             ) : (
-              <Clock aria-hidden="true" className="size-5 text-muted-foreground" />
+              <Clock
+                aria-hidden="true"
+                className="size-5 text-muted-foreground"
+              />
             )}
-            <h1 className="font-display text-heading-md">
+            <h1 className="text-heading-md font-display">
               {application.status === "approved"
                 ? t("status.approvedTitle")
                 : application.status === "rejected"
@@ -202,7 +208,10 @@ export default async function ApplyPage() {
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10">
       <h1 className="sr-only">{t("intro.title")}</h1>
-      <NextIntlClientProvider locale={locale} messages={{ join: messages.join }}>
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ join: messages.join }}
+      >
         <ApplyFlow
           draft={application}
           totalSteps={APPLY_STEPS}
@@ -247,7 +256,9 @@ function Intro(props: {
 }) {
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{props.title}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {props.title}
+      </h1>
       <p className="animate-rise mt-3 text-body-lg text-muted-foreground">
         {props.lead}
       </p>

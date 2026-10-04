@@ -19,11 +19,10 @@ import { formatE164ForDisplay } from "@/lib/auth";
 import { formatNpr } from "@/lib/utils";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("accountTitle"), robots: { index: false, follow: false } };
 }
@@ -254,7 +253,7 @@ export default async function AccountPage() {
             <ReceiptText aria-hidden="true" className="size-4 shrink-0" />
             {t("tripDebtTitle")}
           </h2>
-          <p className="mt-2 text-heading-sm font-display tabular-nums">
+          <p className="text-heading-sm mt-2 font-display tabular-nums">
             {formatNpr(debt.outstanding, { locale })}
           </p>
           <p className="mt-2 text-body-sm text-muted-foreground">

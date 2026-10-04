@@ -16,7 +16,10 @@ import {
   mixByWard,
   overallMix,
 } from "@/lib/data/payment-mix";
-import { BAND_REVIEW_THRESHOLD_PCT, needsBandReview } from "@/lib/data/pricing-signals";
+import {
+  BAND_REVIEW_THRESHOLD_PCT,
+  needsBandReview,
+} from "@/lib/data/pricing-signals";
 import { formatInstant } from "@/lib/booking";
 import { PAYOUT_RULES, holdbackTrades } from "@/lib/payments/client";
 import {
@@ -64,22 +67,24 @@ export default async function SignalsPage() {
 
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/signals", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/signals", locale });
     if (gate.reason === "notAdmin") notFound();
     redirect({ href: "/account/security?next=/admin/signals", locale });
   }
 
-  const [pricing, mix, categories, concentration, proximity] = await Promise.all([
-    listPricingSignals(),
-    listPaymentMix(),
-    getCategories(),
-    listConcentration(),
-    /*
-     * The proximity term's own evidence, which `weightEvidence` cannot see: it reads
-     * `provider_stats` and this lives in the ward centroid seed and in the addresses.
-     */
-    proximityEvidence(),
-  ]);
+  const [pricing, mix, categories, concentration, proximity] =
+    await Promise.all([
+      listPricingSignals(),
+      listPaymentMix(),
+      getCategories(),
+      listConcentration(),
+      /*
+       * The proximity term's own evidence, which `weightEvidence` cannot see: it reads
+       * `provider_stats` and this lives in the ward centroid seed and in the addresses.
+       */
+      proximityEvidence(),
+    ]);
 
   const stats = await listRankingEvidence();
 
@@ -104,13 +109,15 @@ export default async function SignalsPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-10 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-10 font-display">
         {t("pricing.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -132,15 +139,15 @@ export default async function SignalsPage() {
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {tradeName(signal.categorySlug)}
                 </span>
                 {/*
-                  * The one judgement on this screen, and it is about OUR price
-                  * rather than anybody's conduct. `needsBandReview` also
-                  * requires ten settled jobs, so a trade with two does not get
-                  * flagged for having one cheap one.
-                  */}
+                 * The one judgement on this screen, and it is about OUR price
+                 * rather than anybody's conduct. `needsBandReview` also
+                 * requires ten settled jobs, so a trade with two does not get
+                 * flagged for having one cheap one.
+                 */}
                 {needsBandReview(signal) ? (
                   <span className="rounded-full bg-warning/15 px-2.5 py-0.5 text-caption text-warning-ink">
                     {t("pricing.review")}
@@ -149,7 +156,10 @@ export default async function SignalsPage() {
               </div>
 
               <dl className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
-                <Row label={t("pricing.settled")} value={String(signal.settledJobs)} />
+                <Row
+                  label={t("pricing.settled")}
+                  value={String(signal.settledJobs)}
+                />
                 <Row
                   label={t("pricing.belowBand")}
                   value={t("pricing.jobsAndPct", {
@@ -177,21 +187,21 @@ export default async function SignalsPage() {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("weights.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
         {t("weights.lead")}
       </p>
       {/*
-        * WHICH WEIGHTS ARE SEPARATING ANYBODY. `rating` carries the largest
-        * share of the blend and `bayesianRating` returns the prior for every
-        * listing nobody has rated — so on this data it adds the same number to
-        * everybody. That is honest degradation working as designed, and it was
-        * invisible: the only way to know was to read the ranking and then go and
-        * count rows. Retuning is a product decision and it should start from a
-        * number rather than from somebody rediscovering this in six months.
-        */}
+       * WHICH WEIGHTS ARE SEPARATING ANYBODY. `rating` carries the largest
+       * share of the blend and `bayesianRating` returns the prior for every
+       * listing nobody has rated — so on this data it adds the same number to
+       * everybody. That is honest degradation working as designed, and it was
+       * invisible: the only way to know was to read the ranking and then go and
+       * count rows. Retuning is a product decision and it should start from a
+       * number rather than from somebody rediscovering this in six months.
+       */}
       <div className="animate-rise mt-4 rounded-lg border border-border p-5">
         <dl className="space-y-1.5 text-body-sm text-muted-foreground">
           {evidence.map((row) => (
@@ -260,7 +270,7 @@ export default async function SignalsPage() {
       </div>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("concentration.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -284,7 +294,7 @@ export default async function SignalsPage() {
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-display text-heading-sm">
+                  <span className="text-heading-sm font-display">
                     {tradeName(row.categorySlug)}
                   </span>
                   <span className="text-caption text-muted-foreground">
@@ -331,7 +341,7 @@ export default async function SignalsPage() {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("holdback.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -342,13 +352,13 @@ export default async function SignalsPage() {
         })}
       </p>
       {/*
-        * A DERIVED RULE, ENUMERATED. Which trades hold is computed from
-        * `GUARANTEE_WINDOWS` rather than listed, which is right — the reason is
-        * the window, not the trade name, so a future long-window trade is
-        * covered the day it is added. The cost is that a trade can acquire a
-        * holdback with nobody deciding to give it one, and a rule nobody can
-        * read back is one we end up guessing about. So it is printed.
-        */}
+       * A DERIVED RULE, ENUMERATED. Which trades hold is computed from
+       * `GUARANTEE_WINDOWS` rather than listed, which is right — the reason is
+       * the window, not the trade name, so a future long-window trade is
+       * covered the day it is added. The cost is that a trade can acquire a
+       * holdback with nobody deciding to give it one, and a rule nobody can
+       * read back is one we end up guessing about. So it is printed.
+       */}
       <div className="animate-rise mt-4 rounded-lg border border-border p-5">
         <ul className="space-y-1.5 text-body-sm text-muted-foreground">
           {holdbackTrades().map((trade) => (
@@ -373,7 +383,7 @@ export default async function SignalsPage() {
       </div>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("mix.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -389,10 +399,10 @@ export default async function SignalsPage() {
       ) : (
         <>
           {/*
-            * NOT A MEASUREMENT YET, AND IT SAYS SO. Below the minimum this is
-            * a number, not a baseline, and printing it as though a spending
-            * decision could rest on it is how a budget goes on noise.
-            */}
+           * NOT A MEASUREMENT YET, AND IT SAYS SO. Below the minimum this is
+           * a number, not a baseline, and printing it as though a spending
+           * decision could rest on it is how a budget goes on noise.
+           */}
           {overall && !hasBaseline(overall) ? (
             <p className="animate-rise mt-4 inline-flex items-center gap-2 text-body-sm text-warning-ink">
               <CircleAlert aria-hidden="true" className="size-4" />
@@ -405,17 +415,26 @@ export default async function SignalsPage() {
 
           {overall ? (
             <div className="animate-rise mt-4 rounded-lg border border-border p-5">
-              <h3 className="font-display text-heading-sm">{t("mix.everything")}</h3>
+              <h3 className="text-heading-sm font-display">
+                {t("mix.everything")}
+              </h3>
               <dl className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
                 <Row
                   label={t("mix.byValue")}
-                  value={t("mix.pct", { pct: String(Math.round(overall.cashValuePct)) })}
+                  value={t("mix.pct", {
+                    pct: String(Math.round(overall.cashValuePct)),
+                  })}
                 />
                 <Row
                   label={t("mix.byCount")}
-                  value={t("mix.pct", { pct: String(Math.round(overall.cashPct)) })}
+                  value={t("mix.pct", {
+                    pct: String(Math.round(overall.cashPct)),
+                  })}
                 />
-                <Row label={t("mix.settled")} value={String(overall.settledJobs)} />
+                <Row
+                  label={t("mix.settled")}
+                  value={String(overall.settledJobs)}
+                />
               </dl>
             </div>
           ) : null}
@@ -451,7 +470,12 @@ function MixGroup({
   pct,
 }: {
   title: string;
-  rows: Array<{ key: string; cashValuePct: number; cashPct: number; settledJobs: number }>;
+  rows: Array<{
+    key: string;
+    cashValuePct: number;
+    cashPct: number;
+    settledJobs: number;
+  }>;
   label: (key: string) => string;
   valueLabel: string;
   countLabel: string;
@@ -460,10 +484,13 @@ function MixGroup({
   if (rows.length === 0) return null;
   return (
     <div className="animate-rise mt-4 rounded-lg border border-border p-5">
-      <h3 className="font-display text-heading-sm">{title}</h3>
+      <h3 className="text-heading-sm font-display">{title}</h3>
       <ul className="mt-3 space-y-2 text-body-sm text-muted-foreground">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-baseline justify-between gap-4">
+          <li
+            key={row.key}
+            className="flex items-baseline justify-between gap-4"
+          >
             <span>{label(row.key)}</span>
             <span className="text-right text-foreground">
               <span className="tabular-nums">{pct(row.cashValuePct)}</span>

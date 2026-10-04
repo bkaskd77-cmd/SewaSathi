@@ -9,20 +9,18 @@ import { checkNepaliMobile, safeRedirect } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("loginTitle"), description: t("loginDescription") };
 }
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: { next?: string; phone?: string };
+export default async function LoginPage(props: {
+  searchParams: Promise<{ next?: string; phone?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("auth.login");
   const next = safeRedirect(searchParams.next);

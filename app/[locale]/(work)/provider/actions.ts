@@ -25,8 +25,7 @@ import { CLAIM_VERDICTS, type ClaimVerdict } from "@/lib/config/guarantee";
  */
 
 export type ProviderSettingResult =
-  | { ok: true; message?: string }
-  | { ok: false; error: string };
+  { ok: true; message?: string } | { ok: false; error: string };
 
 /**
  * "I am free now."

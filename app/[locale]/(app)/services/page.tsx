@@ -23,11 +23,10 @@ import { getCategoryCounts } from "@/lib/data/providers";
 import { matchCategories } from "@/lib/data/synonyms";
 import { formatNpr } from "@/lib/utils";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "meta" });
   return {
@@ -53,11 +52,10 @@ export async function generateMetadata({
  * three, because "we have everything" is exactly the claim this market has
  * heard too many times.
  */
-export default async function ServicesPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function ServicesPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const [all, counts, locale, t] = await Promise.all([
     getCategories(),
     getCategoryCounts(),
@@ -124,7 +122,9 @@ export default async function ServicesPage({
       */}
       <div className="animate-rise flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
         <header className="max-w-xl">
-          <p className="text-overline uppercase text-gold-ink">{t("eyebrow")}</p>
+          <p className="text-overline uppercase text-gold-ink">
+            {t("eyebrow")}
+          </p>
           {/* One step down on a phone: at display-md this ran to two lines
               and pushed a whole service card below the fold. */}
           <h1 className="mt-2 text-balance font-display text-display-sm sm:text-display-md">

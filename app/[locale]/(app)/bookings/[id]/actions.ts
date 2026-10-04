@@ -227,7 +227,6 @@ export async function checkForProviderAction(
   return { ok: true, changed: outcome.changed };
 }
 
-
 /**
  * The customer picking a replacement after somebody refused.
  *

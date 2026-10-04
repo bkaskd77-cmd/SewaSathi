@@ -1522,10 +1522,21 @@ they already hold.
 **Revisit 2026-12-01**, or sooner if anything else needs a policy rewritten,
 because the two changes should travel together.
 
-### Upgrade to Next 16 — revisit 2026-11-01
+### Upgrade to Next 16 — DONE, 2026-10-04
 
-Tracked as the `next-14-advisories` launch blocker with the three advisories
-that plausibly reach this deployment. CI gates at `critical` until it lands and
-goes back to `high` afterwards. It has to happen before launch; the date here
-is when to start rather than when it is due.
+`next@16.3.8`, `react@19`, `react-dom@19`. `npm audit --omit=dev` is clean and
+`ACCEPTED` in `check-advisories.mjs` is empty.
+
+**It ships on webpack, and that flag is load-bearing.** Next 16 defaults to
+Turbopack; measured on this machine, mobile Lighthouse on `/` is 88/86/82 under
+Turbopack against 100/100/100 under webpack and under Next 14 — LCP 1.5 s to
+3.3 s, 0 to 280 ms blocking. So `npm run build` passes `--webpack` and
+`LAUNCH-BLOCKERS.md § next-14-advisories` carries the numbers. Turbopack stays
+the default for `next dev`, where the bundling does not ship.
+
+**And it moved the bundle budget out of the build**, which is a real loss of a
+guard rather than a refactor: Next 16 deleted the Size and First Load JS columns
+under both builders, so the check measures script transferred in a Chromium and
+therefore runs in CI rather than inside `next build`. `ci-gates-deploy` is the
+open blocker for making a red CI run unable to deploy.
 

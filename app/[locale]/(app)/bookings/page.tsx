@@ -19,20 +19,16 @@ import { site, supportPhoneDisplay } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { listBookings } from "@/lib/data/bookings";
 import { getCategories } from "@/lib/data/categories";
-import {
-  liveClaimsByBooking,
-  unpaidRefundsByBooking,
-} from "@/lib/data/claims";
+import { liveClaimsByBooking, unpaidRefundsByBooking } from "@/lib/data/claims";
 import { unreadByBooking } from "@/lib/data/notifications";
 import { listNoteKey } from "@/lib/notify/channel";
 import { getProvider } from "@/lib/data/providers";
 import { formatBand, formatNpr } from "@/lib/utils";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return {
     title: t("bookingsTitle"),
@@ -193,8 +189,10 @@ export default async function BookingsPage() {
     // A survey booking nobody has priced yet has no band to show. "Rs 0–Rs 0"
     // beside a real price is worse than saying what is actually true.
     return (
-      formatBand({ min: booking.quotedMin, max: booking.quotedMax }, { locale }) ??
-      tServices("surveyPriced")
+      formatBand(
+        { min: booking.quotedMin, max: booking.quotedMax },
+        { locale },
+      ) ?? tServices("surveyPriced")
     );
   };
 

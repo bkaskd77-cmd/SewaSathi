@@ -70,10 +70,20 @@ jobs:
       - name: Launch blockers
         run: npm run check:blockers
 
-      # Fails if First Load JS on any budgeted route is over its ceiling.
-      # See scripts/perf-budget.mjs.
-      - name: Build (enforces the bundle budget)
+      - name: Build
         run: npm run build
+
+      # THE BUNDLE BUDGET MOVED HERE FROM INSIDE THE BUILD, and it matters where it
+      # lives. Next 16 deleted the Size and First Load JS columns from `next build`
+      # output under both builders, so there is nothing left to parse; the check loads
+      # each budgeted route in a real Chromium and counts the script bytes transferred.
+      # That needs a browser, and Vercel's builder has none — so a regression is caught
+      # here, before merge, rather than by the deploy refusing to build.
+      # See LAUNCH-BLOCKERS.md § ci-gates-deploy.
+      - name: Bundle budget
+        run: npm run check:bundle
+        env:
+          PERF_CHROME_PATH: /usr/bin/google-chrome
 
       # Fails if any front door, in either language, never records a
       # first-contentful-paint — the signature of content hidden behind an
@@ -97,7 +107,8 @@ jobs:
   # scrolls past — but it fails ALONE, and takes nothing down with it.
   #
   # `check:advisories` asks the question that is actually useful: not "is there
-  # an advisory" — there are twenty-seven, all waiting on one major upgrade —
+  # an advisory" — there were twenty-seven, all waiting on the Next 16 upgrade,
+  # which has now landed and cleared them —
   # but "is there a NEW one, or has a known one got worse". The accepted list
   # and the reasoning are in scripts/check-advisories.mjs, and every accepted
   # entry is printed on every run so none of them becomes invisible.

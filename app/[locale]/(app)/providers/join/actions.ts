@@ -30,7 +30,7 @@ export async function joinAction(
    * key it by: two a minute is above anybody filling in a form and far below a
    * script. A flooded lead table is a real cost — somebody reads these.
    */
-  const forwarded = headers().get("x-forwarded-for");
+  const forwarded = (await headers()).get("x-forwarded-for");
   const ip = forwarded?.split(",")[0]?.trim() || "unknown";
   const limit = await checkRateLimit("join", ip);
   if (!limit.ok) return { ok: false, errors: { form: "tooManyRequests" } };

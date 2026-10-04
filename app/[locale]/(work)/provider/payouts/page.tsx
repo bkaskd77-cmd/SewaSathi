@@ -19,11 +19,10 @@ import { formatInstant } from "@/lib/booking";
 
 import { changeDestinationAction } from "../actions";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "provider.payouts",
@@ -51,11 +50,10 @@ export async function generateMetadata({
  * reader, which is why `changeDestination` returns `isFirst` rather than leaving
  * a screen to work it out by comparing timestamps.
  */
-export default async function PayoutsPage({
-  params,
-}: {
-  params: { locale: string };
+export default async function PayoutsPage(props: {
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "provider.payouts" });
 
@@ -86,7 +84,7 @@ export default async function PayoutsPage({
             {site.name}
           </Link>
         </p>
-        <h1 className="font-display mt-1 flex items-center gap-2 text-heading-lg">
+        <h1 className="text-heading-lg mt-1 flex items-center gap-2 font-display">
           <Wallet className="size-6 text-primary" aria-hidden />
           {t("title")}
         </h1>

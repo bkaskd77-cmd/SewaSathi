@@ -62,11 +62,10 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const { locale } = params;
   const t = await getTranslations({ locale, namespace: "meta" });
 
@@ -132,11 +131,15 @@ const SERVER_ONLY_NAMESPACES = [
   "notFound",
 ] as const;
 
-export default async function LocaleLayout({
-  children,
-  params,
-}: Readonly<{ children: React.ReactNode; params: { locale: string } }>) {
-  const { locale } = params;
+export default async function LocaleLayout(
+  props: Readonly<{
+    children: React.ReactNode;
+    /* A promise from Next 16: the locale is not known until the request is routed. */
+    params: Promise<{ locale: string }>;
+  }>,
+) {
+  const { children } = props;
+  const { locale } = await props.params;
   if (!hasLocale(routing.locales, locale)) notFound();
 
   setRequestLocale(locale);

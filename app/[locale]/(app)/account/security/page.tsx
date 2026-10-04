@@ -31,11 +31,10 @@ export const dynamic = "force-dynamic";
  * set up and it needs proving. They are the same question to the person in
  * front of them.
  */
-export default async function SecurityPage({
-  searchParams,
-}: {
-  searchParams: { next?: string };
+export default async function SecurityPage(props: {
+  searchParams: Promise<{ next?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("auth.mfa");
 
@@ -79,7 +78,9 @@ export default async function SecurityPage({
 
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 text-body-md text-muted-foreground">
         {profile!.role === "admin"
           ? t("leadAdmin", { hours: String(state.stepUpHours) })
@@ -95,7 +96,10 @@ export default async function SecurityPage({
         </p>
       ) : null}
 
-      <NextIntlClientProvider locale={locale} messages={{ auth: messages.auth }}>
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ auth: messages.auth }}
+      >
         <MfaSetup
           hasFactor={state.hasFactor}
           needsCode={state.needsCode}

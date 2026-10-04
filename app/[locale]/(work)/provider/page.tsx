@@ -19,11 +19,10 @@ import { getProviderDashboard } from "@/lib/data/provider-profile";
 import { formatInstant, formatMonth } from "@/lib/booking";
 import { formatNpr } from "@/lib/utils";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "provider.dashboard",
@@ -215,11 +214,11 @@ export default async function ProviderDashboardPage() {
           comes to feel cheated by an honest process. */}
       {surveyFees.length > 0 ? (
         <section className="animate-rise mt-4 rounded-xl border border-border bg-card p-4 sm:p-5">
-          <h2 className="text-body-sm flex items-center gap-2 font-semibold text-foreground">
+          <h2 className="flex items-center gap-2 text-body-sm font-semibold text-foreground">
             <Route aria-hidden="true" className="size-4 text-primary" />
             {t("surveyFees.heading")}
           </h2>
-          <p className="text-caption mt-1 text-muted-foreground">
+          <p className="mt-1 text-caption text-muted-foreground">
             {t("surveyFees.body")}
           </p>
           <ul className="mt-3 space-y-2">
@@ -243,13 +242,13 @@ export default async function ProviderDashboardPage() {
       ) : null}
 
       <section className="animate-rise mt-4">
-        <h2 className="text-body-sm flex items-center gap-2 font-semibold text-foreground">
+        <h2 className="flex items-center gap-2 text-body-sm font-semibold text-foreground">
           <ShieldAlert aria-hidden="true" className="size-4 text-primary" />
           {t("claims.heading")}
         </h2>
 
         {claims.length === 0 && openToMe.length === 0 ? (
-          <p className="text-caption mt-2 text-muted-foreground">
+          <p className="mt-2 text-caption text-muted-foreground">
             {t("claims.none")}
           </p>
         ) : (

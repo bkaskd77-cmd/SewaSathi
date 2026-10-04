@@ -29,5 +29,12 @@ export const redirect: (
     locale: string;
     forcePrefix?: boolean;
   },
-  type?: RedirectType,
+  /*
+   * DERIVED FROM THE VALUE, because Next 16 exports `RedirectType` as a const object
+   * and no longer as a type. `typeof RedirectType` would be the object itself;
+   * indexing it by its own keys is the union of `"push" | "replace"`. Written this way
+   * rather than inlining those two strings so the set stays upstream's — and rather
+   * than importing from `next/dist/...`, which is reaching past a public entry.
+   */
+  type?: (typeof RedirectType)[keyof typeof RedirectType],
 ) => never = navigation.redirect as never;

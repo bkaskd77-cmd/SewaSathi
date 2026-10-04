@@ -47,7 +47,6 @@ export async function signOutAction() {
   redirect({ href: "/", locale });
 }
 
-
 /**
  * Requesting a code, from the server.
  *
@@ -67,7 +66,7 @@ export async function requestOtpAction(phone: string): Promise<OtpOutcome> {
   const check = checkNepaliMobile(phone);
   if (!check.ok) return { ok: false, error: "generic" };
 
-  return sendOtp(check.e164, { ip: callerIp() });
+  return sendOtp(check.e164, { ip: await callerIp() });
 }
 
 /**
@@ -90,7 +89,9 @@ export async function verifyOtpAction(
   // answering it differently here would be a second oracle.
   if (!/^\d{4,8}$/.test(code)) return { ok: false, error: "codeInvalid" };
 
-  const outcome = await verifyOtp(check.e164, code, { ip: callerIp() });
+  const outcome = await verifyOtp(check.e164, code, {
+    ip: await callerIp(),
+  });
   if (!outcome.ok) return outcome;
 
   /*
@@ -130,7 +131,9 @@ export async function verifyOtpAction(
  * Read from the request on the server. A caller-supplied value would make the
  * limit opt-in, which is the same as not having one.
  */
-function callerIp(): string {
-  const forwarded = headers().get("x-forwarded-for");
+async function callerIp(): Promise<string> {
+  // `headers()` is async from Next 16. Awaited here rather than at the two call sites,
+  // so the per-IP ceiling cannot be read as a promise and silently become one bucket.
+  const forwarded = (await headers()).get("x-forwarded-for");
   return forwarded?.split(",")[0]?.trim() || "unknown";
 }

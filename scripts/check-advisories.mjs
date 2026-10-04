@@ -27,23 +27,21 @@ import { execFileSync } from "node:child_process";
 import process from "node:process";
 
 /**
- * Known, decided, and tracked as the `next-14-advisories` launch blocker.
+ * Advisories this project has looked at and decided to live with, for now.
  *
- * Keyed by package, because npm reports 23 Next advisories under one entry and
- * they all resolve with the same upgrade — listing them individually would be a
- * list nobody maintains, and a new Next advisory changes nothing about the
- * decision while this version is pinned.
+ * EMPTY, AND IT GOT THERE BY THE UPGRADE RATHER THAN BY A DECISION TO STOP CARING.
+ * `next` (critical, 23 advisories under one entry) and `postcss` (high, transitive
+ * beneath it) sat here for phases because the only fix was `next@16`; that upgrade has
+ * landed, `npm audit --omit=dev` reports neither, and the stale-entry check named both
+ * by name on the first run afterwards — which is what it is for. An accepted entry that
+ * no longer applies is a hole propped open on purpose, and this list going empty is the
+ * point rather than an oddity.
+ *
+ * Keyed by package when it has entries, because npm groups many advisories under one
+ * and they usually resolve with a single upgrade — listing them individually would be a
+ * list nobody maintains.
  */
-const ACCEPTED = {
-  next: {
-    severity: "critical",
-    why: "Fixed only by next@16, a major upgrade across next-intl and every route. Tracked as next-14-advisories.",
-  },
-  postcss: {
-    severity: "high",
-    why: "Transitive under next; resolves with the same upgrade.",
-  },
-};
+const ACCEPTED = {};
 
 function audit() {
   try {

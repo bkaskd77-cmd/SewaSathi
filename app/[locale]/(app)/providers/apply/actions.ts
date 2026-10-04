@@ -33,8 +33,7 @@ import { judgeAge } from "@/lib/verification";
  */
 
 export type ApplyResult =
-  | { ok: true; step?: number }
-  | { ok: false; error: string };
+  { ok: true; step?: number } | { ok: false; error: string };
 
 /**
  * Each upload rejection, said in a way somebody can act on.
@@ -187,7 +186,8 @@ export async function saveStepAction(
   if (value("yearsExperience")) {
     patch.yearsExperience = Number(value("yearsExperience"));
   }
-  if (many("serviceAreas").length > 0) patch.serviceAreas = many("serviceAreas");
+  if (many("serviceAreas").length > 0)
+    patch.serviceAreas = many("serviceAreas");
   if (value("payoutMethod")) patch.payoutMethod = value("payoutMethod");
   if (value("payoutAccount")) patch.payoutAccount = value("payoutAccount");
   if (value("payoutAccountName")) {
@@ -305,7 +305,7 @@ export async function submitAction(
   const actorId = await actor();
   if (!actorId) return { ok: false, error: "notYours" };
 
-  const forwarded = headers().get("x-forwarded-for");
+  const forwarded = (await headers()).get("x-forwarded-for");
   const limit = await checkRateLimit(
     "join",
     forwarded?.split(",")[0]?.trim() || actorId,

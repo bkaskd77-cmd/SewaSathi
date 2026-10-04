@@ -207,9 +207,5 @@ export async function confirmBookingAction(input: {
     addressId = saved.id;
   }
 
-  return createBooking(
-    { ...input.booking, addressId },
-    profile.id,
-    locale,
-  );
+  return createBooking({ ...input.booking, addressId }, profile.id, locale);
 }

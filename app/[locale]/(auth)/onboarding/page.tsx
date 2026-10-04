@@ -8,20 +8,18 @@ import type { Locale } from "@/i18n/routing";
 import { safeRedirect } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("onboardingTitle"), robots: { index: false } };
 }
 
-export default async function OnboardingPage({
-  searchParams,
-}: {
-  searchParams: { next?: string };
+export default async function OnboardingPage(props: {
+  searchParams: Promise<{ next?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("auth.onboarding");
   const next = safeRedirect(searchParams.next);

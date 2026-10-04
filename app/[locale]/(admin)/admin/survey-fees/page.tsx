@@ -52,7 +52,8 @@ export default async function SurveyFeesPage() {
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/survey-fees", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/survey-fees", locale });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
@@ -73,7 +74,9 @@ export default async function SurveyFeesPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -92,7 +95,7 @@ export default async function SurveyFeesPage() {
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {fee.providerName ?? "—"}
                 </span>
                 <span className="text-caption text-muted-foreground">
@@ -101,9 +104,12 @@ export default async function SurveyFeesPage() {
               </div>
 
               <p className="mt-2 text-body-sm">
-                {t(`outcome.${fee.outcome === "expired" ? "expired" : "declined"}`, {
-                  trade: tradeName(fee.categorySlug),
-                })}
+                {t(
+                  `outcome.${fee.outcome === "expired" ? "expired" : "declined"}`,
+                  {
+                    trade: tradeName(fee.categorySlug),
+                  },
+                )}
               </p>
 
               <ul className="mt-3 space-y-1.5 text-body-sm text-muted-foreground">
@@ -116,7 +122,8 @@ export default async function SurveyFeesPage() {
                     here rather than as a failed save. */}
                 <li
                   className={
-                    fee.approvedThisMonth >= PAYOUT_RULES.surveyVisitFeeMonthlyCap
+                    fee.approvedThisMonth >=
+                    PAYOUT_RULES.surveyVisitFeeMonthlyCap
                       ? "text-warning-ink"
                       : undefined
                   }
@@ -130,7 +137,9 @@ export default async function SurveyFeesPage() {
                     no rate rather than a 0% that would read as evidence. */}
                 <li>
                   {fee.tradeDeclineRate === null
-                    ? t("tradeRateUnknown", { trade: tradeName(fee.categorySlug) })
+                    ? t("tradeRateUnknown", {
+                        trade: tradeName(fee.categorySlug),
+                      })
                     : t("tradeRate", {
                         trade: tradeName(fee.categorySlug),
                         pct: String(fee.tradeDeclineRate),

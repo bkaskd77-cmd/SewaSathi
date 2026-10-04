@@ -32,11 +32,10 @@ import {
 import { PRICE_RULES } from "@/lib/payments/client";
 import { formatBand, formatNpr } from "@/lib/utils";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "provider.jobs",
@@ -295,7 +294,9 @@ export default async function ProviderJobsPage() {
                     }
                     windowFull={fullFor(job)}
                     paymentStatus="pending"
-                    paymentMethodLabel={t(`payment.methods.${job.paymentMethod}`)}
+                    paymentMethodLabel={t(
+                      `payment.methods.${job.paymentMethod}`,
+                    )}
                     earningLabel={null}
                     floorLabel={null}
                     appealStatus={null}
@@ -362,7 +363,10 @@ export default async function ProviderJobsPage() {
                   }
                   survey={
                     job.quoteModel === "survey"
-                      ? { state: quoteState(job), validHours: QUOTE_VALID_HOURS }
+                      ? {
+                          state: quoteState(job),
+                          validHours: QUOTE_VALID_HOURS,
+                        }
                       : null
                   }
                   offeredByMe={job.overbookOfferedBy === me.providerId}
@@ -389,7 +393,9 @@ export default async function ProviderJobsPage() {
                   arrivedAt={job.arrivedAt}
                   noShowClaimed={job.noShowClaimed}
                   payoutLabel={
-                    job.payoutDueAt ? formatInstant(job.payoutDueAt, locale) : null
+                    job.payoutDueAt
+                      ? formatInstant(job.payoutDueAt, locale)
+                      : null
                   }
                   /* Both or neither — the pair is written together at
                      settlement and `bookings_holdback_shape` refuses anything

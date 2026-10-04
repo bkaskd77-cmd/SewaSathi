@@ -44,7 +44,8 @@ export default async function ClaimsQueuePage() {
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/claims", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/claims", locale });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
@@ -68,7 +69,9 @@ export default async function ClaimsQueuePage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -87,7 +90,7 @@ export default async function ClaimsQueuePage() {
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {claim.providerName ?? "—"}
                 </span>
                 <span className="text-caption text-muted-foreground">
@@ -110,7 +113,7 @@ export default async function ClaimsQueuePage() {
                 above it.
               */}
               {claim.contactAttempts > 0 ? (
-                <p className="text-caption mt-1 text-muted-foreground">
+                <p className="mt-1 text-caption text-muted-foreground">
                   {t("channels", {
                     callCount: claim.contactChannels.call,
                     messageCount: claim.contactChannels.whatsapp,
@@ -126,7 +129,7 @@ export default async function ClaimsQueuePage() {
                 self-reported would have been a comment describing behaviour the code
                 no longer had, in the place it does the most harm.
               */}
-              <p className="text-caption mt-1 text-muted-foreground">
+              <p className="mt-1 text-caption text-muted-foreground">
                 {t("selfReported")}
               </p>
 
@@ -136,7 +139,7 @@ export default async function ClaimsQueuePage() {
                 in five" is part of the decision. It is review, not punishment:
                 nothing scores it and nothing acts on it.
               */}
-              <p className="text-caption mt-1 text-muted-foreground">
+              <p className="mt-1 text-caption text-muted-foreground">
                 {claim.claimHistory.jobs === null
                   ? t("claimRateUnreadable", {
                       n: String(claim.claimHistory.claims),
@@ -216,9 +219,7 @@ export default async function ClaimsQueuePage() {
               ) : null}
 
               <p className="mt-3 text-caption text-muted-foreground">
-                {claim.wouldBeAbsorbed
-                  ? t("absorbed")
-                  : t("recovered")}
+                {claim.wouldBeAbsorbed ? t("absorbed") : t("recovered")}
                 {" · "}
                 {t("paid", { amount: formatNpr(claim.tripRupees, { locale }) })}
               </p>
@@ -252,7 +253,7 @@ export default async function ClaimsQueuePage() {
         </p>
       ) : disputes.rows.length === 0 ? null : (
         <>
-          <h2 className="animate-rise font-display mt-12 text-heading-sm">
+          <h2 className="animate-rise text-heading-sm mt-12 font-display">
             {t("disputesTitle")}
           </h2>
           <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -268,7 +269,7 @@ export default async function ClaimsQueuePage() {
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-display text-heading-sm">
+                  <span className="text-heading-sm font-display">
                     {dispute.customerName ?? "—"}
                   </span>
                   <span className="text-body-md tabular-nums">
@@ -276,7 +277,7 @@ export default async function ClaimsQueuePage() {
                   </span>
                 </div>
 
-                <p className="text-caption mt-1 text-muted-foreground">
+                <p className="mt-1 text-caption text-muted-foreground">
                   {t("disputeOpened", {
                     date: formatInstant(dispute.disputedAt, locale),
                   })}
@@ -287,7 +288,7 @@ export default async function ClaimsQueuePage() {
                   one missed door in forty jobs and one in one are different facts, and
                   a bare count invites the wrong conclusion.
                 */}
-                <p className="text-caption mt-1 text-muted-foreground">
+                <p className="mt-1 text-caption text-muted-foreground">
                   {t("disputeRecord", {
                     n: String(dispute.upheldNoShows),
                     count: dispute.upheldNoShows,
@@ -342,13 +343,16 @@ async function ClaimPhoto({
   skewMinutes: number | null;
 }) {
   const t = await getTranslations("admin.claims");
-  const { signArrivalPhotoForAdmin } = await import("@/lib/data/arrival-photos");
+  const { signArrivalPhotoForAdmin } =
+    await import("@/lib/data/arrival-photos");
   const url = await signArrivalPhotoForAdmin({ path, adminId, bookingId });
 
   return (
     <div className="mt-3">
       {url === null ? (
-        <p className="text-caption text-muted-foreground">{t("photoMissing")}</p>
+        <p className="text-caption text-muted-foreground">
+          {t("photoMissing")}
+        </p>
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed
            URL on a private bucket; next/image would proxy and cache it, which is the
@@ -359,7 +363,7 @@ async function ClaimPhoto({
           className="max-h-64 w-auto rounded-md border border-border"
         />
       )}
-      <p className="text-caption mt-1 text-muted-foreground">
+      <p className="mt-1 text-caption text-muted-foreground">
         {skewMinutes === null
           ? t("skewUnknown")
           : Math.abs(skewMinutes) <= 2

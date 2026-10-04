@@ -31,11 +31,10 @@ export const dynamic = "force-dynamic";
  * `applicationForReview`. That is deliberate and it is not something a
  * reviewer can turn off.
  */
-export default async function ApplicationReviewPage({
-  params,
-}: {
-  params: { id: string };
+export default async function ApplicationReviewPage(props: {
+  params: Promise<{ id: string }>;
 }) {
+  const params = await props.params;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("admin.detail");
   const tApply = await getTranslations("join.apply");
@@ -47,12 +46,19 @@ export default async function ApplicationReviewPage({
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: `/login?next=/admin/applications/${params.id}`, locale });
+    if (gate.reason === "signedOut")
+      redirect({
+        href: `/login?next=/admin/applications/${params.id}`,
+        locale,
+      });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
     // An admin who has to set up or use their code first. They come back.
-    redirect({ href: `/account/security?next=/admin/applications/${params.id}`, locale });
+    redirect({
+      href: `/account/security?next=/admin/applications/${params.id}`,
+      locale,
+    });
   }
   const profile = gate.profile;
 
@@ -63,7 +69,9 @@ export default async function ApplicationReviewPage({
 
   if (!application) notFound();
 
-  const removedHits = application.duplicates.filter((hit) => hit.againstRemoved);
+  const removedHits = application.duplicates.filter(
+    (hit) => hit.againstRemoved,
+  );
   const otherHits = application.duplicates.filter((hit) => !hit.againstRemoved);
 
   return (
@@ -86,11 +94,24 @@ export default async function ApplicationReviewPage({
       ) : null}
 
       <dl className="animate-rise mt-4 grid gap-x-6 gap-y-1 text-body-sm sm:grid-cols-2">
-        <Pair label={tApply("details.citizenship")} value={application.citizenshipNumber} />
+        <Pair
+          label={tApply("details.citizenship")}
+          value={application.citizenshipNumber}
+        />
         <Pair label={tApply("details.pan")} value={application.panNumber} />
         <Pair label={tApply("details.dob")} value={application.dateOfBirth} />
-        <Pair label={tApply("trades.experience")} value={application.yearsExperience === null ? null : String(application.yearsExperience)} />
-        <Pair label={tApply("trades.title")} value={application.trades.join(", ")} />
+        <Pair
+          label={tApply("trades.experience")}
+          value={
+            application.yearsExperience === null
+              ? null
+              : String(application.yearsExperience)
+          }
+        />
+        <Pair
+          label={tApply("trades.title")}
+          value={application.trades.join(", ")}
+        />
         <Pair
           label={tApply("areas.title")}
           value={application.serviceAreas
@@ -131,7 +152,9 @@ export default async function ApplicationReviewPage({
           everything below should be read. */}
       {removedHits.length > 0 || otherHits.length > 0 ? (
         <div className="animate-rise mt-8">
-          <h2 className="font-display text-heading-sm">{t("duplicatesTitle")}</h2>
+          <h2 className="text-heading-sm font-display">
+            {t("duplicatesTitle")}
+          </h2>
           <ul className="mt-3 space-y-2">
             {[...removedHits, ...otherHits].map((hit, index) => (
               <li
@@ -144,7 +167,10 @@ export default async function ApplicationReviewPage({
               >
                 <p className="flex items-center gap-1.5 text-body-sm font-medium">
                   {hit.againstRemoved ? (
-                    <AlertTriangle aria-hidden="true" className="size-4 text-destructive" />
+                    <AlertTriangle
+                      aria-hidden="true"
+                      className="size-4 text-destructive"
+                    />
                   ) : null}
                   {t("duplicateOn", { kind: hit.kind })}
                 </p>
@@ -178,7 +204,9 @@ export default async function ApplicationReviewPage({
           <p className="mt-1 text-body-sm text-muted-foreground">
             {tApply("documents.missing", {
               list: application.missingKinds
-                .map((kind) => tApply(`documents.${kind}` as "documents.citizenship"))
+                .map((kind) =>
+                  tApply(`documents.${kind}` as "documents.citizenship"),
+                )
                 .join(", "),
             })}
           </p>
@@ -186,7 +214,7 @@ export default async function ApplicationReviewPage({
       ) : null}
 
       <div className="animate-rise mt-8">
-        <h2 className="font-display text-heading-sm">{t("referencesTitle")}</h2>
+        <h2 className="text-heading-sm font-display">{t("referencesTitle")}</h2>
         <ul className="mt-3 space-y-1.5 text-body-sm">
           {application.references.map((reference) => (
             <li key={reference.id} className="flex justify-between gap-3">
@@ -207,7 +235,7 @@ export default async function ApplicationReviewPage({
       </div>
 
       <div className="animate-rise mt-8">
-        <h2 className="font-display text-heading-sm">{t("assessmentTitle")}</h2>
+        <h2 className="text-heading-sm font-display">{t("assessmentTitle")}</h2>
         {application.assessments.length === 0 ? (
           <p className="mt-2 text-body-sm text-muted-foreground">
             {t("noAssessment")}
@@ -215,7 +243,10 @@ export default async function ApplicationReviewPage({
         ) : (
           <ul className="mt-3 space-y-2 text-body-sm">
             {application.assessments.map((assessment) => (
-              <li key={assessment.id} className="rounded-md border border-border p-3">
+              <li
+                key={assessment.id}
+                className="rounded-md border border-border p-3"
+              >
                 <p className="font-medium">
                   {assessment.categorySlug} · {assessment.result}
                 </p>
@@ -229,7 +260,7 @@ export default async function ApplicationReviewPage({
       {/* Said plainly, so an empty column is never read as a check that passed. */}
       {!application.identityAutomated ? (
         <div className="animate-rise mt-8 rounded-lg border border-border p-4">
-          <h2 className="font-display text-heading-sm">{t("identityTitle")}</h2>
+          <h2 className="text-heading-sm font-display">{t("identityTitle")}</h2>
           <p className="mt-1 text-body-sm text-muted-foreground">
             {t("identityManual")}
           </p>
@@ -237,7 +268,10 @@ export default async function ApplicationReviewPage({
       ) : null}
 
       {["submitted", "in_review"].includes(application.status) ? (
-        <NextIntlClientProvider locale={locale} messages={{ admin: messages.admin }}>
+        <NextIntlClientProvider
+          locale={locale}
+          messages={{ admin: messages.admin }}
+        >
           <ReviewDecision
             applicationId={application.id}
             documents={application.documents.map((document) => ({

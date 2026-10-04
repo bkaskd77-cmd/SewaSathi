@@ -10,11 +10,10 @@ import { adminGate } from "@/lib/auth/admin-gate";
 import { areaShortLabel } from "@/lib/config/areas";
 import { reviewQueue } from "@/lib/data/verification";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "admin.meta",
@@ -49,7 +48,8 @@ export default async function ApplicationQueuePage() {
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/applications", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/applications", locale });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
@@ -63,7 +63,9 @@ export default async function ApplicationQueuePage() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -86,7 +88,7 @@ export default async function ApplicationQueuePage() {
                 className="block rounded-lg border border-border p-4 transition-colors hover:border-primary/50"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-display text-heading-sm">
+                  <span className="text-heading-sm font-display">
                     {row.fullName ?? t("unnamed")}
                   </span>
                   {/* Waiting is the number that leads, because it is the one

@@ -69,7 +69,9 @@ export default async function MismatchesPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -98,7 +100,7 @@ export default async function MismatchesPage() {
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-display text-heading-sm">
+                  <span className="text-heading-sm font-display">
                     {job.providerName ?? "—"}
                   </span>
                   <span className="text-caption text-muted-foreground">

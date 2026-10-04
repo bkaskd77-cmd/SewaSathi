@@ -60,7 +60,10 @@ export default async function PayoutDestinationsPage() {
     // A 404 rather than a refusal: a signed-in customer learns nothing about
     // what exists here.
     if (gate.reason === "notAdmin") notFound();
-    redirect({ href: "/account/security?next=/admin/payout-destinations", locale });
+    redirect({
+      href: "/account/security?next=/admin/payout-destinations",
+      locale,
+    });
   }
 
   const [read, messages] = await Promise.all([
@@ -84,7 +87,7 @@ export default async function PayoutDestinationsPage() {
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <header className="animate-rise">
-        <h1 className="font-display text-heading-lg">{t("title")}</h1>
+        <h1 className="text-heading-lg font-display">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
 
@@ -100,7 +103,7 @@ export default async function PayoutDestinationsPage() {
         <NextIntlClientProvider locale={locale} messages={messages}>
           {cooling.length > 0 ? (
             <section className="animate-rise mt-8">
-              <h2 className="font-display text-heading-sm">
+              <h2 className="text-heading-sm font-display">
                 {t("coolingTitle")}
               </h2>
               <p className="mt-1 text-body-sm text-muted-foreground">
@@ -116,7 +119,7 @@ export default async function PayoutDestinationsPage() {
 
           {awaiting.length > 0 ? (
             <section className="animate-rise mt-8">
-              <h2 className="font-display text-heading-sm">
+              <h2 className="text-heading-sm font-display">
                 {t("confirmTitle")}
               </h2>
               <p className="mt-1 text-body-sm text-muted-foreground">
@@ -124,12 +127,7 @@ export default async function PayoutDestinationsPage() {
               </p>
               <ul className="mt-4 space-y-3">
                 {awaiting.map((row) => (
-                  <Row
-                    key={row.id}
-                    row={row}
-                    locale={locale}
-                    confirmable
-                  />
+                  <Row key={row.id} row={row} locale={locale} confirmable />
                 ))}
               </ul>
             </section>
@@ -167,7 +165,13 @@ async function Row({
           that replaced an earlier account is the one somebody may need to ring
           about; a professional's first account has nobody to warn.
         */}
-        <span className={row.replacedAnother ? "text-destructive-ink" : "text-muted-foreground"}>
+        <span
+          className={
+            row.replacedAnother
+              ? "text-destructive-ink"
+              : "text-muted-foreground"
+          }
+        >
           {row.replacedAnother ? t("replaced") : t("firstEver")}
         </span>
         {!row.readiness.ok &&
@@ -176,7 +180,10 @@ async function Row({
           <span className="text-muted-foreground">
             {" · "}
             {t("usableFrom", {
-              date: formatInstant(row.readiness.usableFrom.toISOString(), locale),
+              date: formatInstant(
+                row.readiness.usableFrom.toISOString(),
+                locale,
+              ),
             })}
           </span>
         ) : null}

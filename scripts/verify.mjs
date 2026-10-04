@@ -54,7 +54,17 @@ export const STEPS = [
   { name: "advisories", script: "check:advisories" },
   { name: "tests", script: "test" },
   { name: "launch blockers", script: "check:blockers" },
-  { name: "build + bundle budget", script: "build" },
+  { name: "build", script: "build" },
+  /*
+   * THE BUNDLE BUDGET IS ITS OWN STEP NOW, AFTER THE BUILD AND BEFORE PAINT. It used
+   * to run inside `build`, parsing the route table Next printed — Next 16 deleted
+   * those columns under both builders, so it measures script transferred in a real
+   * Chromium instead. That needs a browser, which Vercel's builder has not, so the
+   * budget no longer gates a deploy by itself: CI runs it on every push, and
+   * `LAUNCH-BLOCKERS.md § ci-gates-deploy` carries the question of making a red push
+   * unable to deploy.
+   */
+  { name: "bundle budget", script: "check:bundle" },
   { name: "paint", script: "check:paint" },
   { name: "booking flows", script: "check:flows" },
 ];

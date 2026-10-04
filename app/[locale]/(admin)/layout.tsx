@@ -49,7 +49,9 @@ export default async function AdminLayout({
 
       <footer className="border-t border-border py-6">
         <div className="container flex flex-wrap items-center justify-between gap-2">
-          <p className="text-caption text-muted-foreground">{t("footerNote")}</p>
+          <p className="text-caption text-muted-foreground">
+            {t("footerNote")}
+          </p>
           {site.supportPhone ? (
             <a
               href={`tel:${site.supportPhone}`}

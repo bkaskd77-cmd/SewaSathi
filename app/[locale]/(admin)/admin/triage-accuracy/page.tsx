@@ -14,11 +14,10 @@ import {
   type TriageSourceKey,
 } from "@/lib/data/triage-accuracy";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
+  const params = await props.params;
   const t = await getTranslations({
     locale: params.locale,
     namespace: "admin.triageAccuracy",
@@ -102,23 +101,25 @@ export default async function TriageAccuracyPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
       {/*
-        * SAID ONCE, UNCONDITIONALLY, AND NOT BEHIND A THRESHOLD. The tempting
-        * version is a warning that appears below some minimum sample — but
-        * picking that minimum is exactly the claim about "good" this screen
-        * refuses to make. So the sentence is always here, and the denominators
-        * beside every number are what let a reader decide for themselves.
-        */}
+       * SAID ONCE, UNCONDITIONALLY, AND NOT BEHIND A THRESHOLD. The tempting
+       * version is a warning that appears below some minimum sample — but
+       * picking that minimum is exactly the claim about "good" this screen
+       * refuses to make. So the sentence is always here, and the denominators
+       * beside every number are what let a reader decide for themselves.
+       */}
       <p className="animate-rise mt-3 max-w-2xl rounded-lg border border-border bg-muted/30 p-4 text-body-sm text-muted-foreground">
         {t("notAFinding")}
       </p>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-10 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-10 font-display">
         {t("coverage.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -131,13 +132,16 @@ export default async function TriageAccuracyPage() {
               label={t("coverage.attributed")}
               value={rate(value.attributed, value.bookings)}
             />
-            <Row label={t("coverage.bookings")} value={String(value.bookings)} />
+            <Row
+              label={t("coverage.bookings")}
+              value={String(value.bookings)}
+            />
           </dl>
         )}
       </Panel>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("category.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -158,7 +162,7 @@ export default async function TriageAccuracyPage() {
       </Panel>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("band.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -169,7 +173,9 @@ export default async function TriageAccuracyPage() {
           <div className="space-y-4">
             {SOURCES.map((key) => (
               <div key={key}>
-                <h3 className="font-display text-heading-sm">{pathName(key)}</h3>
+                <h3 className="text-heading-sm font-display">
+                  {pathName(key)}
+                </h3>
                 <dl className="mt-2 space-y-1.5 text-body-sm text-muted-foreground">
                   <Row
                     label={t("band.inside")}
@@ -194,7 +200,7 @@ export default async function TriageAccuracyPage() {
       </Panel>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("hazard.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -231,12 +237,12 @@ export default async function TriageAccuracyPage() {
               value={rate(value.unseenPhoto, value.total)}
             />
             {/*
-              * RULE 6, AND IT IS THE MAJORITY OF ROWS TODAY. A log written
-              * before those two columns existed is silent about what the
-              * detectors saw. Folding it into "neither found anything" would
-              * manufacture a clean safety record out of an absent one, which is
-              * the worst direction for this particular number to be wrong in.
-              */}
+             * RULE 6, AND IT IS THE MAJORITY OF ROWS TODAY. A log written
+             * before those two columns existed is silent about what the
+             * detectors saw. Folding it into "neither found anything" would
+             * manufacture a clean safety record out of an absent one, which is
+             * the worst direction for this particular number to be wrong in.
+             */}
             <Row
               label={t("hazard.notRecorded")}
               value={rate(value.notRecorded, value.total)}
@@ -246,7 +252,7 @@ export default async function TriageAccuracyPage() {
       </Panel>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("fallbackWhy.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -256,11 +262,11 @@ export default async function TriageAccuracyPage() {
         {(value) => (
           <dl className="space-y-1.5 text-body-sm text-muted-foreground">
             {/*
-              * ORDERED BY WHAT IT WOULD TAKE TO FIX, not by size. A rejected key
-              * leads because it is the one that looks like success: present,
-              * green on every configuration check, and answering from the
-              * matcher every single time until somebody rotates it.
-              */}
+             * ORDERED BY WHAT IT WOULD TAKE TO FIX, not by size. A rejected key
+             * leads because it is the one that looks like success: present,
+             * green on every configuration check, and answering from the
+             * matcher every single time until somebody rotates it.
+             */}
             {(
               [
                 "keyRejected",
@@ -281,7 +287,7 @@ export default async function TriageAccuracyPage() {
       </Panel>
 
       {/* ---------------------------------------------------------------- */}
-      <h2 className="animate-rise mt-12 font-display text-heading-md">
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("mix.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
@@ -293,7 +299,11 @@ export default async function TriageAccuracyPage() {
           return (
             <dl className="space-y-1.5 text-body-sm text-muted-foreground">
               {SOURCES.map((key) => (
-                <Row key={key} label={pathName(key)} value={rate(value[key], all)} />
+                <Row
+                  key={key}
+                  label={pathName(key)}
+                  value={rate(value[key], all)}
+                />
               ))}
             </dl>
           );

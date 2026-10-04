@@ -57,12 +57,16 @@ export default async function GuaranteeClaimsPage() {
    */
   const gate = await adminGate();
   if (!gate.ok) {
-    if (gate.reason === "signedOut") redirect({ href: "/login?next=/admin/guarantee-claims", locale });
+    if (gate.reason === "signedOut")
+      redirect({ href: "/login?next=/admin/guarantee-claims", locale });
     // A 404 rather than a refusal: a signed-in customer learns nothing
     // about what exists here, which is what notFound() has always been for.
     if (gate.reason === "notAdmin") notFound();
     // An admin who has to set up or use their code first. They come back.
-    redirect({ href: "/account/security?next=/admin/guarantee-claims", locale });
+    redirect({
+      href: "/account/security?next=/admin/guarantee-claims",
+      locale,
+    });
   }
 
   const [queue, categories, messages] = await Promise.all([
@@ -80,7 +84,9 @@ export default async function GuaranteeClaimsPage() {
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="animate-rise font-display text-display-sm">{t("title")}</h1>
+      <h1 className="animate-rise font-display text-display-sm">
+        {t("title")}
+      </h1>
       <p className="animate-rise mt-2 max-w-2xl text-body-md text-muted-foreground">
         {t("lead")}
       </p>
@@ -88,14 +94,17 @@ export default async function GuaranteeClaimsPage() {
       {/* ------------------------------------------------------------ *
           Owed and not sent. First, always.
        * ------------------------------------------------------------ */}
-      <h2 className="animate-rise mt-10 font-display text-heading-sm">
+      <h2 className="animate-rise text-heading-sm mt-10 font-display">
         {t("owedHeading", { n: String(queue.awaitingPayment.rows.length) })}
       </h2>
       <QueueExtent page={queue.awaitingPayment} />
 
       {staleCount > 0 ? (
         <p className="animate-pop-in mt-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-body-sm text-warning-ink">
-          <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <AlertTriangle
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0"
+          />
           <span>
             {t("stale", {
               n: String(staleCount),
@@ -115,12 +124,14 @@ export default async function GuaranteeClaimsPage() {
             <li
               key={refund.refundId}
               className={`animate-rise rounded-lg border p-5 ${
-                refund.stale ? "border-warning/40 bg-warning/5" : "border-border"
+                refund.stale
+                  ? "border-warning/40 bg-warning/5"
+                  : "border-border"
               }`}
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {formatNpr(refund.amount, { locale })}
                 </span>
                 <span className="text-caption text-muted-foreground">
@@ -162,7 +173,7 @@ export default async function GuaranteeClaimsPage() {
       {/* ------------------------------------------------------------ *
           Claims where money back is still a decision.
        * ------------------------------------------------------------ */}
-      <h2 className="animate-rise mt-12 font-display text-heading-sm">
+      <h2 className="animate-rise text-heading-sm mt-12 font-display">
         {t("decideHeading")}
       </h2>
       <p className="animate-rise mt-2 max-w-2xl text-body-sm text-muted-foreground">
@@ -183,7 +194,7 @@ export default async function GuaranteeClaimsPage() {
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-display text-heading-sm">
+                <span className="text-heading-sm font-display">
                   {claim.providerName ?? "—"}
                 </span>
                 <span className="text-caption text-muted-foreground">
@@ -261,7 +272,11 @@ export default async function GuaranteeClaimsPage() {
                   </>
                 )}
                 {claim.daysLeft !== null ? (
-                  <li className={claim.daysLeft < 0 ? "text-warning-ink" : undefined}>
+                  <li
+                    className={
+                      claim.daysLeft < 0 ? "text-warning-ink" : undefined
+                    }
+                  >
                     {claim.daysLeft < 0
                       ? t("windowClosed", { days: String(-claim.daysLeft) })
                       : t("windowOpen", { days: String(claim.daysLeft) })}

@@ -118,7 +118,8 @@ async function checkAuthConfig(): Promise<Check> {
       return {
         name: "auth.config",
         state: "down",
-        detail: "New sign-ups are disabled — a first-time customer cannot get in.",
+        detail:
+          "New sign-ups are disabled — a first-time customer cannot get in.",
       };
     }
 
@@ -226,8 +227,14 @@ async function checkFunctions(): Promise<Check> {
       };
     }
 
-    const live = (await response.json()) as Array<{ name: string; sha: string }>;
-    const expected = FINGERPRINTS as Record<string, { sha: string; file: string }>;
+    const live = (await response.json()) as Array<{
+      name: string;
+      sha: string;
+    }>;
+    const expected = FINGERPRINTS as Record<
+      string,
+      { sha: string; file: string }
+    >;
     const liveBy = new Map(live.map((row) => [row.name, row.sha]));
 
     const drifted: string[] = [];
@@ -363,11 +370,19 @@ async function checkSmsDelivery(): Promise<Check> {
    */
   const target = smsProbeTarget(process.env.SMS_HEALTH_NUMBER);
   if (!target.ok) {
-    return { name: "auth.sms", state: "skipped", detail: smsProbeReadiness(target) };
+    return {
+      name: "auth.sms",
+      state: "skipped",
+      detail: smsProbeReadiness(target),
+    };
   }
   const number = target.e164;
   if (!hasSupabaseConfig()) {
-    return { name: "auth.sms", state: "down", detail: "Supabase not configured." };
+    return {
+      name: "auth.sms",
+      state: "down",
+      detail: "Supabase not configured.",
+    };
   }
 
   try {
@@ -448,7 +463,11 @@ async function checkServiceRole(): Promise<Check> {
     };
   }
   if (!hasSupabaseConfig()) {
-    return { name: "server.serviceRole", state: "down", detail: "Supabase not configured." };
+    return {
+      name: "server.serviceRole",
+      state: "down",
+      detail: "Supabase not configured.",
+    };
   }
 
   try {
@@ -812,7 +831,6 @@ async function checkTriageFallback(): Promise<Check> {
   }
 }
 
-
 /**
  * HAVE THE SCHEDULED JOBS ACTUALLY BEEN RUNNING?
  *
@@ -945,7 +963,10 @@ async function checkRegion(): Promise<Check> {
   }
 
   const median = Math.round(samples.sort((a, b) => a - b)[1]);
-  const where = region === EXPECTED_REGION ? region : `${region} (expected ${EXPECTED_REGION})`;
+  const where =
+    region === EXPECTED_REGION
+      ? region
+      : `${region} (expected ${EXPECTED_REGION})`;
 
   if (median <= CLOSE_ENOUGH_MS) {
     return {
@@ -1017,7 +1038,9 @@ export async function GET(request: Request) {
   ];
 
   if (deepAllowed) {
-    checks.push(...(await Promise.all([checkSmsDelivery(), checkTriageModel()])));
+    checks.push(
+      ...(await Promise.all([checkSmsDelivery(), checkTriageModel()])),
+    );
   }
 
   // `unknown` is not healthy. The whole point of this endpoint is that an

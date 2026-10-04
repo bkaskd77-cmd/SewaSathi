@@ -84,11 +84,10 @@ const STEPS = ["describe", "match", "track", "pay"] as const;
 
 const FAQS = ["notHome", "price", "cash", "badWork", "checks"] as const;
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { locale: string };
+export async function generateMetadata(props: {
+  params: Promise<{ locale: string }>;
 }) {
+  const params = await props.params;
   const t = await getTranslations({ locale: params.locale, namespace: "meta" });
   return { title: t("homeTitle"), description: t("homeDescription") };
 }
@@ -355,7 +354,10 @@ export default async function Home() {
                               a figure for — never a zero, never "fewer than 20".
                             */}
                             {booked === undefined ? null : (
-                              <> · {t("bookedThisWeek", { n: String(booked) })}</>
+                              <>
+                                {" "}
+                                · {t("bookedThisWeek", { n: String(booked) })}
+                              </>
                             )}
                           </span>
                         </div>

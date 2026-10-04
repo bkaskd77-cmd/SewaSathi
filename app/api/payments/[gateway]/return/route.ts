@@ -51,7 +51,9 @@ function bookingUrl(request: Request, path: string, query: string) {
 
 async function handle(request: Request, gateway: string) {
   if (!isPaymentMethod(gateway) || gateway === "cash") {
-    return NextResponse.redirect(bookingUrl(request, "/bookings", "payment=unknown"));
+    return NextResponse.redirect(
+      bookingUrl(request, "/bookings", "payment=unknown"),
+    );
   }
 
   const { reference, params } = readCallback(
@@ -60,12 +62,16 @@ async function handle(request: Request, gateway: string) {
   );
 
   if (!reference) {
-    return NextResponse.redirect(bookingUrl(request, "/bookings", "payment=unknown"));
+    return NextResponse.redirect(
+      bookingUrl(request, "/bookings", "payment=unknown"),
+    );
   }
 
   const found = await findPaymentByReference(reference);
   if (!found) {
-    return NextResponse.redirect(bookingUrl(request, "/bookings", "payment=unknown"));
+    return NextResponse.redirect(
+      bookingUrl(request, "/bookings", "payment=unknown"),
+    );
   }
 
   const result = await verifyAndSettle(reference, params);
@@ -74,7 +80,8 @@ async function handle(request: Request, gateway: string) {
   // the page re-reads the payment itself rather than believing this.
   const outcome = result.ok
     ? "paid"
-    : result.reason === "stillPending" || result.reason === "verificationUnavailable"
+    : result.reason === "stillPending" ||
+        result.reason === "verificationUnavailable"
       ? "pending"
       : "failed";
 
@@ -85,8 +92,9 @@ async function handle(request: Request, gateway: string) {
 
 export async function GET(
   request: Request,
-  { params }: { params: { gateway: string } },
+  props: { params: Promise<{ gateway: string }> },
 ) {
+  const params = await props.params;
   return handle(request, params.gateway);
 }
 
@@ -96,8 +104,9 @@ export async function GET(
  */
 export async function POST(
   request: Request,
-  { params }: { params: { gateway: string } },
+  props: { params: Promise<{ gateway: string }> },
 ) {
+  const params = await props.params;
   const url = new URL(request.url);
   try {
     const form = await request.formData();

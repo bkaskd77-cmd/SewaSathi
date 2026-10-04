@@ -136,7 +136,6 @@ export async function claimJobAction(
   return result;
 }
 
-
 /**
  * "This job really was smaller than the band."
  *
@@ -223,11 +222,13 @@ export async function recordContactAttemptAction(input: {
   }
 
   const { recordContactAttempt } = await import("@/lib/data/customer-risk");
-  return { ok: await recordContactAttempt({
-    bookingId: input.bookingId,
-    providerProfileId: profile.id,
-    channel: input.channel,
-  }) };
+  return {
+    ok: await recordContactAttempt({
+      bookingId: input.bookingId,
+      providerProfileId: profile.id,
+      channel: input.channel,
+    }),
+  };
 }
 
 /**
