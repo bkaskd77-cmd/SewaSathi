@@ -1888,6 +1888,10 @@ export type Database = {
            * columns existed has null in both.
            */
           text_hazard: string | null;
+          /* A judgement with its reason, never a score. Null is "no photo, or the
+             model did not say" — never "the photo was fine". Not backfilled. */
+          photo_relevance: "related" | "unrelated" | "unclear" | null;
+          photo_relevance_reason: string | null;
           vision_hazard: string | null;
           band: string | null;
         };
@@ -1907,6 +1911,8 @@ export type Database = {
           reason?: string | null;
           hazard?: string | null;
           text_hazard?: string | null;
+          photo_relevance?: "related" | "unrelated" | "unclear" | null;
+          photo_relevance_reason?: string | null;
           vision_hazard?: string | null;
           band?: string | null;
         };

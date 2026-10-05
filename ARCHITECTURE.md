@@ -1535,6 +1535,52 @@ from the seed, the table was unreachable, so an edit would write somewhere nothi
 is reading from and appear to do nothing. The screen says that instead — the
 `/services` rule, one surface across.
 
+### Photo relevance — asked in the triage call, never a gate
+
+The model already looks at an attached photo to read the hazard. It now also says whether
+the photo shows the problem that was described — `related`, `unclear` or `unrelated`, with
+a sentence saying what it actually sees.
+
+**It is a judgement with a reason, never a score.** Three named answers and a sentence,
+never a confidence number: a number invites a threshold, a threshold reads as a
+measurement, and nobody has the data to choose one. Rule 6 in the form it takes for a
+model's opinion rather than for a column default. `triage_logs.photo_relevance` is null for
+"no photo, or the model did not say" — one meaning to every reader, and never "the photo
+was fine". Nothing is backfilled.
+
+**Relevance never touches the hazard, and that is the case the feature rests on.** A photo
+of a burning socket sent by somebody describing a blocked drain is **both** unrelated and
+an emergency. The prompt says so in those words, the two are separate keys in one reply,
+and `tests/unit/photo-relevance.test.ts` turns red if they are ever coupled — proven by
+coupling them on purpose. Judging a photo is a convenience; reading it for a gas leak is
+not, and a feature that made the second worse to deliver the first would not be worth
+having.
+
+**`unclear` is not `unrelated`.** "I cannot tell what this shows" asks for a clearer
+photo; "this is a different thing" asks for the right one. Collapsing them would tell
+somebody with a dark photo that they had photographed the wrong tap.
+
+**Two refusals, then the offer closes and the booking carries on with no photo.** A third
+"that is not it" is an argument with somebody trying to report a broken tap, and the
+professional's on-site correction already fixes a misleading photo. The count lives on the
+request, not the account: a new question starts fresh, because a photo that did not show a
+blocked drain says nothing about the next tap. A photo nobody judged is kept — silence is
+not a finding.
+
+### Camera-only is not enforceable on the web
+
+The booking and triage inputs carry `capture="environment"`, which asks a phone to open
+the camera rather than the gallery. **It is a request, not a constraint**: every mobile
+browser is free to ignore it, desktop ignores it entirely, and nothing stops a file being
+chosen from storage. So freshness is read from the photo's own capture time rather than
+inferred from how it was picked, and the no-camera-data reject exists precisely because
+the attribute cannot be trusted.
+
+Written down because the obvious reading of `capture` is that it closes the hole, and it
+does not. **The mobile app can close it** — a native camera intent returns bytes that
+never touched a file picker — and until then the checks that matter are the ones on the
+bytes, not on the input.
+
 ### Every migration says how it was applied
 
 The MCP transport has one measured quirk — a statement whose **first keyword is `DROP`**

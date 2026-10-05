@@ -75,6 +75,19 @@ export type TriageLogEntry = {
    * column's check constraint says the same thing in SQL.
    */
   reason: LoggableReason;
+  /**
+   * What the model made of the photo, as a judgement rather than a score.
+   *
+   * NULL IS "NO PHOTO, OR THE MODEL DID NOT SAY" — one meaning to every reader:
+   * nobody looked, so nothing is claimed. It must never read as "the photo was
+   * fine", which is rule 6's shape for a model opinion, and it is why there is a
+   * reason column beside it rather than a number: a score invites a threshold,
+   * and a threshold reads as a measurement nobody has the data to choose.
+   *
+   * Rows written before these columns are silent and are NOT backfilled.
+   */
+  photoRelevance: "related" | "unrelated" | "unclear" | null;
+  photoRelevanceReason: string | null;
 };
 
 export function canLogTriage(): boolean {
@@ -122,6 +135,8 @@ export async function logTriage(entry: TriageLogEntry): Promise<string | null> {
       latency_ms: entry.latencyMs,
       hazard: entry.hazard,
       text_hazard: entry.textHazard,
+      photo_relevance: entry.photoRelevance,
+      photo_relevance_reason: entry.photoRelevanceReason?.slice(0, 160) ?? null,
       vision_hazard: entry.visionHazard,
       /*
        * Guarded rather than trusted. A value outside the loggable set would be

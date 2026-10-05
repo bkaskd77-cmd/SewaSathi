@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
+import { judgePhoto, type RetakeAsk } from "@/lib/ai/photo-retake";
 import { applySafetyFloor, HAZARD_BANDS } from "@/lib/ai/safety";
 import {
   categoryCtaLabel,
@@ -96,6 +97,18 @@ export function ProblemSearch() {
   const [photoLeaving, setPhotoLeaving] = React.useState(false);
   const [photoBusy, setPhotoBusy] = React.useState(false);
   const [photoError, setPhotoError] = React.useState<string | null>(null);
+  /*
+   * WHAT THE MODEL MADE OF THE LAST PHOTO, and how many it has turned down.
+   *
+   * THE COUNT LIVES ON THE REQUEST, NOT THE ACCOUNT. Two refusals close the offer for THIS
+   * question and nothing else: somebody who asks about a different problem starts fresh,
+   * because a photo that did not show a blocked drain says nothing about their next tap.
+   *
+   * NOTHING HERE BLOCKS A BOOKING. The answer is already on screen by the time this
+   * renders — it is a request for a better photo, never a condition on getting help.
+   */
+  const [retake, setRetake] = React.useState<RetakeAsk | null>(null);
+  const [rejected, setRejected] = React.useState(0);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -158,6 +171,13 @@ export function ProblemSearch() {
 
         setOutcome(next);
         setThinking(false);
+
+        if (image) {
+          const judged = judgePhoto(next.photo, { rejected });
+          setRejected(judged.next.rejected);
+          setRetake(judged.decision.kind === "keep" ? null : judged.decision);
+        }
+
         // The photo has been read. Keeping it on screen implies it will be
         // sent again with the next question, which it will not.
         if (image) clearPhoto();
@@ -166,11 +186,17 @@ export function ProblemSearch() {
         // screen now. triageProblem never throws for anything else.
       }
     },
-    [clearPhoto, copy, locale],
+    [clearPhoto, copy, locale, rejected],
   );
 
   const onChange = (value: string) => {
     setQuery(value);
+    /* A different problem gets a fresh offer: a photo that did not show a blocked drain
+       says nothing about the tap they ask about next. */
+    if (retake) {
+      setRetake(null);
+      setRejected(0);
+    }
     window.clearTimeout(debounceRef.current);
 
     if (!value.trim()) {
@@ -355,6 +381,29 @@ export function ProblemSearch() {
           )}
         >
           {photoError ?? t("photoShrinking")}
+        </p>
+      ) : null}
+
+      {/*
+        WHAT THE MODEL MADE OF THE PHOTO, under the answer and never instead of it. The
+        triage is already on screen by the time this renders: this asks for a better photo,
+        it does not withhold help. `role="status"` rather than `alert`, because nothing has
+        gone wrong for the customer.
+
+        THE MODEL'S OWN SENTENCE IS SHOWN, which is the whole reason the reason exists.
+        "That photo does not match" tells somebody nothing they can act on; "this looks
+        like a window, not a tap" tells them which photo to take instead.
+      */}
+      {retake ? (
+        <p role="status" className="animate-rise mt-2 text-caption text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {retake.kind === "closed"
+              ? t("photoRetakeClosed")
+              : retake.relevance === "unclear"
+                ? t("photoUnclear")
+                : t("photoUnrelated")}
+          </span>{" "}
+          {retake.reason}
         </p>
       ) : null}
 

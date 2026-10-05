@@ -19,7 +19,10 @@ import { getPriceBands } from "@/lib/ai/price-bands";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
 import { classifyProviderError, type LoggableReason } from "@/lib/ai/reason";
 import { applySafetyFloor, type Hazard } from "@/lib/ai/safety";
-import { parseTriageResponse } from "@/lib/ai/triage-schema";
+import {
+  parseTriageResponse,
+  type PhotoRelevance,
+} from "@/lib/ai/triage-schema";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
 import { readTriageCache, writeTriageCache } from "@/lib/server/triage-cache";
 import { logTriage } from "@/lib/server/triage-log";
@@ -121,7 +124,7 @@ async function askClaude(
   } | null,
   locale: Locale,
   copy: TriageCopy,
-): Promise<{ result: TriageResult; hazard: Hazard | null } | null> {
+): Promise<ReturnType<typeof parseTriageResponse>> {
   // Both read the same `categories` table, so the bands in the prompt and the
   // bands the answer is clamped to are the same numbers.
   const [systemPrompt, bands] = await Promise.all([
@@ -236,6 +239,7 @@ export async function POST(request: NextRequest) {
   let reason: LoggableReason = cached ? "cache-hit" : "no-api-key";
   let result = cached;
   let visionHazard: Hazard | null = null;
+  let photoVerdict: { relevance: PhotoRelevance; reason: string | null } | null = null;
 
   if (!result && hasAnthropicConfig()) {
     reason = "unparseable";
@@ -244,6 +248,7 @@ export async function POST(request: NextRequest) {
       if (answer) {
         result = answer.result;
         visionHazard = answer.hazard;
+        photoVerdict = answer.photo;
         source = "claude";
         reason = "ok";
         if (!image && text) writeTriageCache(text, locale, answer.result);
@@ -324,6 +329,15 @@ export async function POST(request: NextRequest) {
      * fallback WITH one looks like a working product.
      */
     reason,
+    /*
+     * WHAT THE MODEL MADE OF THE PHOTO, as a judgement with its reason and never
+     * as a score. Null is "no photo, or the model did not say" — the same thing
+     * to every reader: nobody looked, so nothing is claimed. Rule 6, and the
+     * distinction that matters here is that "not recorded" must never render as
+     * "the photo was fine".
+     */
+    photoRelevance: photoVerdict?.relevance ?? null,
+    photoRelevanceReason: photoVerdict?.reason ?? null,
   });
 
   return NextResponse.json(
@@ -331,6 +345,15 @@ export async function POST(request: NextRequest) {
       result: safeResult,
       source,
       latencyMs,
+      /*
+       * THE PHOTO VERDICT GOES TO THE BROWSER SEPARATELY FROM THE RESULT, and
+       * that separation is the safety rule in the shape of a payload: the card
+       * renders the answer whatever the photo was. An unrelated photo asks for
+       * another one; it never withholds the triage, and it never touches the
+       * hazard — which was read from that same photo regardless of what it
+       * turned out to be of.
+       */
+      photo: photoVerdict,
       // The choices for the "which of these is it?" question, when there is
       // one to ask. Empty on every other path, which is what the card reads.
       subBands: await askableSubBands(safeResult, locale),

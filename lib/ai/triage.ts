@@ -85,6 +85,26 @@ export type TriageOutcome = {
   triageLogId: string | null;
   /** Present only when Claude answered. For the dev badge. */
   model?: string | null;
+  /**
+   * What the model made of the attached photo, or null.
+   *
+   * SEPARATE FROM THE RESULT, AND THAT SEPARATION IS THE SAFETY RULE IN THE SHAPE
+   * OF A TYPE. The card renders the answer whatever the photo turned out to be:
+   * an unrelated photo asks for another one, it never withholds the triage, and
+   * it never touches the hazard — which was read from that same photo regardless
+   * of what it was of. A photo of a burning socket sent by somebody describing a
+   * blocked drain is unrelated AND an emergency.
+   *
+   * Null on every path that did not look: no photo, the fallback, a failed call.
+   * It must never read as "the photo was fine".
+   */
+  photo?: PhotoVerdict | null;
+};
+
+export type PhotoVerdict = {
+  relevance: "related" | "unrelated" | "unclear";
+  /** The model's own sentence saying what it saw. Shown to the customer. */
+  reason: string | null;
 };
 
 function localFallback(
@@ -157,6 +177,7 @@ export async function triageProblem(
       subBands?: SubBandChoice[];
       triageLogId?: string | null;
       model?: string | null;
+      photo?: PhotoVerdict | null;
     };
 
     if (!payload.result)
@@ -168,6 +189,7 @@ export async function triageProblem(
       subBands: payload.subBands ?? [],
       triageLogId: payload.triageLogId ?? null,
       model: payload.model ?? null,
+      photo: payload.photo ?? null,
     };
   } catch (error) {
     // An abort is the caller replacing this run with a newer one, not a

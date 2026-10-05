@@ -211,7 +211,10 @@
       "band": "product {band}",
       "noBand": "no product",
       "despiteKey": "the key is set"
-    }
+    },
+    "photoUnrelated": "That photo looks like something else —",
+    "photoUnclear": "We could not make that photo out —",
+    "photoRetakeClosed": "We will stop asking about the photo. Your answer is above, and the professional will see the problem when they arrive."
   },
   "services": {
     "eyebrow": "Services",

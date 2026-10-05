@@ -58,7 +58,34 @@ export const triageResponseSchema = z.object({
    * to make scheduling better would have made triage worse.
    */
   band: z.string().trim().min(1).max(40).nullish(),
+
+  /*
+   * DOES THE PHOTO SHOW THE PROBLEM THEY DESCRIBED?
+   *
+   * JUDGED IN THIS CALL AND NOT A SECOND ONE. The model is already looking at
+   * the photo to read the hazard; asking what it shows at the same time costs
+   * the output tokens for one word and a short reason, and a second call would
+   * double the latency on the one screen where a customer is waiting.
+   *
+   * IT IS A JUDGEMENT, NOT A SCORE. Three named answers and a sentence saying
+   * why, never a confidence number — rule 6's shape for a model opinion. A
+   * number invites a threshold, a threshold reads as a measurement, and
+   * nobody has the data to choose one.
+   *
+   * `unclear` IS NOT `unrelated`, and the difference decides what a customer is
+   * told. "I cannot tell what this is" asks for a clearer photo; "this is a
+   * different thing from what you described" asks for the right one. Collapsing
+   * them would tell somebody with a dark photo that they photographed the wrong
+   * tap.
+   *
+   * OPTIONAL, like `hazard`, so a reply in the older shape still validates.
+   */
+  photoRelevance: z.enum(["related", "unrelated", "unclear"]).nullish(),
+  photoRelevanceReason: z.string().trim().min(1).max(160).nullish(),
 });
+
+/** What the photo was judged to be, when there was one and the model said. */
+export type PhotoRelevance = "related" | "unrelated" | "unclear";
 
 /**
  * Pull the JSON object out of a model response.
@@ -99,7 +126,11 @@ function roundNpr(value: number): number {
 export function parseTriageResponse(
   raw: string,
   bands: PriceBand[] = FALLBACK_PRICE_BANDS,
-): { result: TriageResult; hazard: Hazard | null } | null {
+): {
+  result: TriageResult;
+  hazard: Hazard | null;
+  photo: { relevance: PhotoRelevance; reason: string | null } | null;
+} | null {
   const bandBySlug = new Map(bands.map((band) => [band.slug, band]));
   const candidate = extractJson(raw);
   if (candidate === null) return null;
@@ -114,6 +145,8 @@ export function parseTriageResponse(
     explanation,
     hazard,
     band: chosenBand,
+    photoRelevance,
+    photoRelevanceReason,
   } = parsed.data;
   const band = bandBySlug.get(category) ?? FALLBACK_BAND_BY_SLUG.get(category);
   if (!band) return null;
@@ -155,5 +188,13 @@ export function parseTriageResponse(
     // up as a signal and applySafetyFloor decides what it does — one place
     // makes that decision, whatever the source.
     hazard: hazard && hazard !== "none" ? hazard : null,
+    /*
+     * NULL WHEN THERE WAS NO PHOTO **OR** THE MODEL DID NOT SAY, which are the
+     * same thing to every caller: nobody looked, so nothing is claimed. Rule 6
+     * — "not recorded" must not render as "the photo was fine".
+     */
+    photo: photoRelevance
+      ? { relevance: photoRelevance, reason: photoRelevanceReason ?? null }
+      : null,
   };
 }

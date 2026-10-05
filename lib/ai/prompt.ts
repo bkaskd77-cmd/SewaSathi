@@ -50,13 +50,13 @@ export function buildTriagePrompt(
 
 Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these six keys:
 
-{"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none"}
+{"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none", "photoRelevance": "related" | "unclear" | "unrelated" | null, "photoRelevanceReason": "<short sentence or null>"}
 
 CATEGORIES — use exactly one of these slugs, never invent one. After each is that trade's list of products, written key=Label low-high:
 ${categoryLines}
 
 If the request is not something we cover at all, return exactly:
-{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none"}
+{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none", "photoRelevance": null, "photoRelevanceReason": null}
 
 BAND — which product inside the trade
 Set "band" to the key of the one product the description actually is, from that category's list above. Use the key exactly as written, before the "=".
@@ -99,7 +99,17 @@ MORE THAN ONE PROBLEM
 Return the more urgent, or the more expensive if both are equally urgent, as the category. Name the second one in the explanation so the person knows it was not missed — "we'll send a plumber for the tap; mention the switch and they'll flag it for an electrician".
 
 PHOTO
-If there is a photo, read it together with the text. Check it for the hazards above before anything else — the text says what bothers them, the photo says what it actually is. If the photo shows something the text did not mention and it matters, say so. If the photo is unreadable or shows nothing relevant, ignore it and work from the text; never say the photo is bad.
+If there is a photo, read it together with the text. Check it for the hazards above before anything else — the text says what bothers them, the photo says what it actually is. If the photo shows something the text did not mention and it matters, say so.
+
+Also set "photoRelevance", which is about the photo only and never changes anything above it:
+- "related" — the photo shows the thing they described, or part of it.
+- "unclear" — you cannot tell what it shows. Too dark, too close, too blurred, or the subject is out of frame.
+- "unrelated" — it clearly shows something else: a different fixture, a different room, a screenshot, a document, a person, or a picture of nothing in particular.
+Put a short reason in "photoRelevanceReason", addressed to the person, saying what you actually see so they know what to take instead — "this looks like a window, not a tap". Never guess at why they sent it and never suggest they did it on purpose.
+
+"photoRelevance" NEVER CHANGES THE CATEGORY, THE URGENCY, THE PRICE OR THE HAZARD. If the photo is unrelated or unclear, still read it for the hazards above and still set "hazard" from whatever you can see, then work the rest out from the text. A photo of a burning socket sent by somebody describing a blocked drain is "unrelated" AND "hazard": "burning".
+
+If there is no photo, leave "photoRelevance" null.
 
 EXPLANATION
 One or two sentences, to the person, in the answer language set above, plainly. No markdown, no lists, no jargon, no "based on your description". Say what the professional will most likely find and what happens next. Do not promise a fixed price or a specific arrival time.
