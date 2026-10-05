@@ -87,6 +87,88 @@ const REMOVES = /^--\s*REMOVES:\s*([a-z_]+)\b/gm;
  * against a known-bad file. A rule that has quietly stopped biting reads exactly
  * like a tree with nothing wrong in it.
  */
+/**
+ * A nested block-comment opener, which Postgres reads as opening a SECOND comment.
+ *
+ * WHY THIS IS WORTH A RULE. `20261004000004` carried `lib/content/legal/` with a star on
+ * the end inside a comment; the star after the slash opened a comment nothing closed, and
+ * the whole database suite went red with `unterminated comment`. That is loud. The
+ * BALANCED version of the same mistake is silent — two stray openers and one real closer
+ * leave the rest of a statement commented out, and the migration applies cleanly having
+ * done less than its file says. A migration whose text and whose effect disagree is the
+ * one thing this directory cannot afford.
+ *
+ * IT LEXES RATHER THAN COUNTS, and the first version did not — which is why this comment
+ * is longer than the rule. Counting openers flagged five sites in `20261004000003`, all
+ * five of them fine: the real opener was `messages/` + star inside a `comment on table`
+ * STRING, where Postgres opens no comment at all, and everything after it inherited the
+ * phantom depth. A checker that cries wolf gets skimmed and the one real entry goes with
+ * the noise — `check:keys` records the same lesson after three regex attempts — so this
+ * one skips string literals, dollar-quoted bodies and line comments before it counts
+ * anything.
+ */
+function nestedCommentFailures(file, src) {
+  const out = [];
+  let depth = 0;
+  let i = 0;
+
+  while (i < src.length) {
+    const two = src.slice(i, i + 2);
+
+    if (depth === 0) {
+      /* A line comment runs to the newline and can hold anything. */
+      if (two === "--") {
+        const nl = src.indexOf("\n", i);
+        i = nl === -1 ? src.length : nl + 1;
+        continue;
+      }
+      /* A single-quoted string, with '' as the escape. Postgres reads no comment inside. */
+      if (src[i] === "'") {
+        i += 1;
+        while (i < src.length) {
+          if (src[i] === "'" && src[i + 1] === "'") i += 2;
+          else if (src[i] === "'") {
+            i += 1;
+            break;
+          } else i += 1;
+        }
+        continue;
+      }
+      /* A dollar-quoted body — $$ … $$ or $tag$ … $tag$ — the same. */
+      const dollar = src.slice(i).match(/^\$([A-Za-z_]*)\$/);
+      if (dollar) {
+        const tag = dollar[0];
+        const close = src.indexOf(tag, i + tag.length);
+        i = close === -1 ? src.length : close + tag.length;
+        continue;
+      }
+    }
+
+    if (two === "/*") {
+      if (depth > 0) {
+        out.push(
+          `${file}:${src.slice(0, i).split("\n").length} opens a comment inside a comment.\n` +
+            `    Postgres nests them, so it will look for a second "*/" and swallow the SQL\n` +
+            `    after this one. Usually a path written with a trailing star.`,
+        );
+      }
+      depth += 1;
+      i += 2;
+      continue;
+    }
+
+    if (two === "*/" && depth > 0) {
+      depth -= 1;
+      i += 2;
+      continue;
+    }
+
+    i += 1;
+  }
+
+  return out;
+}
+
 function orderingFailures(file, src) {
   const out = [];
 
@@ -161,6 +243,30 @@ alter table public.t enable row level security;`;
     console.error("\nMigration check is broken: it no longer flags a policy before RLS.\n");
     process.exit(1);
   }
+
+  /*
+   * The nested-comment rule, in three directions. The real case is a path with a trailing
+   * star inside a comment; an ordinary comment must stay unflagged; and the same star
+   * inside a STRING must stay unflagged too, which is the false positive the counting
+   * version produced five of.
+   */
+  const nested = "/* see lib/content/legal/* for the files */\ncreate table public.t (id int);";
+  const plain = "/* see the files under lib/content/legal */\ncreate table public.t (id int);";
+  const inString =
+    "comment on table public.t is 'an override over messages/*.json, never a copy';\n" +
+    "/* an ordinary comment after it */";
+  if (nestedCommentFailures("bad.sql", nested).length !== 1) {
+    console.error("\nMigration check is broken: it no longer flags a nested comment.\n");
+    process.exit(1);
+  }
+  if (nestedCommentFailures("good.sql", plain).length !== 0) {
+    console.error("\nMigration check is broken: it flags an ordinary comment.\n");
+    process.exit(1);
+  }
+  if (nestedCommentFailures("string.sql", inString).length !== 0) {
+    console.error("\nMigration check is broken: it reads a comment inside a string.\n");
+    process.exit(1);
+  }
 }
 
 const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
@@ -205,6 +311,7 @@ for (const file of files) {
 
   // ---- Closed before open -------------------------------------------------
   failures.push(...orderingFailures(file, src));
+  failures.push(...nestedCommentFailures(file, src));
 
   // ---- Stale rebuilds -----------------------------------------------------
   const re =
