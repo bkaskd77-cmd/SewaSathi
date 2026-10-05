@@ -23,14 +23,32 @@ import jpeg from "jpeg-js";
  * with the image average, which makes it indifferent to brightness and to the exposure
  * difference between two phones photographing the same door.
  *
- * NULL IS "NOT COMPUTED", NEVER "NO MATCH". A PNG, a WebP, bytes that will not decode —
- * all return null, and a null must never be compared to anything. Rule 6: the absence of a
- * hash is not evidence that a photograph is new.
+ * NULL IS "NOT COMPUTED", NEVER "NO MATCH". A PNG, a WebP, a HEIC, bytes that will not
+ * decode, a file whose declared dimensions are a memory bomb — all return null, and a null
+ * must never be compared to anything. Rule 6: the absence of a hash is not evidence that a
+ * photograph is new, and a format we cannot read is never a reason to refuse somebody.
+ *
+ * THE DECODER IS BOUNDED, because a JPEG header is a promise about dimensions that the file
+ * does not have to keep in bytes. A few kilobytes can declare 30,000 x 30,000 and a decoder
+ * that believes it allocates gigabytes — the classic decompression bomb, and the reason a
+ * parser running on bytes somebody else chose is never given free rein. `checkUploadedImage`
+ * already refuses an edge over 4000 by reading the header itself, so these limits are the
+ * second line rather than the first: comfortably above anything that passes that check, and
+ * far below anything that would hurt. An oversize file is logged and goes unjudged.
  */
 
 /** The grid dHash compares across. 9x8 differences give 64 bits. */
 const WIDTH = 9;
 const HEIGHT = 8;
+
+/**
+ * Above our own 4000px edge cap (16MP at square) with room, and far under a bomb.
+ *
+ * Two limits rather than one because they bound different things: a long thin image can be
+ * modest in megapixels and large in memory, and a square one the reverse.
+ */
+const MAX_DECODE_MP = 20;
+const MAX_DECODE_MB = 64;
 
 /**
  * 64 bits as 16 hex characters, or null when the bytes could not be read.
@@ -41,8 +59,21 @@ const HEIGHT = 8;
 export function perceptualHash(bytes: Uint8Array): string | null {
   let decoded: { width: number; height: number; data: Uint8Array };
   try {
-    decoded = jpeg.decode(bytes, { useTArray: true, maxMemoryUsageInMB: 64 });
-  } catch {
+    decoded = jpeg.decode(bytes, {
+      useTArray: true,
+      maxResolutionInMP: MAX_DECODE_MP,
+      maxMemoryUsageInMB: MAX_DECODE_MB,
+    });
+  } catch (error) {
+    /*
+     * SAID OUT LOUD, because an unjudged photograph is a gate that did not run and the only
+     * place that is visible is here. Not an error: a PNG, a HEIC from an iPhone and a file
+     * that declares impossible dimensions all land in this branch, and none of them is
+     * something going wrong for the person who sent it.
+     */
+    console.warn(
+      `[photo-hash] not judged — ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 

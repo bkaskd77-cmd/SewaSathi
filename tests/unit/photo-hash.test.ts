@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import jpeg from "jpeg-js";
 
 import {
@@ -65,6 +65,26 @@ function scale(
     }
   }
   return { data, width, height };
+}
+
+/**
+ * A real JPEG with the dimensions in its start-of-frame marker rewritten.
+ *
+ * The bytes stay a valid JPEG in every other respect, so what the decoder refuses is the
+ * SIZE rather than a malformed file — which is the thing being tested.
+ */
+function declaring(jpegBytes: Uint8Array, width: number, height: number) {
+  const bytes = new Uint8Array(jpegBytes);
+  for (let i = 0; i < bytes.length - 9; i += 1) {
+    if (bytes[i] === 0xff && bytes[i + 1] === 0xc0) {
+      bytes[i + 5] = (height >> 8) & 0xff;
+      bytes[i + 6] = height & 0xff;
+      bytes[i + 7] = (width >> 8) & 0xff;
+      bytes[i + 8] = width & 0xff;
+      return bytes;
+    }
+  }
+  throw new Error("fixture has no SOF0 marker to rewrite");
 }
 
 const encode = (seed: number, quality = 80, size?: [number, number]) =>
@@ -135,6 +155,77 @@ describe("the perceptual hash", () => {
     expect(perceptualHash(new Uint8Array([1, 2, 3, 4]))).toBeNull();
     expect(hammingDistance(null, "0123456789abcdef")).toBeNull();
     expect(hammingDistance("short", "0123456789abcdef")).toBeNull();
+  });
+
+  /*
+   * A FORMAT WE CANNOT READ IS NEVER A REASON TO REFUSE SOMEBODY. An iPhone sends HEIC
+   * unless it is told otherwise, and a screenshot is a PNG — both are ordinary things for a
+   * person to send, and both must come back unjudged rather than unseen. The distinction is
+   * the one the whole module rests on: null means nothing was established.
+   */
+  it("leaves a PNG, a WebP and a HEIC unjudged rather than rejected", () => {
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
+    ]);
+    const webp = new Uint8Array([
+      0x52, 0x49, 0x46, 0x46, 0x20, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20,
+    ]);
+    /* `ftypheic` at offset 4 is how a HEIC announces itself. */
+    const heic = new Uint8Array([
+      0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0, 0, 0, 0,
+    ]);
+
+    for (const [name, bytes] of [
+      ["png", png],
+      ["webp", webp],
+      ["heic", heic],
+    ] as const) {
+      expect(perceptualHash(bytes), name).toBeNull();
+    }
+
+    /* And an unjudged photograph compares to nothing, rather than reading as unseen. */
+    expect(
+      judgeDuplicate({
+        hash: perceptualHash(png),
+        bookingId: "booking-2",
+        accountId: "acc-2",
+        priors: [{ hash: "ffffffffffffffff", bookingId: "booking-1", accountId: "acc-1" }],
+      }).kind,
+    ).toBe("not-compared");
+  });
+
+  /*
+   * A DECOMPRESSION BOMB IS UNJUDGED, NOT A CRASH. A JPEG header is a promise about
+   * dimensions the file does not have to keep in bytes: a few kilobytes can declare
+   * 30,000 x 30,000, and a decoder that believes it allocates gigabytes. `checkUploadedImage`
+   * already refuses an edge over 4000 by reading the header itself, so this is the second
+   * line — but a parser running on bytes somebody else chose gets bounded anyway.
+   *
+   * 25 MEGAPIXELS RATHER THAN SOMETHING ABSURD, AND THE REASON IS ASSERTED. At 900MP the
+   * library's own default limit catches it and this case would pass without our limits
+   * existing at all; at 25MP the default instead throws `unexpected marker`, for a reason
+   * that has nothing to do with size. Only the message proves which guard fired — the same
+   * trap as the two blind cases already fixed in this session.
+   */
+  it("refuses to decode a file that declares impossible dimensions", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(perceptualHash(declaring(encode(5), 5000, 5000))).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("maxResolutionInMP limit exceeded"),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("is unjudged for an absurd declaration too", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(perceptualHash(declaring(encode(5), 30000, 30000))).toBeNull();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
