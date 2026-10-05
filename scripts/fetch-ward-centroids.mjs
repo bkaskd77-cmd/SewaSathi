@@ -29,11 +29,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 /**
- * Two endpoints, tried in order.
- *
- * The main instance is a volunteer service and refuses requests for several reasons that
- * all arrive as a bare status code. A mirror costs nothing to try and turns "this does not
- * work" into "this instance did not want it".
+ * Two endpoints, tried in order. The main instance is a volunteer service that refuses or
+ * times out under load; a mirror costs nothing and separates "this does not work" from
+ * "that instance did not want it".
  */
 const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
@@ -41,44 +39,33 @@ const ENDPOINTS = [
 ];
 
 /**
- * Overpass's usage policy asks callers to identify themselves, and some instances answer
- * a request with no User-Agent with a refusal rather than a reason. Node sends none by
- * default, which is the most likely cause of the 406 this script first produced.
+ * Overpass's usage policy asks callers to identify themselves, and Node sends no
+ * User-Agent by default. Its absence is what produced this script's first failure: a bare
+ * `406` with no explanation, on every request.
  */
-const AGENT = "SajiloKaam ward-centroid fetcher (one-off, https://github.com/bkaskd77-cmd/SewaSathi)";
+const AGENT =
+  "SajiloKaam ward-centroid fetcher (one-off, https://github.com/bkaskd77-cmd/SewaSathi)";
 
 const AREAS = JSON.parse(readFileSync("lib/data/seed/areas.json", "utf8"));
 const OUT = "lib/data/seed/area-centroids.json";
 
-/**
- * Nepal's municipal wards are `admin_level=10` relations inside a municipality at
- * `admin_level=8`, tagged with `ref` for the ward number. Matching the municipality by
- * name and the ward by `ref` is what makes this reproducible — a name search for the
- * ward alone collides across the three cities, all of which have a ward 4.
- *
- * THE NAME IS MATCHED ON `name` OR `name:en`, because Nepal's OSM data is substantially
- * in Devanagari: Kathmandu Metropolitan City may carry `name=काठमाडौं महानगरपालिका` with
- * the English only on `name:en`. Matching `name` alone would find no area and report it as
- * a missing ward, which is a confusing way to say "we looked in the wrong language".
- */
-function query(city, ward) {
-  return `[out:json][timeout:60];
-area["admin_level"="8"][~"^name(:en)?$"~"^${city}$"]->.city;
-relation(area.city)["admin_level"="10"]["ref"="${ward}"];
-out center;`;
-}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * One request, reporting what the server actually said.
+ * One Overpass query, with everything that can go wrong told apart.
  *
- * THE BODY IS PRINTED ON A REFUSAL, which the first version did not do — it threw
- * `Overpass answered 406` and nothing else, and a bare status code is not a reason.
- * Overpass returns an explanation in the body of nearly every error it gives, so throwing
- * the number away discarded the one thing that would have fixed this on the first run.
+ * `remark` IS THE ONE THAT MATTERS AND THE ONE THAT WAS MISSED. Overpass answers a
+ * server-side timeout or an out-of-memory with **HTTP 200** and a `remark` field, not with
+ * an error status — so a query that was too expensive comes back as a perfectly successful
+ * response holding no elements. The first version of this script read that as "the ward is
+ * not in OpenStreetMap" and said so, which sent a person looking at ward tagging for a
+ * problem that was server load. A 200 is not an answer; a 200 with no remark is.
  */
-async function ask(endpoint, city, ward, method, explicit) {
-  const data = explicit ?? query(city, ward);
-  const url = method === "GET" ? `${endpoint}?data=${encodeURIComponent(data)}` : endpoint;
+async function run(endpoint, data, method = "POST") {
+  const url =
+    method === "GET"
+      ? `${endpoint}?data=${encodeURIComponent(data)}`
+      : endpoint;
 
   const response = await fetch(url, {
     method,
@@ -90,163 +77,193 @@ async function ask(endpoint, city, ward, method, explicit) {
         : {}),
     },
     ...(method === "POST" ? { body: new URLSearchParams({ data }) } : {}),
-  });
-
-  if (response.ok) return { ok: true, body: await response.json() };
-
-  const text = (await response.text().catch(() => "")).trim().slice(0, 300);
-  return {
+  }).catch((error) => ({
     ok: false,
-    why: `${method} ${new URL(endpoint).host} → ${response.status}${text ? `: ${text}` : ""}`,
-  };
-}
+    status: 0,
+    text: async () => error.message,
+  }));
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const where = `${method} ${new URL(endpoint).host}`;
 
-/**
- * Every endpoint and both methods, then give up with everything that was tried.
- *
- * A 429 or a 504 is the instance being busy rather than the request being wrong, so those
- * wait and retry; everything else moves straight on to the next combination. The failure
- * message lists every attempt, because "it did not work" without the attempts is what sent
- * this back to a person once already.
- */
-/**
- * What OpenStreetMap actually holds for a city whose ward we could not find.
- *
- * TWO QUESTIONS, ASKED SEPARATELY, because they have different answers and the first
- * version of this script collapsed them. "The city is not there under that name" and "the
- * city is there and its wards are tagged differently" both produced the same message, and
- * only one of them is fixed by editing `areas.json`.
- *
- * It prints rather than returns, and never throws: this runs on a path that is already
- * failing, and a diagnostic that can itself fail replaces the error being diagnosed.
- */
-async function describeWhatIsThere(endpoint, city, ward) {
-  const show = (line) => console.log(`      ${line}`);
-  console.log("");
-  show(`Looking at what OpenStreetMap holds for ${city}:`);
-
-  try {
-    const cityHit = await ask(
-      endpoint,
-      city,
-      ward,
-      "POST",
-      `[out:json][timeout:60];
-relation["admin_level"="8"][~"^name(:en)?$"~"^${city}$"];
-out tags;`,
-    );
-
-    if (!cityHit.ok) return show(`could not ask — ${cityHit.why}`);
-
-    const cities = cityHit.body.elements ?? [];
-    if (cities.length === 0) {
-      show(`NO admin_level=8 relation is named "${city}".`);
-      show(`So areas.json's city name is the thing to change, not the ward query.`);
-      return;
-    }
-
-    for (const c of cities) {
-      show(`found area: name=${c.tags?.name ?? "?"} name:en=${c.tags?.["name:en"] ?? "—"}`);
-    }
-
-    const inside = await ask(
-      endpoint,
-      city,
-      ward,
-      "POST",
-      `[out:json][timeout:60];
-area["admin_level"="8"][~"^name(:en)?$"~"^${city}$"]->.city;
-relation(area.city)["boundary"="administrative"];
-out tags;`,
-    );
-
-    if (!inside.ok) return show(`could not list its boundaries — ${inside.why}`);
-
-    const rows = (inside.body.elements ?? []).map((e) => ({
-      level: e.tags?.admin_level ?? "—",
-      ref: e.tags?.ref ?? e.tags?.["ref:ward"] ?? "—",
-      name: e.tags?.name ?? e.tags?.["name:en"] ?? "—",
-    }));
-
-    if (rows.length === 0) {
-      show(`the area exists but holds NO administrative boundaries at all,`);
-      show(`so its wards are simply not mapped in OpenStreetMap yet.`);
-      return;
-    }
-
-    const levels = [...new Set(rows.map((r) => r.level))].sort();
-    show(`${rows.length} administrative boundaries inside it, at admin_level ${levels.join(", ")}.`);
-    show(`A sample, so the right tags can be read off it:`);
-    for (const row of rows.slice(0, 12)) {
-      show(`  level=${row.level}  ref=${row.ref}  name=${row.name}`);
-    }
-    if (rows.length > 12) show(`  … and ${rows.length - 12} more.`);
-  } catch (error) {
-    show(`the probe itself failed — ${error.message}`);
+  if (!response.ok) {
+    const text = (await response.text().catch(() => ""))
+      .trim()
+      .replace(/\s+/g, " ");
+    /* Overpass's error pages are full HTML. The first line is the useful part. */
+    return {
+      ok: false,
+      busy: [429, 503, 504, 0].includes(response.status),
+      why: `${where} → ${response.status}: ${text.slice(0, 120)}`,
+    };
   }
-  console.log("");
+
+  const json = await response.json().catch(() => null);
+  if (!json)
+    return { ok: false, busy: false, why: `${where} → unreadable JSON` };
+
+  if (json.remark) {
+    return {
+      ok: false,
+      busy: true,
+      why: `${where} → 200 but the server gave up: ${json.remark}`,
+    };
+  }
+
+  return { ok: true, elements: json.elements ?? [] };
 }
 
-async function centreOf(city, ward) {
+/**
+ * Every endpoint and method, waiting only when the server said it was busy.
+ *
+ * A 429, 503, 504 or a `remark` means the instance is loaded and the same request may
+ * work shortly. Anything else means the request is wrong, and retrying a wrong request is
+ * only slower. Every attempt is kept so a final failure can list what was tried — a bare
+ * status code is not a reason, which this script has now demonstrated twice.
+ */
+async function overpass(data, label) {
   const tried = [];
 
   for (const endpoint of ENDPOINTS) {
     for (const method of ["POST", "GET"]) {
       for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const result = await ask(endpoint, city, ward, method);
-        if (result.ok) {
-          // `out center` puts the bounding-box centre on the element, which for a ward
-          // polygon is within a few hundred metres of its centroid — comfortably inside
-          // the "approximate, ward-level" precision this file claims.
-          const element = (result.body.elements ?? []).find((e) => e.center);
-          if (element) return { lat: element.center.lat, lng: element.center.lon };
-
-          /*
-           * THE SERVER ANSWERED, SO THIS IS THE QUERY. The connection half is proven at
-           * this point and guessing at the tagging from here would be another round trip
-           * through a person — so the script asks OpenStreetMap what IS there and prints
-           * it. The first version threw a sentence of advice instead, which is advice to
-           * somebody who cannot act on it: whoever runs this is not the person who knows
-           * how Nepal's wards are tagged.
-           */
-          await describeWhatIsThere(endpoint, city, ward);
-          throw new Error(
-            `No admin_level=10 relation with ref=${ward} inside ${city}. ` +
-              `What OpenStreetMap does hold is printed above.`,
-          );
-        }
-
+        const result = await run(endpoint, data, method);
+        if (result.ok) return result.elements;
         tried.push(result.why);
-        const busy = /→ (429|504|503)/.test(result.why);
-        if (!busy) break;
-        await sleep(attempt * 4000);
+        if (!result.busy) break;
+        await sleep(attempt * 5000);
       }
     }
   }
 
   throw new Error(
-    `Could not fetch ${city} ward ${ward}. Everything tried:\n    ${tried.join("\n    ")}`,
+    `Overpass would not answer for ${label}. Everything tried:\n    ${tried.join("\n    ")}`,
   );
 }
 
 /**
- * Every ward, one at a time.
+ * The city's area id, looked up ONCE per city rather than rebuilt per ward.
  *
- * WRAPPED SO A FAILURE PRINTS A SENTENCE RATHER THAN A STACK. Node 24 on Windows follows a
- * thrown top-level error with `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`,
- * which looks like a second and worse problem and is not one. Whoever runs this is not
- * reading Node internals, so the error is caught, printed, and the process exits 1.
+ * `area[...]` makes Overpass construct an area from scratch for every query that uses it,
+ * and this script ran fifteen of them against three cities — fifteen area builds where
+ * three would do. That is both slower for us and the kind of load a volunteer service
+ * asks callers not to create, and it is the likeliest reason the queries were timing out.
+ * An area id is the relation id plus 3600000000, which is Overpass's own convention.
+ *
+ * MATCHED ON `name` OR `name:en`, because Nepal's OSM data is substantially in Devanagari:
+ * Kathmandu Metropolitan City may carry `name=काठमाडौं महानगरपालिका` with the English only
+ * on `name:en`. Matching `name` alone finds nothing and reports it as a missing ward,
+ * which is a confusing way to say "we looked in the wrong language".
  */
+async function cityAreaId(city) {
+  const found = await overpass(
+    `[out:json][timeout:90];
+relation["admin_level"="8"][~"^name(:en)?$"~"^${city}$",i];
+out ids tags;`,
+    `the city of ${city}`,
+  );
+
+  if (found.length === 0) {
+    throw new Error(
+      `No admin_level=8 relation is named "${city}" in OpenStreetMap.\n` +
+        `  The server answered, so this is the NAME rather than the connection:\n` +
+        `  areas.json is what needs changing, not the ward query.`,
+    );
+  }
+
+  const city0 = found[0];
+  console.log(
+    `  ${city}: ${city0.tags?.name ?? "?"}` +
+      `${city0.tags?.["name:en"] ? ` (${city0.tags["name:en"]})` : ""}, relation ${city0.id}`,
+  );
+  return 3600000000 + city0.id;
+}
+
+/** Every administrative boundary inside a city, printed so a miss explains itself. */
+async function describeWards(areaId, city) {
+  console.log("");
+  console.log(`      What OpenStreetMap holds inside ${city}:`);
+  try {
+    const rows = await overpass(
+      `[out:json][timeout:90];
+relation(area:${areaId})["boundary"="administrative"];
+out tags;`,
+      `the boundaries inside ${city}`,
+    );
+
+    if (rows.length === 0) {
+      console.log(
+        `      none at all — its wards are not mapped in OpenStreetMap yet.`,
+      );
+      return;
+    }
+
+    const levels = [
+      ...new Set(rows.map((r) => r.tags?.admin_level ?? "—")),
+    ].sort();
+    console.log(
+      `      ${rows.length} boundaries, at admin_level ${levels.join(", ")}:`,
+    );
+    for (const row of rows.slice(0, 12)) {
+      console.log(
+        `        level=${row.tags?.admin_level ?? "—"}` +
+          `  ref=${row.tags?.ref ?? row.tags?.["ref:ward"] ?? "—"}` +
+          `  name=${row.tags?.name ?? row.tags?.["name:en"] ?? "—"}`,
+      );
+    }
+    if (rows.length > 12)
+      console.log(`        … and ${rows.length - 12} more.`);
+  } catch (error) {
+    console.log(`      could not list them — ${error.message}`);
+  }
+  console.log("");
+}
+
+/**
+ * Nepal's municipal wards are `admin_level=10` relations tagged with `ref` for the ward
+ * number. Matching inside the city's own area is what makes this reproducible: all three
+ * cities have a ward 4.
+ */
+async function centreOf(areaId, city, ward) {
+  const found = await overpass(
+    `[out:json][timeout:90];
+relation(area:${areaId})["admin_level"="10"]["ref"="${ward}"];
+out center;`,
+    `${city} ward ${ward}`,
+  );
+
+  // `out center` puts the bounding-box centre on the element, which for a ward polygon is
+  // within a few hundred metres of its centroid — comfortably inside the "approximate,
+  // ward-level" precision this file claims.
+  const element = found.find((e) => e.center);
+  if (element) return { lat: element.center.lat, lng: element.center.lon };
+
+  await describeWards(areaId, city);
+  throw new Error(
+    `No admin_level=10 relation with ref=${ward} inside ${city}. ` +
+      `What OpenStreetMap does hold is printed above.`,
+  );
+}
+
 async function main() {
   const wards = {};
+  const areaIds = new Map();
 
+  console.log("Resolving the cities:");
+  for (const city of [...new Set(AREAS.map((a) => a.city))]) {
+    areaIds.set(city, await cityAreaId(city));
+    await sleep(1200);
+  }
+
+  console.log("\nFetching the wards:");
   for (const area of AREAS) {
-    // One at a time, with a pause: Overpass asks for it and a parallel burst from one IP
+    // One at a time, with a pause: Overpass asks for it, and a parallel burst from one IP
     // is how a volunteer service ends up rate-limiting this repository.
     process.stdout.write(`  ${area.key} (${area.name}) … `);
-    const centre = await centreOf(area.city, area.wardNumber);
+    const centre = await centreOf(
+      areaIds.get(area.city),
+      area.city,
+      area.wardNumber,
+    );
     wards[area.key] = {
       lat: Number(centre.lat.toFixed(5)),
       lng: Number(centre.lng.toFixed(5)),
@@ -262,26 +279,38 @@ async function main() {
   return wards;
 }
 
-const wards = await main().catch((error) => {
+/*
+ * `process.exitCode` RATHER THAN `process.exit()`. Node 24 on Windows follows a hard exit
+ * with `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`, which reads as a second
+ * and worse problem and is not one — it is the process being torn down while a socket is
+ * still closing. Setting the code and letting Node finish normally avoids it, and whoever
+ * runs this is not reading libuv internals.
+ */
+let wards = null;
+try {
+  wards = await main();
+} catch (error) {
   console.error(`\n${error.message}\n`);
   console.error("Nothing was written — the existing file is untouched.\n");
-  process.exit(1);
-});
+  process.exitCode = 1;
+}
 
-writeFileSync(
-  OUT,
-  `${JSON.stringify(
-    {
-      source:
-        "OpenStreetMap, admin_level=10 ward relations via the Overpass API. © OpenStreetMap contributors, ODbL.",
-      fetchedAt: new Date().toISOString(),
-      precision: "approximate, ward-level",
-      note: "Generated by scripts/fetch-ward-centroids.mjs — do not edit by hand. Each point is the bounding-box centre of the ward's own boundary relation, so it is the middle of the administrative area rather than of a named locality inside it. Good to within a kilometre or two, which is what nearestServedKm assumes.",
-      wards,
-    },
-    null,
-    2,
-  )}\n`,
-);
+if (wards) {
+  writeFileSync(
+    OUT,
+    `${JSON.stringify(
+      {
+        source:
+          "OpenStreetMap, admin_level=10 ward relations via the Overpass API. © OpenStreetMap contributors, ODbL.",
+        fetchedAt: new Date().toISOString(),
+        precision: "approximate, ward-level",
+        note: "Generated by scripts/fetch-ward-centroids.mjs — do not edit by hand. Each point is the bounding-box centre of the ward's own boundary relation, so it is the middle of the administrative area rather than of a named locality inside it. Good to within a kilometre or two, which is what nearestServedKm assumes.",
+        wards,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
-console.log(`\nWrote ${Object.keys(wards).length} ward centres to ${OUT}.`);
+  console.log(`\nWrote ${Object.keys(wards).length} ward centres to ${OUT}.`);
+}
