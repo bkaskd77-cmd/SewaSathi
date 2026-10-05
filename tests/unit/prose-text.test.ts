@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { LEGAL_DOCUMENTS } from "@/lib/content/legal";
 import { INFO_PAGE_SLUGS, infoPage } from "@/lib/content/pages";
 import {
+  documentsFromFields,
   editableSections,
+  pairDocuments,
   parseBlocks,
   sectionsFromFields,
   serializeBlocks,
@@ -148,5 +150,81 @@ describe("the document text format", () => {
     const result = sectionsFromFields(editableSections(doc));
     expect(result.ok).toBe(true);
     expect(result.ok && result.sections).toEqual(doc.sections);
+  });
+});
+
+describe("a document as one editable form", () => {
+  it("pairs both languages of every shipped document", () => {
+    const unpairable: string[] = [];
+    for (const [name, pair] of [
+      ["terms", LEGAL_DOCUMENTS.terms],
+      ["privacy", LEGAL_DOCUMENTS.privacy],
+      ["refunds", LEGAL_DOCUMENTS.refunds],
+    ] as const) {
+      const result = pairDocuments(pair.en, pair.ne);
+      if (!result.ok) unpairable.push(`${name}: ${result.error}`);
+    }
+    for (const slug of INFO_PAGE_SLUGS) {
+      const en = infoPage(slug, "en");
+      const ne = infoPage(slug, "ne");
+      if (!en || !ne) continue;
+      const result = pairDocuments(en, ne);
+      if (!result.ok) unpairable.push(`${slug}: ${result.error}`);
+    }
+    expect(unpairable, "these could not be shown side by side").toEqual([]);
+  });
+
+  /*
+   * THE WHOLE ROUND TRIP, which is what the editor actually does: a document out to form
+   * fields and back. If this is not the identity then opening a document and pressing
+   * Publish without typing anything would change it.
+   */
+  it("takes a document out to fields and back unchanged", () => {
+    const doc = LEGAL_DOCUMENTS.privacy;
+    const paired = pairDocuments(doc.en, doc.ne);
+    expect(paired.ok).toBe(true);
+    if (!paired.ok) return;
+
+    const back = documentsFromFields(paired.fields, doc.en.updated);
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+
+    expect(back.en).toEqual(doc.en);
+    expect(back.ne).toEqual({ ...doc.ne, updated: doc.en.updated });
+  });
+
+  /*
+   * THE REVIEW NOTICE SURVIVES. `draft` renders "not reviewed by a lawyer" to the person
+   * agreeing to the terms, and a publish that silently cleared it would take that notice
+   * off an unreviewed document — which is the opposite of what the flag is for.
+   */
+  it("carries the review notice through the form", () => {
+    const paired = pairDocuments(LEGAL_DOCUMENTS.terms.en, LEGAL_DOCUMENTS.terms.ne);
+    expect(paired.ok && paired.fields.draft).toBe(true);
+    if (!paired.ok) return;
+
+    const kept = documentsFromFields(paired.fields, "2026-10-05");
+    expect(kept.ok && kept.en.draft).toBe(true);
+
+    const cleared = documentsFromFields({ ...paired.fields, draft: false }, "2026-10-05");
+    expect(cleared.ok && cleared.en.draft).toBeUndefined();
+  });
+
+  it("refuses two languages carrying different sections", () => {
+    const en = LEGAL_DOCUMENTS.terms.en;
+    const ne = {
+      ...LEGAL_DOCUMENTS.terms.ne,
+      sections: LEGAL_DOCUMENTS.terms.ne.sections.slice(1),
+    };
+    const result = pairDocuments(en, ne);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain("side by side");
+  });
+
+  it("refuses an empty title or lead in either language", () => {
+    const paired = pairDocuments(LEGAL_DOCUMENTS.refunds.en, LEGAL_DOCUMENTS.refunds.ne);
+    if (!paired.ok) throw new Error("fixture does not pair");
+    expect(documentsFromFields({ ...paired.fields, titleNe: " " }, "x").ok).toBe(false);
+    expect(documentsFromFields({ ...paired.fields, leadEn: "" }, "x").ok).toBe(false);
   });
 });

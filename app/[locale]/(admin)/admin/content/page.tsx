@@ -98,6 +98,13 @@ export default async function ContentPage({
         >
           {t("goToCategories")}
         </Link>
+        {" · "}
+        <Link
+          href="/admin/content/documents"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          {t("goToDocuments")}
+        </Link>
       </p>
 
       {/* A plain GET form, so a filtered view is a shareable URL and this page ships

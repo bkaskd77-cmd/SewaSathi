@@ -1535,6 +1535,51 @@ from the seed, the table was unreachable, so an edit would write somewhere nothi
 is reading from and appear to do nothing. The screen says that instead — the
 `/services` rule, one surface across.
 
+### The documents, edited and published
+
+`/admin/content/documents` edits all eight long-form documents — the terms, privacy and
+refund policies, the standards ladder, and the help, complaint, about and contact pages.
+
+**Three separate acts, in that order, and the order is the safeguard.** A publish cannot
+be taken back, only superseded, and `bookings.terms_version` points at what a customer
+agreed to. "Are you sure" is not a safeguard against that; seeing the change is. Saving
+writes a **working copy** nobody reads; the page then renders that copy through the same
+`ProseDocumentView` the public pages use, shows a line diff against what is live in both
+languages, and publishing is a third act with its own required confirmation.
+
+**The working copy is a table, and that is forced rather than chosen.** The preview cannot
+come from unsaved form state because `ProseDocumentView` is an async Server Component, and
+a client copy of it would be two renderers of the legal pages. It cannot be an unpublished
+version row either, because those are append-only and `effective_from` must be stamped
+when the pointer moves. Called a working copy and never a draft: `ProseDocument.draft`
+already means *not reviewed by a lawyer* and renders a notice to the customer.
+
+**One textarea per section, in a round-trippable format.** A blank line separates blocks,
+`- ` makes a list, ` :: ` makes a term/detail table. Neither marker appears in any shipped
+document, which a test asserts, and the round trip is lossless across all eight documents
+in both languages — a format that dropped a `dl` would lose the privacy document's data
+tables and the refunds document's guarantee windows on the first publish, with nothing to
+notice. A chunk that mixes list lines with prose is **refused with the reason**, never
+guessed at.
+
+**Sections pair by anchor, blocks do not pair at all.** `Section.id` is a URL fragment
+support may have linked somebody to, so it is one fact per section rather than one per
+language. The blocks inside are each language's own, because Nepali may take three
+paragraphs where English takes two — rule 5 showing up in a data structure. Two languages
+carrying different anchors is refused rather than reconciled.
+
+**The effective date is the publish moment and is not a field.** The column defaults to
+`now()` and the publish path takes no date, so "recorded automatically" is structural.
+Scheduling a future amendment is deferred: it would serve text not yet in force while
+`createBooking` stamps bookings with its version, and giving notice needs a mechanism that
+does not exist. Both comments that claimed scheduling worked are corrected.
+
+**A rollback is a publish, not an undo.** Restoring loads an old version into the working
+copy, so it goes through the same preview, diff and confirmation and ends as a **new**
+version with its own number. A pointer moved backwards would leave `terms_version` naming
+a version that was live, then not, then live again, and no reading of that history would
+be true.
+
 ### Image uploads — deferred until after launch
 
 Category cards render a lucide icon by name, and the admin picks from

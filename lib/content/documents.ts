@@ -213,16 +213,19 @@ export async function liveTermsVersion(): Promise<number | null> {
  * other order would point at a row that does not exist, which renders the file with no
  * sign anything is wrong.
  *
- * AN EFFECTIVE DATE IS NOT A PUBLISH DATE. A document can be written today and take
- * effect next month; `effective_from` is what a dispute is argued from and
- * `published_at` is when somebody pressed the button. Both are kept because they answer
- * different questions.
+ * THE EFFECTIVE DATE IS THE PUBLISH MOMENT, AND IT IS NOT A PARAMETER. This comment used
+ * to say a document could be "written today and take effect next month" — and `readLive`
+ * serves whatever `live_version` points at the instant it moves, so a future date was
+ * ignored. A comment describing behaviour the code does not have is the failure this
+ * repository records most often, so the column defaults to `now()` and nothing that
+ * publishes can choose a date. Scheduling is deferred with the reason: a future effective
+ * date means serving text not yet in force while `createBooking` stamps bookings with its
+ * version, and amending terms with notice needs a way to give the notice.
  */
 export async function publishDocument(input: {
   slug: DocumentSlug;
   bodyEn: ProseDocument;
   bodyNe: ProseDocument;
-  effectiveFrom: string;
   actorId: string;
 }): Promise<{ ok: boolean; version?: number; reason?: string }> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
@@ -251,7 +254,8 @@ export async function publishDocument(input: {
         version,
         body_en: JSON.stringify(input.bodyEn),
         body_ne: JSON.stringify(input.bodyNe),
-        effective_from: input.effectiveFrom,
+        /* `effective_from` is deliberately absent: the column defaults to now(), which is
+           what makes "recorded automatically" structural rather than trusted. */
         published_by: input.actorId,
       });
 
@@ -298,5 +302,190 @@ export async function documentVersions(slug: DocumentSlug): Promise<
     }));
   } catch {
     return null;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * The working copy
+ * ------------------------------------------------------------------ */
+
+/**
+ * A document being written, before anybody has agreed to it.
+ *
+ * WHY IT IS NOT AN UNPUBLISHED VERSION ROW. `content_document_versions` is append-only for
+ * every caller including the service role, which is the whole reason versioning is worth
+ * having — `bookings.terms_version` points at the text a customer agreed to, and if that
+ * text could change afterwards the pointer would name something nobody ever saw. A row
+ * somebody is still editing has to be mutable, so it cannot live there.
+ *
+ * AND IT IS WHAT MAKES THE PREVIEW POSSIBLE. The publish screen renders the document
+ * through `ProseDocumentView`, which is an async Server Component — a client copy of it
+ * would be two renderers of the legal pages, which is shared surface and where every
+ * expensive bug in this product has lived. So the text has to be somewhere the server can
+ * read it between "save" and "publish".
+ *
+ * CALLED A WORKING COPY, NEVER A DRAFT. `ProseDocument.draft` already means "this text has
+ * not been through legal review" and renders a notice to the customer; two meanings for one
+ * word on the screen where somebody publishes the terms is a mistake waiting to happen.
+ */
+export type WorkingCopy = {
+  en: ProseDocument;
+  ne: ProseDocument;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+/** The working copy for a slug, null when there is none, undefined when unreadable. */
+export async function workingCopy(
+  slug: DocumentSlug,
+): Promise<WorkingCopy | null | undefined> {
+  if (!hasSupabaseConfig()) return undefined;
+  try {
+    const { data, error } = await createAdminClient()
+      .from("content_document_working_copies")
+      .select("body_en, body_ne, updated_at, updated_by")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (error) {
+      console.error(`[documents] working copy unread — ${describeError(error)}`);
+      return undefined;
+    }
+    if (!data) return null;
+
+    /* A stored body that will not parse is the one failure a save can introduce, and it
+       must not take the screen down — it reads as "no working copy", which is recoverable
+       by saving again, rather than as an error page on the only route that could fix it. */
+    try {
+      return {
+        en: JSON.parse(data.body_en as string) as ProseDocument,
+        ne: JSON.parse(data.body_ne as string) as ProseDocument,
+        updatedAt: data.updated_at as string,
+        updatedBy: (data.updated_by as string | null) ?? null,
+      };
+    } catch (parseError) {
+      console.error(`[documents] working copy for ${slug} will not parse — ${describeError(parseError)}`);
+      return undefined;
+    }
+  } catch (thrown) {
+    console.error(`[documents] working copy threw — ${describeError(thrown)}`);
+    return undefined;
+  }
+}
+
+/** Write the working copy, overwriting whatever was there. */
+export async function saveWorkingCopy(input: {
+  slug: DocumentSlug;
+  en: ProseDocument;
+  ne: ProseDocument;
+  actorId: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+  try {
+    const { error } = await createAdminClient()
+      .from("content_document_working_copies")
+      .upsert(
+        {
+          slug: input.slug,
+          body_en: JSON.stringify(input.en),
+          body_ne: JSON.stringify(input.ne),
+          updated_by: input.actorId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "slug" },
+      );
+
+    if (error) {
+      console.error(`[documents] working copy write — ${describeError(error)}`);
+      return { ok: false, reason: "failed" };
+    }
+    return { ok: true };
+  } catch (thrown) {
+    console.error(`[documents] working copy threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Throw the working copy away. Publishing does this too, once the version is live. */
+export async function discardWorkingCopy(slug: DocumentSlug): Promise<boolean> {
+  if (!hasSupabaseConfig()) return false;
+  try {
+    const { error } = await createAdminClient()
+      .from("content_document_working_copies")
+      .delete()
+      .eq("slug", slug);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Publish what is in the working copy.
+ *
+ * THE WORKING COPY IS THE ONLY SOURCE, which is what makes the preview honest: the screen
+ * renders the stored row and this publishes the stored row, so there is nothing a form
+ * could carry between them that the preview did not show. A publish that took its body
+ * from the request would be a different document from the one somebody just read.
+ *
+ * THE WORKING COPY IS CLEARED LAST AND A FAILURE THERE IS NOT A FAILURE. The version is
+ * published and live by then; a leftover working copy is visible on the screen and can be
+ * discarded by hand, where reporting the publish as failed would invite somebody to do it
+ * twice.
+ */
+export async function publishWorkingCopy(input: {
+  slug: DocumentSlug;
+  actorId: string;
+}): Promise<{ ok: boolean; version?: number; reason?: string }> {
+  const copy = await workingCopy(input.slug);
+  if (copy === undefined) return { ok: false, reason: "unreadable" };
+  if (copy === null) return { ok: false, reason: "nothingToPublish" };
+
+  const result = await publishDocument({
+    slug: input.slug,
+    bodyEn: copy.en,
+    bodyNe: copy.ne,
+    actorId: input.actorId,
+  });
+
+  if (result.ok) await discardWorkingCopy(input.slug);
+  return result;
+}
+
+/**
+ * Load an old version back into the working copy.
+ *
+ * A ROLLBACK IS A PUBLISH, NOT AN UNDO. Restoring puts the old text where an edit would
+ * go, so it goes through the same preview, the same diff and the same confirmation as any
+ * other change — and the result is a NEW version with its own number rather than the old
+ * one becoming live again. A pointer moved backwards would leave `bookings.terms_version`
+ * naming a version that is live, then not live, then live again, and no reading of that
+ * history would be true.
+ */
+export async function restoreVersion(input: {
+  slug: DocumentSlug;
+  version: number;
+  actorId: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+  try {
+    const { data, error } = await createAdminClient()
+      .from("content_document_versions")
+      .select("body_en, body_ne")
+      .eq("slug", input.slug)
+      .eq("version", input.version)
+      .maybeSingle();
+
+    if (error || !data) return { ok: false, reason: "noSuchVersion" };
+
+    return saveWorkingCopy({
+      slug: input.slug,
+      en: JSON.parse(data.body_en as string) as ProseDocument,
+      ne: JSON.parse(data.body_ne as string) as ProseDocument,
+      actorId: input.actorId,
+    });
+  } catch (thrown) {
+    console.error(`[documents] restore threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "failed" };
   }
 }

@@ -804,12 +804,36 @@ export type Database = {
           version: number;
           body_en: string;
           body_ne: string;
-          effective_from: string;
+          /* Defaults to now() since 20261004000004 — the publish path cannot set it. */
+          effective_from?: string;
           published_by?: string | null;
           published_at?: string;
         };
         Update: Partial<
           Database["public"]["Tables"]["content_document_versions"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
+      content_document_working_copies: {
+        Row: {
+          slug: ContentDocumentSlug;
+          body_en: string;
+          body_ne: string;
+          updated_by: string | null;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          slug: ContentDocumentSlug;
+          body_en: string;
+          body_ne: string;
+          updated_by?: string | null;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["content_document_working_copies"]["Insert"]
         >;
         Relationships: [];
       };

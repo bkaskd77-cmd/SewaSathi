@@ -174,3 +174,146 @@ describe("a category icon a card cannot draw", () => {
     expect(rows[0].icon).toBe("AirVent");
   });
 });
+
+/**
+ * The working copy: mutable on purpose, and invisible to everybody but staff.
+ *
+ * MUTABLE IS THE WHOLE POINT AND IS THE OPPOSITE OF THE TABLE ABOVE. A published version
+ * cannot be edited because somebody agreed to it; a working copy is text nobody has agreed
+ * to and must be editable, or "save and come back tomorrow" is impossible on a document
+ * that runs to twelve sections. The two live in separate tables precisely so one rule does
+ * not have to cover both.
+ */
+describe("a document somebody is still writing", () => {
+  it("is not readable by a customer, because nobody has stood behind it yet", async () => {
+    await pg.admin.query(
+      `insert into public.content_document_working_copies (slug, body_en, body_ne)
+       values ('terms', '{"title":"Draft"}', '{"title":"मस्यौदा"}')
+       on conflict (slug) do update set body_en = excluded.body_en`,
+    );
+
+    const customer = await pg.asUser(CUSTOMER);
+    const { rows: hidden } = await customer.query(
+      "select slug from public.content_document_working_copies",
+    );
+    expect(hidden).toEqual([]);
+    await customer.end();
+
+    const admin = await pg.asUser(ADMIN);
+    const { rows: seen } = await admin.query(
+      "select slug from public.content_document_working_copies",
+    );
+    expect(seen.map((r) => r.slug)).toContain("terms");
+    await admin.end();
+  });
+
+  /*
+   * ANON IS REFUSED BY THE GRANT, NOT BY A POLICY, and the distinction is the one
+   * `20261002000001` exists for: a grant is checked by the planner before any row is
+   * considered, so the refusal is `permission denied` rather than an empty result. An
+   * empty result and "you may not ask" look alike to a caller and are not the same thing.
+   */
+  it("is not readable by anon at all", async () => {
+    const anon = await pg.asAnon();
+    const result = await anon
+      .query("select slug from public.content_document_working_copies")
+      .then(
+        () => "allowed",
+        (error: { message: string }) => error.message,
+      );
+    expect(result).toMatch(/permission denied/i);
+    await anon.end();
+  });
+
+  it("refuses a write from a customer and from an admin alike", async () => {
+    for (const id of [CUSTOMER, ADMIN]) {
+      const client = await pg.asUser(id);
+      const result = await client
+        .query(
+          `insert into public.content_document_working_copies (slug, body_en, body_ne)
+           values ('privacy', '{}', '{}')`,
+        )
+        .then(
+          () => "allowed",
+          (error: { message: string }) => error.message,
+        );
+      expect(result).toMatch(/permission denied/i);
+      await client.end();
+    }
+  });
+
+  /* Overwritten in place, which the published versions table refuses — the difference
+     between text nobody has agreed to and text somebody has. */
+  it("is overwritten rather than accumulating rows", async () => {
+    await pg.admin.query(
+      `insert into public.content_document_working_copies (slug, body_en, body_ne)
+       values ('refunds', '{"v":1}', '{"v":1}')
+       on conflict (slug) do update set body_en = excluded.body_en`,
+    );
+    await pg.admin.query(
+      `insert into public.content_document_working_copies (slug, body_en, body_ne)
+       values ('refunds', '{"v":2}', '{"v":2}')
+       on conflict (slug) do update set body_en = excluded.body_en, body_ne = excluded.body_ne`,
+    );
+
+    const { rows } = await pg.admin.query(
+      "select body_en from public.content_document_working_copies where slug = 'refunds'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].body_en).toBe('{"v":2}');
+  });
+});
+
+/**
+ * The eight slugs, enforced by the database rather than remembered by the application.
+ *
+ * A NINTH WOULD BE REFUSED AT THE MOMENT SOMEBODY PRESSED PUBLISH, losing the edit in the
+ * statement that tried to save it — which is the failure the category icon list already
+ * had once. `tests/unit/content-documents.test.ts` compares the TypeScript list against
+ * both constraints; this asserts the database actually behaves that way.
+ */
+describe("which documents exist", () => {
+  it("accepts the four information pages the scope asked for", async () => {
+    for (const slug of ["help", "help/complaint", "about", "contact"]) {
+      await pg.admin.query(
+        "insert into public.content_documents (slug) values ($1) on conflict do nothing",
+        [slug],
+      );
+    }
+    const { rows } = await pg.admin.query(
+      "select count(*)::int as n from public.content_documents where slug like 'help%' or slug in ('about','contact')",
+    );
+    expect(rows[0].n).toBe(4);
+  });
+
+  it("refuses a slug nothing renders", async () => {
+    const result = await pg.admin
+      .query("insert into public.content_documents (slug) values ('careers')")
+      .then(
+        () => "allowed",
+        (error: { message: string }) => error.message,
+      );
+    expect(result).toMatch(/slug_check/i);
+  });
+
+  /*
+   * THE EFFECTIVE DATE DEFAULTS, which is what makes "recorded automatically" structural
+   * rather than a habit of the publish path. Nothing that publishes passes one.
+   */
+  it("stamps the effective date itself when nobody passes one", async () => {
+    await pg.admin.query(
+      `insert into public.content_document_versions (slug, version, body_en, body_ne)
+       values ('about', 1, '{}', '{}')`,
+    );
+    const { rows } = await pg.admin.query(
+      "select effective_from, published_at from public.content_document_versions where slug = 'about'",
+    );
+    expect(rows[0].effective_from).not.toBeNull();
+    expect(
+      Math.abs(
+        new Date(rows[0].effective_from).getTime() -
+          new Date(rows[0].published_at).getTime(),
+      ),
+    ).toBeLessThan(2000);
+  });
+});

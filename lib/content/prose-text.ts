@@ -172,3 +172,130 @@ export function sectionsFromFields(
   }
   return { ok: true, sections };
 }
+
+/* ------------------------------------------------------------------ *
+ * The editor's shape: one section, two languages
+ * ------------------------------------------------------------------ */
+
+export type SectionPair = {
+  /** The anchor. One per section, shared by both languages — it is a URL fragment. */
+  id: string;
+  headingEn: string;
+  headingNe: string;
+  bodyEn: string;
+  bodyNe: string;
+};
+
+export type DocumentFields = {
+  titleEn: string;
+  titleNe: string;
+  leadEn: string;
+  leadNe: string;
+  /** The review notice shown to the reader, not a working copy. */
+  draft: boolean;
+  sections: SectionPair[];
+};
+
+/**
+ * A document's two languages as one editable form.
+ *
+ * PAIRED BY ANCHOR, NEVER BY POSITION. `Section.id` is a URL fragment — support links
+ * somebody to `#cancellation` — so it is one fact about the section rather than one per
+ * language, and pairing on it means a reordered translation still lines up.
+ *
+ * THE BLOCKS INSIDE A SECTION ARE NOT PAIRED AT ALL, which is rule 5 showing up in a data
+ * structure: Nepali may take three paragraphs where English takes two, because it is
+ * written rather than translated. Each language's body is its own text.
+ *
+ * MISMATCHED SECTIONS ARE REFUSED RATHER THAN RECONCILED. If the two languages carry
+ * different anchors the editor cannot show them side by side without inventing a pairing,
+ * and inventing one on a document somebody agrees to is how a clause ends up under the
+ * wrong heading in one language only.
+ */
+export function pairDocuments(
+  en: ProseDocument,
+  ne: ProseDocument,
+): { ok: true; fields: DocumentFields } | { ok: false; error: string } {
+  const enIds = en.sections.map((s) => s.id);
+  const neIds = ne.sections.map((s) => s.id);
+
+  if (enIds.length !== neIds.length || enIds.some((id, i) => id !== neIds[i])) {
+    return {
+      ok: false,
+      error:
+        `The two languages do not carry the same sections, so they cannot be edited side ` +
+        `by side. English has ${enIds.join(", ")}; Nepali has ${neIds.join(", ")}.`,
+    };
+  }
+
+  return {
+    ok: true,
+    fields: {
+      titleEn: en.title,
+      titleNe: ne.title,
+      leadEn: en.lead,
+      leadNe: ne.lead,
+      draft: Boolean(en.draft || ne.draft),
+      sections: en.sections.map((section, i) => ({
+        id: section.id,
+        headingEn: section.heading,
+        headingNe: ne.sections[i].heading,
+        bodyEn: serializeBlocks(section.blocks),
+        bodyNe: serializeBlocks(ne.sections[i].blocks),
+      })),
+    },
+  };
+}
+
+/**
+ * The form back into two documents, or the first reason it could not be read.
+ *
+ * `updated` IS WRITTEN HERE AND NOT EDITED. It is the "last updated" date a reader sees,
+ * and it is set from the publish moment so the page's own claim cannot disagree with the
+ * version row beside it. A field for it would be a second date somebody could set wrongly.
+ *
+ * THE REVIEW FLAG IS CARRIED, not dropped. `draft` renders the "not reviewed by a lawyer"
+ * notice to the customer, and a publish that silently cleared it would take that notice off
+ * an unreviewed document — the opposite of what the flag is for.
+ */
+export function documentsFromFields(
+  fields: DocumentFields,
+  updated: string,
+): { ok: true; en: ProseDocument; ne: ProseDocument } | { ok: false; error: string } {
+  const en = sectionsFromFields(
+    fields.sections.map((s) => ({ id: s.id, heading: s.headingEn, body: s.bodyEn })),
+  );
+  if (!en.ok) return { ok: false, error: `English — ${en.error}` };
+
+  const ne = sectionsFromFields(
+    fields.sections.map((s) => ({ id: s.id, heading: s.headingNe, body: s.bodyNe })),
+  );
+  if (!ne.ok) return { ok: false, error: `Nepali — ${ne.error}` };
+
+  for (const [label, value] of [
+    ["English title", fields.titleEn],
+    ["Nepali title", fields.titleNe],
+    ["English lead", fields.leadEn],
+    ["Nepali lead", fields.leadNe],
+  ] as const) {
+    if (value.trim().length === 0) return { ok: false, error: `${label} is empty.` };
+  }
+
+  const shape = (
+    title: string,
+    lead: string,
+    sections: Section[],
+  ): ProseDocument => ({
+    title: title.trim(),
+    lead: lead.trim(),
+    updated,
+    ...(fields.draft ? { draft: true } : {}),
+    sections,
+  });
+
+  return {
+    ok: true,
+    en: shape(fields.titleEn, fields.leadEn, en.sections),
+    ne: shape(fields.titleNe, fields.leadNe, ne.sections),
+  };
+}
