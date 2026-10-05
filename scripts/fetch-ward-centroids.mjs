@@ -76,8 +76,8 @@ out center;`;
  * Overpass returns an explanation in the body of nearly every error it gives, so throwing
  * the number away discarded the one thing that would have fixed this on the first run.
  */
-async function ask(endpoint, city, ward, method) {
-  const data = query(city, ward);
+async function ask(endpoint, city, ward, method, explicit) {
+  const data = explicit ?? query(city, ward);
   const url = method === "GET" ? `${endpoint}?data=${encodeURIComponent(data)}` : endpoint;
 
   const response = await fetch(url, {
@@ -111,6 +111,84 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * message lists every attempt, because "it did not work" without the attempts is what sent
  * this back to a person once already.
  */
+/**
+ * What OpenStreetMap actually holds for a city whose ward we could not find.
+ *
+ * TWO QUESTIONS, ASKED SEPARATELY, because they have different answers and the first
+ * version of this script collapsed them. "The city is not there under that name" and "the
+ * city is there and its wards are tagged differently" both produced the same message, and
+ * only one of them is fixed by editing `areas.json`.
+ *
+ * It prints rather than returns, and never throws: this runs on a path that is already
+ * failing, and a diagnostic that can itself fail replaces the error being diagnosed.
+ */
+async function describeWhatIsThere(endpoint, city, ward) {
+  const show = (line) => console.log(`      ${line}`);
+  console.log("");
+  show(`Looking at what OpenStreetMap holds for ${city}:`);
+
+  try {
+    const cityHit = await ask(
+      endpoint,
+      city,
+      ward,
+      "POST",
+      `[out:json][timeout:60];
+relation["admin_level"="8"][~"^name(:en)?$"~"^${city}$"];
+out tags;`,
+    );
+
+    if (!cityHit.ok) return show(`could not ask — ${cityHit.why}`);
+
+    const cities = cityHit.body.elements ?? [];
+    if (cities.length === 0) {
+      show(`NO admin_level=8 relation is named "${city}".`);
+      show(`So areas.json's city name is the thing to change, not the ward query.`);
+      return;
+    }
+
+    for (const c of cities) {
+      show(`found area: name=${c.tags?.name ?? "?"} name:en=${c.tags?.["name:en"] ?? "—"}`);
+    }
+
+    const inside = await ask(
+      endpoint,
+      city,
+      ward,
+      "POST",
+      `[out:json][timeout:60];
+area["admin_level"="8"][~"^name(:en)?$"~"^${city}$"]->.city;
+relation(area.city)["boundary"="administrative"];
+out tags;`,
+    );
+
+    if (!inside.ok) return show(`could not list its boundaries — ${inside.why}`);
+
+    const rows = (inside.body.elements ?? []).map((e) => ({
+      level: e.tags?.admin_level ?? "—",
+      ref: e.tags?.ref ?? e.tags?.["ref:ward"] ?? "—",
+      name: e.tags?.name ?? e.tags?.["name:en"] ?? "—",
+    }));
+
+    if (rows.length === 0) {
+      show(`the area exists but holds NO administrative boundaries at all,`);
+      show(`so its wards are simply not mapped in OpenStreetMap yet.`);
+      return;
+    }
+
+    const levels = [...new Set(rows.map((r) => r.level))].sort();
+    show(`${rows.length} administrative boundaries inside it, at admin_level ${levels.join(", ")}.`);
+    show(`A sample, so the right tags can be read off it:`);
+    for (const row of rows.slice(0, 12)) {
+      show(`  level=${row.level}  ref=${row.ref}  name=${row.name}`);
+    }
+    if (rows.length > 12) show(`  … and ${rows.length - 12} more.`);
+  } catch (error) {
+    show(`the probe itself failed — ${error.message}`);
+  }
+  console.log("");
+}
+
 async function centreOf(city, ward) {
   const tried = [];
 
@@ -125,11 +203,18 @@ async function centreOf(city, ward) {
           const element = (result.body.elements ?? []).find((e) => e.center);
           if (element) return { lat: element.center.lat, lng: element.center.lon };
 
+          /*
+           * THE SERVER ANSWERED, SO THIS IS THE QUERY. The connection half is proven at
+           * this point and guessing at the tagging from here would be another round trip
+           * through a person — so the script asks OpenStreetMap what IS there and prints
+           * it. The first version threw a sentence of advice instead, which is advice to
+           * somebody who cannot act on it: whoever runs this is not the person who knows
+           * how Nepal's wards are tagged.
+           */
+          await describeWhatIsThere(endpoint, city, ward);
           throw new Error(
-            `No admin_level=10 relation with ref=${ward} inside ${city}.\n` +
-              `  The server answered, so this is the QUERY rather than the connection:\n` +
-              `  check the ward exists in OpenStreetMap and that areas.json spells the\n` +
-              `  city as OSM does on name or name:en.`,
+            `No admin_level=10 relation with ref=${ward} inside ${city}. ` +
+              `What OpenStreetMap does hold is printed above.`,
           );
         }
 
@@ -146,23 +231,42 @@ async function centreOf(city, ward) {
   );
 }
 
-const wards = {};
-for (const area of AREAS) {
-  // One at a time, with a pause: Overpass asks for it and a parallel burst from one IP
-  // is how a volunteer service ends up rate-limiting this repository.
-  process.stdout.write(`  ${area.key} (${area.name}) … `);
-  const centre = await centreOf(area.city, area.wardNumber);
-  wards[area.key] = {
-    lat: Number(centre.lat.toFixed(5)),
-    lng: Number(centre.lng.toFixed(5)),
-  };
-  console.log(`${wards[area.key].lat}, ${wards[area.key].lng}`);
-  await sleep(1200);
+/**
+ * Every ward, one at a time.
+ *
+ * WRAPPED SO A FAILURE PRINTS A SENTENCE RATHER THAN A STACK. Node 24 on Windows follows a
+ * thrown top-level error with `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`,
+ * which looks like a second and worse problem and is not one. Whoever runs this is not
+ * reading Node internals, so the error is caught, printed, and the process exits 1.
+ */
+async function main() {
+  const wards = {};
+
+  for (const area of AREAS) {
+    // One at a time, with a pause: Overpass asks for it and a parallel burst from one IP
+    // is how a volunteer service ends up rate-limiting this repository.
+    process.stdout.write(`  ${area.key} (${area.name}) … `);
+    const centre = await centreOf(area.city, area.wardNumber);
+    wards[area.key] = {
+      lat: Number(centre.lat.toFixed(5)),
+      lng: Number(centre.lng.toFixed(5)),
+    };
+    console.log(`${wards[area.key].lat}, ${wards[area.key].lng}`);
+    await sleep(1200);
+  }
+
+  if (Object.keys(wards).length !== AREAS.length) {
+    throw new Error("Not every ward resolved — nothing written.");
+  }
+
+  return wards;
 }
 
-if (Object.keys(wards).length !== AREAS.length) {
-  throw new Error("Not every ward resolved — nothing written.");
-}
+const wards = await main().catch((error) => {
+  console.error(`\n${error.message}\n`);
+  console.error("Nothing was written — the existing file is untouched.\n");
+  process.exit(1);
+});
 
 writeFileSync(
   OUT,
