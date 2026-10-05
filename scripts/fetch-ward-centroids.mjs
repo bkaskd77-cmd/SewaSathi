@@ -141,32 +141,83 @@ async function overpass(data, label) {
 }
 
 /**
+ * The valley, as a bounding box.
+ *
+ * Every area this product serves is in it — `areas.json` is Kathmandu, Lalitpur and
+ * Bhaktapur and nothing else — and the box is what keeps the city lookup cheap: a regex
+ * over every administrative boundary on the planet is the kind of query Overpass answers
+ * with a timeout, which this script has already mistaken for an answer once. If the
+ * product ever serves a city outside the valley, this is the line that has to move, and it
+ * will fail loudly rather than quietly pick the wrong city.
+ */
+const VALLEY = "27.55,85.15,27.85,85.60";
+
+/**
  * The city's area id, looked up ONCE per city rather than rebuilt per ward.
  *
- * `area[...]` makes Overpass construct an area from scratch for every query that uses it,
- * and this script ran fifteen of them against three cities — fifteen area builds where
- * three would do. That is both slower for us and the kind of load a volunteer service
- * asks callers not to create, and it is the likeliest reason the queries were timing out.
- * An area id is the relation id plus 3600000000, which is Overpass's own convention.
+ * `area["name"=…]` makes Overpass construct an area from scratch every time it is used,
+ * and this script ran fifteen of them across three cities — fifteen area builds where
+ * three would do. An area id is the relation id plus 3600000000, which is Overpass's own
+ * convention.
  *
- * MATCHED ON `name` OR `name:en`, because Nepal's OSM data is substantially in Devanagari:
- * Kathmandu Metropolitan City may carry `name=काठमाडौं महानगरपालिका` with the English only
- * on `name:en`. Matching `name` alone finds nothing and reports it as a missing ward,
- * which is a confusing way to say "we looked in the wrong language".
+ * THE NAME IS A SUBSTRING, NOT AN EXACT MATCH, AND THAT WAS THE WHOLE BUG. OpenStreetMap
+ * does not hold a city called "Kathmandu": the relation carries the Nepali on `name` and
+ * **"Kathmandu Metropolitan City"** on `name:en`, so an anchored `^Kathmandu$` matched
+ * neither and the script reported the city as absent. Lalitpur and Bhaktapur carry
+ * "Metropolitan City" and "Municipality" the same way. Matching a substring on either tag,
+ * case-insensitively, is what a human reading the map would do.
+ *
+ * SEVERAL MATCHES IS A REFUSAL, NOT A FIRST-ONE-WINS. Relaxing an exact match is exactly
+ * how a script quietly starts measuring the wrong thing — "Kathmandu District" is a real
+ * administrative area at a different level, and a centroid taken from it would be wrong by
+ * kilometres with nothing on screen to say so. The constraint on `admin_level=8` already
+ * excludes the district; this is the backstop for whatever it does not.
  */
 async function cityAreaId(city) {
   const found = await overpass(
     `[out:json][timeout:90];
-relation["admin_level"="8"][~"^name(:en)?$"~"^${city}$",i];
+relation["admin_level"="8"][~"^name(:en)?$"~"${city}",i](${VALLEY});
 out ids tags;`,
     `the city of ${city}`,
   );
 
   if (found.length === 0) {
+    /* The server answered, so this is the name or the level. Widen once and print. */
+    const near = await overpass(
+      `[out:json][timeout:90];
+relation["boundary"="administrative"][~"^name(:en)?$"~"${city}",i](${VALLEY});
+out ids tags;`,
+      `anything named like ${city}`,
+    ).catch(() => []);
+
+    const lines = near
+      .slice(0, 12)
+      .map(
+        (r) =>
+          `      level=${r.tags?.admin_level ?? "—"}  name=${r.tags?.name ?? "—"}` +
+          `  name:en=${r.tags?.["name:en"] ?? "—"}`,
+      );
+
     throw new Error(
-      `No admin_level=8 relation is named "${city}" in OpenStreetMap.\n` +
-        `  The server answered, so this is the NAME rather than the connection:\n` +
-        `  areas.json is what needs changing, not the ward query.`,
+      `No admin_level=8 relation matching "${city}" in the Kathmandu valley.\n` +
+        (lines.length
+          ? `  What IS named like it:\n${lines.join("\n")}\n` +
+            `  Pick the municipality from that list and put its wording in areas.json.`
+          : `  And nothing at any level is named like it either, which points at the\n` +
+            `  bounding box rather than the name.`),
+    );
+  }
+
+  if (found.length > 1) {
+    const lines = found.map(
+      (r) =>
+        `      relation ${r.id}  level=${r.tags?.admin_level}  name=${r.tags?.name ?? "—"}` +
+        `  name:en=${r.tags?.["name:en"] ?? "—"}`,
+    );
+    throw new Error(
+      `"${city}" matches ${found.length} municipalities, so this script will not guess:\n` +
+        `${lines.join("\n")}\n` +
+        `  Make the name in areas.json specific enough to pick one.`,
     );
   }
 
