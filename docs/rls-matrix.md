@@ -34,6 +34,7 @@ default as a measurement.
 | `category_price_revisions` | 0 | no data | no data | no data | no data | no data | no data |
 | `commission_appeals` | 0 | no data | no data | no data | no data | no data | no data |
 | `content_document_versions` | 0 | no data | no data | no data | no data | no data | no data |
+| `content_document_working_copies` | 0 | no data | no data | no data | no data | no data | no data |
 | `content_documents` | 0 | no data | no data | no data | no data | no data | no data |
 | `content_string_revisions` | 0 | no data | no data | no data | no data | no data | no data |
 | `content_strings` | 0 | no data | no data | no data | no data | no data | no data |
