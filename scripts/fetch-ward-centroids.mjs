@@ -28,7 +28,25 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
-const OVERPASS = "https://overpass-api.de/api/interpreter";
+/**
+ * Two endpoints, tried in order.
+ *
+ * The main instance is a volunteer service and refuses requests for several reasons that
+ * all arrive as a bare status code. A mirror costs nothing to try and turns "this does not
+ * work" into "this instance did not want it".
+ */
+const ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+
+/**
+ * Overpass's usage policy asks callers to identify themselves, and some instances answer
+ * a request with no User-Agent with a refusal rather than a reason. Node sends none by
+ * default, which is the most likely cause of the 406 this script first produced.
+ */
+const AGENT = "SajiloKaam ward-centroid fetcher (one-off, https://github.com/bkaskd77-cmd/SewaSathi)";
+
 const AREAS = JSON.parse(readFileSync("lib/data/seed/areas.json", "utf8"));
 const OUT = "lib/data/seed/area-centroids.json";
 
@@ -37,36 +55,95 @@ const OUT = "lib/data/seed/area-centroids.json";
  * `admin_level=8`, tagged with `ref` for the ward number. Matching the municipality by
  * name and the ward by `ref` is what makes this reproducible — a name search for the
  * ward alone collides across the three cities, all of which have a ward 4.
+ *
+ * THE NAME IS MATCHED ON `name` OR `name:en`, because Nepal's OSM data is substantially
+ * in Devanagari: Kathmandu Metropolitan City may carry `name=काठमाडौं महानगरपालिका` with
+ * the English only on `name:en`. Matching `name` alone would find no area and report it as
+ * a missing ward, which is a confusing way to say "we looked in the wrong language".
  */
 function query(city, ward) {
   return `[out:json][timeout:60];
-area["name"="${city}"]["admin_level"="8"]->.city;
+area["admin_level"="8"][~"^name(:en)?$"~"^${city}$"]->.city;
 relation(area.city)["admin_level"="10"]["ref"="${ward}"];
 out center;`;
 }
 
-async function centreOf(city, ward) {
-  const response = await fetch(OVERPASS, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ data: query(city, ward) }),
+/**
+ * One request, reporting what the server actually said.
+ *
+ * THE BODY IS PRINTED ON A REFUSAL, which the first version did not do — it threw
+ * `Overpass answered 406` and nothing else, and a bare status code is not a reason.
+ * Overpass returns an explanation in the body of nearly every error it gives, so throwing
+ * the number away discarded the one thing that would have fixed this on the first run.
+ */
+async function ask(endpoint, city, ward, method) {
+  const data = query(city, ward);
+  const url = method === "GET" ? `${endpoint}?data=${encodeURIComponent(data)}` : endpoint;
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      "User-Agent": AGENT,
+      Accept: "application/json",
+      ...(method === "POST"
+        ? { "Content-Type": "application/x-www-form-urlencoded" }
+        : {}),
+    },
+    ...(method === "POST" ? { body: new URLSearchParams({ data }) } : {}),
   });
-  if (!response.ok) {
-    throw new Error(`Overpass answered ${response.status} for ${city} ward ${ward}`);
+
+  if (response.ok) return { ok: true, body: await response.json() };
+
+  const text = (await response.text().catch(() => "")).trim().slice(0, 300);
+  return {
+    ok: false,
+    why: `${method} ${new URL(endpoint).host} → ${response.status}${text ? `: ${text}` : ""}`,
+  };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Every endpoint and both methods, then give up with everything that was tried.
+ *
+ * A 429 or a 504 is the instance being busy rather than the request being wrong, so those
+ * wait and retry; everything else moves straight on to the next combination. The failure
+ * message lists every attempt, because "it did not work" without the attempts is what sent
+ * this back to a person once already.
+ */
+async function centreOf(city, ward) {
+  const tried = [];
+
+  for (const endpoint of ENDPOINTS) {
+    for (const method of ["POST", "GET"]) {
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const result = await ask(endpoint, city, ward, method);
+        if (result.ok) {
+          // `out center` puts the bounding-box centre on the element, which for a ward
+          // polygon is within a few hundred metres of its centroid — comfortably inside
+          // the "approximate, ward-level" precision this file claims.
+          const element = (result.body.elements ?? []).find((e) => e.center);
+          if (element) return { lat: element.center.lat, lng: element.center.lon };
+
+          throw new Error(
+            `No admin_level=10 relation with ref=${ward} inside ${city}.\n` +
+              `  The server answered, so this is the QUERY rather than the connection:\n` +
+              `  check the ward exists in OpenStreetMap and that areas.json spells the\n` +
+              `  city as OSM does on name or name:en.`,
+          );
+        }
+
+        tried.push(result.why);
+        const busy = /→ (429|504|503)/.test(result.why);
+        if (!busy) break;
+        await sleep(attempt * 4000);
+      }
+    }
   }
 
-  const body = await response.json();
-  // `out center` puts the bounding-box centre on the element, which for a ward polygon
-  // is within a few hundred metres of its centroid — comfortably inside the
-  // "approximate, ward-level" precision this file claims.
-  const element = (body.elements ?? []).find((e) => e.center);
-  if (!element) {
-    throw new Error(
-      `No admin_level=10 relation with ref=${ward} inside ${city}. ` +
-        `Check the ward exists and that areas.json spells the city as OSM does.`,
-    );
-  }
-  return { lat: element.center.lat, lng: element.center.lon };
+  throw new Error(
+    `Could not fetch ${city} ward ${ward}. Everything tried:\n    ${tried.join("\n    ")}`,
+  );
 }
 
 const wards = {};
@@ -80,7 +157,7 @@ for (const area of AREAS) {
     lng: Number(centre.lng.toFixed(5)),
   };
   console.log(`${wards[area.key].lat}, ${wards[area.key].lng}`);
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await sleep(1200);
 }
 
 if (Object.keys(wards).length !== AREAS.length) {
