@@ -1,3 +1,13 @@
+-- APPLIED VIA: the atomic path — one `DO $$ … END $$;` block through `apply_migration`,
+--   one statement to the transport and one implicit transaction, with the
+--   `supabase_migrations.schema_migrations` row inserted INSIDE the block so history
+--   records the migration only if its DDL committed.
+--   ONE DEVIATION, STATED RATHER THAN LEFT TO BE NOTICED: the `drop policy if exists` line
+--   below was omitted from what was sent. A statement whose FIRST keyword is `DROP` hangs
+--   that transport for 60 seconds and rolls back whole — measured, not theorised — and the
+--   policy was new, so `create policy` alone was correct. The file keeps both halves,
+--   because the db suite and a fresh project need the drop.
+--
 -- ADDS: public.content_document_working_copies.
 -- CHANGES: the slug check on content_documents and content_document_versions widens from
 --   four documents to eight; content_document_versions.effective_from gains a default.

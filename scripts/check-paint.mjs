@@ -53,6 +53,82 @@ const CHROME_CANDIDATES = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 ];
 
+/**
+ * Every interactive thing smaller than WCAG 2.2's 24x24 minimum.
+ *
+ * WHY IT LIVES HERE. This script already boots a real Chromium and walks the four front
+ * doors in both languages, and a tap target is only measurable in a browser — the size
+ * comes from the type scale, the line height and the padding together, which is exactly
+ * the kind of number nobody can read off a class name. Lighthouse reports it too, but
+ * Lighthouse is a periodic manual check and this runs on every push.
+ *
+ * FOUND BY MEASURING, AND IT CORRECTED A STANDING NOTE. The failures were recorded as
+ * "three target-size failures in the site header"; the header's own controls are 27px and
+ * 32px and were never short. It was **fourteen** footer links at 19px — a line of
+ * `text-body-sm` with no padding — plus the footer wordmark at 21px.
+ *
+ * `aria-hidden` AND `tabindex="-1"` TOGETHER ARE EXCLUDED, and only together. The booking
+ * form's file input is 1x1 by design: it is driven by a visible button and is hidden from
+ * the accessibility tree, so it is not a target anybody can aim at. Excluding on either
+ * attribute alone would wave through something genuinely unreachable by one route.
+ *
+ * AND THE SPEC'S INLINE EXCEPTION IS HONOURED, which the first version was not — it
+ * reported the "terms" and "privacy policy" links inside the sign-in sentence. WCAG 2.2
+ * exempts a target "in a sentence or whose size is otherwise constrained by the
+ * line-height of non-target text", because the alternative is padding a word until it
+ * breaks the line it sits in. Detected as the spec describes it rather than by a list of
+ * places to ignore: the element lays out inline AND its parent holds text of its own
+ * outside it. A checker that cries wolf gets skimmed and the one real entry goes with the
+ * noise — `check:keys` records the same lesson after three regex attempts.
+ */
+const READ_SMALL_TARGETS = `(() => {
+  const out = [];
+  for (const el of document.querySelectorAll("a, button, [role=radio], [role=checkbox], input, select, textarea")) {
+    if (el.getAttribute("aria-hidden") === "true" && el.getAttribute("tabindex") === "-1") continue;
+
+    /* The spec's inline exception: laid out inline, inside text that is not the target. */
+    const display = getComputedStyle(el).display;
+    if (display === "inline") {
+      const parent = el.parentElement;
+      const around = parent
+        ? Array.from(parent.childNodes)
+            .filter((n) => n !== el)
+            .map((n) => n.textContent || "")
+            .join("")
+            .trim()
+        : "";
+      if (around.length > 0) continue;
+    }
+
+    /*
+     * A control wrapped in its own label is as big as the label: clicking anywhere in it
+     * toggles the control, so the label is what a finger aims at. The filter bar's
+     * "verified only" checkbox is 16px inside a 40px label.
+     */
+    const label = el.closest("label");
+    if (label && label !== el) {
+      const lr = label.getBoundingClientRect();
+      if (lr.width >= 24 && lr.height >= 24) continue;
+    }
+
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+
+    /* ROUNDED BEFORE COMPARING, not after. A 24px box measures 23.98 on a fractional
+       device pixel ratio, so comparing the raw float while printing the rounded one
+       produced "has a 53x24 tap target — WCAG 2.2 asks for 24x24", which is a checker
+       arguing with itself. The number in the message is now the number it judged. */
+    const w = Math.round(r.width);
+    const h = Math.round(r.height);
+    if (w < 24 || h < 24) out.push({
+      label: (el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 32),
+      w,
+      h,
+    });
+  }
+  return out;
+})()`;
+
 async function freePort() {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -196,7 +272,20 @@ async function main() {
           failures.push(`${path} violated its own CSP — ${violation}`);
         }
 
-        results.push({ path, status, fcp, violations: violations.length });
+        const small = await page.evaluate(READ_SMALL_TARGETS).catch(() => []);
+        for (const target of small) {
+          failures.push(
+            `${path} has a ${target.w}x${target.h} tap target — "${target.label}". WCAG 2.2 asks for 24x24.`,
+          );
+        }
+
+        results.push({
+          path,
+          status,
+          fcp,
+          violations: violations.length,
+          small: small.length,
+        });
       } finally {
         await page.close();
       }
@@ -207,11 +296,12 @@ async function main() {
   }
 
   console.log("\nPaint check");
-  for (const { path, status, fcp, violations } of results) {
-    const state = fcp > 0 && !violations ? "ok  " : "FAIL";
+  for (const { path, status, fcp, violations, small } of results) {
+    const state = fcp > 0 && !violations && !small ? "ok  " : "FAIL";
     const value = fcp === null ? "no FCP" : `FCP ${Math.round(fcp)}ms`;
     const csp = violations ? `  ${violations} CSP violation(s)` : "";
-    console.log(`  ${state}  ${path.padEnd(24)} HTTP ${status}  ${value}${csp}`);
+    const tiny = small ? `  ${small} tap target(s) under 24px` : "";
+    console.log(`  ${state}  ${path.padEnd(24)} HTTP ${status}  ${value}${csp}${tiny}`);
   }
 
   if (failures.length > 0) {
@@ -221,7 +311,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("  Every page painted, and nothing was refused by the policy.\n");
+  console.log(
+    "  Every page painted, nothing was refused by the policy, and every tap target\n  clears 24x24.\n",
+  );
 }
 
 main().catch((error) => {

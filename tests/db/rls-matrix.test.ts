@@ -2,6 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { Client as PgClient } from "pg";
+
 import { startPostgres, type Harness } from "../support/postgres";
 import { ALLOWED } from "../support/write-allowlist";
 
@@ -82,7 +84,7 @@ const PUBLIC_TO_ANON = new Set([
 ]);
 
 let pg: Harness;
-const clients = new Map<RoleKey, import("pg").Client | null>();
+const clients = new Map<RoleKey, PgClient | null>();
 
 type Cell = "all" | "some" | "none" | "no data";
 type Row = { table: string; total: number; reads: Record<RoleKey, Cell> };
@@ -211,7 +213,10 @@ beforeAll(async () => {
   );
 
   for (const role of ROLES) {
-    clients.set(role.key, role.id ? await pg.asUser(role.id) : await pg.asAnon());
+    clients.set(
+      role.key,
+      role.id ? await pg.asUser(role.id) : await pg.asAnon(),
+    );
   }
 
   // ---- the read half, executed -------------------------------------------
@@ -244,7 +249,13 @@ beforeAll(async () => {
         seen = 0;
       }
       reads[role.key] =
-        total === 0 ? "no data" : seen === 0 ? "none" : seen === total ? "all" : "some";
+        total === 0
+          ? "no data"
+          : seen === 0
+            ? "none"
+            : seen === total
+              ? "all"
+              : "some";
     }
     rows.push({ table: relname, total, reads });
   }
@@ -298,7 +309,9 @@ describe("what each role can read", () => {
      */
     const shared = rows
       .filter((r) => r.total > 1 && !PUBLIC_TO_ANON.has(r.table))
-      .filter((r) => r.reads.customer === "all" && r.reads.otherCustomer === "all")
+      .filter(
+        (r) => r.reads.customer === "all" && r.reads.otherCustomer === "all",
+      )
       .map((r) => r.table);
     expect(shared).toEqual([]);
   });
@@ -306,7 +319,9 @@ describe("what each role can read", () => {
   it("never lets one professional see another's rows in full", () => {
     const shared = rows
       .filter((r) => r.total > 1 && !PUBLIC_TO_ANON.has(r.table))
-      .filter((r) => r.reads.provider === "all" && r.reads.otherProvider === "all")
+      .filter(
+        (r) => r.reads.provider === "all" && r.reads.otherProvider === "all",
+      )
       .map((r) => r.table);
     expect(shared).toEqual([]);
   });

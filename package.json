@@ -7,7 +7,7 @@
     "build": "node scripts/check-migrations.mjs && next build --webpack && node scripts/check-secrets.mjs && node scripts/check-contacts.mjs",
     "build:next": "next build",
     "start": "next start",
-    "lint": "eslint app components lib i18n types middleware.ts --ext .ts,.tsx",
+    "lint": "eslint app components lib i18n types scripts tests middleware.ts tailwind.config.ts --ext .ts,.tsx,.mjs",
     "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
@@ -79,7 +79,7 @@
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

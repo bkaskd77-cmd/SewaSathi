@@ -111,7 +111,7 @@ export default async function ProviderProfilePage(props: {
       <nav aria-label={t("breadcrumb")} className="animate-rise">
         <ol className="flex flex-wrap items-center gap-1 text-caption text-muted-foreground">
           <li>
-            <Link href="/services" className="hover:text-foreground">
+            <Link href="/services" className="inline-flex min-h-6 min-w-6 items-center justify-center hover:text-foreground">
               {t("eyebrow")}
             </Link>
           </li>

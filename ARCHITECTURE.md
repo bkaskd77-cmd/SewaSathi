@@ -1535,6 +1535,27 @@ from the seed, the table was unreachable, so an edit would write somewhere nothi
 is reading from and appear to do nothing. The screen says that instead — the
 `/services` rule, one surface across.
 
+### Every migration says how it was applied
+
+The MCP transport has one measured quirk — a statement whose **first keyword is `DROP`**
+hangs for 60 seconds and rolls back whole, and multi-statement DDL hangs too — so the
+atomic path is a single `DO $$ … END $$;` block: one statement to the transport, one
+implicit transaction, with the `schema_migrations` insert **inside** it so history records
+the migration only if its DDL committed.
+
+**Every migration now states which path it used in its header, and names any deviation.**
+Not because the rule is hard to remember, but because a migration applied some other way
+is invisible afterwards: the file looks identical whether it went through atomically, in
+pieces, or by hand in the SQL editor, and the difference only surfaces when a half-applied
+schema meets a deploy. `20261004000003` and `20261004000004` both used the atomic path;
+`20261004000004` omitted its one `drop policy if exists` line, which is written down in the
+file rather than left to be inferred from a silence.
+
+**A migration whose POINT is a drop cannot use it at all** — `20261002000006` is the case,
+and the answer is to write the file, leave it unapplied, and put the statement in the
+handover saying **where** to run it. "One statement, by hand" was once pasted into
+PowerShell.
+
 ### The documents, edited and published
 
 `/admin/content/documents` edits all eight long-form documents — the terms, privacy and

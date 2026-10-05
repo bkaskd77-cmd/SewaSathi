@@ -45,8 +45,20 @@ const COLUMNS = [
   },
 ] as const;
 
+/*
+ * `inline-flex min-h-6` IS THE TAP TARGET, not decoration.
+ *
+ * These links rendered 19px tall — a line of `text-body-sm` with no padding — and WCAG
+ * 2.2's target-size minimum is 24x24. They were measured rather than assumed, and the
+ * finding corrected a note that had blamed the site header: the header's own controls are
+ * 27px and 32px and were never the problem.
+ *
+ * MINIMUM HEIGHT RATHER THAN PADDING, so the footer's own vertical rhythm is untouched —
+ * the links grow into the gap that was already between them instead of pushing it wider,
+ * which is why this costs nothing in layout.
+ */
 const linkClass =
-  "rounded-sm text-body-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  "inline-flex min-h-6 items-center rounded-sm text-body-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 /** The three highest-intent categories, named from the catalogue not here. */
 const FOOTER_SERVICE_SLUGS = ["plumbing", "electrical", "home-cleaning"];

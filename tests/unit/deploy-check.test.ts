@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -128,7 +129,11 @@ describe("a guarded route, asked by nobody", () => {
 
   it("refuses a redirect with no Location at all", () => {
     for (const location of [null, undefined, ""]) {
-      const verdict = judgeGuarded({ route: "/account", status: 307, location });
+      const verdict = judgeGuarded({
+        route: "/account",
+        status: 307,
+        location,
+      });
       expect(verdict.ok).toBe(false);
       expect(verdict.failure).toMatch(/unknown/i);
     }
@@ -160,9 +165,9 @@ describe("a guarded route, asked by nobody", () => {
 
 describe("where a redirect actually points", () => {
   it("reads an absolute Location, which is what NextResponse writes", () => {
-    expect(redirectPath("https://sewasathi.vercel.app/ne/login?next=%2Fne")).toBe(
-      "/ne/login",
-    );
+    expect(
+      redirectPath("https://sewasathi.vercel.app/ne/login?next=%2Fne"),
+    ).toBe("/ne/login");
   });
 
   it("reads a relative one too, because a proxy may rewrite it", () => {
@@ -199,17 +204,19 @@ describe("open and removed routes", () => {
 
 describe("nothing ships unchecked", () => {
   it("turns a page file into the route it serves, groups dropped", () => {
-    expect(routeForPageFile("app/[locale]/(admin)/admin/signals/page.tsx")).toBe(
-      "/admin/signals",
-    );
-    expect(routeForPageFile("app/[locale]/(app)/account/security/page.tsx")).toBe(
-      "/account/security",
-    );
+    expect(
+      routeForPageFile("app/[locale]/(admin)/admin/signals/page.tsx"),
+    ).toBe("/admin/signals");
+    expect(
+      routeForPageFile("app/[locale]/(app)/account/security/page.tsx"),
+    ).toBe("/account/security");
     expect(routeForPageFile("app/[locale]/page.tsx")).toBe("/");
   });
 
   it("does not pretend a dynamic route can be walked", () => {
-    expect(routeForPageFile("app/[locale]/(app)/bookings/[id]/page.tsx")).toBeNull();
+    expect(
+      routeForPageFile("app/[locale]/(app)/bookings/[id]/page.tsx"),
+    ).toBeNull();
     expect(routeForPageFile("app/[locale]/[...rest]/page.tsx")).toBeNull();
   });
 
@@ -288,9 +295,10 @@ describe("the checker and the middleware agree on the door", () => {
       expect(isProtectedRoute(route), `${route} is not protected`).toBe(true);
       // And the Nepali form is the same protected route, which is the whole
       // reason `stripLocale` runs inside the guard.
-      expect(isProtectedRoute(`/ne${route}`), `/ne${route} is not protected`).toBe(
-        true,
-      );
+      expect(
+        isProtectedRoute(`/ne${route}`),
+        `/ne${route} is not protected`,
+      ).toBe(true);
     }
   });
 
@@ -306,9 +314,6 @@ describe("the checker and the middleware agree on the door", () => {
 
 /** A tiny walker, so the test reads the same tree the script does. */
 function globPageFiles(dir: string, out: string[] = []): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) globPageFiles(full, out);
@@ -374,7 +379,9 @@ describe("the routes a schedule points at", () => {
   it("fails a cron firing into a 404", () => {
     const verdict = judgeCron({ path: "/api/payments/reconcile", status: 404 });
     expect(verdict.ok).toBe(false);
-    expect(verdict.failure).toMatch(/fires into nothing|missing page|did not deploy/i);
+    expect(verdict.failure).toMatch(
+      /fires into nothing|missing page|did not deploy/i,
+    );
   });
 
   it("fails a money sweep that runs for anybody", () => {

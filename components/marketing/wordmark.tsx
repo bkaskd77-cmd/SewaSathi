@@ -39,7 +39,10 @@ export function Wordmark({
   return (
     <Link
       href="/"
-      className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+      /* `inline-flex min-h-6` is the tap target. The wordmark renders 21px tall in the
+         footer, under WCAG 2.2's 24x24 minimum — the header's copy sits in a taller row and
+         was never short, which is why this is on the link rather than on the text. */
+      className="inline-flex min-h-6 items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
       aria-label={t("wordmarkHome", { name: site.name })}
     >
       {inner}

@@ -118,6 +118,26 @@ export const RETENTION: Record<string, RetentionRule> = {
   },
 
   /*
+   * The photograph a professional takes on arriving at an address nobody answered.
+   *
+   * THE SAME WINDOW AS A BOOKING PHOTO, AND DELIBERATELY NOT A LONGER ONE. It is a
+   * photograph of the outside of somebody's home, taken without them there, and the only
+   * thing it is for is a no-show claim — which is decided within days, by a person, on
+   * `/admin/claims`. Keeping it longer would be keeping a picture of a stranger's door
+   * against a case that has already been settled.
+   *
+   * IT IS NOT LONGER THAN THE BOOKING PHOTO EITHER, which is the symmetry worth stating:
+   * one is the inside of a home and one is the outside, both are of a place somebody
+   * lives, and a rule that treated them differently would need a reason. There isn't one.
+   */
+  arrivalPhotos: {
+    from: "the booking completing or being cancelled",
+    days: 60,
+    action: "delete",
+    why: "Evidence for a no-show claim, which a person decides within days.",
+  },
+
+  /*
    * The free text somebody typed about their problem. It is often a sentence
    * about their home and occasionally about their health — "the geyser in the
    * baby's room". The CATEGORY, urgency and latency stay for ever, because
