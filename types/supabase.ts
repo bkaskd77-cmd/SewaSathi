@@ -696,6 +696,21 @@ export type Database = {
           photo_path: string | null;
           /** Camera clock minus our receipt time, signed. Null: not recorded. */
           exif_skew_minutes: number | null;
+          /* Judgements with their evidence. Null is "not checked", never "clean". */
+          duplicate_verdict:
+            | "unseen"
+            | "retry"
+            | "flag"
+            | "reject"
+            | "not-compared"
+            | null;
+          duplicate_distance: number | null;
+          freshness_verdict:
+            | "fresh"
+            | "stale"
+            | "no-capture-time"
+            | "not-checked"
+            | null;
           created_at: string;
         };
         Insert: {
@@ -710,6 +725,20 @@ export type Database = {
           contact_attempts?: number;
           photo_path?: string | null;
           exif_skew_minutes?: number | null;
+          duplicate_verdict?:
+            | "unseen"
+            | "retry"
+            | "flag"
+            | "reject"
+            | "not-compared"
+            | null;
+          duplicate_distance?: number | null;
+          freshness_verdict?:
+            | "fresh"
+            | "stale"
+            | "no-capture-time"
+            | "not-checked"
+            | null;
           created_at?: string;
         };
         Update: Partial<
@@ -812,6 +841,27 @@ export type Database = {
         Update: Partial<
           Database["public"]["Tables"]["content_document_versions"]["Insert"]
         >;
+        Relationships: [];
+      };
+
+      photo_hashes: {
+        Row: {
+          id: string;
+          hash: string;
+          kind: "arrival" | "booking" | "claim";
+          booking_id: string | null;
+          account_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          hash: string;
+          kind: "arrival" | "booking" | "claim";
+          booking_id?: string | null;
+          account_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["photo_hashes"]["Insert"]>;
         Relationships: [];
       };
 

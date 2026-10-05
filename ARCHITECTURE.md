@@ -1567,6 +1567,52 @@ request, not the account: a new question starts fresh, because a photo that did 
 blocked drain says nothing about the next tap. A photo nobody judged is kept — silence is
 not a finding.
 
+### The fraud gates on an arrival photograph
+
+Two checks run on the photograph a professional takes at a door nobody answered. Both are
+**judgements stored with their evidence**, both route a claim to a person, and neither
+refuses an arrival — somebody is standing in a street.
+
+**The hash is computed on the server, and that decision shaped everything else.** The
+browser already has the pixels, so a hash from there would be free. It would also be
+worthless: a hash the client computes is a hash the client chooses. That is why
+`jpeg-js` is in the dependency list — the first dependency taken here for a job this
+repository could have written. The EXIF reader and the publish diff were written by hand
+because they are forty lines each; a baseline JPEG decoder is Huffman tables, an inverse
+DCT and chroma upsampling, and writing one badly fails in the direction that matters, since
+a wrong hash is a wrongly refused person.
+
+**Three bands, and only one refuses.** Distance ≤ 4 on a 64-bit dHash is a hard reject,
+5–10 is an admin flag, beyond that is unseen. **Measured, not assumed**: a re-compressed
+copy stays inside 4, and a *resized* copy measures 5 — so a scaled re-upload is flagged
+rather than refused. That is the cost of drawing the reject conservatively and it is the
+right side of the trade, because a missed duplicate costs a re-used photograph and a false
+one refuses an honest person with no appeal in the flow.
+
+**The same booking is a retry, checked before the bands.** The arrival panel queues a
+failed call and drains it later, so the same photograph arriving twice is ordinary — and
+refusing it would turn somebody away for re-sending what they already sent, on a bad
+signal.
+
+**The hash outlives the photograph.** The picture is deleted after 60 days; the hash keeps
+for five years, because a photograph reused a year later is exactly the case worth
+catching and the picture is not needed to catch it.
+
+**EXIF is a local wall clock, and comparing it naively was a live bug.** `parseExifDate`
+reads it as UTC deliberately, so a phone in Kathmandu reads **345 minutes ahead** of the
+instant it took the picture — every time. Any useful freshness window would have called
+every honest Nepali photograph stale. `judgeFreshness` moves the server instant into the
+same frame before subtracting; `exif_skew_minutes` was stored uncorrected until now, and
+nothing had seen it because no real arrival photograph exists yet. The claims screen used
+to re-derive "the clocks match" from a bare `<= 2` written inline beside the picture — a
+second place deciding what the check decides, and one that could not see the correction. It
+reads the stored verdict now.
+
+**Null is "not checked", never "clean"**, on every one of these columns — the rule matters
+more here than anywhere, because these verdicts will gate a payment. A failed read of the
+hash table returns `not-compared` rather than `unseen`: if the table did not answer, we
+have not established that a photograph is new.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open

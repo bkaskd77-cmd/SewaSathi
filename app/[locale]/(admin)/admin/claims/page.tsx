@@ -12,7 +12,7 @@ import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
 import { openNoShowClaims, openTripDebtDisputes } from "@/lib/data/review";
-import { formatNpr } from "@/lib/utils";
+import { cn, formatNpr } from "@/lib/utils";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -169,6 +169,9 @@ export default async function ClaimsQueuePage() {
                   path={claim.photoPath}
                   adminId={gate.profile.id}
                   skewMinutes={claim.photoSkewMinutes}
+                  freshness={claim.photoFreshness}
+                  duplicate={claim.photoDuplicate}
+                  duplicateDistance={claim.photoDuplicateDistance}
                 />
               ) : null}
 
@@ -336,11 +339,17 @@ async function ClaimPhoto({
   path,
   adminId,
   skewMinutes,
+  freshness,
+  duplicate,
+  duplicateDistance,
 }: {
   bookingId: string;
   path: string;
   adminId: string;
   skewMinutes: number | null;
+  freshness: "fresh" | "stale" | "no-capture-time" | "not-checked" | null;
+  duplicate: "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
+  duplicateDistance: number | null;
 }) {
   const t = await getTranslations("admin.claims");
   const { signArrivalPhotoForAdmin } =
@@ -363,15 +372,50 @@ async function ClaimPhoto({
           className="max-h-64 w-auto rounded-md border border-border"
         />
       )}
+      {/*
+        THE STORED VERDICT, NOT A SECOND OPINION. This used to decide "the clocks match"
+        from a bare `<= 2` minutes written inline — a second place deciding what the
+        freshness check decides, and one that could not see the timezone correction the
+        check applies. EXIF holds a local wall clock, so an uncorrected comparison reads
+        345 minutes out for every Nepali phone.
+      */}
       <p className="mt-1 text-caption text-muted-foreground">
-        {skewMinutes === null
-          ? t("skewUnknown")
-          : Math.abs(skewMinutes) <= 2
-            ? t("skewMatches")
-            : skewMinutes < 0
-              ? t("skewEarlier", { minutes: String(Math.abs(skewMinutes)) })
-              : t("skewLater", { minutes: String(skewMinutes) })}
+        {freshness === null || freshness === "not-checked"
+          ? t("freshnessUnchecked")
+          : freshness === "no-capture-time"
+            ? t("freshnessNoCamera")
+            : freshness === "fresh"
+              ? t("freshnessFresh")
+              : t("freshnessStale", {
+                  minutes: String(Math.abs(skewMinutes ?? 0)),
+                })}
       </p>
+
+      {/*
+        AND WHETHER WE HAVE SEEN THIS PHOTOGRAPH BEFORE. The distance is printed beside the
+        verdict so a reviewer can weigh it rather than obey it — a bare verdict is an
+        assertion nobody can check, and a bare number invites somebody to invent a
+        threshold on the screen. `not-compared` is said out loud: it means nothing was
+        established, which is not the same as nothing being found.
+      */}
+      {duplicate && duplicate !== "unseen" ? (
+        <p
+          className={cn(
+            "mt-1 text-caption",
+            duplicate === "reject" || duplicate === "flag"
+              ? "text-warning-ink"
+              : "text-muted-foreground",
+          )}
+        >
+          {duplicate === "not-compared"
+            ? t("duplicateNotCompared")
+            : duplicate === "retry"
+              ? t("duplicateRetry")
+              : t(duplicate === "reject" ? "duplicateReject" : "duplicateFlag", {
+                  distance: String(duplicateDistance ?? 0),
+                })}
+        </p>
+      ) : null}
     </div>
   );
 }

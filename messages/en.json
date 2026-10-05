@@ -1900,7 +1900,15 @@
       "skewEarlier": "The camera's clock says {minutes} minutes before we received it.",
       "skewLater": "The camera's clock says {minutes} minutes after we received it, so that phone is running ahead.",
       "locatedNearAddress": "The phone reported a position about a kilometre or less from the address pin — consistent, not proof. We round arrival positions to roughly a kilometre on purpose.",
-      "locatedAwayFromAddress": "The phone reported a position about {km} km from the address pin. Worth asking about; arrival positions are rounded to roughly a kilometre, so small gaps mean little."
+      "locatedAwayFromAddress": "The phone reported a position about {km} km from the address pin. Worth asking about; arrival positions are rounded to roughly a kilometre, so small gaps mean little.",
+      "freshnessUnchecked": "The camera clock was not checked.",
+      "freshnessNoCamera": "No camera data in this file — a screenshot, a download, or stripped by a messaging app.",
+      "freshnessFresh": "The camera clock puts this at the arrival.",
+      "freshnessStale": "The camera clock puts this {minutes} minutes from the arrival.",
+      "duplicateNotCompared": "This photo was not compared against the ones we hold.",
+      "duplicateRetry": "The same photo was sent twice on this booking — a retry, not a reuse.",
+      "duplicateFlag": "Close to a photo used on another booking ({distance} of 64 bits differ).",
+      "duplicateReject": "Matches a photo used on another booking ({distance} of 64 bits differ)."
     },
     "openFailed": "Could not open that. Try once more.",
     "payoutIsSomebodyElses": "Not the number they sign in with. Usually a family wallet — worth asking about.",

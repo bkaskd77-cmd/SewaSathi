@@ -14,6 +14,7 @@ import {
   type NoShowVerdict,
 } from "@/lib/abuse";
 import { recordSecurityEvent } from "@/lib/audit";
+import type { ArrivalPhoto } from "@/lib/data/arrival-photos";
 import { describeError } from "@/lib/data/source";
 import { notify } from "@/lib/notify";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -290,7 +291,7 @@ export async function recordArrival(input: {
    * without it. Somebody is standing in a street; a claim with no photograph is an
    * ordinary claim and was the only kind until this phase.
    */
-  let photo: { path: string; skewMinutes: number | null } | null = null;
+  let photo: ArrivalPhoto | null = null;
   if (input.photoBase64) {
     const { storeArrivalPhoto } = await import("@/lib/data/arrival-photos");
     photo = await storeArrivalPhoto({
@@ -313,7 +314,22 @@ export async function recordArrival(input: {
        * photograph must not blank the one the first attempt stored — the arrival panel
        * queues a failed call and drains it later, so a second pass is ordinary.
        */
-      ...(photo ? { photo_path: photo.path, exif_skew_minutes: photo.skewMinutes } : {}),
+      /*
+       * ONLY WRITTEN WHEN THERE IS SOMETHING TO WRITE, and the verdicts travel with the
+       * path for the same reason: a retry that arrives without a photograph must not blank
+       * what the first attempt established. A null verdict means "not checked" and must
+       * never be written over a real one.
+       */
+      ...(photo
+        ? {
+            photo_path: photo.path,
+            exif_skew_minutes: photo.skewMinutes,
+            duplicate_verdict: photo.duplicate.kind,
+            duplicate_distance:
+              "distance" in photo.duplicate ? photo.duplicate.distance : null,
+            freshness_verdict: photo.freshness,
+          }
+        : {}),
     },
     { onConflict: "booking_id" },
   );

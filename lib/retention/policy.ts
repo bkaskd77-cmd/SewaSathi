@@ -138,6 +138,25 @@ export const RETENTION: Record<string, RetentionRule> = {
   },
 
   /*
+   * THE HASH OUTLIVES THE PHOTOGRAPH, AND THAT IS THE POINT RATHER THAN AN OVERSIGHT.
+   * `photo_hashes` holds sixteen hex characters — enough to say "this is the same
+   * photograph", not enough to reconstruct anything — and the case worth catching is
+   * precisely a picture reused a year after the original was deleted. Deleting the hash
+   * with the picture would make reuse undetectable exactly when it becomes most likely.
+   *
+   * It is listed here rather than left out, because a store with no retention line is one
+   * nobody decided about. Five years is a bound rather than a promise: long enough that
+   * reuse is caught, short enough that this is not a permanent record of every photograph
+   * anybody ever sent us.
+   */
+  photoHashes: {
+    from: "the photograph being received",
+    days: 1825,
+    action: "delete",
+    why: "A hash, not a picture. It outlives the photograph so a reuse stays catchable.",
+  },
+
+  /*
    * The free text somebody typed about their problem. It is often a sentence
    * about their home and occasionally about their health — "the geyser in the
    * baby's room". The CATEGORY, urgency and latency stay for ever, because

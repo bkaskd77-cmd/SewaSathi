@@ -741,6 +741,19 @@ export type OpenClaim = {
    * than implying the clocks agreed — rule 6. Most photographs carry no EXIF at all.
    */
   photoSkewMinutes: number | null;
+  /**
+   * What the two photo checks concluded, as stored judgements rather than re-derived here.
+   *
+   * READ, NEVER RECOMPUTED. The screen used to decide "the clocks match" from a bare `<= 2`
+   * minutes written inline beside the picture — a second place deciding what the freshness
+   * check decides, and one that could not see the timezone correction the check applies.
+   * Null is "not checked", never "clean": every arrival recorded before these columns has
+   * none, and a photograph whose bytes would not decode has no hash to compare.
+   */
+  photoFreshness: "fresh" | "stale" | "no-capture-time" | "not-checked" | null;
+  photoDuplicate: "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
+  /** How many of the 64 hash bits differed from the nearest photograph we hold. */
+  photoDuplicateDistance: number | null;
   hasLocation: boolean;
   /**
    * How far the phone's reading was from the address's own pin, in km. Null when
@@ -838,7 +851,7 @@ export async function openNoShowClaims(input?: {
       db
         .from("booking_arrivals")
         .select(
-          "booking_id, waited_minutes, contact_attempts, coarse_lat, coarse_lng, photo_path, exif_skew_minutes",
+          "booking_id, waited_minutes, contact_attempts, coarse_lat, coarse_lng, photo_path, exif_skew_minutes, duplicate_verdict, duplicate_distance, freshness_verdict",
         )
         .in("booking_id", bookingIds),
       db
@@ -953,6 +966,11 @@ export async function openNoShowClaims(input?: {
       },
       photoPath: (arrival?.photo_path as string | null) ?? null,
       photoSkewMinutes: (arrival?.exif_skew_minutes as number | null) ?? null,
+      photoFreshness:
+        (arrival?.freshness_verdict as OpenClaim["photoFreshness"]) ?? null,
+      photoDuplicate:
+        (arrival?.duplicate_verdict as OpenClaim["photoDuplicate"]) ?? null,
+      photoDuplicateDistance: (arrival?.duplicate_distance as number | null) ?? null,
       hasLocation: arrival?.coarse_lat != null,
       locationGapKm: gapKm(
         arrival?.coarse_lat == null || arrival?.coarse_lng == null
