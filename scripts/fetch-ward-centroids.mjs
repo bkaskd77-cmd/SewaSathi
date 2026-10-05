@@ -160,7 +160,14 @@ const VALLEY = "27.55,85.15,27.85,85.60";
  * three would do. An area id is the relation id plus 3600000000, which is Overpass's own
  * convention.
  *
- * THE NAME IS A SUBSTRING, NOT AN EXACT MATCH, AND THAT WAS THE WHOLE BUG. OpenStreetMap
+ * NEPAL PUTS MUNICIPALITIES AT `admin_level=7`, WHICH IS NOT WHAT THIS ASSUMED. Read off
+ * the live map: level 6 is `काठमाडौँ जिल्ला` (Kathmandu **District**), level 7 is
+ * `काठमाडौँ महानगरपालिका` / "Kathmandu Metropolitan City", and the wards are level 9. The
+ * `7|8` here is deliberate rather than just 7 — Nepal's rural municipalities are mapped at
+ * 8 in places, and admitting both costs nothing while the district at 6 stays excluded,
+ * which is the one that would be wrong by kilometres.
+ *
+ * THE NAME IS A SUBSTRING, NOT AN EXACT MATCH, AND THAT WAS THE OTHER HALF. OpenStreetMap
  * does not hold a city called "Kathmandu": the relation carries the Nepali on `name` and
  * **"Kathmandu Metropolitan City"** on `name:en`, so an anchored `^Kathmandu$` matched
  * neither and the script reported the city as absent. Lalitpur and Bhaktapur carry
@@ -176,7 +183,7 @@ const VALLEY = "27.55,85.15,27.85,85.60";
 async function cityAreaId(city) {
   const found = await overpass(
     `[out:json][timeout:90];
-relation["admin_level"="8"][~"^name(:en)?$"~"${city}",i](${VALLEY});
+relation["admin_level"~"^(7|8)$"][~"^name(:en)?$"~"${city}",i](${VALLEY});
 out ids tags;`,
     `the city of ${city}`,
   );
@@ -199,7 +206,7 @@ out ids tags;`,
       );
 
     throw new Error(
-      `No admin_level=8 relation matching "${city}" in the Kathmandu valley.\n` +
+      `No municipality relation matching "${city}" in the Kathmandu valley.\n` +
         (lines.length
           ? `  What IS named like it:\n${lines.join("\n")}\n` +
             `  Pick the municipality from that list and put its wording in areas.json.`
@@ -229,98 +236,99 @@ out ids tags;`,
   return 3600000000 + city0.id;
 }
 
-/** Every administrative boundary inside a city, printed so a miss explains itself. */
-async function describeWards(areaId, city) {
-  console.log("");
-  console.log(`      What OpenStreetMap holds inside ${city}:`);
-  try {
-    const rows = await overpass(
-      `[out:json][timeout:90];
-relation(area:${areaId})["boundary"="administrative"];
-out tags;`,
-      `the boundaries inside ${city}`,
-    );
-
-    if (rows.length === 0) {
-      console.log(
-        `      none at all — its wards are not mapped in OpenStreetMap yet.`,
-      );
-      return;
-    }
-
-    const levels = [
-      ...new Set(rows.map((r) => r.tags?.admin_level ?? "—")),
-    ].sort();
-    console.log(
-      `      ${rows.length} boundaries, at admin_level ${levels.join(", ")}:`,
-    );
-    for (const row of rows.slice(0, 12)) {
-      console.log(
-        `        level=${row.tags?.admin_level ?? "—"}` +
-          `  ref=${row.tags?.ref ?? row.tags?.["ref:ward"] ?? "—"}` +
-          `  name=${row.tags?.name ?? row.tags?.["name:en"] ?? "—"}`,
-      );
-    }
-    if (rows.length > 12)
-      console.log(`        … and ${rows.length - 12} more.`);
-  } catch (error) {
-    console.log(`      could not list them — ${error.message}`);
-  }
-  console.log("");
-}
-
 /**
- * Nepal's municipal wards are `admin_level=10` relations tagged with `ref` for the ward
- * number. Matching inside the city's own area is what makes this reproducible: all three
- * cities have a ward 4.
+ * Every ward of a city, in ONE query, matched locally afterwards.
+ *
+ * FIFTEEN QUERIES BECOME THREE. The first version asked Overpass for each ward separately,
+ * which is fifteen round trips against a volunteer service for data that comes back
+ * whole — and asking for all of a city's wards at once is both lighter on them and what
+ * makes the matching below possible at all.
+ *
+ * MATCHED ON `ref` OR ON THE NAME'S TRAILING NUMBER, because this map uses the second.
+ * Kathmandu's wards are `admin_level=9` relations named `Kathmandu-17`, `Kathmandu-18` and
+ * so on, with no `name:en` — read off the live map rather than assumed, after two rounds of
+ * assuming. `ref` is tried first because it is the tag that means the ward number, and the
+ * name is the fallback for a map that does not set it.
+ *
+ * LEVELS 9 AND 10 BOTH, for the same reason the city admits 7 and 8: the convention varies
+ * across Nepal's municipalities and admitting both costs nothing here, where the city's own
+ * area has already excluded everything outside it.
  */
-async function centreOf(areaId, city, ward) {
+async function wardsOf(areaId, city) {
   const found = await overpass(
     `[out:json][timeout:90];
-relation(area:${areaId})["admin_level"="10"]["ref"="${ward}"];
-out center;`,
-    `${city} ward ${ward}`,
+relation(area:${areaId})["admin_level"~"^(9|10)$"];
+out center tags;`,
+    `the wards of ${city}`,
   );
 
-  // `out center` puts the bounding-box centre on the element, which for a ward polygon is
-  // within a few hundred metres of its centroid — comfortably inside the "approximate,
-  // ward-level" precision this file claims.
-  const element = found.find((e) => e.center);
-  if (element) return { lat: element.center.lat, lng: element.center.lon };
+  const byNumber = new Map();
+  for (const element of found) {
+    if (!element.center) continue;
+    const name = element.tags?.name ?? element.tags?.["name:en"] ?? "";
+    /* `ref` is the tag that means the ward number; a trailing number on the name is how
+       this map actually carries it (`Kathmandu-17`). Either is accepted, ref first. */
+    const number = element.tags?.ref ?? name.match(/(\d+)\s*$/)?.[1] ?? null;
+    if (number !== null) byNumber.set(String(Number(number)), element);
+  }
 
-  await describeWards(areaId, city);
-  throw new Error(
-    `No admin_level=10 relation with ref=${ward} inside ${city}. ` +
-      `What OpenStreetMap does hold is printed above.`,
+  console.log(
+    `    ${found.length} boundaries, ${byNumber.size} with a ward number`,
   );
+  return byNumber;
+}
+
+/** What a city holds, printed when a ward is not in it, so a miss explains itself. */
+function describeWards(wards, city, ward) {
+  const numbers = [...wards.keys()].map(Number).sort((a, b) => a - b);
+  console.log("");
+  console.log(
+    `      ${city} ward ${ward} is not among the ${numbers.length} found.`,
+  );
+  console.log(`      Ward numbers present: ${numbers.join(", ") || "none"}`);
+  const sample = [...wards.values()].slice(0, 5);
+  for (const element of sample) {
+    console.log(
+      `        level=${element.tags?.admin_level ?? "—"}` +
+        `  ref=${element.tags?.ref ?? "—"}  name=${element.tags?.name ?? "—"}`,
+    );
+  }
+  console.log("");
 }
 
 async function main() {
   const wards = {};
-  const areaIds = new Map();
+  const byCity = new Map();
 
-  console.log("Resolving the cities:");
+  console.log("Resolving the cities and their wards:");
   for (const city of [...new Set(AREAS.map((a) => a.city))]) {
-    areaIds.set(city, await cityAreaId(city));
+    const areaId = await cityAreaId(city);
+    await sleep(1200);
+    byCity.set(city, await wardsOf(areaId, city));
     await sleep(1200);
   }
 
-  console.log("\nFetching the wards:");
+  console.log("\nTaking the centre of each ward we serve:");
   for (const area of AREAS) {
-    // One at a time, with a pause: Overpass asks for it, and a parallel burst from one IP
-    // is how a volunteer service ends up rate-limiting this repository.
     process.stdout.write(`  ${area.key} (${area.name}) … `);
-    const centre = await centreOf(
-      areaIds.get(area.city),
-      area.city,
-      area.wardNumber,
-    );
+
+    const element = byCity.get(area.city).get(String(area.wardNumber));
+    if (!element) {
+      describeWards(byCity.get(area.city), area.city, area.wardNumber);
+      throw new Error(
+        `${area.city} ward ${area.wardNumber} is not in OpenStreetMap under a number this ` +
+          `script can read. What the city does hold is printed above.`,
+      );
+    }
+
+    // `out center` puts the bounding-box centre on the element, which for a ward polygon is
+    // within a few hundred metres of its centroid — comfortably inside the "approximate,
+    // ward-level" precision this file claims.
     wards[area.key] = {
-      lat: Number(centre.lat.toFixed(5)),
-      lng: Number(centre.lng.toFixed(5)),
+      lat: Number(element.center.lat.toFixed(5)),
+      lng: Number(element.center.lon.toFixed(5)),
     };
     console.log(`${wards[area.key].lat}, ${wards[area.key].lng}`);
-    await sleep(1200);
   }
 
   if (Object.keys(wards).length !== AREAS.length) {
@@ -352,7 +360,7 @@ if (wards) {
     `${JSON.stringify(
       {
         source:
-          "OpenStreetMap, admin_level=10 ward relations via the Overpass API. © OpenStreetMap contributors, ODbL.",
+          "OpenStreetMap ward boundary relations (admin_level 9 in Kathmandu valley) via the Overpass API. © OpenStreetMap contributors, ODbL.",
         fetchedAt: new Date().toISOString(),
         precision: "approximate, ward-level",
         note: "Generated by scripts/fetch-ward-centroids.mjs — do not edit by hand. Each point is the bounding-box centre of the ward's own boundary relation, so it is the middle of the administrative area rather than of a named locality inside it. Good to within a kilometre or two, which is what nearestServedKm assumes.",
