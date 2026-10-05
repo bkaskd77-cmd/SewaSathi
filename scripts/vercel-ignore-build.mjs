@@ -64,12 +64,20 @@ export const SKIP = 0;
  * nothing would ship for nine days either, and an advisory nobody can act on is not a
  * statement about whether this commit is good.
  *
+ * `deploy` IS THERE FOR A DIFFERENT AND STRUCTURAL REASON. That job IS the deploy — it
+ * POSTs the hook that starts the build this script is deciding about — so counting it would
+ * ask whether a commit had already deployed before allowing it to deploy, which is the
+ * same circularity Vercel's own check run is filtered out for. It is also still running at
+ * the moment Vercel evaluates this, which alone would skip every build for ever. And it
+ * goes red when no deploy hook is configured, which is a fact about this repository's
+ * settings rather than about the commit.
+ *
  * A NAMED SET, SO BLOCKING IS THE DEFAULT. A pattern would quietly exempt a future check
  * whose name happened to match, and the one direction this must not fail in is "waved
- * something through". The advisory state is still printed on the way past, because a
- * vulnerable dependency deploying silently is its own kind of wrong.
+ * something through". Every waved-past job's conclusion is printed on the way past,
+ * because a vulnerable dependency deploying silently is its own kind of wrong.
  */
-export const NON_BLOCKING = new Set(["advisories"]);
+export const NON_BLOCKING = new Set(["advisories", "deploy"]);
 
 /** `neutral` and `skipped` are passes: a job that had nothing to do did not fail. */
 const PASSED = ["success", "neutral", "skipped"];

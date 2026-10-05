@@ -98,17 +98,45 @@ jobs:
       - name: Booking flows
         run: npm run check:flows
 
-      # THE PUSH NO LONGER TRIGGERS THE PRODUCTION DEPLOY — THIS DOES, and the step has
-      # to be last for that to mean anything. `scripts/vercel-ignore-build.mjs` refuses a
-      # commit whose CI is not green, and on its own it refused everything: Vercel starts
-      # building seconds after a push, before GitHub has registered one check run, so four
-      # green commits in a row produced four CANCELED production deployments and nobody
-      # noticed. A Vercel deploy hook called from here fires when the checks exist and
-      # pass, and the gate then finds them and builds.
-      #
-      # The branch is decided inside the script rather than with an `if:` here, so the
-      # production branch is written down in exactly one place.
-      - name: Deploy production
+  # ---------------------------------------------------------------------------
+  # Asking Vercel to deploy, once the checks above have passed
+  # ---------------------------------------------------------------------------
+  #
+  # THE PUSH NO LONGER TRIGGERS THE PRODUCTION DEPLOY — THIS DOES.
+  # `scripts/vercel-ignore-build.mjs` refuses a commit whose CI is not green, and on its
+  # own it refused everything: Vercel starts building seconds after a push, before GitHub
+  # has registered one check run, so four green commits produced four CANCELED production
+  # deployments and nothing anywhere said so. A Vercel deploy hook called from here fires
+  # when the checks exist and pass, and the gate then finds them and builds.
+  #
+  # A JOB OF ITS OWN RATHER THAN A LAST STEP OF `verify`, which was the first version and
+  # was wrong in a way worth recording. This step goes RED when no deploy hook is
+  # configured — deliberately, because a warning leaves a green tick beside a frozen
+  # production. As a step inside `verify` that redness made `verify` itself red, which the
+  # gate reads as "nobody has shown this commit is good" — so it would also have refused a
+  # manual redeploy, taking away the one escape hatch while complaining about the lack of
+  # an automatic one. Split out, `verify` stays honest about the code and this job carries
+  # the deploy's own problem.
+  #
+  # It is in the gate's NON_BLOCKING set, and that is structural rather than a convenience:
+  # this job IS the deploy, so counting it would ask whether a commit had already deployed
+  # before allowing it to. It is also still running at the moment Vercel evaluates the
+  # gate, which on its own would skip every build for ever.
+  #
+  # The branch is decided inside the script rather than with an `if:` here, so the
+  # production branch is written down in exactly one place.
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ask Vercel to deploy
         run: node scripts/trigger-deploy.mjs
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}

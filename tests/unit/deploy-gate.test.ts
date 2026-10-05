@@ -102,8 +102,26 @@ describe("the deploy gate", () => {
    * name happened to contain "advisor", and the one direction this must never fail in is
    * "waved something through".
    */
-  it("waves past nothing but the one named job", () => {
-    expect([...NON_BLOCKING]).toEqual(["advisories"]);
+  /*
+   * `deploy` IS WAVED PAST FOR A DIFFERENT REASON FROM `advisories`, and it is the
+   * structural one: that job POSTs the hook that starts the very build this gate decides
+   * about, so counting it asks whether a commit deployed before letting it deploy. It is
+   * also still in progress when Vercel evaluates the gate — on its own that would skip
+   * every build for ever, which is the outage this whole arrangement exists to end.
+   */
+  it("builds while the deploy job that triggered it is still running", () => {
+    const decision = decideFromRuns(
+      [
+        { name: "verify", status: "completed", conclusion: "success" },
+        { name: "deploy", status: "in_progress", conclusion: null },
+      ],
+      SHA,
+    );
+    expect(decision.code).toBe(BUILD);
+  });
+
+  it("waves past nothing but the two named jobs", () => {
+    expect([...NON_BLOCKING]).toEqual(["advisories", "deploy"]);
 
     const decision = decideFromRuns(
       [
