@@ -1,4 +1,21 @@
 /**
+ * The eight long-form documents, matching the check constraint on
+ * `content_documents.slug`. Named once here rather than written out at each of the four
+ * places below, which is how the four-slug version came to be four copies.
+ * `DOCUMENT_SLUGS` in `lib/content/documents.ts` is the other copy and a test compares
+ * both against the migration.
+ */
+export type ContentDocumentSlug =
+  | "terms"
+  | "privacy"
+  | "refunds"
+  | "standards"
+  | "help"
+  | "help/complaint"
+  | "about"
+  | "contact";
+
+/**
  * Database types.
  *
  * Hand-written to match supabase/migrations/ — the generator needs network
@@ -756,13 +773,13 @@ export type Database = {
 
       content_documents: {
         Row: {
-          slug: "terms" | "privacy" | "refunds" | "standards";
+          slug: ContentDocumentSlug;
           /** Null until somebody publishes a version. */
           live_version: number | null;
           updated_at: string;
         };
         Insert: {
-          slug: "terms" | "privacy" | "refunds" | "standards";
+          slug: ContentDocumentSlug;
           live_version?: number | null;
           updated_at?: string;
         };
@@ -773,7 +790,7 @@ export type Database = {
       content_document_versions: {
         Row: {
           id: string;
-          slug: "terms" | "privacy" | "refunds" | "standards";
+          slug: ContentDocumentSlug;
           version: number;
           body_en: string;
           body_ne: string;
@@ -783,7 +800,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          slug: "terms" | "privacy" | "refunds" | "standards";
+          slug: ContentDocumentSlug;
           version: number;
           body_en: string;
           body_ne: string;

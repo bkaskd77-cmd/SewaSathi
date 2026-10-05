@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 
 import type { Locale } from "@/i18n/routing";
 import { LEGAL_DOCUMENTS, type LegalSlug } from "@/lib/content/legal";
+import { infoPage } from "@/lib/content/pages";
 import { standards } from "@/lib/content/pages/standards";
 import type { ProseDocument } from "@/lib/content/types";
 import { describeError } from "@/lib/data/source";
@@ -32,23 +33,75 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * nobody can know. Nothing is backfilled.
  */
 
-export type DocumentSlug = LegalSlug | "standards";
+export type DocumentSlug =
+  | LegalSlug
+  | "standards"
+  | "help"
+  | "help/complaint"
+  | "about"
+  | "contact";
 
+/**
+ * The eight, and one list written twice.
+ *
+ * The other copy is the check constraint on `content_documents.slug`, which cannot read
+ * TypeScript, so `tests/unit/content-documents.test.ts` compares the two — a slug added
+ * here alone would be refused by the database at the moment somebody pressed Publish,
+ * losing the edit in the statement that tried to save it. `REFUSAL_REASON_CODES` and the
+ * category icons are the same arrangement.
+ *
+ * THE FOUR INFORMATION PAGES ARE HERE BECAUSE THEY ARE THE SAME SHAPE. Nobody agrees to a
+ * contact page, so its version number is evidence of nothing — but the append-only trail
+ * is still the record of who changed the help text and when, which is the question asked
+ * of any other content edit. Editing them was in the scope and unmet; they cost one
+ * constraint.
+ */
 export const DOCUMENT_SLUGS: DocumentSlug[] = [
   "terms",
   "privacy",
   "refunds",
   "standards",
+  "help",
+  "help/complaint",
+  "about",
+  "contact",
 ];
 
 export function isDocumentSlug(value: string): value is DocumentSlug {
   return (DOCUMENT_SLUGS as string[]).includes(value);
 }
 
+/**
+ * Where each slug's URL lives, for the ones that are not under `/legal`.
+ *
+ * `standards` is stored under that name and served at `/providers/standards`, which was
+ * already true before this map existed; the rest are stored and served alike. Written
+ * down because the storage key and the route are not the same fact and pretending they
+ * were is how one of them quietly becomes wrong.
+ */
+const PAGE_KEY: Partial<Record<DocumentSlug, string>> = {
+  standards: "providers/standards",
+  help: "help",
+  "help/complaint": "help/complaint",
+  about: "about",
+  contact: "contact",
+};
+
 /** The text in the repository, which is version zero of everything. */
 function fromFile(slug: DocumentSlug, locale: Locale): ProseDocument {
-  if (slug === "standards") return standards[locale];
-  return LEGAL_DOCUMENTS[slug][locale];
+  const pageKey = PAGE_KEY[slug];
+  if (pageKey) {
+    const page = infoPage(pageKey, locale);
+    /*
+     * `standards` keeps its own import rather than relying on the lookup, because that is
+     * the document a professional is held to and a renamed key must not silently degrade
+     * it to a blank page. The others have no such floor and none is invented for them.
+     */
+    if (page) return page;
+    if (slug === "standards") return standards[locale];
+    throw new Error(`No file behind the document "${slug}".`);
+  }
+  return LEGAL_DOCUMENTS[slug as LegalSlug][locale];
 }
 
 const CACHE_SECONDS = 15 * 60;

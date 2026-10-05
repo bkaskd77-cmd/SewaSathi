@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -154,5 +155,69 @@ describe("which terms a booking agrees to", () => {
     });
     const { liveTermsVersion } = await import("@/lib/content/documents");
     expect(await liveTermsVersion()).toBeNull();
+  });
+});
+
+/**
+ * The eight slugs, written down twice.
+ *
+ * `DOCUMENT_SLUGS` is TypeScript and the check constraint on `content_documents.slug` is
+ * SQL, and neither can read the other. A slug added to one alone is refused by the
+ * database at the moment somebody presses Publish — losing the edit in the statement that
+ * tried to save it, which is the failure the category icon list already had once. The
+ * same arrangement as `REFUSAL_REASON_CODES`, for the same reason.
+ */
+describe("the document slugs", () => {
+  const MIGRATION = readFileSync(
+    "supabase/migrations/20261004000004_content_working_copies.sql",
+    "utf8",
+  );
+
+  it("match the check constraint the database holds", async () => {
+    const { DOCUMENT_SLUGS } = await import("@/lib/content/documents");
+
+    const clause = MIGRATION.slice(
+      MIGRATION.indexOf("add constraint content_documents_slug_check"),
+    );
+    const allowed = Array.from(
+      clause.slice(0, clause.indexOf("));")).matchAll(/'([a-z/]+)'/g),
+    ).map((m) => m[1]);
+
+    expect([...DOCUMENT_SLUGS].sort()).toEqual([...allowed].sort());
+  });
+
+  /*
+   * AND THE WORKING COPIES TABLE CARRIES THE SAME SET. It has its own check constraint
+   * rather than a foreign key, because a document can be edited before anything has ever
+   * been published for it — so it is a third copy and is compared too.
+   */
+  it("match the working copy constraint as well", async () => {
+    const { DOCUMENT_SLUGS } = await import("@/lib/content/documents");
+
+    const clause = MIGRATION.slice(MIGRATION.indexOf("slug text primary key check"));
+    const allowed = Array.from(
+      clause.slice(0, clause.indexOf("))")).matchAll(/'([a-z/]+)'/g),
+    ).map((m) => m[1]);
+
+    expect([...DOCUMENT_SLUGS].sort()).toEqual([...allowed].sort());
+  });
+
+  /*
+   * EVERY SLUG HAS A FILE BEHIND IT, which is what makes the fallback real. A slug with no
+   * document in the repository would render a blank legal page the first time the database
+   * was unreachable — the one failure the fallback exists to prevent.
+   */
+  it("every one falls back to a document in the repository", async () => {
+    vi.doMock("@/lib/env", () => ({ hasSupabaseConfig: () => false }));
+    const { DOCUMENT_SLUGS, liveDocument } = await import("@/lib/content/documents");
+
+    for (const slug of DOCUMENT_SLUGS) {
+      for (const locale of ["en", "ne"] as const) {
+        const live = await liveDocument(slug, locale);
+        expect(live.version, `${slug}.${locale}`).toBeNull();
+        expect(live.document.title.length, `${slug}.${locale}`).toBeGreaterThan(0);
+        expect(live.document.sections.length, `${slug}.${locale}`).toBeGreaterThan(0);
+      }
+    }
   });
 });
