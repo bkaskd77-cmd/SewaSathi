@@ -851,6 +851,7 @@ export type Database = {
           storage_path: string;
           position: number;
           taken_at: string | null;
+          taken_at_source: "exif" | "device" | null;
           hash: string | null;
           duplicate_verdict:
             | "unseen"
@@ -868,6 +869,7 @@ export type Database = {
           storage_path: string;
           position: number;
           taken_at?: string | null;
+          taken_at_source?: "exif" | "device" | null;
           hash?: string | null;
           duplicate_verdict?:
             | "unseen"

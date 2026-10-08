@@ -16,6 +16,24 @@ export type PreparedImage = {
   /** data: URL for the thumbnail. Same bytes, so no second copy in memory. */
   previewUrl: string;
   bytes: number;
+  /**
+   * The camera clock, read here because the resize below destroys it.
+   *
+   * MEASURED, NOT ASSUMED: a JPEG carrying a real APP1/Exif block goes through
+   * `canvas.toDataURL` and comes back with none — a canvas has no access to source
+   * metadata. So the only moment this timestamp exists on this path is before the resize,
+   * which is why it is read here rather than on the server like the arrival photograph's.
+   *
+   * DEVICE-REPORTED, AND THAT IS NOT THE SAME THING AS THE SERVER HAVING SEEN IT. Bytes the
+   * server parsed are bytes the server saw; this is a number the browser chose, and
+   * anybody can choose a different one. It is labelled all the way down and gates nothing —
+   * a booking photograph is flag-only, and `booking_photos.taken_at_source` records which
+   * of the two kinds of timestamp a row holds so nobody can later write a money rule
+   * against the wrong one.
+   *
+   * Null is the ordinary case: most photographs carry no EXIF, and a screenshot never does.
+   */
+  takenAt: string | null;
 };
 
 /** Anything past this is not a photo of a tap; refuse before decoding it. */
@@ -153,6 +171,12 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     throw new ImageRejected("That photo is too big. Try one under 25 MB.");
   }
 
+  /*
+   * READ BEFORE THE RESIZE, because after it there is nothing to read. The file is only in
+   * memory once either way — this walks the same bytes the decoder is about to take.
+   */
+  const takenAt = await readCaptureTime(file);
+
   const source = await decode(file);
   const best = encodeToBudget(source, "photo");
 
@@ -169,5 +193,47 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     data: best.dataUrl.slice(best.dataUrl.indexOf(",") + 1),
     previewUrl: best.dataUrl,
     bytes: best.bytes,
+    takenAt,
   };
+}
+
+/**
+ * The camera clock out of the file, before anything re-encodes it.
+ *
+ * ONE PARSER, SHARED WITH THE SERVER. `lib/photos/exif.ts` is the same byte reader the
+ * arrival photograph goes through — two implementations would drift, and the place it would
+ * show is a timestamp that disagrees with itself depending on which end read it.
+ *
+ * NEVER THROWS. A photograph with no EXIF is the ordinary case, not a failure: a screenshot
+ * has none, a messaging app strips it, and most of the web's images never had any. The
+ * answer is null and the upload carries on.
+ */
+async function readCaptureTime(file: File): Promise<string | null> {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    /* APP1 is the first segment after SOI on essentially every camera JPEG. Walk the
+       markers rather than guessing an offset — the same shape `readJpeg` uses server-side. */
+    if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+
+    let at = 2;
+    while (at + 3 < bytes.length) {
+      if (bytes[at] !== 0xff) return null;
+      const marker = bytes[at + 1];
+      /* Start of scan: the pixels begin and there is no more metadata to find. */
+      if (marker === 0xda) return null;
+      const length = (bytes[at + 2] << 8) | bytes[at + 3];
+      if (length < 2) return null;
+
+      if (marker === 0xe1) {
+        const { readExifTaken } = await import("@/lib/photos/exif");
+        const taken = readExifTaken(bytes, at + 4, at + 2 + length);
+        if (taken) return taken.toISOString();
+      }
+      at += 2 + length;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

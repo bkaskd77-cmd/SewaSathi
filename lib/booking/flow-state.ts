@@ -48,6 +48,14 @@ export type FlowState = {
   description: string;
   /** Storage path once uploaded, not a URL. */
   photoPath: string | null;
+  /**
+   * The camera clock, as the browser read it before the resize.
+   *
+   * DEVICE-REPORTED AND NOT EVIDENCE. The canvas re-encode destroys EXIF, so this is the
+   * only moment the timestamp exists on this path — and it is a number the browser chose.
+   * Stored with `taken_at_source = 'device'` and used for nothing but a flag.
+   */
+  photoTakenAt: string | null;
   addressId: string | null;
   newAddress: NewAddressDraft;
   timing: Timing;
@@ -110,6 +118,7 @@ export function initialState(seed: {
     category: seed.category ?? "",
     description: seed.description ?? "",
     photoPath: null,
+    photoTakenAt: null,
     addressId: null,
     newAddress: emptyAddress(),
     // An emergency arriving from triage preselects the emergency timing. The

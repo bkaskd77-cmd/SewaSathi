@@ -220,3 +220,46 @@ export async function bookingPhotos(
     return null;
   }
 }
+
+/**
+ * Record a photograph that storage already holds against a booking that now exists.
+ *
+ * SEPARATE FROM `recordBookingPhoto` BECAUSE THE BYTES ARE GONE BY NOW. The customer
+ * attached the photograph two screens before the booking existed, so it went to storage
+ * then — which means there is nothing here to hash. The duplicate verdict is therefore
+ * `not-compared`, written explicitly rather than left null, because "we did not look" is a
+ * fact worth recording and null would read as a row that predates the column.
+ *
+ * `device` IS THE ONLY SOURCE THIS PATH CAN WRITE. The browser resized the photograph on a
+ * canvas before uploading and that destroyed the EXIF, so the timestamp is one the browser
+ * sent rather than one we parsed. It gates nothing — booking photographs are flag-only.
+ */
+export async function recordBookingPhotoPath(input: {
+  bookingId: string;
+  storagePath: string;
+  takenAt: string | null;
+}): Promise<boolean> {
+  if (!hasSupabaseConfig()) return false;
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+
+  try {
+    const { error } = await createAdminClient().from("booking_photos").insert({
+      booking_id: input.bookingId,
+      storage_path: input.storagePath,
+      position: 0,
+      taken_at: input.takenAt,
+      taken_at_source: input.takenAt ? "device" : null,
+      duplicate_verdict: "not-compared",
+    });
+
+    if (error) {
+      console.error(`[booking-photo] row not written — ${describeError(error)}`);
+      return false;
+    }
+    return true;
+  } catch (thrown) {
+    console.error(`[booking-photo] row threw — ${describeError(thrown)}`);
+    return false;
+  }
+}

@@ -364,7 +364,22 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
           {photo ? t("photoAttached") : t("addPhoto")}
           <input
             type="file"
-            accept="image/jpeg,image/*"
+            /*
+              JPEG ONLY, AND IT IS A TRIAL RATHER THAN A SETTLED CHOICE. iPhones shoot HEIC,
+              `jpeg-js` cannot read it, and an unreadable photograph gets no hash and skips
+              the duplicate check. A restricted accept list that excludes HEIC is what makes
+              iOS transcode — `image/*` does not count as restricted, which is what this was
+              before.
+
+              WHAT IS UNVERIFIED IS WHETHER THE CAPTURE TIME SURVIVES THE TRANSCODE. No
+              source covers iOS Safari's own conversion, and it cannot be measured from a
+              sandbox. If it does not, this swaps a working freshness check for a working
+              duplicate check on the same photographs — so the test is one iPhone, one
+              arrival, and `/admin/claims`: a capture time there means keep this; none means
+              revert to `image/jpeg,image/*`. Taken now because no real professional has
+              used this screen yet, so nothing is at risk while it is answered.
+            */
+            accept="image/jpeg"
             capture="environment"
             className="sr-only"
             onChange={async (event) => {

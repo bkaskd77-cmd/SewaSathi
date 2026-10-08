@@ -1680,11 +1680,22 @@ document inputs the hash already works (canvas always emits JPEG, HEIC included)
 **Only the arrival panel sends the original bytes**, deliberately and documented as such,
 which is exactly why freshness works there — and exactly where HEIC costs us the hash.
 
-**So the recommendation is a trade, not a fix.** Restricting the arrival input to
-`image/jpeg` would gain the hash on iPhone photographs and would lose the capture time if
-iOS's transcode drops EXIF — swapping a working freshness check for a working duplicate
-check on the same photographs. It is not taken blind. A converter is not built either: the
-measurement to make first is one iPhone, one arrival photograph, before and after.
+**The arrival input is now `image/jpeg` only, as a trial rather than a settled choice.**
+Taken now because no real professional has used that screen yet, so nothing is at risk while
+the question is answered. **The test is one iPhone, one arrival, and `/admin/claims`**: a
+capture time there means the transcode keeps EXIF and this stays; none means it does not and
+this reverts to `image/jpeg,image/*`. No converter is built either way until that is known.
+
+**And the other three paths read the capture time in the browser instead**, before the
+canvas resize destroys it — which is the only moment it exists there. `lib/photos/exif.ts`
+is the one parser both ends use; two implementations of a byte reader would drift, and the
+place it would show is a timestamp disagreeing with itself depending which end read it.
+
+**A browser-read timestamp is not evidence, and `booking_photos.taken_at_source` is how
+that stays true.** `exif` means the server parsed the original bytes; `device` means the
+browser sent a number, and anybody can send a different one. Booking photographs are
+flag-only, and the guarantee and no-show gates read `exif` timestamps — the column exists so
+nobody can later write a money rule against the wrong kind without noticing.
 
 ### Camera-only is not enforceable on the web
 

@@ -71,7 +71,12 @@ export function StepProblem({
   photoPreview: string | null;
   error?: string | null;
   onChange: (patch: { category?: string; description?: string }) => void;
-  onPhoto: (next: { path: string | null; preview: string | null }) => void;
+  onPhoto: (next: {
+    path: string | null;
+    preview: string | null;
+    /** Device-reported, read before the canvas resize destroyed the EXIF. */
+    takenAt?: string | null;
+  }) => void;
 }) {
   const t = useTranslations("booking.flow.problem");
   const tErr = useTranslations("booking.flow.errors");
@@ -101,11 +106,15 @@ export function StepProblem({
       }
 
       // Show it immediately; the upload can finish behind the preview.
-      onPhoto({ path: null, preview: prepared.previewUrl });
+      onPhoto({ path: null, preview: prepared.previewUrl, takenAt: prepared.takenAt });
 
       const result = await uploadPhotoAction(prepared.data);
       if (result.ok) {
-        onPhoto({ path: result.path, preview: prepared.previewUrl });
+        onPhoto({
+          path: result.path,
+          preview: prepared.previewUrl,
+          takenAt: prepared.takenAt,
+        });
       } else {
         onPhoto({ path: null, preview: null });
         // The server's own reason where there is copy for it: somebody who

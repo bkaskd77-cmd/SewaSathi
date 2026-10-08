@@ -243,6 +243,7 @@ export function BookingFlow({
           urgency: urgencyFor(state),
           description: state.description,
           photoUrl: state.photoPath,
+          photoTakenAt: state.photoTakenAt ?? null,
           scheduledFor: state.timing === "scheduled" ? state.slot : null,
           paymentMethod: state.paymentMethod,
           triageLogId: state.triageLogId,
@@ -439,9 +440,9 @@ export function BookingFlow({
               photoPreview={photoPreview}
               error={errors.description ?? errors.category}
               onChange={patch}
-              onPhoto={({ path, preview }) => {
+              onPhoto={({ path, preview, takenAt }) => {
                 setPhotoPreview(preview);
-                patch({ photoPath: path });
+                patch({ photoPath: path, photoTakenAt: takenAt ?? null });
               }}
             />
           ) : null}

@@ -211,6 +211,7 @@ export type BookingInput = {
   addressId: string;
   description: string;
   photoUrl?: string | null;
+  photoTakenAt?: string | null;
   /** ISO instant of a chosen slot, or empty for as-soon-as-possible. */
   scheduledFor?: string | null;
   paymentMethod?: string;
@@ -248,6 +249,14 @@ export const bookingInputSchema = z.object({
   addressId: z.string().uuid(),
   description: z.string().trim().min(4).max(1000),
   photoUrl: z.string().url().max(2000).nullish(),
+  /*
+   * DEVICE-REPORTED, AND NEVER EVIDENCE. The browser reads this off the file before the
+   * canvas resize destroys the EXIF — the only moment it exists on this path. It is a
+   * number the browser chose, so it is stored with `taken_at_source = 'device'` and gates
+   * nothing: booking photographs are flag-only. The guarantee and no-show gates read an
+   * `exif` timestamp, which is one the server parsed off original bytes.
+   */
+  photoTakenAt: z.string().datetime().nullish(),
   paymentMethod: z.enum(["cash", "esewa", "khalti"]).default("cash"),
   triageLogId: z.string().uuid().nullish(),
   /*
@@ -672,6 +681,30 @@ export async function createBooking(
           console.error(
             `[bookings] confirmation not armed — ${describeError(thrown)}`,
           );
+        }
+
+        /*
+         * THE PHOTOGRAPH JOINS THE SET, after the insert for the same reason the
+         * confirmation is armed after it: `booking_photos` is keyed to a booking that has
+         * to exist first. The photograph was uploaded to storage before this booking did —
+         * the customer attached it two screens earlier — so this records the row rather
+         * than moving any bytes.
+         *
+         * IT NEVER FAILS THE BOOKING, `notify()`'s rule again: the job is taken and a
+         * customer whose booking vanished because a photograph row would not write is a
+         * worse outcome than a booking whose photograph is only on `photo_url`.
+         */
+        if (parsed.data.photoUrl) {
+          try {
+            const { recordBookingPhotoPath } = await import("@/lib/data/booking-photos");
+            await recordBookingPhotoPath({
+              bookingId: data.id as string,
+              storagePath: parsed.data.photoUrl,
+              takenAt: parsed.data.photoTakenAt ?? null,
+            });
+          } catch (thrown) {
+            console.error(`[bookings] photo row not written — ${describeError(thrown)}`);
+          }
         }
 
         return {
