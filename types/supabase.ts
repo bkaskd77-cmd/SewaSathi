@@ -844,6 +844,45 @@ export type Database = {
         Relationships: [];
       };
 
+      booking_photos: {
+        Row: {
+          id: string;
+          booking_id: string;
+          storage_path: string;
+          position: number;
+          taken_at: string | null;
+          hash: string | null;
+          duplicate_verdict:
+            | "unseen"
+            | "retry"
+            | "flag"
+            | "reject"
+            | "not-compared"
+            | null;
+          duplicate_distance: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          storage_path: string;
+          position: number;
+          taken_at?: string | null;
+          hash?: string | null;
+          duplicate_verdict?:
+            | "unseen"
+            | "retry"
+            | "flag"
+            | "reject"
+            | "not-compared"
+            | null;
+          duplicate_distance?: number | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["booking_photos"]["Insert"]>;
+        Relationships: [];
+      };
+
       photo_hashes: {
         Row: {
           id: string;

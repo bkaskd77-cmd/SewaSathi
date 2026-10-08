@@ -3,9 +3,9 @@ import "server-only";
 import { recordSecurityEvent } from "@/lib/audit";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
-import { judgeDuplicate, type DuplicateVerdict } from "@/lib/photos/duplicate";
+import type { DuplicateVerdict } from "@/lib/photos/duplicate";
 import { judgeFreshness, type FreshnessVerdict } from "@/lib/photos/freshness";
-import { perceptualHash } from "@/lib/photos/hash";
+import { checkAndRemember } from "@/lib/photos/store";
 import { checkUploadedImage } from "@/lib/security/image";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -110,28 +110,14 @@ export async function storeArrivalPhoto(input: {
    * person nothing to look at. Neither check can refuse an arrival — somebody is standing
    * in a street.
    */
-  const hash = perceptualHash(checked.bytes);
-
-  const duplicate = await judgeAgainstPriors({
-    hash,
+  const { duplicate } = await checkAndRemember({
+    bytes: checked.bytes,
+    kind: "arrival",
     bookingId: input.bookingId,
     accountId: input.providerProfileId,
   });
 
   const freshness = judgeFreshness({ takenAt: checked.takenAt, at: input.receivedAt });
-
-  /*
-   * THE HASH IS KEPT EVEN WHEN NOTHING MATCHED, which is the whole mechanism: a photograph
-   * is only recognisable later because we kept something comparable today. A retry on the
-   * same booking writes nothing new — the row is already there.
-   */
-  if (hash && duplicate.kind !== "retry") {
-    await rememberHash({
-      hash,
-      bookingId: input.bookingId,
-      accountId: input.providerProfileId,
-    });
-  }
 
   return {
     path,
@@ -145,78 +131,6 @@ export async function storeArrivalPhoto(input: {
      */
     skewMinutes: freshness.skewMinutes,
   };
-}
-
-/**
- * Every arrival hash we hold, compared in memory.
- *
- * IN MEMORY BECAUSE HAMMING DISTANCE IS NOT A SQL OPERATION — not without an extension this
- * project does not have — and because the table is small. It is bounded rather than
- * unbounded, so the day it is not small this degrades to "compared against the most recent
- * few thousand" instead of a query that gets slower every month. That is a real limit and
- * it is written down rather than discovered: a photograph older than the bound would not be
- * recognised, which is a missed duplicate and never a false one.
- */
-const HASH_COMPARISON_LIMIT = 5000;
-
-async function judgeAgainstPriors(input: {
-  hash: string | null;
-  bookingId: string;
-  accountId: string;
-}): Promise<DuplicateVerdict> {
-  if (!input.hash) return { kind: "not-compared" };
-
-  try {
-    const { data, error } = await createAdminClient()
-      .from("photo_hashes")
-      .select("hash, booking_id, account_id")
-      .eq("kind", "arrival")
-      .order("created_at", { ascending: false })
-      .limit(HASH_COMPARISON_LIMIT);
-
-    /*
-     * A FAILED READ IS "NOT COMPARED", NEVER "UNSEEN". Rule 6 on a check that will gate a
-     * payment: if the table did not answer, we have not established that this photograph
-     * is new, and a verdict saying we did would be manufactured.
-     */
-    if (error) {
-      console.error(`[arrival-photo] hashes unread — ${describeError(error)}`);
-      return { kind: "not-compared" };
-    }
-
-    return judgeDuplicate({
-      hash: input.hash,
-      bookingId: input.bookingId,
-      accountId: input.accountId,
-      priors: (data ?? []).map((row) => ({
-        hash: row.hash as string,
-        bookingId: (row.booking_id as string | null) ?? "",
-        accountId: (row.account_id as string | null) ?? null,
-      })),
-    });
-  } catch (thrown) {
-    console.error(`[arrival-photo] hash compare threw — ${describeError(thrown)}`);
-    return { kind: "not-compared" };
-  }
-}
-
-/** Keep the hash so a reuse can be recognised later. Never blocks the arrival. */
-async function rememberHash(input: {
-  hash: string;
-  bookingId: string;
-  accountId: string;
-}): Promise<void> {
-  try {
-    const { error } = await createAdminClient().from("photo_hashes").insert({
-      hash: input.hash,
-      kind: "arrival",
-      booking_id: input.bookingId,
-      account_id: input.accountId,
-    });
-    if (error) console.error(`[arrival-photo] hash not kept — ${describeError(error)}`);
-  } catch (thrown) {
-    console.error(`[arrival-photo] hash insert threw — ${describeError(thrown)}`);
-  }
 }
 
 /**

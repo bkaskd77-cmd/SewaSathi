@@ -1613,6 +1613,42 @@ more here than anywhere, because these verdicts will gate a payment. A failed re
 hash table returns `not-compared` rather than `unseen`: if the table did not answer, we
 have not established that a photograph is new.
 
+### Three photographs on a booking, capped by a key
+
+`booking_photos` replaces `bookings.photo_url` as the set, because the triage can now judge
+a photograph and ask for another — so a request can reasonably end up with several, and
+`photo_url_2` is the shape nobody wants to add a third to.
+
+**Three is enforced by the unique key, not by a trigger and not by the application.**
+`position` is checked to 0–2 and unique per booking, so a fourth has nowhere to go. A
+count-and-insert in TypeScript is a race — two uploads both reading "two so far" — and a
+trigger counting rows would be a second place that knows the limit. The database refuses it
+instead, the same idiom `provider_ledger_recovery_once_idx` uses one table over.
+
+**The storage policy had to be repointed, and that is the part worth reading twice.** It
+matched `b.photo_url = storage.objects.name` — one column, one photograph. A second or third
+would have uploaded successfully, written its row, and then been **invisible to the
+professional the job was assigned to**, with nothing failing anywhere: the upload works and
+the signed URL is simply refused. It matches the column *or* a `booking_photos` row now, so
+the first keeps working through the transition and the rest work at all.
+
+**Nothing was backfilled because there was nothing to backfill** — measured, not assumed:
+14 bookings exist and 0 carry a `photo_url`. The column stays and is still written with the
+first photograph, because several reads key on it; retiring it is an after-deploy migration
+of its own rather than a change that breaks the running build the moment it applies.
+
+**`checkAndRemember` is one implementation for both kinds.** Hash, compare, keep — written
+inside the arrival path first, and copying it for bookings would have been two places
+deciding what counts as a reuse. The *kind* scopes the comparison: an arrival photograph is
+compared against arrival photographs, because the same picture of a door on two bookings is
+a reused wasted-trip claim, while a customer sending the same picture of their boiler to the
+job and to a later claim is ordinary. Cross-kind comparison belongs to the claim gates,
+where it means something.
+
+**Booking photographs stay flag-only.** A customer attaching one is not making a claim, and
+the professional's on-site correction already fixes a misleading photograph. The verdicts
+are recorded and shown; what they are allowed to *do* belongs where money is involved.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open

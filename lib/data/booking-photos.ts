@@ -99,3 +99,124 @@ export async function signBookingPhoto(
     return null;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * The set — up to three photographs on one booking
+ * ------------------------------------------------------------------ */
+
+/**
+ * Record a photograph against a booking, with what the checks made of it.
+ *
+ * THREE IS THE DATABASE'S ANSWER, NOT THIS FUNCTION'S. `position` is checked to 0-2 and
+ * unique per booking, so a fourth has nowhere to go and a race between two uploads is
+ * refused by the key rather than remembered against by the application — the idiom
+ * `provider_ledger_recovery_once_idx` already uses one table over. This reads the next free
+ * slot and lets the insert fail if somebody took it meanwhile.
+ *
+ * NOTHING HERE REFUSES AN UPLOAD. The verdicts are recorded and shown; what they are allowed
+ * to DO belongs to the claim gates, where money is involved. A customer attaching a
+ * photograph to a booking is not making a claim, and the professional's on-site correction
+ * already fixes a misleading one — which is why booking photographs stay flag-only.
+ */
+export async function recordBookingPhoto(input: {
+  bookingId: string;
+  customerId: string;
+  /** The already-checked bytes, so this never re-decodes what the caller validated. */
+  bytes: Uint8Array;
+  storagePath: string;
+  takenAt: Date | null;
+}): Promise<{ ok: boolean; position?: number; reason?: string }> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const { checkAndRemember } = await import("@/lib/photos/store");
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient();
+
+  const { duplicate, hash } = await checkAndRemember({
+    bytes: input.bytes,
+    kind: "booking",
+    bookingId: input.bookingId,
+    accountId: input.customerId,
+  });
+
+  try {
+    const { data: taken } = await db
+      .from("booking_photos")
+      .select("position")
+      .eq("booking_id", input.bookingId);
+
+    const used = new Set((taken ?? []).map((row) => row.position as number));
+    const position = [0, 1, 2].find((slot) => !used.has(slot));
+
+    /* Full is an answer, not an error: the request already carries its three. */
+    if (position === undefined) return { ok: false, reason: "full" };
+
+    const { error } = await db.from("booking_photos").insert({
+      booking_id: input.bookingId,
+      storage_path: input.storagePath,
+      position,
+      taken_at: input.takenAt?.toISOString() ?? null,
+      hash,
+      duplicate_verdict: duplicate.kind,
+      duplicate_distance: "distance" in duplicate ? duplicate.distance : null,
+    });
+
+    if (error) {
+      console.error(`[booking-photo] not recorded — ${describeError(error)}`);
+      return { ok: false, reason: "failed" };
+    }
+
+    return { ok: true, position };
+  } catch (thrown) {
+    console.error(`[booking-photo] threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+export type BookingPhoto = {
+  storagePath: string;
+  position: number;
+  takenAt: string | null;
+  duplicate: "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
+  duplicateDistance: number | null;
+};
+
+/**
+ * Every photograph on a booking, in the order they were added.
+ *
+ * NULL IS "WE COULD NOT READ THEM", AND AN EMPTY ARRAY IS "THERE ARE NONE". The two are
+ * different facts and only one of them means it is safe to say the customer sent nothing —
+ * the `/services` rule, on a surface where a professional is deciding whether they have
+ * seen everything before setting off.
+ */
+export async function bookingPhotos(
+  bookingId: string,
+): Promise<BookingPhoto[] | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("booking_photos")
+      .select("storage_path, position, taken_at, duplicate_verdict, duplicate_distance")
+      .eq("booking_id", bookingId)
+      .order("position", { ascending: true });
+
+    if (error) {
+      console.error(`[booking-photo] unread — ${describeError(error)}`);
+      return null;
+    }
+
+    return (data ?? []).map((row) => ({
+      storagePath: row.storage_path as string,
+      position: row.position as number,
+      takenAt: (row.taken_at as string | null) ?? null,
+      duplicate: (row.duplicate_verdict as BookingPhoto["duplicate"]) ?? null,
+      duplicateDistance: (row.duplicate_distance as number | null) ?? null,
+    }));
+  } catch (thrown) {
+    console.error(`[booking-photo] threw — ${describeError(thrown)}`);
+    return null;
+  }
+}
