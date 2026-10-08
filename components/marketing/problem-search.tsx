@@ -98,6 +98,24 @@ export function ProblemSearch() {
   const [photoBusy, setPhotoBusy] = React.useState(false);
   const [photoError, setPhotoError] = React.useState<string | null>(null);
   /*
+   * WHAT THE CAMERA CLOCK SAID, shown only with `?debug=photo`.
+   *
+   * IT EXISTS TO ANSWER ONE QUESTION THAT CANNOT BE ANSWERED FROM A SANDBOX: does iOS keep
+   * the capture time when it transcodes a HEIC photograph to JPEG? Restricting an input to
+   * `image/jpeg` is what makes iOS convert, and whether EXIF survives that is undocumented.
+   * The answer decides whether the arrival input keeps `accept="image/jpeg"` — which buys
+   * the duplicate check on iPhone photographs — or reverts to keep the freshness check.
+   *
+   * ON THE LANDING PAGE RATHER THAN THE PROVIDER SCREEN, because the provider screen needs
+   * an account linked to a listing, a booking somebody accepted, and that booking moved to
+   * `en_route` before the arrival panel exists at all. This needs a phone and a URL.
+   *
+   * SAME RULE AS THE TRIAGE BADGE: development, or the query param anywhere. An ordinary
+   * visitor never sees it.
+   */
+  const [captureTime, setCaptureTime] = React.useState<string | null>(null);
+  const showCapture = usePhotoDebug();
+  /*
    * WHAT THE MODEL MADE OF THE LAST PHOTO, and how many it has turned down.
    *
    * THE COUNT LIVES ON THE REQUEST, NOT THE ACCOUNT. Two refusals close the offer for THIS
@@ -229,6 +247,7 @@ export function ProblemSearch() {
       window.clearTimeout(exitRef.current);
       setPhotoLeaving(false);
       setPhoto(prepared);
+      setCaptureTime(prepared.takenAt);
       // A photo on its own is a complete question, so triage runs immediately.
       void runTriage(query, prepared);
     } catch (error) {
@@ -394,6 +413,14 @@ export function ProblemSearch() {
         "That photo does not match" tells somebody nothing they can act on; "this looks
         like a window, not a tap" tells them which photo to take instead.
       */}
+      {showCapture && photo ? (
+        <p className="mt-2 font-mono text-caption text-muted-foreground">
+          {captureTime
+            ? `capture time: ${captureTime} — EXIF survived`
+            : "no camera data in this file — EXIF did not survive"}
+        </p>
+      ) : null}
+
       {retake ? (
         <p role="status" className="animate-rise mt-2 text-caption text-muted-foreground">
           <span className="font-medium text-foreground">
@@ -727,6 +754,26 @@ function useTriageDebug(): boolean {
     }
     setEnabled(
       new URLSearchParams(window.location.search).get("debug") === "triage",
+    );
+  }, []);
+
+  return enabled;
+}
+
+/**
+ * `?debug=photo` — one line saying whether the photograph carried a camera clock.
+ *
+ * DELIBERATELY NOT ON IN DEVELOPMENT, which is the one place it differs from the triage
+ * badge. The question it answers is about a real iPhone transcoding a real HEIC file, and a
+ * line that is always on in development would be read as an answer by somebody testing on a
+ * laptop where nothing is being transcoded at all.
+ */
+function usePhotoDebug() {
+  const [enabled, setEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    setEnabled(
+      new URLSearchParams(window.location.search).get("debug") === "photo",
     );
   }, []);
 
