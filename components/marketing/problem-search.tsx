@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { triageCopyFrom, type TriageCopy } from "@/lib/ai/copy";
-import { judgePhoto, type RetakeAsk } from "@/lib/ai/photo-retake";
+import {
+  hasSomethingToTriage,
+  judgePhoto,
+  type RetakeAsk,
+} from "@/lib/ai/photo-retake";
 import { applySafetyFloor, HAZARD_BANDS } from "@/lib/ai/safety";
 import {
   categoryCtaLabel,
@@ -114,7 +118,23 @@ export function ProblemSearch() {
    * visitor never sees it.
    */
   const [captureTime, setCaptureTime] = React.useState<string | null>(null);
+  /* Set once a photo has been prepared. The photo itself is cleared when the triage
+     returns, so keying the line on `photo` meant it could never appear — which is
+     exactly what happened the first time somebody tried to run the test. */
+  const [captureSeen, setCaptureSeen] = React.useState(false);
   const showCapture = usePhotoDebug();
+  /*
+   * Whether the answer is worth showing at all. Computed here rather than inside the card
+   * so that "we have nothing to go on" is a decision the page makes, not something a
+   * component hides from itself.
+   */
+  const triageable = outcome
+    ? hasSomethingToTriage({
+        text: query,
+        verdict: outcome.photo ?? null,
+        urgency: outcome.result.urgency,
+      })
+    : true;
   /*
    * WHAT THE MODEL MADE OF THE LAST PHOTO, and how many it has turned down.
    *
@@ -248,6 +268,7 @@ export function ProblemSearch() {
       setPhotoLeaving(false);
       setPhoto(prepared);
       setCaptureTime(prepared.takenAt);
+      setCaptureSeen(true);
       // A photo on its own is a complete question, so triage runs immediately.
       void runTriage(query, prepared);
     } catch (error) {
@@ -413,7 +434,7 @@ export function ProblemSearch() {
         "That photo does not match" tells somebody nothing they can act on; "this looks
         like a window, not a tap" tells them which photo to take instead.
       */}
-      {showCapture && photo ? (
+      {showCapture && captureSeen ? (
         <p className="mt-2 font-mono text-caption text-muted-foreground">
           {captureTime
             ? `capture time: ${captureTime} — EXIF survived`
@@ -460,7 +481,15 @@ export function ProblemSearch() {
           readers once, rather than every frame of the thinking state. */}
       <div aria-live="polite" aria-atomic="true">
         {thinking ? <TriageSkeleton /> : null}
-        {!thinking && outcome ? (
+        {/*
+          NO PRICE WITHOUT SOMETHING TO PRICE IT FROM. A photograph of bananas with no
+          words produced "Plumbing · Needed soon · Rs 900 – Rs 4,000" — the photo check had
+          worked and said so, and the priced recommendation sat underneath it anyway,
+          because `TriageResult` requires a category and `GENERIC_RULE` is plumbing. That
+          default is right for a FAILURE and nonsense for an absence. A hazard is never
+          suppressed; see `hasSomethingToTriage`.
+        */}
+        {!thinking && outcome && triageable ? (
           <TriageCard outcome={outcome} locale={locale} copy={copy} />
         ) : null}
       </div>

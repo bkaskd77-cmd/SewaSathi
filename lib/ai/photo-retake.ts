@@ -73,3 +73,51 @@ export function judgePhoto(
 export function photosFull(kept: number): boolean {
   return kept >= MAX_PHOTOS_PER_REQUEST;
 }
+
+/**
+ * Is there anything here to triage at all?
+ *
+ * THE BUG THIS EXISTS FOR, IN FULL. A customer attached a photograph of bananas, typed
+ * nothing, and the product answered "Plumbing · Needed soon · Rs 900 – Rs 4,000" with a
+ * list of plumbing products to choose from. The photo check had worked perfectly and said
+ * so on screen — and the priced recommendation sat underneath it anyway.
+ *
+ * WHY IT HAPPENED, AND IT IS NOT THE MODEL'S FAULT. `TriageResult` requires a category, an
+ * urgency and a price; there is no way for an answer to mean "nothing here". So with no
+ * text and an unusable photograph the only thing left is `GENERIC_RULE` — plumbing, soon,
+ * 900 to 4000 — which is a sensible default for a FAILURE and nonsense for an absence. "It
+ * always answers" was written about a missing API key, a timeout, a reply that would not
+ * parse. It was never meant to mean "invent a job".
+ *
+ * SO THE RULE IS ABOUT EVIDENCE, NOT ABOUT CONFIDENCE. We show a price when we have
+ * something to price it from: words, or a photograph of the problem. Neither is not a
+ * low-confidence answer, it is no answer, and printing a number anyway is the same class of
+ * mistake as rendering a default as a measurement — rule 6, on the first screen anybody
+ * sees.
+ *
+ * A HAZARD IS NEVER SUPPRESSED. If the safety floor fired, the answer carries what to do
+ * right now and it is shown whatever the photograph turned out to be of. Somebody
+ * photographing a sparking board and typing nothing is the exact case the photo hazard read
+ * exists for, and it must not be hidden by a rule about relevance.
+ */
+export function hasSomethingToTriage(input: {
+  /** What the customer actually typed. */
+  text: string;
+  /** The photo verdict, or null when there was no photo or nobody judged it. */
+  verdict: PhotoVerdict | null | undefined;
+  /** The urgency the answer carries AFTER the safety floor. */
+  urgency: "emergency" | "soon" | "routine";
+}): boolean {
+  /* The safety floor fired, or the answer is an emergency for some other reason. Show it. */
+  if (input.urgency === "emergency") return true;
+
+  /* Words are evidence. Anything typed is something to work from, even a short phrase. */
+  if (input.text.trim().length > 0) return true;
+
+  /*
+   * No words. So the photograph is the whole basis, and it is only a basis if it showed the
+   * problem. `unclear` counts as nothing for the same reason `unrelated` does: we cannot
+   * see a problem in it either way.
+   */
+  return !input.verdict || input.verdict.relevance === "related";
+}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_PHOTOS_PER_REQUEST,
   MAX_REJECTED_PHOTOS,
+  hasSomethingToTriage,
   judgePhoto,
   photosFull,
 } from "@/lib/ai/photo-retake";
@@ -81,5 +82,65 @@ describe("asking for another photo", () => {
     expect(photosFull(MAX_PHOTOS_PER_REQUEST - 1)).toBe(false);
     expect(photosFull(MAX_PHOTOS_PER_REQUEST)).toBe(true);
     expect(MAX_PHOTOS_PER_REQUEST).toBe(3);
+  });
+});
+
+/**
+ * Whether there is anything to triage, which the banana found out the hard way.
+ *
+ * A customer attached a photograph of fruit, typed nothing, and the product answered
+ * "Plumbing · Needed soon · Rs 900 – Rs 4,000". The photo check had worked and said so on
+ * screen; the priced recommendation sat underneath it anyway, because `TriageResult`
+ * requires a category and `GENERIC_RULE` is plumbing.
+ */
+describe("whether there is anything to triage", () => {
+  const unrelated = { relevance: "unrelated" as const, reason: "bananas in a bag" };
+  const unclear = { relevance: "unclear" as const, reason: "too dark" };
+  const related = { relevance: "related" as const, reason: null };
+
+  it("shows nothing priced for an unrelated photo and no words", () => {
+    expect(
+      hasSomethingToTriage({ text: "", verdict: unrelated, urgency: "soon" }),
+    ).toBe(false);
+  });
+
+  it("treats an unreadable photo with no words the same way", () => {
+    expect(
+      hasSomethingToTriage({ text: "   ", verdict: unclear, urgency: "routine" }),
+    ).toBe(false);
+  });
+
+  /* Words are evidence. The photograph being wrong does not make the sentence wrong. */
+  it("still answers when the customer typed something", () => {
+    expect(
+      hasSomethingToTriage({ text: "tap is leaking", verdict: unrelated, urgency: "soon" }),
+    ).toBe(true);
+  });
+
+  it("answers from a photo that showed the problem", () => {
+    expect(hasSomethingToTriage({ text: "", verdict: related, urgency: "soon" })).toBe(true);
+  });
+
+  /*
+   * NOBODY JUDGED IT IS NOT THE SAME AS JUDGED BADLY. The fallback answered, the key
+   * expired, the model said nothing — none of those is evidence that the photograph was
+   * useless, and withholding the answer would punish a customer for our outage.
+   */
+  it("answers when no verdict was recorded at all", () => {
+    expect(hasSomethingToTriage({ text: "", verdict: null, urgency: "soon" })).toBe(true);
+  });
+
+  /*
+   * THE ONE THAT MUST NEVER BE SUPPRESSED. Somebody photographing a sparking board and
+   * typing nothing is exactly what the photo hazard read exists for. An unrelated verdict
+   * must not hide an emergency.
+   */
+  it("never hides an emergency, whatever the photo was judged to be", () => {
+    expect(
+      hasSomethingToTriage({ text: "", verdict: unrelated, urgency: "emergency" }),
+    ).toBe(true);
+    expect(
+      hasSomethingToTriage({ text: "", verdict: unclear, urgency: "emergency" }),
+    ).toBe(true);
   });
 });

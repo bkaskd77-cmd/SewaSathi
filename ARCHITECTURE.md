@@ -1697,6 +1697,35 @@ browser sent a number, and anybody can send a different one. Booking photographs
 flag-only, and the guarantee and no-show gates read `exif` timestamps — the column exists so
 nobody can later write a money rule against the wrong kind without noticing.
 
+### "It always answers" does not mean "invent a job"
+
+A customer attached a photograph of bananas, typed nothing, and the product answered
+**Plumbing · Needed soon · Rs 900 – Rs 4,000**, with a list of plumbing products to choose
+from. The relevance check had worked perfectly and said so on the screen; the priced
+recommendation sat underneath it anyway.
+
+**It was not the model's fault.** `TriageResult` requires a category, an urgency and a
+price — there is no way for an answer to mean "nothing here". So with no words and an
+unusable photograph the only thing left is `GENERIC_RULE`, which is plumbing, soon, 900 to
+4000. That is a sensible default for a **failure** — a missing key, a timeout, a reply that
+would not parse — and nonsense for an **absence**. The rule was written about the first and
+silently covered the second.
+
+**`hasSomethingToTriage` draws the line at evidence, not confidence.** A price is shown
+when there is something to price it from: words, or a photograph of the problem. Neither is
+not a low-confidence answer, it is no answer, and printing a number anyway is rule 6 on the
+first screen anybody sees — a default rendered as a finding.
+
+**A hazard is never suppressed.** Somebody photographing a sparking board and typing
+nothing is exactly what the photo hazard read exists for, so an emergency is shown whatever
+the photograph was judged to be. The suppression is about relevance; the safety floor
+outranks it, as it outranks everything else.
+
+**`unclear` suppresses too**, for the same reason `unrelated` does: we cannot see a problem
+in it either way. And **no verdict at all does not suppress** — the fallback answered, or
+the key expired, and none of that is evidence the photograph was useless. Withholding the
+answer then would punish a customer for our outage.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open
