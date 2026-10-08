@@ -1649,6 +1649,43 @@ where it means something.
 the professional's on-site correction already fixes a misleading photograph. The verdicts
 are recorded and shown; what they are allowed to *do* belongs where money is involved.
 
+### HEIC, and why `accept="image/jpeg"` is not the fix it looks like
+
+iPhones shoot HEIC by default, `jpeg-js` cannot read it, so an iPhone photograph gets no
+hash and skips the duplicate check. The obvious lever is to restrict the file input to JPEG
+and let iOS transcode. Two things were checked before taking it, and the second is the one
+that matters.
+
+**Restricting `accept` probably does trigger the conversion — but `image/*` does not.**
+WebKit converted HEIC unconditionally for years; a change landed in March 2024 narrowing it
+to "the accept list is restricted and excludes HEIC", matching macOS. `accept="image/jpeg"`
+satisfies that. **`accept="image/*"` does not** — it is not a restricted list — and that is
+what three of this product's four inputs use today, with the arrival panel on
+`image/jpeg,image/*`, which includes the wildcard and is therefore just as unrestricted.
+There is also a trap in the other direction: since Safari 17, *listing* `image/heic` makes
+Safari convert JPEGs **to** HEIC before upload.
+
+**Whether the capture time survives that conversion is unverified, and it cannot be
+verified from here.** No authoritative source covers iOS Safari's own transcode; the
+reports that exist are about desktop converters and they disagree. It needs one real
+iPhone.
+
+**And for three of the four inputs the question is moot, because the capture time is
+already gone.** `lib/utils/image.ts` resizes on a canvas and `canvas.toDataURL("image/jpeg")`
+produces a fresh JPEG with no metadata at all — **measured in Chromium rather than assumed**:
+a JPEG carrying a real APP1/Exif block comes back with none. So on the triage, booking and
+document inputs the hash already works (canvas always emits JPEG, HEIC included) and
+`takenAt` is already always null. Restricting `accept` there would buy nothing.
+
+**Only the arrival panel sends the original bytes**, deliberately and documented as such,
+which is exactly why freshness works there — and exactly where HEIC costs us the hash.
+
+**So the recommendation is a trade, not a fix.** Restricting the arrival input to
+`image/jpeg` would gain the hash on iPhone photographs and would lose the capture time if
+iOS's transcode drops EXIF — swapping a working freshness check for a working duplicate
+check on the same photographs. It is not taken blind. A converter is not built either: the
+measurement to make first is one iPhone, one arrival photograph, before and after.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open
