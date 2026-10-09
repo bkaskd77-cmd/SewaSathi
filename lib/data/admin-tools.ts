@@ -24,6 +24,7 @@ export type AdminTool = {
     | "revenue"
     | "content"
     | "triageAccuracy"
+    | "aiLimits"
     | "audit";
   /** Unprefixed; the caller's `Link` adds the locale. */
   href: string;
@@ -52,6 +53,14 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * action. It answers "is the AI right", which is a standing question.
    */
   { key: "triageAccuracy", href: "/admin/triage-accuracy" },
+  /*
+   * Beside triage accuracy because they are the two halves of one question — is the AI
+   * worth what it costs — and because somebody who has just read that the matcher
+   * answered four of four is one click from the budget that made it. Not a queue: there
+   * is no list and nothing drains, and the number on it is today's spend rather than
+   * work outstanding.
+   */
+  { key: "aiLimits", href: "/admin/ai-limits" },
   /*
    * Also not a queue, and the distinction matters here more than most: 1,300 editable
    * strings is a list that never drains, and a count of them would read as work

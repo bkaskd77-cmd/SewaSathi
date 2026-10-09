@@ -65,6 +65,31 @@ const ATTEMPTS: Array<{ edge: number; quality: number }> = [
 ];
 
 /**
+ * Smaller, for a photograph whose only reader is the model.
+ *
+ * WHY A SEPARATE LADDER. A booking photograph is STORED and a professional looks at it
+ * before deciding what to bring, so its size is about a person's eyes. A triage
+ * photograph is looked at once by Claude and discarded — the privacy page promises
+ * exactly that — and it is the most expensive thing we send: images bill at roughly
+ * `width × height / 750` tokens, so 1500px costs about 2,250 and 1024px about 1,050.
+ * Halving the tokens halves the per-photo cost and shortens the upload, which is the
+ * other half of why photo triages were timing out on Nepali mobile connections.
+ *
+ * **WHETHER 1024 KEEPS THE ANSWER AS GOOD IS NOT MEASURED.** It is a reasoned choice —
+ * the questions are "what is this a photo of", "is this the problem described" and "is
+ * anything sparking or burning", none of which needs detail an eye could not get across
+ * a room — and reasoning is not evidence. What would settle it is a labelled set of real
+ * triage photographs scored at both sizes, which needs real photographs we do not have
+ * yet. Written here rather than implied so the number can be moved back on evidence
+ * instead of on taste.
+ */
+const TRIAGE_ATTEMPTS: Array<{ edge: number; quality: number }> = [
+  { edge: 1024, quality: 0.7 },
+  { edge: 1024, quality: 0.55 },
+  { edge: 800, quality: 0.5 },
+];
+
+/**
  * A document photograph has to stay readable, so it starts larger and gives
  * ground more slowly than a picture of a leaking tap does. A citizenship
  * number that survives the compression is the whole point of the upload.
@@ -87,9 +112,14 @@ const DOCUMENT_ATTEMPTS: Array<{ edge: number; quality: number }> = [
  */
 export function encodeToBudget(
   source: CanvasImageSource & { width: number; height: number },
-  kind: "photo" | "document" = "photo",
+  kind: "photo" | "document" | "triage" = "photo",
 ): { dataUrl: string; bytes: number } | null {
-  const attempts = kind === "document" ? DOCUMENT_ATTEMPTS : ATTEMPTS;
+  const attempts =
+    kind === "document"
+      ? DOCUMENT_ATTEMPTS
+      : kind === "triage"
+        ? TRIAGE_ATTEMPTS
+        : ATTEMPTS;
 
   let best: { dataUrl: string; bytes: number } | null = null;
   for (const { edge, quality } of attempts) {
@@ -163,7 +193,14 @@ function encode(
  * Validate, resize and re-encode. Throws `ImageRejected` with a sentence that
  * can be shown to the person as-is.
  */
-export async function prepareImage(file: File): Promise<PreparedImage> {
+export async function prepareImage(
+  file: File,
+  /**
+   * `triage` for a photograph the model reads and nothing stores; `photo` for one a
+   * professional will look at. Defaults to `photo`, so an existing caller is unchanged.
+   */
+  kind: "photo" | "triage" = "photo",
+): Promise<PreparedImage> {
   if (!file.type.startsWith("image/")) {
     throw new ImageRejected("That's not an image. Photos only.");
   }
@@ -178,7 +215,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   const takenAt = await readCaptureTime(file);
 
   const source = await decode(file);
-  const best = encodeToBudget(source, "photo");
+  const best = encodeToBudget(source, kind);
 
   if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) {
     source.close();

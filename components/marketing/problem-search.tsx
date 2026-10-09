@@ -122,6 +122,10 @@ export function ProblemSearch() {
      returns, so keying the line on `photo` meant it could never appear — which is
      exactly what happened the first time somebody tried to run the test. */
   const [captureSeen, setCaptureSeen] = React.useState(false);
+  /* What actually went to the model, in kilobytes. The other half of "report the image
+     size": a ladder that silently stopped shrinking would look exactly like one that
+     worked, and this is the number that says which. */
+  const [captureKb, setCaptureKb] = React.useState(0);
   const showCapture = usePhotoDebug();
   /*
    * Whether the answer is worth showing at all. Computed here rather than inside the card
@@ -289,13 +293,18 @@ export function ProblemSearch() {
       // Loaded on demand: the compression code is dead weight for the great
       // majority of visitors, who never attach a photo.
       const { prepareImage } = await import("@/lib/utils/image");
-      const prepared = await prepareImage(file);
+      /* `triage` rather than `photo`: this one is read once by the model and stored by
+         nothing, so it goes up at 1024px — about half the image tokens of 1500, and
+         half the upload on a mobile connection. See the ladder in lib/utils/image.ts,
+         including what about that choice is reasoned and what is measured. */
+      const prepared = await prepareImage(file, "triage");
 
       window.clearTimeout(exitRef.current);
       setPhotoLeaving(false);
       setPhoto(prepared);
       setCaptureTime(prepared.takenAt);
       setCaptureSeen(true);
+      setCaptureKb(Math.round(prepared.bytes / 1024));
       setPhotoSent(true);
       // A photo on its own is a complete question, so triage runs immediately.
       void runTriage(query, prepared);
@@ -465,8 +474,8 @@ export function ProblemSearch() {
       {showCapture && captureSeen ? (
         <p className="mt-2 font-mono text-caption text-muted-foreground">
           {captureTime
-            ? `capture time: ${captureTime} — EXIF survived`
-            : "no camera data in this file — EXIF did not survive"}
+            ? `capture time: ${captureTime} — EXIF survived · ${captureKb} kB sent`
+            : `no camera data in this file — EXIF did not survive · ${captureKb} kB sent`}
         </p>
       ) : null}
 

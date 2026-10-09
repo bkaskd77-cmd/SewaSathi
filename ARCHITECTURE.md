@@ -1893,6 +1893,73 @@ It closes the upload after two unrelated photographs — but it lives in React s
 page refresh clears it. It is there to tell an honest person to stop trying, not to stop
 anybody. The bucket is the half that survives a refresh.
 
+### What the AI may cost, and what one person may ask
+
+Nine ceilings, all server-side, all in `lib/config/ai-limits.ts` and all editable on
+`/admin/ai-limits` under a fresh second factor.
+
+| | Visitor | Signed in |
+| --- | --- | --- |
+| Triages a Nepal day | 2 | 10 text, 4 photo (separate) |
+| Question length | 300 | 500 |
+| Photo analysis | **never** | 4 a day, 2 unrelated closes the question |
+| Off-topic | 1 ends the AI day | 2 in a row pauses 24h |
+| Share of the day's budget | 20% together | the rest |
+
+**The free refusals come first and cost nothing**: under 5 characters, fewer than three
+distinct characters, over the length cap. They run before any store round trip, so the
+cheapest abuse is also the cheapest to refuse. A photograph with no words is still a
+complete question — the length floor applies only when the text is all there is.
+
+**A visitor is counted against a cookie, not an IP.** Nepali mobile networks put
+thousands of people behind one address, so an IP ceiling tight enough to be useful would
+lock out a carrier; the IP limit stays as a generous backstop in `checkTriageRateLimit`.
+The cookie is `httpOnly` and clearable by anybody — **a cost ceiling, never a control**,
+which is written at the top of every module here.
+
+**The unrelated-photo count is keyed to the account, not to a request id**, which is the
+whole reason a refresh cannot reset it: a request id is a number the browser chooses and
+a new tab chooses a new one. That was the hole in the React-state version.
+
+**The budget is measured from the provider's own `usage`**, on every call including one
+whose reply would not parse — those tokens were spent, and a budget that counts only the
+successes undercounts exactly when the model is misbehaving. A model id not in
+`MODEL_PRICES` is priced at the dearest rate we know and counted, because a budget that
+reads an unknown model as free stops working the day somebody switches it.
+
+**Three reads fail towards the ceiling and one deliberately does not.** An unreadable
+`ai_limits` reads as the defaults; an unreadable `ai_spend` reads as the budget already
+spent. An unreadable `ai_account_state` reads as *not paused*: being wrong there costs
+one model call, where being wrong the other way locks somebody out over a hiccup.
+
+**A refusal is an answer, not an error.** `refusedAnswer` runs the keyword matcher, runs
+the safety floor over it, and returns 200 with the refusal as data. A 429 would work —
+the browser's own catch falls back locally — and would lose the sentence, and a refusal
+nobody can read is indistinguishable from a broken product. It logs as
+`ceiling-reached`, its own reason, because every other fallback reason is a fault and
+folding a working ceiling in among them makes the fallback rate unreadable.
+
+**Nothing can silence a hazard.** With the budget spent, the account paused, the day's
+questions gone and the visitor off-topic, "I can smell gas" and "ग्यास गन्हायो" still
+come back `emergency` with guidance. Asserted in `tests/unit/ai-gate.test.ts`, not
+promised here.
+
+**The same photograph twice is a retry.** The triage cache is keyed on a 64-bit
+perceptual hash as well as the text, so a re-upload on a weak connection costs nothing —
+the most expensive call we make, saved on the commonest accident. The old rule was
+"photos are never cached" and its reason was about using the *image* as a key; the hash
+answers that rather than overruling it. Two different photographs of the same tap still
+miss, because the hash is compared exactly: a near-match is a judgement, and a cache key
+must not make one. **The verdict rides with the answer**, or a retried unrelated
+photograph would come back with no retake line and look accepted.
+
+**A triage photograph goes up at 1024px, not 1500.** Images bill at roughly
+`width × height / 750` tokens, so that is about half the cost and half the upload — the
+other half of why photo triages were timing out. **Whether 1024 keeps the answer as good
+is reasoned, not measured**, and `TRIAGE_ATTEMPTS` says so: what would settle it is a
+labelled set of real triage photographs scored at both sizes, which needs photographs we
+do not have yet. The size actually sent is printed by `?debug=photo`.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open

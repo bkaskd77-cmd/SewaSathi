@@ -9,9 +9,17 @@ import type { TriageResult } from "@/lib/ai/mockTriage";
  * "water leak" is typed by everybody. Without this each one is a paid API call
  * for an answer we already have.
  *
- * Text only. A photo request is never cached: two photos of the same tap are
- * not the same request, and holding base64 in a process that Vercel keeps warm
- * is not free.
+ * A PHOTO REQUEST IS CACHED NOW, AND THE OLD REASON NOT TO IS ANSWERED RATHER THAN
+ * OVERRULED. The note here read "two photos of the same tap are not the same request,
+ * and holding base64 in a process Vercel keeps warm is not free" — both true, and both
+ * about using the IMAGE as the key. The key is a 64-bit perceptual hash now, sixteen hex
+ * characters, so nothing holds any bytes and two different photographs of the same tap
+ * still miss. Only the same file sent twice hits, which is the case this exists for: a
+ * retry on a weak connection, costing the most expensive call we make.
+ *
+ * THE HASH IS PART OF THE KEY, NOT THE WHOLE KEY. The same photograph with different
+ * words is a different question and pays for a call; the same photograph with the same
+ * words — which is what a retry is — is the same question.
  *
  * Keyed by locale as well as text: the explanation comes back in the reader's
  * language, so "water leak" answered in English is not an answer for somebody
@@ -26,25 +34,52 @@ import type { TriageResult } from "@/lib/ai/mockTriage";
 const TTL_MS = 10 * 60_000;
 const MAX_ENTRIES = 500;
 
-type Entry = { result: TriageResult; expiresAt: number };
+/**
+ * The photo verdict rides with the answer, or a retry loses the retake line.
+ *
+ * Without it, re-sending the same unrelated photograph would hit the cache, skip the
+ * model, and come back with no "that looks like something else" — so the second attempt
+ * would look like it had been accepted. The verdict is part of the answer, not a side
+ * effect of having made the call.
+ */
+type CachedPhoto = { relevance: string; reason: string | null } | null;
+
+type Entry = {
+  result: TriageResult;
+  photo: CachedPhoto;
+  expiresAt: number;
+};
 
 const cache = new Map<string, Entry>();
 
 /** Case, spacing and trailing punctuation should not miss a cache hit. */
-export function cacheKey(text: string, locale: Locale): string {
+export function cacheKey(
+  text: string,
+  locale: Locale,
+  photoHash?: string | null,
+): string {
   const normalised = text
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[.!?]+$/, "")
     .trim();
-  return `${locale}:${normalised}`;
+  /*
+   * A PHOTOGRAPH THAT WOULD NOT HASH NEVER HITS AND NEVER WRITES. `perceptualHash`
+   * returns null on bytes it cannot decode, and `photo:null` as a key would make every
+   * undecodable photograph the same question as every other — rule 6 in the shape it
+   * takes for a cache key. The caller is what refuses; this would be the quiet way to
+   * get it wrong, so the key says so.
+   */
+  const photo = photoHash ? `photo:${photoHash}:` : "";
+  return `${photo}${locale}:${normalised}`;
 }
 
 export function readTriageCache(
   text: string,
   locale: Locale,
-): TriageResult | null {
-  const key = cacheKey(text, locale);
+  photoHash?: string | null,
+): { result: TriageResult; photo: CachedPhoto } | null {
+  const key = cacheKey(text, locale, photoHash);
   const entry = cache.get(key);
   if (!entry) return null;
 
@@ -57,17 +92,19 @@ export function readTriageCache(
   // the eviction below becomes least-recently-used rather than oldest-written.
   cache.delete(key);
   cache.set(key, entry);
-  return entry.result;
+  return { result: entry.result, photo: entry.photo };
 }
 
 export function writeTriageCache(
   text: string,
   locale: Locale,
   result: TriageResult,
+  photoHash?: string | null,
+  photo: CachedPhoto = null,
 ) {
-  const key = cacheKey(text, locale);
+  const key = cacheKey(text, locale, photoHash);
   cache.delete(key);
-  cache.set(key, { result, expiresAt: Date.now() + TTL_MS });
+  cache.set(key, { result, photo, expiresAt: Date.now() + TTL_MS });
 
   while (cache.size > MAX_ENTRIES) {
     const oldest = cache.keys().next();

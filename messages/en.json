@@ -1832,6 +1832,10 @@
         "content": {
           "name": "Words",
           "what": "Change what the product says, in both languages, without a deploy."
+        },
+        "aiLimits": {
+          "name": "AI ceilings",
+          "what": "What the AI may cost in a day, and what one person may ask. Today's spend is on it."
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}."
@@ -2493,6 +2497,48 @@
         "restore": "Load this back into the editor",
         "fieldTitle": "Title",
         "fieldLead": "Opening line"
+      }
+    },
+    "aiLimits": {
+      "title": "AI ceilings",
+      "lead": "What the AI may cost in a day, and what one person may ask. Every change here is recorded with the old number and the new one.",
+      "today": "Today, {day} in Kathmandu",
+      "spendUnread": "Today's spend could not be read. This is us, not the budget — the product falls back to the keyword matcher while it cannot be established, which is the safe direction.",
+      "spent": "{spent} of {budget} spent, across {calls} calls.",
+      "visitorSpent": "Visitors: {spent} spent, {left} left of their share, {calls} calls.",
+      "userLeft": "Signed-in: {left} left.",
+      "photoCalls": "{calls} of those carried a photo.",
+      "unknownModel": "{calls} calls were priced at the dearest rate we know, because the model id was not in the table. Somebody changed the model and the budget is guessing.",
+      "resets": "Resets at {time} UTC, which is midnight in Kathmandu.",
+      "formTitle": "The ceilings",
+      "formLead": "Each one is held to a range by the database as well as by this form, so a slip is corrected rather than saved. Saving needs a code from your authenticator in the last fifteen minutes — the same proof a payout needs, because this is a field that spends money.",
+      "field": {
+        "anonTriagesPerDay": "Visitor questions a day",
+        "anonMaxChars": "Visitor question length",
+        "userTextPerDay": "Signed-in text triages a day",
+        "userPhotosPerDay": "Signed-in photo analyses a day",
+        "userMaxChars": "Signed-in question length",
+        "offTopicStreakToPause": "Off-topic questions before a pause",
+        "offTopicPauseHours": "How long the pause lasts (hours)",
+        "offTopicRepeatWindowDays": "Repeat window for review (days)",
+        "unrelatedPhotosPerRequest": "Unrelated photos before the upload closes",
+        "photoRequestWindowMinutes": "How long that counts for (minutes)",
+        "dailyBudgetUsd": "Daily AI budget (US dollars)",
+        "visitorShareBps": "Visitors' share of it (basis points)"
+      },
+      "range": "{min} to {max}",
+      "save": "Save the ceilings",
+      "saved": "Saved, and recorded in the audit log.",
+      "rateTitle": "Rate limits",
+      "rateLead": "Read-only here. These are a shape of the product rather than a budget, so changing one is a code change somebody reviews. Counted per account when signed in and per address otherwise.",
+      "rateName": "Ceiling",
+      "ratePerMinute": "A minute",
+      "ratePerHour": "An hour",
+      "errors": {
+        "notAdmin": "You cannot change these.",
+        "reauthNeeded": "Enter a code from your authenticator first — proof from the last fifteen minutes is needed to change what the AI may spend.",
+        "notConfigured": "The database is unreachable, so nothing was changed.",
+        "saveFailed": "That did not save. Nothing was changed."
       }
     }
   }

@@ -786,6 +786,56 @@ exists to stop. The gap stands; the log is trustworthy from here.
 
 ---
 
+## 1b. Every ceiling, in one table
+
+Asked for so the gaps are visible, which is the only reason to write it down: a limit
+somebody can find is a limit somebody can argue with, and the row that is missing is the
+finding. `LIMITS` in `lib/server/rate-limit.ts` is the source for the rate half and
+`DEFAULT_AI_LIMITS` in `lib/config/ai-limits.ts` for the AI half;
+`tests/unit/limit-inventory.test.ts` fails when either grows a key this table does not
+name, so it cannot quietly go stale.
+
+**Two stores and they behave differently.** The rate half counts in Upstash when
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set — they are, on
+production — and falls back to per-instance counters when the store cannot answer, which
+**fails open**: a store having a bad minute must not lock everybody out of signing in.
+`/api/health` reports which is in force.
+
+| Ceiling | Per | Window | Guards |
+| --- | --- | --- | --- |
+| `triage` 12 / 60 | account or IP | minute / hour | Every triage. The script ceiling |
+| `triage:photo` 6 / 20 | account or IP | minute / hour | Photo triages, which cost ~2× and never cache |
+| `otp:number` 3 / 8 | phone number | minute / hour | Every send is an SMS we pay for |
+| `otp:ip` 10 / 40 | IP | minute / hour | Looser: a family or an office is one address |
+| `otp:attempt` 5 / 10 | phone number | minute / hour | Wrong codes. What stops a six-digit brute force |
+| `booking` 3 / 20 | account | minute / hour | A real customer books one job, occasionally two |
+| `join` 2 / 10 | IP | minute / hour | The public application form, a spam target |
+| `document:upload` 12 / 60 | account | minute / hour | Three documents a submission, retaken freely |
+| `anonTriagesPerDay` 2 | device cookie | Nepal day | A visitor's sample of the AI |
+| `userTextPerDay` 10 | account | Nepal day | A signed-in account's text triages |
+| `userPhotosPerDay` 4 | account | Nepal day | And its photo analyses, separately |
+| `unrelatedPhotosPerRequest` 2 | account | 30 minutes | Unrelated photographs before the upload closes |
+| `offTopicStreakToPause` 2 → 24h | account | consecutive | Off-topic questions before AI triage pauses |
+| `dailyBudgetUsd` $1 | the whole site | Nepal day | Measured from each response's own `usage` |
+| `visitorShareBps` 20% | visitors together | Nepal day | The rest is reserved for signed-in users |
+
+**The gaps, named rather than left to be found.**
+
+- **Every server action except booking and the join form has no rate limit at all.**
+  Raising a claim, recording an arrival, confirming a payment, approving a refund,
+  sending a payout: all of them are guarded by the session, the role, and in the money
+  cases a fifteen-minute second-factor proof — but nothing counts how often one account
+  may call them. That is defensible for the admin ones, where the actor is provisioned
+  and audited, and it is thinner for the customer ones. Nothing here is a hole today
+  because each one re-reads the subject and the database refuses the illegitimate cases;
+  what is missing is a ceiling on volume.
+- **The AI ceilings are cost controls and not security controls**, which is written at
+  the top of both modules. A visitor is counted against a cookie they can clear. They
+  bound what one ordinary afternoon spends; they stop nobody determined.
+- **The per-instance fallback is weaker than it looks** and is the reason the OTP
+  ceilings moved to a shared store first: a ceiling that resets whenever a new serverless
+  instance spins up is not a ceiling.
+
 ## 2. Data inventory
 
 What we hold, why, who can read it, how long.

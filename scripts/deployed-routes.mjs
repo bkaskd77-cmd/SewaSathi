@@ -119,6 +119,7 @@ export const GUARDED_ROUTES = [
   "/admin/appeals",
   "/admin/applications",
   "/admin/audit",
+  "/admin/ai-limits",
   "/admin/bands",
   "/admin/claims",
   "/admin/guarantee-claims",

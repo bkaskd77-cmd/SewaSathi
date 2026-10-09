@@ -35,6 +35,7 @@ import {
   recordAiSpend,
   writeAccountState,
 } from "@/lib/data/ai-ceilings";
+import { perceptualHash } from "@/lib/photos/hash";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
 import {
   spendDaily,
@@ -394,8 +395,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Photos are never served from cache, and never written to it.
-  const cached = !image && text ? readTriageCache(text, locale) : null;
+  /*
+   * THE SAME PHOTOGRAPH SENT TWICE IS A RETRY, NOT A SECOND QUESTION.
+   *
+   * The hash is the key — sixteen hex characters, no bytes held — so a re-upload on a
+   * weak connection costs nothing, which is the most expensive call we make saved on the
+   * commonest accident. Two DIFFERENT photographs of the same tap still miss, because
+   * the hash is compared exactly rather than by distance: a near-match is a judgement
+   * and a cache key must not make one.
+   *
+   * A PHOTOGRAPH WE COULD NOT HASH IS NEVER CACHED, in either direction. `photoHash` is
+   * null then, and `cacheKey` drops the photo segment — so a text-only entry would be
+   * served for a question that had a photograph in it. The guard is here rather than in
+   * the key, where it would be a silent condition.
+   */
+  const photoHash = image ? hashOfImage(image.data) : null;
+  const cacheable = Boolean(text) && (!image || Boolean(photoHash));
+  const cachedEntry = cacheable ? readTriageCache(text, locale, photoHash) : null;
+  const cached = cachedEntry?.result ?? null;
 
   let source: TriageSource = cached ? "cache" : "fallback";
   /*
@@ -440,7 +457,9 @@ export async function POST(request: NextRequest) {
         topicVerdict = answer.topic ?? null;
         source = "claude";
         reason = "ok";
-        if (!image && text) writeTriageCache(text, locale, answer.result);
+        if (cacheable) {
+          writeTriageCache(text, locale, answer.result, photoHash, answer.photo);
+        }
       }
       /*
        * PRICED FROM WHAT THE PROVIDER REPORTED, on every outcome including an answer we
@@ -760,4 +779,20 @@ async function refusedAnswer(input: {
     },
     { headers: { "cache-control": "no-store" } },
   );
+}
+
+/**
+ * The perceptual hash of an uploaded photograph, or null.
+ *
+ * SIXTEEN HEX CHARACTERS OF A 64-BIT dHASH — enough to say "this is the same file",
+ * nowhere near enough to reconstruct anything, and nothing is stored. `perceptualHash`
+ * answers null on bytes it cannot decode, and null here means the photograph is simply
+ * not cacheable rather than that it is the same as every other undecodable one.
+ */
+function hashOfImage(base64: string): string | null {
+  try {
+    return perceptualHash(new Uint8Array(Buffer.from(base64, "base64")));
+  } catch {
+    return null;
+  }
 }
