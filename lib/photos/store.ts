@@ -1,7 +1,12 @@
 import "server-only";
 
-import { judgeDuplicate, type DuplicateVerdict } from "@/lib/photos/duplicate";
-import { perceptualHash } from "@/lib/photos/hash";
+import {
+  DUPLICATE_REJECT_AT,
+  judgeDuplicate,
+  type DuplicateVerdict,
+} from "@/lib/photos/duplicate";
+import type { BookingPhotoMatch } from "@/lib/photos/evidence";
+import { hammingDistance, perceptualHash } from "@/lib/photos/hash";
 import { describeError } from "@/lib/data/source";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -48,14 +53,100 @@ export async function checkAndRemember(input: {
   bookingId: string;
   accountId: string | null;
 }): Promise<PhotoCheck> {
+  const checked = await comparePhoto(input);
+  await rememberIfNew({ ...input, check: checked });
+  return checked;
+}
+
+/**
+ * Hash and judge, writing nothing.
+ *
+ * SPLIT OUT FOR CLAIM EVIDENCE, WHICH REFUSES SOME PHOTOGRAPHS. The two callers above
+ * keep every photograph they are sent, so comparing and remembering in one step was the
+ * whole operation. A claim photograph can be refused outright — see
+ * `lib/photos/evidence.ts` — and remembering a hash we refused would put a picture into
+ * the comparison table that is not evidence of anything, which later reads as a near
+ * match against an honest photograph. So the claim path compares first and remembers only
+ * what it stores.
+ *
+ * `checkAndRemember` is the composition and its behaviour is unchanged: same hash, same
+ * verdict, same write on the same condition.
+ */
+export async function comparePhoto(input: {
+  bytes: Uint8Array;
+  kind: PhotoKind;
+  bookingId: string;
+  accountId: string | null;
+}): Promise<PhotoCheck> {
   const hash = perceptualHash(input.bytes);
   const duplicate = await judgeAgainstPriors({ ...input, hash });
-
-  if (hash && duplicate.kind !== "retry") {
-    await rememberHash({ ...input, hash });
-  }
-
   return { hash, duplicate };
+}
+
+/**
+ * Keep the hash, unless there is nothing new to keep.
+ *
+ * A retry on the same booking writes nothing — the row is already there — and a
+ * photograph that would not decode has no hash to write.
+ */
+export async function rememberIfNew(input: {
+  kind: PhotoKind;
+  bookingId: string;
+  accountId: string | null;
+  check: PhotoCheck;
+}): Promise<void> {
+  if (!input.check.hash || input.check.duplicate.kind === "retry") return;
+  await rememberHash({ ...input, hash: input.check.hash });
+}
+
+/**
+ * Is this the picture the customer already sent us with the booking?
+ *
+ * ITS OWN QUESTION, SCOPED TO ONE BOOKING, which is why it is not `judgeDuplicate` with
+ * a different argument. That function asks "have we seen this anywhere", and the answer
+ * for a claim photograph matching the customer's own booking photograph is "yes, from
+ * you, about this job" — ordinary rather than suspicious in every other context. Here it
+ * means the photograph may predate the work, so it is a doubt that routes the claim to
+ * somebody who can look.
+ *
+ * `no-reference` AND `not-compared` ARE DIFFERENT ANSWERS AND NEITHER IS CLEAN. The
+ * booking carried no photographs at all; or the read failed. Rule 6 on a column that
+ * will gate money: a comparison we could not make must not read as one we made and
+ * passed.
+ */
+export async function matchBookingPhotos(input: {
+  hash: string | null;
+  bookingId: string;
+}): Promise<BookingPhotoMatch> {
+  if (!input.hash) return "not-compared";
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("photo_hashes")
+      .select("hash")
+      .eq("kind", "booking")
+      .eq("booking_id", input.bookingId)
+      .limit(HASH_COMPARISON_LIMIT);
+
+    if (error) {
+      console.error(`[photos] booking hashes unread — ${describeError(error)}`);
+      return "not-compared";
+    }
+
+    const priors = (data ?? []).map((row) => row.hash as string);
+    if (priors.length === 0) return "no-reference";
+
+    for (const prior of priors) {
+      const distance = hammingDistance(input.hash, prior);
+      if (distance !== null && distance <= DUPLICATE_REJECT_AT) {
+        return "same-picture";
+      }
+    }
+    return "different-picture";
+  } catch (thrown) {
+    console.error(`[photos] booking match threw — ${describeError(thrown)}`);
+    return "not-compared";
+  }
 }
 
 /**

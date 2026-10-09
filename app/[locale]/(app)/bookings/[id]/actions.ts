@@ -294,21 +294,33 @@ export async function confirmTripAction(
 export async function openClaimAction(
   bookingId: string,
   description: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  /**
+   * The original bytes of up to three photographs, base64.
+   *
+   * CAPPED HERE AS WELL AS IN THE DATA LAYER, because a server action is a public POST
+   * and the browser's limit is a convenience rather than a control. The slot key in SQL
+   * is the one that cannot be argued with; these two are so a fourth never reaches it.
+   */
+  photos: string[] = [],
+): Promise<
+  { ok: true; photosStored: number } | { ok: false; error: string }
+> {
   const profile = await getSessionProfile();
   if (!profile) return { ok: false, error: "notSignedIn" };
 
+  const { MAX_CLAIM_PHOTOS } = await import("@/lib/photos/evidence");
   const { openClaim } = await import("@/lib/data/claims");
   const result = await openClaim({
     bookingId,
     actorId: profile.id,
     description,
+    photos: photos.slice(0, MAX_CLAIM_PHOTOS),
   });
 
   if (!result.ok) return { ok: false, error: result.reason };
 
   revalidatePath(`/bookings/${bookingId}`);
-  return { ok: true };
+  return { ok: true, photosStored: result.photosStored };
 }
 
 /** Ending it themselves. Free, one tap, and it costs them nothing later. */

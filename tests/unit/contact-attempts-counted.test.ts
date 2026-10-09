@@ -90,8 +90,20 @@ describe("the arrival photograph is not re-encoded on its way up", () => {
    * and the screen would quietly say so for ever.
    */
   it("sends the original bytes rather than the compressor's", () => {
+    /*
+     * THE READER MOVED AND THE RULE DID NOT. This read the panel for `arrayBuffer()`
+     * while the four-line reader was local to it; the claim dialog needs exactly the
+     * same reader, so it lives in `lib/photos/original.ts` now and both callers import
+     * it. Asserting the call site AND the one implementation is what keeps the rule
+     * where the rule is: a panel reaching for `prepareImage` is still the failure, and
+     * a reader that quietly started re-encoding is a new one.
+     */
     expect(PANEL).not.toMatch(/prepareImage/);
-    expect(PANEL).toMatch(/arrayBuffer\(\)/);
+    expect(PANEL).toMatch(/readOriginalPhoto\(/);
+
+    const reader = strip("lib/photos/original.ts");
+    expect(reader).not.toMatch(/prepareImage|canvas|toDataURL/);
+    expect(reader).toMatch(/arrayBuffer\(\)/);
   });
 
   /* And the server is what strips it, so nothing unstripped is ever stored. */

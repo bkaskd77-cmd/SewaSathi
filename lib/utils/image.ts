@@ -237,3 +237,12 @@ async function readCaptureTime(file: File): Promise<string | null> {
     return null;
   }
 }
+
+/*
+ * `readOriginalPhoto` LIVES IN `lib/photos/original.ts`, NOT HERE, and the reason is the
+ * bundle rather than taste. It was written in this file first, beside the compressor it
+ * must not be confused with — and both callers are small client components on pages with
+ * budgets, so importing it from here would have dragged `prepareImage`, the two encoders
+ * and the EXIF parser onto `/bookings/[id]` and the provider job screen to get four
+ * lines. It names this function in its own comment instead.
+ */

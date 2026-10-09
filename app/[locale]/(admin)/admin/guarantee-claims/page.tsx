@@ -14,7 +14,9 @@ import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
 import { categoryCopy } from "@/lib/config/services";
 import { getCategories } from "@/lib/data/categories";
+import type { ClaimPhoto } from "@/lib/data/claim-photos";
 import { refundQueue } from "@/lib/data/claims";
+import { CLAIM_FRESHNESS_WINDOW_DAYS } from "@/lib/photos/evidence";
 import { REFUND_PAYMENT_DAYS } from "@/lib/payments/client";
 import { formatNpr } from "@/lib/utils";
 
@@ -290,6 +292,16 @@ export default async function GuaranteeClaimsPage() {
                   state. */}
               <ClaimSignalsPanel signals={claim.signals} locale={locale} />
 
+              {/* The photographs, with what the checks made of each one. Before
+                  the form, for the same reason the signals are: context for the
+                  decision rather than a result of it. */}
+              <ClaimEvidence
+                claimId={claim.claimId}
+                photos={claim.photos}
+                read={claim.photosRead}
+                adminId={gate.profile.id}
+              />
+
               <NextIntlClientProvider
                 locale={locale}
                 messages={{ admin: messages.admin }}
@@ -307,5 +319,124 @@ export default async function GuaranteeClaimsPage() {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * What the customer sent, and what the three checks made of it.
+ *
+ * ITS OWN COMPONENT SO THE SIGNING AND THE LOGGING CANNOT COME APART —
+ * `signClaimPhotosForAdmin` writes the audit row and returns the URLs in one call, which
+ * is the `recordDocumentAccess` arrangement. A second call site that signed and forgot to
+ * log is exactly what a separate helper invites.
+ *
+ * THE VERDICTS ARE READ BACK, NEVER RE-DERIVED. Every sentence here comes from a stored
+ * column through `doubtsOnRow`; the screen does not look at a distance and decide what it
+ * means. That divergence has already happened once in this product, between the catalogue
+ * card and `scoreParts`, and once on this very question — the first version of the arrival
+ * screen decided "the clocks match" from a bare `<= 2` written inline, which could not see
+ * the timezone correction the check applies.
+ *
+ * AND THE EVIDENCE IS PRINTED BESIDE THE VERDICT. A bare verdict is an assertion nobody
+ * can check; a bare number invites somebody to invent a threshold on the screen. Both, so
+ * a reviewer can disagree.
+ */
+async function ClaimEvidence({
+  claimId,
+  photos,
+  read,
+  adminId,
+}: {
+  claimId: string;
+  photos: ClaimPhoto[];
+  read: boolean;
+  adminId: string;
+}) {
+  const t = await getTranslations("admin.guaranteeClaims.evidence");
+
+  /* A FAILED READ IS ITS OWN SENTENCE. An empty list means nobody sent a photograph;
+     an unread one means we do not know, and saying "none" would be a measured zero. */
+  if (!read) {
+    return <p className="text-caption mt-3 text-muted-foreground">{t("unread")}</p>;
+  }
+  if (photos.length === 0) {
+    return <p className="text-caption mt-3 text-muted-foreground">{t("none")}</p>;
+  }
+
+  const { signClaimPhotosForAdmin } = await import("@/lib/data/claim-photos");
+  const urls = await signClaimPhotosForAdmin({
+    paths: photos.map((photo) => photo.path),
+    adminId,
+    claimId,
+  });
+
+  return (
+    <div className="mt-3 space-y-3">
+      {photos.map((photo) => {
+        const url = urls.get(photo.path) ?? null;
+        return (
+          <div key={photo.id}>
+            {url === null ? (
+              <p className="text-caption text-muted-foreground">{t("missing")}</p>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element -- a short-lived
+                 signed URL on a private bucket; next/image would proxy and cache it,
+                 which is the opposite of what a ten-minute link is for. */
+              <img
+                src={url}
+                alt={t("alt")}
+                className="max-h-64 w-auto rounded-md border border-border"
+              />
+            )}
+
+            <ul className="text-caption mt-1 space-y-0.5 text-muted-foreground">
+              {/* The camera clock against the claim, through the stored verdict. */}
+              <li
+                className={
+                  photo.freshnessVerdict === "stale"
+                    ? "text-warning-ink"
+                    : undefined
+                }
+              >
+                {photo.freshnessVerdict === "stale"
+                  ? t("stale", { days: String(CLAIM_FRESHNESS_WINDOW_DAYS) })
+                  : t("fresh", { days: String(CLAIM_FRESHNESS_WINDOW_DAYS) })}
+              </li>
+
+              <li
+                className={
+                  photo.duplicateVerdict === "flag"
+                    ? "text-warning-ink"
+                    : undefined
+                }
+              >
+                {photo.duplicateVerdict === "flag"
+                  ? t("nearDuplicate", {
+                      distance: String(photo.duplicateDistance ?? 0),
+                    })
+                  : photo.duplicateVerdict === "not-compared"
+                    ? t("notCompared")
+                    : photo.duplicateVerdict === "retry"
+                      ? t("retry")
+                      : t("unseen")}
+              </li>
+
+              {/* Against the photographs sent with the booking. `no-reference`
+                  is our gap and says so — the booking carried none — which is a
+                  different fact from a comparison that was made and passed. */}
+              <li
+                className={
+                  photo.bookingPhotoMatch === "same-picture"
+                    ? "text-warning-ink"
+                    : undefined
+                }
+              >
+                {t(`bookingMatch.${photo.bookingPhotoMatch ?? "not-compared"}`)}
+              </li>
+            </ul>
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   unreadableQueue,
   type QueuePage,
 } from "@/lib/data/queue";
+import { claimPhotosFor, type ClaimPhoto } from "@/lib/data/claim-photos";
 import { claimSignals, type ClaimSignals } from "@/lib/data/claim-signals";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -27,6 +28,7 @@ import { notify } from "@/lib/notify";
 // The runtime halves stay behind the dynamic imports the functions below
 // already use, because the registry reaches node:crypto through eSewa.
 import type { MaterialsRead } from "@/lib/payments";
+import type { EvidenceRefusal } from "@/lib/photos/evidence";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -94,6 +96,31 @@ export type ClaimRow = {
 export type ClaimWriteResult =
   | { ok: true; claimId: string }
   | { ok: false; reason: string };
+
+/**
+ * `openClaim`'s own result, because it is the only one that stores anything.
+ *
+ * `photosStored` IS NOT ON `ClaimWriteResult`, deliberately: `recordVerdict` and
+ * `releaseClaim` share that type and store no photographs, so a count on them would be a
+ * zero nobody measured — rule 6 in the shape it takes for a return type.
+ */
+export type ClaimOpenResult =
+  | { ok: true; claimId: string; photosStored: number }
+  | { ok: false; reason: string };
+
+/**
+ * A refused photograph, as a reason string the dialog has a sentence for.
+ *
+ * ONE MAPPING RATHER THAN A TEMPLATE, so a refusal added to `EvidenceRefusal` without a
+ * sentence is a type error here instead of a key rendered into the page — which is what
+ * `check:keys` exists to catch after the fact and this catches before it.
+ */
+const PHOTO_REFUSAL_REASON: Record<EvidenceRefusal, string> = {
+  alreadySent: "photoAlreadySent",
+  beforeTheJob: "photoBeforeTheJob",
+  noCameraTime: "photoNoCameraTime",
+  notChecked: "photoNotChecked",
+};
 
 function toStatus(value: unknown): ClaimStatus {
   return typeof value === "string" && isClaimStatus(value) ? value : "open";
@@ -196,7 +223,16 @@ export async function openClaim(input: {
   bookingId: string;
   actorId: string;
   description: string;
-}): Promise<ClaimWriteResult> {
+  /**
+   * The original bytes of up to three photographs, base64.
+   *
+   * ORIGINAL AND NOT COMPRESSED, which is the one thing a caller must not get wrong: the
+   * browser compressor re-encodes through a canvas and destroys EXIF, and the camera
+   * clock is two of the three checks. `components/booking/guarantee-panel.tsx` reads the
+   * file as it was written, the same way the arrival panel does.
+   */
+  photos?: string[];
+}): Promise<ClaimOpenResult> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
 
   const description = input.description.trim();
@@ -213,12 +249,48 @@ export async function openClaim(input: {
 
     const { data: booking } = await admin
       .from("bookings")
-      .select("id, customer_id, provider_id, category_slug, reference")
+      .select(
+        "id, customer_id, provider_id, category_slug, reference, completed_at",
+      )
       .eq("id", input.bookingId)
       .maybeSingle();
 
     if (!booking || booking.customer_id !== input.actorId) {
       return { ok: false, reason: "notYours" };
+    }
+
+    /*
+     * THE PHOTOGRAPHS ARE JUDGED BEFORE THE CLAIM EXISTS, and nothing is written until
+     * every one of them has passed. A hard reject is answerable only while the claim has
+     * not been made — remove the photograph, or take another — and judging afterwards
+     * would leave somebody an open claim with a rejected file and no screen to replace it
+     * on. `lib/photos/evidence.ts` holds the three refusals and why each is one.
+     *
+     * A CLAIM IS NEVER BLOCKED BY A PHOTOGRAPH. Attaching none was always allowed and
+     * still is, and the dialog offers "remove" beside the refusal, so the way forward is
+     * one tap. The refusal costs a file, never the report.
+     */
+    const { judgeClaimPhotos, storeClaimPhotos } = await import(
+      "@/lib/data/claim-photos"
+    );
+    const photos = await judgeClaimPhotos({
+      photos: input.photos ?? [],
+      bookingId: input.bookingId,
+      customerProfileId: input.actorId,
+      completedAt: (booking.completed_at as string | null) ?? null,
+      at: new Date(),
+    });
+
+    if (!photos.ok) {
+      return {
+        ok: false,
+        reason:
+          "refused" in photos
+            ? PHOTO_REFUSAL_REASON[photos.refused]
+            : photos.failed === "notAnImage"
+              ? "photoNotAnImage"
+              : "unavailable",
+      };
     }
 
     const { data, error } = await admin
@@ -242,13 +314,26 @@ export async function openClaim(input: {
       };
     }
 
+    /*
+     * STORED AFTER THE CLAIM AND BEFORE THE NOTIFICATION, because the object key carries
+     * the claim id and because a professional told to go and look should be told once the
+     * evidence is on record. A photograph that fails to store is simply absent — the
+     * state every claim before this phase was in — and never rolls the claim back.
+     */
+    const stored = await storeClaimPhotos({
+      claimId: data.id as string,
+      bookingId: input.bookingId,
+      customerProfileId: input.actorId,
+      judged: photos.judged,
+    });
+
     await notifyProvider(booking.provider_id as string | null, {
       kind: "claim.opened",
       params: { reference: booking.reference as string },
       bookingId: input.bookingId,
     });
 
-    return { ok: true, claimId: data.id as string };
+    return { ok: true, claimId: data.id as string, photosStored: stored.length };
   } catch (thrown) {
     console.error(`[claims] open threw — ${describeError(thrown)}`);
     return { ok: false, reason: "generic" };
@@ -1438,6 +1523,23 @@ export type RefundableClaim = {
    * automating the decision on it.
    */
   signals: ClaimSignals;
+  /**
+   * The photographs the customer sent with the claim, and their verdicts.
+   *
+   * EVIDENCE, NOT A SCORE. Each photograph carries its own named judgements and the
+   * numbers behind them; nothing here is summed and nothing on this screen obeys it.
+   * What the doubts DO is in `inspectionRequired` — one narrow rule, printed beside the
+   * button rather than hidden behind it.
+   */
+  photos: ClaimPhoto[];
+  /**
+   * Did the read succeed?
+   *
+   * FALSE IS NOT "NO PHOTOGRAPHS" — rule 6 on the screen where a refund is decided. An
+   * empty list and a failed read are different sentences, and conflating them would tell
+   * an adjudicator there was nothing to look at.
+   */
+  photosRead: boolean;
 };
 
 /**
@@ -1623,6 +1725,13 @@ export async function refundQueue(): Promise<RefundQueue> {
           : 1,
     );
 
+    /*
+     * THE PHOTOGRAPHS FOR THE WHOLE QUEUE IN ONE READ, for the same reason the signals
+     * below are one round trip per claim rather than three: fifty rows times three
+     * photographs is a hundred and fifty waves, and `sin1` puts the database 28ms away.
+     */
+    const claimPhotos = await claimPhotosFor(claims.map((c) => c.id as string));
+
     const names = await providerNames(
       claims
         .map((c) => (c.provider_id ?? c.attending_provider_id) as string | null)
@@ -1695,6 +1804,8 @@ export async function refundQueue(): Promise<RefundQueue> {
           provider: null,
           customer: null,
         },
+        photos: claimPhotos.byClaim.get(claim.id as string) ?? [],
+        photosRead: claimPhotos.read,
         daysLeft,
       };
     });

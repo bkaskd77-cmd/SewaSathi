@@ -138,6 +138,31 @@ export const RETENTION: Record<string, RetentionRule> = {
   },
 
   /*
+   * The photographs a customer sends with a guarantee claim.
+   *
+   * LONGER THAN THE OTHER TWO, AND THE NUMBER IS DERIVED RATHER THAN CHOSEN. A booking
+   * photograph gets 60 days — the 30-day repair window plus a month of slack for a claim
+   * made on the last day. This is the evidence a refund was DECIDED on, and the longest
+   * guarantee window in the product is painting's 90 days, so the same arithmetic one
+   * level up gives 90 + 90: a claim filed on the last day of the longest window, plus as
+   * long again for somebody to come back and argue about the money that moved.
+   *
+   * THE CLOCK IS THE CLAIM CLOSING, NOT THE BOOKING ENDING. A claim can be opened on day
+   * 89 and settled slowly, and dating it from the booking would delete the evidence
+   * while the decision was still open.
+   *
+   * IT IS STILL A PHOTOGRAPH OF THE INSIDE OF SOMEBODY'S HOME. That is why this is 180
+   * days and not "financial retention": the money record is `refunds` and
+   * `provider_ledger`, which outlive it, and neither of those is a picture of a kitchen.
+   */
+  claimPhotos: {
+    from: "the claim closing",
+    days: 180,
+    action: "delete",
+    why: "The evidence a refund was decided on, kept as long as that decision can be argued about.",
+  },
+
+  /*
    * THE HASH OUTLIVES THE PHOTOGRAPH, AND THAT IS THE POINT RATHER THAN AN OVERSIGHT.
    * `photo_hashes` holds sixteen hex characters — enough to say "this is the same
    * photograph", not enough to reconstruct anything — and the case worth catching is

@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MIN_WAIT_MINUTES } from "@/lib/abuse";
 import { cn } from "@/lib/utils";
+import { readOriginalPhoto } from "@/lib/photos/original";
 
 /**
  * "I've arrived", and then "nobody is here".
@@ -128,41 +129,6 @@ export type ArrivalPanelProps = {
   /** Fired on each tap. Unawaited by design — see `ContactButtons`. */
   onContact: (channel: ContactChannel) => void;
 };
-
-/**
- * The original file, base64, with no re-encode.
- *
- * DELIBERATELY NOT `prepareImage`. That compresses through a canvas, which is right
- * for every other upload here and destroys EXIF — and the camera clock is the whole
- * reason this photograph is taken. So the bytes go up as the phone wrote them and the
- * server strips the metadata after reading the one field it wants.
- *
- * REFUSED IN THE BROWSER WHEN IT IS TOO BIG, rather than sent and rejected. A server
- * action argument over the body limit is refused by the framework before any of our
- * code runs — which is exactly how every document upload in the application form once
- * failed with nothing in the logs. Null here means "no photograph", which the claim
- * handles as the ordinary case.
- */
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
-
-async function rawPhoto(file: File): Promise<string | null> {
-  if (!file.type.startsWith("image/") || file.size > MAX_PHOTO_BYTES) return null;
-  try {
-    const buffer = await file.arrayBuffer();
-    let binary = "";
-    const bytes = new Uint8Array(buffer);
-    // Chunked: `String.fromCharCode(...bytes)` on two megabytes blows the argument
-    // limit and throws on exactly the phones this has to work on.
-    for (let i = 0; i < bytes.length; i += 8192) {
-      // `Array.from` rather than a spread: the repo targets a lower lib and a
-      // typed-array spread needs downlevelIteration.
-      binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + 8192)));
-    }
-    return window.btoa(binary);
-  } catch {
-    return null;
-  }
-}
 
 /** Ask once, briefly, and carry on regardless. */
 function coarsePosition(): Promise<{ lat: number; lng: number } | null> {
@@ -385,7 +351,7 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
             onChange={async (event) => {
               const file = event.target.files?.[0];
               if (!file) return;
-              const encoded = await rawPhoto(file);
+              const encoded = await readOriginalPhoto(file);
               setPhoto(encoded);
               // Said plainly rather than silently dropped: somebody who thinks they
               // attached a photograph and did not has weaker evidence and no idea.

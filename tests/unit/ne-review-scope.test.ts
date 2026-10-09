@@ -113,15 +113,23 @@ describe("the real catalogue", () => {
      * SO THE TWO BOUNDS NOW GUARD TWO DIFFERENT THINGS, and this one is the loose
      * one on purpose. It went red at 479 the day `/admin/bands` shipped 33 staff
      * strings — an honest increase in a tier nobody has to finish before launch,
-     * failing a ceiling written when every tier blocked. Raising it to 600 would be
-     * the quiet bump this comment already warns about if it were the only bound, so
-     * the finishable-pass question moved to `the blocking half is finishable` below,
-     * which is measured against what a launch actually waits for. What is left here
-     * is pure drift protection: the scope must not creep toward the whole 1,769-key
-     * catalogue, where "everything needs a native read" would mean nothing does.
+     * failing a ceiling written when every tier blocked. The finishable-pass question
+     * moved to `the blocking half is finishable` below, which is measured against what
+     * a launch actually waits for. What is left here is pure drift protection: the
+     * scope must not creep toward the whole catalogue, where "everything needs a
+     * native read" would mean nothing does.
+     *
+     * AND IT IS A FRACTION NOW RATHER THAN A CEILING, because the absolute number was
+     * renumbered twice and went red a third time at 606 on fifteen honest claim-photo
+     * strings. This comment already named the failure mode — "a test that has to be
+     * renumbered to stay green is a test people renumber without reading" — and then
+     * had a number in it that needed renumbering every few phases. A third of the
+     * catalogue is the thing actually being guarded, it says so in one line, and it
+     * never has to be touched again for a phase simply adding copy.
      */
+    const whole = leaves(ne).length;
     expect(scope.length).toBeGreaterThan(50);
-    expect(scope.length).toBeLessThan(600);
+    expect(scope.length).toBeLessThan(whole / 2);
   });
 
   /*

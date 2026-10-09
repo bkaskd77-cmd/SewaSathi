@@ -65,7 +65,18 @@ subject and decides.
 
 **Customer side, added this phase.** `openClaimAction` and
 `withdrawClaimAction` take a booking or claim id and nothing else; the actor is
-the session. `openClaim` re-reads the booking and judges it with
+the session. **`openClaimAction` also takes up to three photographs**, as base64
+of the file the camera wrote — original bytes, because the browser compressor
+destroys the EXIF clock two of the three checks depend on. The bytes are never
+believed: `checkUploadedImage` reads the magic bytes rather than the label, reads
+the dimensions out of the file's own header, and strips the EXIF block (a
+photograph taken inside somebody's home carries that home's coordinates) before
+anything is stored. The caller supplies no path, no verdict and no slot — the key
+is derived from the session's own profile id and the claim, and
+`guarantee_claim_photos` grants no browser an insert or an update, so nobody can
+record a verdict of their own choosing beside a photograph nobody checked. The
+three hard rejects are check constraints on that table rather than application
+rules, so the refusals hold for the service role too. `openClaim` re-reads the booking and judges it with
 `claimIsAllowed`, and `enforce_claim_eligibility` refuses a claim on somebody
 else's booking, on an unfinished job, or a third one — with no service-role
 bypass, because no path in this product does any of those legitimately.
@@ -787,6 +798,7 @@ What we hold, why, who can read it, how long.
 | Problem description | `bookings.description` | it is the job | customer, assigned professional, admins | life of the booking |
 | **Photo of the problem** | `booking-photos` bucket (private) | the professional needs to see it | the customer; the assigned professional while `accepted`/`en_route`/`in_progress`; admins | life of the booking — **EXIF stripped on upload** |
 | **Photo of an address nobody answered** | `arrival-photos` bucket (private) | evidence for a no-show claim, which funds a Rs 350 payment | the professional who took it, the customer on that booking, admins | 60 days from the booking ending — the **same window as a booking photo**, and deliberately not longer: one is the inside of a home and one is the outside, both are where somebody lives, and a rule treating them differently would need a reason there isn't one. **EXIF stripped on upload — but the capture time is read off the original bytes first**, and those bytes carry the phone's GPS until `lib/security/image.ts` strips it. Nothing stores a coordinate: the location shown to an adjudicator is the one the phone reported at the time, labelled *phone-reported, unverified*, because we hold no coordinates for an address to compare it against |
+| **Photo sent with a guarantee claim** | `claim-photos` bucket (private), `guarantee_claim_photos` | evidence in an argument about money — the ladder ends in a cash refund capped at what the job settled at, funded from a professional's future earnings | the customer who sent it, admins. **Not the attending professional**, which is a deliberate gap: their screen is the job surface and this is the adjudicator's evidence; widening it is a policy and a panel, never a quiet change | 180 days from the claim closing, which is 90 + 90 — a claim filed on the last day of the longest guarantee window, plus as long again for the money decision to be argued about. **EXIF stripped on upload, and the capture time is read off the original bytes first**: the browser sends the file as the camera wrote it, so those bytes carry the home's GPS until `lib/security/image.ts` strips it. Nothing stores a coordinate. The camera clock IS stored (`taken_at`), because two of the three checks are about when the photograph was taken |
 | **Perceptual hashes of photographs** | `photo_hashes` | so a photograph reused on another booking or account can be recognised — the same picture of a locked gate funds a second Rs 350 wasted-trip payment | admins | 5 years. **The hash outlives the picture on purpose**: 16 hex characters of a 64-bit dHash, enough to say "this is the same photograph" and not enough to reconstruct anything from, and the case worth catching is a picture reused after the original was deleted |
 | Triage text and photo | `triage_logs` (text only) | to tell whether the bands are right, and whether the triage was | admins | photo is **never stored**; `/admin/triage-accuracy` reads this table as counts only and never renders a row |
 | Payment records | `payments`, `refunds` | money moved | the two parties, admins | financial retention, not yet set |

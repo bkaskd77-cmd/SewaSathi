@@ -947,6 +947,9 @@
       "whatHappened": "What is wrong now?",
       "whatHappenedPlaceholder": "The tap is dripping again",
       "whoPays": "If it is the same fault, the visit costs you nothing. Looking and telling you what is wrong is always free. If it turns out to be a different problem, you are quoted before any work starts and you decide then — and it can never cost more than the original job.",
+      "addPhoto": "Add a photo",
+      "photoHint": "Up to {n}, taken with your camera. It helps whoever comes, and it is what we check the claim against.",
+      "removePhoto": "Remove this photo",
       "back": "Not now",
       "send": "Send",
       "withdraw": "Withdraw this",
@@ -985,7 +988,13 @@
         "notYours": "That booking is not yours.",
         "notSignedIn": "Sign in again to send this.",
         "unavailable": "We couldn't send that just now. Try again.",
-        "generic": "We couldn't send that just now. Try again."
+        "generic": "We couldn't send that just now. Try again.",
+        "photoAlreadySent": "We have had that photo before, on another job. Send one taken now.",
+        "photoBeforeTheJob": "That photo was taken before the work was finished, so it cannot show the work failing. Send one taken now.",
+        "photoNoCameraTime": "That file carries no camera details, so we cannot tell when it was taken. Open your camera and take a new photo rather than sending a screenshot or a saved copy.",
+        "photoNotChecked": "We couldn't check that photo against this job. Try again, or send the claim without it.",
+        "photoNotAnImage": "We couldn't read that file as a photo. Try another.",
+        "photoTooLarge": "That photo is too big. Take a new one with your camera."
       },
       "refund": {
         "approved": "We have agreed a refund of {amount}.",
@@ -2231,6 +2240,24 @@
         "notConfigured": "That is unavailable right now.",
         "reasonRequired": "Say why. This is the only record of the decision.",
         "saveFailed": "That did not save. Try again."
+      },
+      "evidence": {
+        "unread": "We couldn't load the photographs for this claim — this is us, not the claim. Decide on what else is here, or come back.",
+        "none": "No photograph was sent with this claim. That is ordinary — one has never been required.",
+        "missing": "The photograph is no longer stored.",
+        "alt": "Photograph sent with this guarantee claim",
+        "fresh": "The camera clock puts this inside the {days} days before the claim.",
+        "stale": "The camera clock puts this more than {days} days before the claim. A phone set wrongly does this too.",
+        "unseen": "We have not been sent this picture before.",
+        "retry": "The same picture arrived twice on this job — a re-upload, not a reuse.",
+        "nearDuplicate": "Close to a picture we already hold: {distance} of 64 bits differ. Near enough to be worth your eye, not near enough to be the same file.",
+        "notCompared": "We could not compare this picture against the ones we hold. Not checked, which is not the same as new.",
+        "bookingMatch": {
+          "same-picture": "Close to a photograph sent with the original booking, so it may predate the work.",
+          "different-picture": "Not the photograph sent with the original booking.",
+          "no-reference": "The booking carried no photographs, so there was nothing to compare this with. Our gap, not theirs.",
+          "not-compared": "The booking's photographs could not be read, so no comparison was made."
+        }
       }
     },
     "triageAccuracy": {

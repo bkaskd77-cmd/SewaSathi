@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Camera, Loader2, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Locale } from "@/i18n/routing";
+import { readOriginalPhoto } from "@/lib/photos/original";
+import { MAX_CLAIM_PHOTOS } from "@/lib/photos/evidence";
 import { formatNpr } from "@/lib/utils";
 
 /**
@@ -87,6 +89,16 @@ export function GuaranteePanel({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
+  /*
+   * THE ORIGINAL BYTES, HELD UNTIL SUBMIT. Not uploaded on selection: the whole
+   * submission is judged before the claim exists, so a refused photograph can be
+   * removed and the claim still made. Uploading on selection would mean a file on
+   * record before anybody had decided it was evidence.
+   */
+  const [photos, setPhotos] = React.useState<{ name: string; base64: string }[]>(
+    [],
+  );
+  const fileInput = React.useRef<HTMLInputElement>(null);
 
   const live = claims.find((claim) =>
     ["open", "dispatched", "attended"].includes(claim.status),
@@ -100,10 +112,15 @@ export function GuaranteePanel({
       const { openClaimAction } = await import(
         "@/app/[locale]/(app)/bookings/[id]/actions"
       );
-      const result = await openClaimAction(bookingId, description);
+      const result = await openClaimAction(
+        bookingId,
+        description,
+        photos.map((photo) => photo.base64),
+      );
       if (result.ok) {
         setOpen(false);
         setDescription("");
+        setPhotos([]);
       } else {
         setError(result.error);
       }
@@ -112,6 +129,27 @@ export function GuaranteePanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Read one file as the camera wrote it.
+   *
+   * THE INPUT IS CLEARED AFTERWARDS so choosing the same file twice still fires a
+   * change event — otherwise somebody who removed a photograph by accident cannot
+   * re-add it without picking something else first.
+   */
+  async function attach(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || photos.length >= MAX_CLAIM_PHOTOS) return;
+
+    const base64 = await readOriginalPhoto(file);
+    if (!base64) {
+      setError("photoTooLarge");
+      return;
+    }
+    setError(null);
+    setPhotos((current) => [...current, { name: file.name, base64 }]);
   }
 
   async function withdraw(claimId: string) {
@@ -235,6 +273,69 @@ export function GuaranteePanel({
               <p className="text-caption text-muted-foreground">
                 {t("whoPays")}
               </p>
+
+              {/*
+                `accept="image/jpeg"` RATHER THAN `image/*`, AND IT IS NOT A
+                RESTRICTION FOR ITS OWN SAKE. iPhones write HEIC by default and
+                a HEIC file has no hash and no readable clock here, so it would
+                arrive as evidence nothing could check. A single concrete type
+                is what makes iOS transcode on its way out; `capture` is a hint
+                the camera is the expected source, and it is only ever a hint —
+                the web cannot force it, which is recorded in ARCHITECTURE.md.
+              */}
+              <div className="space-y-2">
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(event) => void attach(event)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy || photos.length >= MAX_CLAIM_PHOTOS}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <Camera aria-hidden="true" className="size-4" />
+                  {t("addPhoto")}
+                </Button>
+                <p className="text-caption text-muted-foreground">
+                  {t("photoHint", { n: String(MAX_CLAIM_PHOTOS) })}
+                </p>
+
+                {photos.length > 0 ? (
+                  <ul className="space-y-1">
+                    {photos.map((photo, index) => (
+                      <li
+                        key={`${photo.name}-${index}`}
+                        className="text-caption flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1"
+                      >
+                        <span className="truncate">{photo.name}</span>
+                        {/* Remove is always one tap away, which is what keeps a
+                            refused photograph from blocking the claim itself. */}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          aria-label={t("removePhoto")}
+                          onClick={() =>
+                            setPhotos((current) =>
+                              current.filter((_, i) => i !== index),
+                            )
+                          }
+                        >
+                          <X aria-hidden="true" className="size-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+
               {error ? (
                 <p role="alert" className="text-caption text-destructive-ink">
                   {t(`errors.${error}`)}

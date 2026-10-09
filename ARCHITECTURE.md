@@ -87,6 +87,7 @@ it and what you checked**. Feature code is cheap to change; these are not.
 | `lib/text/nepali.ts` | `lib/ai/safety.ts`, `lib/ai/mockTriage.ts`, the `/services` catalogue search | Nepali writes a nasal before a consonant two ways and every safety stem was authored one way, so `गंध`, `सिलिंडर` and `करेंट` reached the gas and live-wire guards undetected. 18 stems in that state and one hand-patched variant beside them. Folded on both sides now; anusvara cases in `tests/unit/hazard-corpus.test.ts` |
 | `lib/data/*.ts` reads on a personal screen | `/bookings`, `/bookings/[id]`, `/provider`, `/provider/jobs` | RLS is a floor, not a filter. `listBookings()` named no owner and left the filtering to policies, which was correct until `"Admins read every booking"` was added for the admin queues — a permissive policy ORs alongside the owner's, so from that day an admin saw every customer's bookings on the customer dashboard. Nine reads had the shape. `tests/unit/personal-reads.test.ts` records the filters each one applies; where the filter is a function rather than a column it is written once in SQL and called by both sides (`open_job_ids()`) |
 | Every table's UPDATE policy on a table with a privileged column | `profiles`, `bookings` | RLS is ROW-level and Supabase grants `authenticated` table-wide UPDATE, so an owner-update policy lets that owner write EVERY column on their own row. `profiles` had one and no trigger, so any signed-in customer could `PATCH {"role":"admin"}` and open the six `is_admin()` policies behind it. Closed with a column grant in `20260927000005`; `bookings` uses `enforce_booking_immutability` because the service role writes the columns it guards. Before widening any update policy, ask which column on that table confers power — `tests/db/profile-escalation.test.ts` executes the attempt rather than reading the catalog |
+| `lib/photos/store.ts` | Arrival photographs, booking photographs, claim evidence | One rule for what counts as a reuse, because it was written inside `arrival-photos.ts` first and the booking set needed the same three steps. Split into `comparePhoto` / `rememberIfNew` for claim evidence, which refuses some photographs — remembering a hash we refused would later read as a near match against an honest one. `checkAndRemember` is the unchanged composition the other two use |
 | `lib/auth/routes.ts` | Middleware and every auth page | `safeRedirect` accepted `/\evil.example`, which a browser reads as a jump to another origin |
 | `i18n/routing.ts`, `i18n/navigation.ts` | Every link and redirect | — |
 | Design tokens in `styles/globals.css` | Every component | — |
@@ -1648,6 +1649,81 @@ where it means something.
 **Booking photographs stay flag-only.** A customer attaching one is not making a claim, and
 the professional's on-site correction already fixes a misleading photograph. The verdicts
 are recorded and shown; what they are allowed to *do* belongs where money is involved.
+
+### Claim evidence — three refusals, three doubts, and one narrow money gate
+
+A photograph sent with a guarantee claim is the only photograph in this product that can
+be **refused**. The other two are flag-only and the reason is the asymmetry of what they
+cost: a booking photograph that misleads is corrected by the person standing in the room,
+and an arrival photograph is taken by somebody in the rain whose claim a human decides
+anyway. This one sits on the path that ends in a cash refund capped at what the job
+settled at, funded from a professional's future earnings — and the cheapest fabrication
+available here is a photograph of somebody else's leak.
+
+`lib/photos/evidence.ts` is the rule, pure and dependency-free, the same posture as
+`lib/payments/pricing.ts`. **The line between a refusal and a doubt is whether an honest
+person can land there.**
+
+| Refused — not stored at all | Why no honest claim needs it |
+| --- | --- |
+| No camera clock | A screenshot, a download, or a file an app re-encoded. Without a clock the other two checks have nothing to run against |
+| A near-duplicate (≤ 4) of a photograph from another job or account | The same picture funding a second claim is what `photo_hashes` exists to catch |
+| A capture time before the work finished | It cannot show that work failing, whatever else is true of it |
+
+| A doubt — stored, shown, and it asks for the visit | Why refusing it would refuse real claims |
+| --- | --- |
+| Outside the 7-day window | A phone clock set by hand drifts, and a traveller's phone is hours or days out |
+| Near (5–10) a photograph we hold | Your own earlier photograph of your own tap is close to your new one |
+| Near the photograph sent with the booking | A dHash on a 9×8 grid is coarse enough that "the same tap, still dripping" lands there |
+
+**The refusals are check constraints, not application rules.** `taken_at` is `not null`,
+`duplicate_verdict`'s allowed set simply does not contain `'reject'`, and
+`taken_before_completion` is `not null` and checked `is false`. A refusal that lives only
+in `lib/` is one the next caller forgets, and this is the money path — so the database
+will not hold a row saying "this was reused" or "this had no clock". It holds for the
+service role too.
+
+**Nothing is written until every photograph has passed**, which is why the module has two
+exported phases rather than one function. `judgeClaimPhotos` reads and judges and writes
+nothing; the claim row goes in; `storeClaimPhotos` then uploads and records. A refusal is
+answerable only while the claim has not been made yet — remove the photograph, or take
+another — and judging afterwards would leave somebody an open claim, a rejected file and
+no screen to attach a replacement on. **A claim is never blocked by a photograph:**
+attaching none was always allowed, and the dialog offers "remove" beside the refusal.
+
+**And a refused hash is not remembered.** `lib/photos/store.ts` split into `comparePhoto`
+and `rememberIfNew` for exactly this: keeping the hash of a photograph we refused would
+put a picture into the comparison table that is not evidence of anything, and it would
+later read as a near match against an honest one. `checkAndRemember` is still the
+composition the arrival and booking paths use, unchanged.
+
+**The money gate is conditional on the doubt existing, and that breadth was the
+decision.** `inspectionRequired` says: a doubtful photograph cannot be what a refund
+rests on, so money back needs the in-person verdict — `resolved` with `sameFault`, which
+is the route the guarantee already promises. The unconditional version ("a refund always
+needs the visit") is what `/admin/guarantee-claims` has always offered, since its queue
+reads only resolved same-fault claims; `issueRefund` is a server action and a public POST
+and checked neither, so **the queue was stricter than the rule for the whole life of the
+feature**. The narrow version closes that where a doubt exists without foreclosing a case
+the product may need later: nobody will attend, and support decides to pay back anyway.
+
+The asymmetry reads perversely at first — attaching nothing leaves the decision where it
+was, attaching a questionable photograph makes it harder. It is not. A doubtful
+photograph is positive evidence of doubt; no photograph is evidence of nothing. And the
+three refusals are what keep the clearly-bad files from ever being attached, so nobody is
+gated on something we would have turned away at the door.
+
+**`maxFailedChecksPerPeriod` is null and unarmed** — the `maxPaidClaimsPerPeriod` and
+`arrearsPauseRupees` shape. Two claims exist in the history of this product and no
+photograph has ever been refused, so a number here would freeze a guess into the codebase
+as a standard, and guessing low means somebody whose phone clock is wrong is treated as a
+fraudster. What IS counted is `claimPhotoDoubtRate`, with its denominator, because one
+doubt out of one and one out of forty are different facts.
+
+**Null is "not checked" in every one of those columns**, never "clean". Every row written
+before a column existed is silent in it, a failed comparison stores `not-compared` rather
+than `unseen`, and `no-reference` — the booking carried no photographs — is **our** gap
+and deliberately not a doubt.
 
 ### HEIC, and why `accept="image/jpeg"` is not the fix it looks like
 

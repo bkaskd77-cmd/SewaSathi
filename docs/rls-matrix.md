@@ -42,6 +42,7 @@ default as a measurement.
 | `cron_runs` | 0 | no data | no data | no data | no data | no data | no data |
 | `customer_risk` | 0 | no data | no data | no data | no data | no data | no data |
 | `customer_visit_flags` | 0 | no data | no data | no data | no data | no data | no data |
+| `guarantee_claim_photos` | 0 | no data | no data | no data | no data | no data | no data |
 | `guarantee_claims` | 0 | no data | no data | no data | no data | no data | no data |
 | `no_show_claims` | 0 | no data | no data | no data | no data | no data | no data |
 | `notifications` | 2 | none | some | some | none | none | none |

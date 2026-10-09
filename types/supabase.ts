@@ -885,6 +885,59 @@ export type Database = {
         Relationships: [];
       };
 
+      /*
+       * NO `taken_at_source` COLUMN, AND THE ABSENCE IS THE DESIGN. A booking photograph
+       * is compressed in the browser, which destroys EXIF, so its capture time is what
+       * the device reported and the column says so. Claim evidence is sent as the
+       * original bytes and the server reads the block itself, so the source is always
+       * EXIF — a column that could only ever hold one value would be a question nobody
+       * is asking.
+       */
+      guarantee_claim_photos: {
+        Row: {
+          id: string;
+          claim_id: string;
+          storage_path: string;
+          position: number;
+          taken_at: string;
+          taken_before_completion: boolean;
+          hash: string | null;
+          duplicate_verdict: "unseen" | "retry" | "flag" | "not-compared";
+          duplicate_distance: number | null;
+          freshness_verdict: "fresh" | "stale";
+          booking_photo_match:
+            | "same-picture"
+            | "different-picture"
+            | "no-reference"
+            | "not-compared"
+            | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          claim_id: string;
+          storage_path: string;
+          position: number;
+          taken_at: string;
+          taken_before_completion: boolean;
+          hash?: string | null;
+          duplicate_verdict: "unseen" | "retry" | "flag" | "not-compared";
+          duplicate_distance?: number | null;
+          freshness_verdict: "fresh" | "stale";
+          booking_photo_match?:
+            | "same-picture"
+            | "different-picture"
+            | "no-reference"
+            | "not-compared"
+            | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["guarantee_claim_photos"]["Insert"]
+        >;
+        Relationships: [];
+      };
+
       photo_hashes: {
         Row: {
           id: string;
