@@ -2239,7 +2239,9 @@
         "notFound": "That could not be found.",
         "notConfigured": "That is unavailable right now.",
         "reasonRequired": "Say why. This is the only record of the decision.",
-        "saveFailed": "That did not save. Try again."
+        "saveFailed": "That did not save. Try again.",
+        "inspection-required": "A photograph on this claim raised a doubt, so money back needs the visit first — somebody goes, looks, and records what they found. That is the route the guarantee promises, and it is the only one that lifts this.",
+        "evidenceUnread": "The photographs on this claim could not be read, so we cannot establish there is nothing to question. This is us, not the claim. Try again."
       },
       "evidence": {
         "unread": "We couldn't load the photographs for this claim — this is us, not the claim. Decide on what else is here, or come back.",

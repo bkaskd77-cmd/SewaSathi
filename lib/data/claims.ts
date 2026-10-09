@@ -1272,10 +1272,28 @@ export async function issueRefund(input: {
 
     const { data: claim } = await admin
       .from("guarantee_claims")
-      .select("id, booking_id, provider_id, status, refund_rupees, parts_failed")
+      .select(
+        "id, booking_id, provider_id, status, verdict, refund_rupees, parts_failed",
+      )
       .eq("id", input.claimId)
       .maybeSingle();
     if (!claim) return { ok: false, reason: "notFound" };
+
+    /*
+     * THE CLAIM'S OWN PHOTOGRAPHS, BECAUSE A DOUBTFUL ONE CANNOT BE WHAT A REFUND RESTS
+     * ON. An unread list is not an empty one: `claimPhotosFor` reports which it was, and
+     * a failed read here means we cannot establish that there is no doubt — so it refuses
+     * rather than paying out on a read that did not happen. Rule 6 pointed at money.
+     *
+     * `enforce_claim_refund` runs the same rule in SQL with no service-role bypass, so a
+     * miss here surfaces as a save that fails rather than as money leaving. That is the
+     * safe direction and still a bug.
+     */
+    const evidence = await claimPhotosFor([input.claimId]);
+    if (!evidence.read) return { ok: false, reason: "evidenceUnread" };
+    const doubts = (evidence.byClaim.get(input.claimId) ?? []).flatMap(
+      (photo) => photo.doubts,
+    );
 
     const { data: booking } = await admin
       .from("bookings")
@@ -1311,11 +1329,23 @@ export async function issueRefund(input: {
         partsFailed: (claim.parts_failed as boolean | null) ?? null,
       },
       alreadyRefunded: Number(claim.refund_rupees ?? 0),
+      inspection: {
+        doubts,
+        verdict: (claim.verdict as ClaimVerdict | null) ?? null,
+        status: claim.status as string,
+      },
     });
 
     if (verdict.outcome !== "partial-labour" && verdict.outcome !== "full-labour") {
       return { ok: false, reason: verdict.outcome };
     }
+
+    /*
+     * THE TRIGGER'S OWN REFUSAL IS CAUGHT BELOW, where the claim update's error message
+     * is matched. `inspection-required` is matched there too, so a doubt that appeared
+     * between this read and that write is reported as the same sentence rather than as a
+     * generic save failure.
+     */
 
     /*
      * The payment this refund comes out of. `refunds.payment_id` is not null
@@ -1362,6 +1392,7 @@ export async function issueRefund(input: {
         [/has not been settled/i, "notSettled"],
         [/still in dispute/i, "amountDisputed"],
         [/window has closed/i, "outsideWindow"],
+        [/needs the visit/i, "inspection-required"],
       ] as const) {
         if (pattern.test(message)) return { ok: false, reason };
       }

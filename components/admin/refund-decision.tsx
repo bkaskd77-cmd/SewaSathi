@@ -40,6 +40,16 @@ const KNOWN = [
   "above-ceiling",
   "already-refunded",
   "unavailable",
+  /*
+   * The inspection gate. It should be unreachable from THIS screen — the queue reads
+   * only resolved same-fault claims, which is exactly what lifts it — so a reviewer
+   * seeing this sentence has reached `issueRefund` another way, or a doubt was recorded
+   * between the page render and the save. Mapped rather than collapsed to `saveFailed`
+   * for that second case: "that did not save" on a money decision with a real reason
+   * behind it is how somebody presses the button again.
+   */
+  "inspection-required",
+  "evidenceUnread",
 ] as const;
 
 const errorKey = (reason: string | undefined) =>

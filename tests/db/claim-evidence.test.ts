@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { doubtsOnRow, inspectionRequired } from "@/lib/photos/evidence";
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -328,5 +329,173 @@ describe("who may write, and who may look", () => {
       [claim],
     );
     expect(rows).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The one thing a doubt does
+ * ------------------------------------------------------------------ */
+
+/** Walk a claim to `resolved` with a verdict, the only route the machine allows. */
+async function inspect(claim: string, verdict: string) {
+  await pg.admin.query(
+    `update public.guarantee_claims
+        set status = 'dispatched', attending_provider_id = $2 where id = $1`,
+    [claim, krishnaProvider],
+  );
+  await pg.admin.query(
+    "update public.guarantee_claims set status = 'attended' where id = $1",
+    [claim],
+  );
+  await pg.admin.query(
+    `update public.guarantee_claims
+        set status = 'resolved', verdict = $2, payer = 'provider' where id = $1`,
+    [claim, verdict],
+  );
+}
+
+/** Settle the booking behind a claim, so a refund has something to come out of. */
+async function settle(claim: string) {
+  await pg.admin.query(
+    `update public.bookings b
+        set payment_status = 'paid', final_amount = 3000, completed_at = now()
+      from public.guarantee_claims c
+      where c.id = $1 and b.id = c.booking_id`,
+    [claim],
+  );
+}
+
+async function tryRefund(claim: string) {
+  return pg.admin.query(
+    `update public.guarantee_claims
+        set refund_rupees = 1200, refund_decided_by = $2 where id = $1`,
+    [claim, ADMIN],
+  );
+}
+
+describe("a doubtful photograph asks for the visit before money goes back", () => {
+  it("refuses a refund on a claim whose photograph was stale", async () => {
+    const claim = await freshClaim("SK-EVID12");
+    await settle(claim);
+    await insertPhoto(claim, { freshness_verdict: "stale" });
+
+    await expect(tryRefund(claim)).rejects.toThrow(/needs the visit/i);
+  });
+
+  it("refuses one on a near-duplicate, and one on the booking's own photograph", async () => {
+    const near = await freshClaim("SK-EVID13");
+    await settle(near);
+    await insertPhoto(near, { duplicate_verdict: "flag", duplicate_distance: 8 });
+    await expect(tryRefund(near)).rejects.toThrow(/needs the visit/i);
+
+    const same = await freshClaim("SK-EVID14");
+    await settle(same);
+    await insertPhoto(same, { booking_photo_match: "same-picture" });
+    await expect(tryRefund(same)).rejects.toThrow(/needs the visit/i);
+  });
+
+  it("allows it once somebody has been and found the same fault", async () => {
+    const claim = await freshClaim("SK-EVID15");
+    await settle(claim);
+    await insertPhoto(claim, { freshness_verdict: "stale" });
+    await inspect(claim, "sameFault");
+
+    await tryRefund(claim);
+    const { rows } = await pg.admin.query(
+      "select refund_rupees from public.guarantee_claims where id = $1",
+      [claim],
+    );
+    expect(rows[0].refund_rupees).toBe(1200);
+  });
+
+  it("is not lifted by a visit that found something else", async () => {
+    const claim = await freshClaim("SK-EVID16");
+    await settle(claim);
+    await insertPhoto(claim, { freshness_verdict: "stale" });
+    await inspect(claim, "differentProblem");
+
+    await expect(tryRefund(claim)).rejects.toThrow(/needs the visit/i);
+  });
+
+  it("leaves a claim with no photograph exactly as it was", async () => {
+    /* Every claim before this phase. The gate is conditional on the doubt, which is
+       what keeps it from being a change to how the guarantee works. */
+    const claim = await freshClaim("SK-EVID17");
+    await settle(claim);
+
+    await tryRefund(claim);
+    const { rows } = await pg.admin.query(
+      "select refund_rupees from public.guarantee_claims where id = $1",
+      [claim],
+    );
+    expect(rows[0].refund_rupees).toBe(1200);
+  });
+
+  it("does not gate on a comparison we failed to make", async () => {
+    /* `not-compared` and `no-reference` are OUR failure and our gap. Gating on them
+       would cost the customer a visit for a read that did not happen — rule 6 pointed
+       the wrong way round. */
+    const claim = await freshClaim("SK-EVID18");
+    await settle(claim);
+    await insertPhoto(claim, {
+      hash: null,
+      duplicate_verdict: "not-compared",
+      booking_photo_match: "no-reference",
+    });
+
+    await tryRefund(claim);
+    const { rows } = await pg.admin.query(
+      "select refund_rupees from public.guarantee_claims where id = $1",
+      [claim],
+    );
+    expect(rows[0].refund_rupees).toBe(1200);
+  });
+
+  /*
+   * THE RULE IS WRITTEN TWICE AND THIS IS WHAT KEEPS THE TWO HONEST.
+   * `inspectionRequired` runs in TypeScript so `issueRefund` can answer with a sentence;
+   * `enforce_claim_refund` runs the same list in SQL so no caller can go round it. The
+   * ceiling and the trigger came apart exactly this way once, and the fix then was one
+   * fixture through both — the same shape as `materialsRead` in guarantee-claims.test.ts.
+   */
+  it("agrees with the TypeScript rule on every shape of row", async () => {
+    const shapes = [
+      { freshness_verdict: "stale" },
+      { duplicate_verdict: "flag", duplicate_distance: 9 },
+      { booking_photo_match: "same-picture" },
+      { duplicate_verdict: "not-compared", hash: null },
+      { booking_photo_match: "no-reference" },
+      { duplicate_verdict: "retry" },
+      {},
+    ];
+
+    for (const [index, shape] of shapes.entries()) {
+      const claim = await freshClaim(`SK-EVIDX${index}`);
+      await settle(claim);
+      await insertPhoto(claim, shape);
+
+      const { rows } = await pg.admin.query(
+        `select duplicate_verdict, freshness_verdict, booking_photo_match
+           from public.guarantee_claim_photos where claim_id = $1`,
+        [claim],
+      );
+      const typescript = inspectionRequired({
+        doubts: doubtsOnRow({
+          duplicateVerdict: rows[0].duplicate_verdict as string,
+          freshnessVerdict: rows[0].freshness_verdict as string,
+          bookingPhotoMatch: rows[0].booking_photo_match as string | null,
+        }),
+        verdict: null,
+        status: "open",
+      });
+
+      const refused = await tryRefund(claim).then(
+        () => false,
+        () => true,
+      );
+      expect(refused, `shape ${JSON.stringify(shape)}`).toBe(
+        typescript.required,
+      );
+    }
   });
 });

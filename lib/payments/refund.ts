@@ -19,6 +19,12 @@
  * in one screen and testable without a database.
  */
 
+import type { ClaimVerdict } from "@/lib/config/guarantee";
+import {
+  inspectionRequired,
+  type EvidenceDoubt,
+} from "@/lib/photos/evidence";
+
 import type { PaymentMethod } from "./status";
 
 /** Just enough of a settled booking to judge a refund against it. */
@@ -229,6 +235,23 @@ export function refundCeiling(subject: RefundSubject): RefundCeiling {
   };
 }
 
+/**
+ * The claim's own evidence and where it has got to.
+ *
+ * SEPARATE FROM `RefundSubject` BECAUSE IT IS A DIFFERENT SUBJECT. That type is facts
+ * about the booking — what it settled at, whether the figure is disputed, what the parts
+ * cost. This is about the claim: what its photographs raised, and whether anybody has
+ * been to look. Folding them into one bag would make `refundCeiling`, which has no
+ * business knowing about photographs, take an argument it ignores.
+ */
+export type RefundInspection = {
+  /** Every doubt across the claim's photographs. Empty is the common case. */
+  doubts: EvidenceDoubt[];
+  verdict: ClaimVerdict | null;
+  /** The claim's status. Only `resolved` has been through a visit. */
+  status: string;
+};
+
 export type RefundVerdict =
   /** The whole recorded amount. The last rung. */
   | { outcome: "full-labour"; amount: number }
@@ -240,7 +263,16 @@ export type RefundVerdict =
   /** The booking cannot be refunded at all yet — see `refundCeiling`. */
   | { outcome: "unavailable"; reason: "not-settled" | "amount-disputed" | "no-amount" }
   /** One per booking. A second is a support conversation, not a button. */
-  | { outcome: "already-refunded"; paid: number };
+  | { outcome: "already-refunded"; paid: number }
+  /**
+   * A photograph on this claim raised a doubt, and nobody has been to look yet.
+   *
+   * NOT A REFUSAL OF THE CLAIM. It says money back needs the route the guarantee always
+   * promised — somebody attends and records what they found — rather than being decided
+   * on a photograph we have reason to question. The doubts ride along so the screen names
+   * them instead of saying no.
+   */
+  | { outcome: "inspection-required"; doubts: EvidenceDoubt[] };
 
 /**
  * Judge one proposed refund.
@@ -258,6 +290,17 @@ export function judgeRefund(input: {
   subject: RefundSubject;
   /** What this claim has already paid back. Zero on the common path. */
   alreadyRefunded: number;
+  /**
+   * The claim's evidence and lifecycle.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, AND THAT IS THE `materialsRupees` LESSON APPLIED
+   * BEFORE IT COSTS ANYTHING. The parts deduction is handed in two columns and a caller
+   * that forgets one silently gets the old ceiling with every unit test still green —
+   * which is exactly how the ceiling and the trigger came apart. An optional inspection
+   * would do the same thing one rule along: the gate would be inert wherever somebody
+   * forgot it, and inert is the direction that pays money out.
+   */
+  inspection: RefundInspection;
 }): RefundVerdict {
   if (input.alreadyRefunded > 0) {
     return { outcome: "already-refunded", paid: input.alreadyRefunded };
@@ -265,6 +308,17 @@ export function judgeRefund(input: {
 
   const ceiling = refundCeiling(input.subject);
   if (!ceiling.ok) return { outcome: "unavailable", reason: ceiling.reason };
+
+  /*
+   * AFTER "there is nothing to refund" AND BEFORE ANY ARITHMETIC. A booking that was
+   * never settled is the more fundamental fact and gets the sentence; past that, a
+   * doubtful photograph stops the amount being judged at all, so nothing falls through
+   * into a branch that would approve it. The same ordering rule `already-refunded` keeps.
+   */
+  const gate = inspectionRequired(input.inspection);
+  if (gate.required) {
+    return { outcome: "inspection-required", doubts: gate.doubts };
+  }
 
   if (!Number.isInteger(input.amount) || Number.isNaN(input.amount)) {
     return { outcome: "invalid", reason: "not-a-number" };

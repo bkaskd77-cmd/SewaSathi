@@ -226,6 +226,24 @@ const GUARDS: Record<string, Guard[]> = {
     },
     {
       protects:
+        "A refund is never decided on a photograph we have reason to question — it waits for somebody to go and look.",
+      ifMissing:
+        "A reused, stale or pre-dating photograph funds a cash refund on paperwork alone. `/admin/guarantee-claims` only ever offered resolved same-fault claims, so the queue was stricter than the rule and the gap was reachable by any admin with a claim id.",
+      clauses: [
+        // The three measured doubts, which are `doubtsOnRow` written in SQL.
+        "p.freshness_verdict = 'stale'",
+        "p.duplicate_verdict = 'flag'",
+        "p.booking_photo_match = 'same-picture'",
+        /*
+         * And what lifts it. Pinned separately because dropping this half leaves a
+         * clause that still reads correctly and refuses every doubtful claim for
+         * ever — the same shape as `amount_mismatch_resolved_at` two entries up.
+         */
+        "new.verdict is distinct from 'sameFault'",
+      ],
+    },
+    {
+      protects:
         "The parts a professional bought and fitted correctly are not refunded as though they were labour, and an unevidenced parts line cannot erase a refund.",
       ifMissing:
         "Either the guarantee pays back a tap that never failed, or — with the cap gone — a professional types materials one rupee under the bill and owes nothing on any claim.",

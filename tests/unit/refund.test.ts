@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isRefundStale,
   judgeRefund,
+  type RefundInspection,
   refundCeiling,
   refundFunding,
   refundRail,
@@ -83,8 +84,26 @@ describe("what a booking can ever pay back", () => {
 });
 
 describe("judging one proposed refund", () => {
+  /*
+   * A CLAIM WHOSE PHOTOGRAPHS RAISED NOTHING — which is every claim before claim
+   * evidence shipped, and the ordinary case after it. The gate is conditional on a doubt
+   * existing, so an empty list leaves all of these judging exactly what they judged
+   * before; `tests/unit/claim-evidence.test.ts` is where the gate itself is pinned, and
+   * the case below is what proves it reaches this function at all.
+   */
+  const inspection: RefundInspection = {
+    doubts: [],
+    verdict: null,
+    status: "open",
+  };
+
   const judge = (amount: number, over = {}) =>
-    judgeRefund({ amount, subject: { ...settled, ...over }, alreadyRefunded: 0 });
+    judgeRefund({
+      amount,
+      subject: { ...settled, ...over },
+      alreadyRefunded: 0,
+      inspection,
+    });
 
   it("calls the whole recorded amount full labour", () => {
     expect(judge(3000)).toEqual({ outcome: "full-labour", amount: 3000 });
@@ -118,8 +137,62 @@ describe("judging one proposed refund", () => {
      * `judgeFinalAmount` keeps for `blocked`.
      */
     expect(
-      judgeRefund({ amount: 500, subject: settled, alreadyRefunded: 1200 }),
+      judgeRefund({
+        amount: 500,
+        subject: settled,
+        alreadyRefunded: 1200,
+        inspection,
+      }),
     ).toEqual({ outcome: "already-refunded", paid: 1200 });
+  });
+
+  it("asks for the visit when a photograph on the claim raised a doubt", () => {
+    /*
+     * THE GATE IS WIRED, which is the assertion worth having here rather than another
+     * truth table over `inspectionRequired`. A rule with no caller is the sin this
+     * repository has recorded four times: `applyRedoRecovery` had tests, documentation
+     * and nothing calling it for four phases.
+     */
+    expect(
+      judgeRefund({
+        amount: 1200,
+        subject: settled,
+        alreadyRefunded: 0,
+        inspection: { doubts: ["stale"], verdict: null, status: "open" },
+      }),
+    ).toEqual({ outcome: "inspection-required", doubts: ["stale"] });
+  });
+
+  it("pays once somebody has been and found the same fault", () => {
+    expect(
+      judgeRefund({
+        amount: 1200,
+        subject: settled,
+        alreadyRefunded: 0,
+        inspection: {
+          doubts: ["stale", "sameAsBooking"],
+          verdict: "sameFault",
+          status: "resolved",
+        },
+      }),
+    ).toEqual({ outcome: "partial-labour", amount: 1200, ceiling: 3000 });
+  });
+
+  it("says the booking cannot pay before it says a visit is needed", () => {
+    /*
+     * ORDER, AND IT IS THE REVIEWER'S SENTENCE THAT IS AT STAKE. "That job was never
+     * settled" is the more fundamental fact; telling somebody to send a professional
+     * back on a job with no recorded amount would send them on an errand that changes
+     * nothing.
+     */
+    expect(
+      judgeRefund({
+        amount: 1200,
+        subject: { ...settled, paymentStatus: "unpaid" },
+        alreadyRefunded: 0,
+        inspection: { doubts: ["stale"], verdict: null, status: "open" },
+      }),
+    ).toEqual({ outcome: "unavailable", reason: "not-settled" });
   });
 
   it("reports the booking's own refusal rather than an amount error", () => {

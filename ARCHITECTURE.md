@@ -1725,6 +1725,38 @@ before a column existed is silent in it, a failed comparison stores `not-compare
 than `unseen`, and `no-reference` — the booking carried no photographs — is **our** gap
 and deliberately not a doubt.
 
+### The no-show photo gate was already in place, and nothing was built for it
+
+The spec asked for one on each side: a guarantee-claim photograph failing its checks
+cannot lead to a cash refund, and **a no-show claim photograph failing its checks is
+unpaid until an admin verifies**. The first needed building. The second was already true,
+and building a second mechanism for it would have been a rule nobody could point at.
+
+Three things make it true today:
+
+- **`judgeNoShowClaim` has no `upheld` outcome.** It was removed when
+  `trip_compensation` turned Rs 350 from a column into real money — an auto-uphold on a
+  tap, two numbers the professional types, and a location from their own phone is a
+  standing offer to anybody willing to tap "arrived" at the end of the road. Every
+  complete claim is now `needsPerson`.
+- **`settleNoShowClaim` is reachable from `/admin/claims` and nowhere else.**
+- **That screen already prints the photograph's own verdicts** — `duplicate_verdict` with
+  its distance, `freshness_verdict` with the skew — read back from `booking_arrivals`
+  rather than re-derived. A reviewer deciding the Rs 350 is already looking at the doubt.
+
+**What a `photoDoubt` reason would have added is nothing, and it was written and
+reverted rather than shipped.** `NoShowReview` exists to tell the reviewer which question
+they are being asked, and **nothing renders it**: `claimNoShow` returns the verdict,
+`claimNoShowAction` discards it on the success path, and `openNoShowClaims` never computes
+one. Adding a value to that enum would have been a rule with no caller — the shape this
+file records four times over — dressed as a fraud control.
+
+**That discarded reason is a real gap and is recorded here rather than quietly fixed**,
+because fixing it properly means storing the reason at claim time: recomputing it at
+render time would need `trustForAddress` per row and would be a second opinion that can
+disagree with the one taken when the claim was made. Worth a column when somebody is
+working on that queue; not worth inventing here on the way past.
+
 ### HEIC, and why `accept="image/jpeg"` is not the fix it looks like
 
 iPhones shoot HEIC by default, `jpeg-js` cannot read it, so an iPhone photograph gets no
