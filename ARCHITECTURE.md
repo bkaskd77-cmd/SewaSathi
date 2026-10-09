@@ -1867,6 +1867,32 @@ longer wait and cannot cost an answer: at either ceiling the route still falls t
 the matcher, and if the platform kills the function first, `triageProblem`'s own catch
 produces the same sentence in the browser.
 
+### What a photograph is allowed to cost
+
+A photograph is the expensive half of triage, and the gap is wider than the token count
+suggests. Priced on Sonnet 4.6 at $3/M in and $15/M out, with images billed at roughly
+`width × height / 750` tokens:
+
+| | tokens in | per call | per 60 calls |
+| --- | --- | --- | --- |
+| text (~60 tokens) | 60 | $0.006 | $0.37 |
+| a 1500px photograph | ~2,250 | $0.013 | $0.77 |
+
+The real difference is not the 2× — it is that **the ten-minute response cache is
+text-only**. Identical text is served from memory and never reaches the model; a
+photograph reaches it every single time. One ceiling across both either rations somebody
+typing or lets somebody loop photographs, so there are two: `triage` at 12/min and
+60/hour, and `triage:photo` at 6/min and 20/hour, both keyed to the signed-in id or the
+address the request came from and both counted in Upstash, which is configured in
+production — so they are a shared ceiling rather than a per-instance one. That takes a
+single key's photograph spend from about $18 a day to about $6, and somebody who has
+spent their photograph allowance can still ask in words.
+
+**`MAX_REJECTED_PHOTOS` is a nudge and not a control, and the distinction is the point.**
+It closes the upload after two unrelated photographs — but it lives in React state, so a
+page refresh clears it. It is there to tell an honest person to stop trying, not to stop
+anybody. The bucket is the half that survives a refresh.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open

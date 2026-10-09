@@ -50,6 +50,30 @@ export const LIMITS = {
    */
   triage: { perMinute: 12, perHour: 60 },
   /*
+   * And a tighter one for the half that carries a photograph.
+   *
+   * WHY A SECOND BUCKET RATHER THAN A LOWER CEILING ON THE FIRST. A photograph
+   * costs about twice what a sentence costs — roughly 2,250 image tokens plus
+   * the reply, against sixty text tokens plus the reply — and the gap is wider
+   * than that in practice, because the response cache is text-only. Identical
+   * text is served from memory for ten minutes and never reaches the model; a
+   * photograph reaches it every single time. One ceiling across both either
+   * rations somebody typing, or lets somebody loop photographs.
+   *
+   * TWENTY AN HOUR IS GENEROUS FOR A PERSON AND MEAN FOR A SCRIPT. A request
+   * carries at most three photographs, and somebody retaking a dark one a few
+   * times is well inside it. At the old shared ceiling one key could spend
+   * about $18 a day on photographs alone; this is about $6, and the text
+   * ceiling still applies on top of it.
+   *
+   * IT IS A COST CEILING, NOT A FRAUD CONTROL, and the difference matters:
+   * `MAX_REJECTED_PHOTOS` closes the upload after two unrelated photographs,
+   * but that count lives in React state and a page refresh clears it. This is
+   * the half that survives a refresh, because it is counted in Upstash against
+   * the signed-in id or the address the request came from.
+   */
+  "triage:photo": { perMinute: 6, perHour: 20 },
+  /*
    * One phone number. Tight, because every send is an SMS we pay for and a
    * person who genuinely did not get the code needs two or three tries, not
    * thirty. Supabase enforces its own limit underneath this; ours is the one
@@ -375,7 +399,20 @@ function hitLocal(
 /** The old name, kept so the triage route reads the same. */
 export async function checkTriageRateLimit(
   key: string,
+  /** True when the request carries a photograph — see the `triage:photo` note. */
+  withPhoto = false,
 ): Promise<RateLimitVerdict> {
+  /*
+   * BOTH BUCKETS, AND THE NARROWER ONE FIRST. A photograph counts against the
+   * triage ceiling too: it is a triage. Checking the photo bucket first means
+   * somebody looping photographs is told about the limit that actually bound
+   * them, and it costs one extra round trip on the path that is already the
+   * expensive one.
+   */
+  if (withPhoto) {
+    const photo = await checkRateLimit("triage:photo", key);
+    if (!photo.ok) return photo;
+  }
   return checkRateLimit("triage", key);
 }
 

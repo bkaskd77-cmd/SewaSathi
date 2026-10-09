@@ -232,7 +232,10 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = await currentUserId();
-  const limit = await checkTriageRateLimit(rateLimitKey(request, userId));
+  const limit = await checkTriageRateLimit(
+    rateLimitKey(request, userId),
+    Boolean(image),
+  );
   if (!limit.ok) {
     return NextResponse.json(
       {
