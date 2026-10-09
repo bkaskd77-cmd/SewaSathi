@@ -177,24 +177,39 @@ describe("what we cannot identify, we do not diagnose", () => {
  */
 describe("the loggable set matches the column's check constraint", () => {
   it("permits exactly the same reasons in TypeScript and in SQL", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const sql = await readFile(
-      new URL(
-        "../../supabase/migrations/20260926000002_triage_reason.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
+    /*
+     * THE LAST DEFINITION, ACROSS EVERY MIGRATION, AND THE FIRST VERSION READ ONE FILE.
+     *
+     * It named `20260926000002_triage_reason.sql`, which was the only definition on the
+     * day it was written. `20261009000001_ai_ceilings.sql` then dropped that constraint
+     * and added it back with `ceiling-reached` — and this went red pointing at the
+     * TypeScript, which was right, because it was reading a constraint the schema no
+     * longer has. Exactly the trap CLAUDE.md records one object type over: a policy is
+     * redefined by later migrations, so breaking or reading one means the LAST
+     * definition.
+     */
+    const { readdir, readFile } = await import("node:fs/promises");
+    const dir = new URL("../../supabase/migrations/", import.meta.url);
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
-    // The `reason in (...)` list, which is the constraint's whole content.
-    // `[\s\S]` rather than the `s` flag: this project targets an older ES
-    // level and tsc refuses `/s` outright.
-    const list = sql.match(/reason in \(([\s\S]*?)\)/)?.[1] ?? "";
-    const inSql = (list.match(/'[a-z-]+'/g) ?? [])
-      .map((quoted) => quoted.slice(1, -1))
-      .sort();
+    let inSql: string[] | null = null;
+    let from = "";
+    for (const file of files) {
+      const sql = await readFile(new URL(file, dir), "utf8");
+      if (!sql.includes("triage_logs_reason_known")) continue;
+      // The `reason in (...)` list, which is the constraint's whole content.
+      // `[\s\S]` rather than the `s` flag: this project targets an older ES
+      // level and tsc refuses `/s` outright.
+      const list = sql.match(/reason in \(([\s\S]*?)\)/)?.[1];
+      if (!list) continue;
+      inSql = (list.match(/'[a-z-]+'/g) ?? [])
+        .map((quoted) => quoted.slice(1, -1))
+        .sort();
+      from = file;
+    }
 
-    expect(inSql).toEqual([...LOGGABLE_REASONS].sort());
+    expect(inSql, "no migration defines triage_logs_reason_known").not.toBeNull();
+    expect(inSql, `last defined in ${from}`).toEqual([...LOGGABLE_REASONS].sort());
   });
 
   /*

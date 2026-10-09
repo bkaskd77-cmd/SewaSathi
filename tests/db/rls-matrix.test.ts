@@ -357,6 +357,13 @@ describe("what each role can read", () => {
      * not a reason to trust the list as complete.
      */
     expect(wide).toEqual([
+      /*
+       * The AI ceilings. No personal data at all — twelve numbers and who last
+       * changed them — and it appears here only because the migration seeds its one
+       * row, so the harness has data to judge. Listed rather than filtered out: the
+       * point of this assertion is that nothing widens without being named.
+       */
+      "ai_limits",
       // Every booking and its history: what support exists to look at.
       "booking_status_history",
       "bookings",

@@ -149,7 +149,19 @@ export function ProblemSearch() {
    * worth having on its own, and an ask for a few words. Never the invented job.
    */
   const unlooked =
-    Boolean(outcome) && !triageable && photoSent && outcome?.source !== "claude";
+    Boolean(outcome) &&
+    !triageable &&
+    photoSent &&
+    outcome?.source !== "claude" &&
+    !outcome?.aiRefusal;
+  /*
+   * A CEILING REFUSED THE CALL. The answer underneath is the keyword matcher's and the
+   * safety floor has already run over it, so a hazard is on screen whatever this says —
+   * see `refusedAnswer` in the route. What this adds is the sentence, which is the whole
+   * product decision: "sign in to continue" is a different thing from "we are having a
+   * problem", and a refusal nobody can read is indistinguishable from a broken product.
+   */
+  const refusal = outcome?.aiRefusal ?? null;
   /*
    * WHAT THE MODEL MADE OF THE LAST PHOTO, and how many it has turned down.
    *
@@ -516,6 +528,35 @@ export function ProblemSearch() {
           `copy.safety` rather than sliced off the explanation, so it cannot drift from
           the line the server would have shown.
         */}
+        {!thinking && refusal ? (
+          <div
+            role="status"
+            className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"
+          >
+            <p className="text-body-sm text-foreground">
+              {t(`ceiling.${refusal.kind}`, ceilingValues(refusal))}
+            </p>
+            {/* The emergency guidance, when the matcher found one. It is in the answer
+                underneath either way; repeating it here is how somebody reads it without
+                scrolling past a sentence about limits. */}
+            {outcome?.result.urgency === "emergency" ? (
+              <p className="text-body-sm mt-2 font-medium text-destructive-ink">
+                {outcome.result.explanation}
+              </p>
+            ) : null}
+            {refusal.kind === "signInToContinue" ||
+            refusal.kind === "signInAfterOffTopic" ||
+            refusal.kind === "photosNeedAccount" ? (
+              <Link
+                href="/login?next=/"
+                className="text-caption mt-2 inline-block font-medium text-primary underline underline-offset-4"
+              >
+                {t("ceiling.signIn")}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
         {!thinking && unlooked ? (
           <div
             role="status"
@@ -904,4 +945,52 @@ function TriagePathBadge({ outcome }: { outcome: TriageOutcome }) {
       <span>· {outcome.result.band ? t("band", { band: outcome.result.band }) : t("noBand")}</span>
     </p>
   );
+}
+
+/**
+ * The numbers a ceiling sentence interpolates.
+ *
+ * ONE PLACE, because every one of these strings takes a different shape and
+ * `check:messages` compares placeholder sets: a sentence that interpolates `{limit}`
+ * against a call that passes `{until}` renders the ICU argument name into the page, in
+ * the language the reader is least likely to be checking.
+ */
+function ceilingValues(
+  refusal: NonNullable<TriageOutcome["aiRefusal"]>,
+): Record<string, string | number> {
+  /* Both `n` and `count`: `n` is the pre-formatted string the sentence prints — Nepali
+     renders 1,234 as १,२३४ — and `count` is the number the plural branch selects on.
+     The catalogue's own idiom; see the note on numbers in CLAUDE.md. */
+  switch (refusal.kind) {
+    case "free":
+      return { n: String(refusal.maxChars), count: refusal.maxChars };
+    case "dailyTextSpent":
+    case "dailyPhotosSpent":
+      return { n: String(refusal.limit), count: refusal.limit };
+    case "paused":
+      return { time: localTime(refusal.until) };
+    case "budgetSpent":
+      return { time: localTime(refusal.until) };
+    default:
+      return {};
+  }
+}
+
+/**
+ * An instant as a clock time the reader recognises.
+ *
+ * KATHMANDU EXPLICITLY, not the browser's zone. The budget rolls at midnight in Nepal
+ * and the pause is measured against the same clock; a traveller's laptop reading
+ * "back at 06:15" would be telling them the truth about the wrong place.
+ */
+function localTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kathmandu",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return "";
+  }
 }

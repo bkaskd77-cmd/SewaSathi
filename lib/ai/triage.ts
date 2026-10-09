@@ -5,6 +5,7 @@ import {
   type TriageResult,
 } from "@/lib/ai/mockTriage";
 import type { TriageReason } from "@/lib/ai/reason";
+import type { GateRefusal } from "@/lib/ai/gate";
 import { applySafetyFloor } from "@/lib/ai/safety";
 
 /**
@@ -99,6 +100,15 @@ export type TriageOutcome = {
    * It must never read as "the photo was fine".
    */
   photo?: PhotoVerdict | null;
+  /**
+   * The ceiling that refused this call, or null.
+   *
+   * CARRIED BESIDE THE ANSWER RATHER THAN INSTEAD OF IT, which is the same separation the
+   * photo verdict keeps and for the same reason: the keyword matcher still answered, the
+   * safety floor still ran over it, and somebody who smells gas still gets told what to
+   * do. This says why the model was not asked; it never replaces what came back.
+   */
+  aiRefusal?: GateRefusal | null;
 };
 
 export type PhotoVerdict = {
@@ -178,6 +188,7 @@ export async function triageProblem(
       triageLogId?: string | null;
       model?: string | null;
       photo?: PhotoVerdict | null;
+      aiRefusal?: GateRefusal | null;
     };
 
     if (!payload.result)
@@ -190,6 +201,7 @@ export async function triageProblem(
       triageLogId: payload.triageLogId ?? null,
       model: payload.model ?? null,
       photo: payload.photo ?? null,
+      aiRefusal: payload.aiRefusal ?? null,
     };
   } catch (error) {
     // An abort is the caller replacing this run with a newer one, not a

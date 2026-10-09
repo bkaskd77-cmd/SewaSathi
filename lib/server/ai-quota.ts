@@ -33,7 +33,17 @@ export type QuotaKind =
   /** A signed-in account's text triage. */
   | "userText"
   /** A signed-in account's photo analysis. */
-  | "userPhoto";
+  | "userPhoto"
+  /**
+   * A visitor asked something the model called off-topic.
+   *
+   * A FLAG RATHER THAN A COUNT, stored as a counter because a counter is what the store
+   * has. One is enough: a visitor's AI day ends on the first off-topic question, where a
+   * signed-in account gets two in a row and then a pause. The asymmetry is deliberate —
+   * a visitor is anonymous and costs us money, and the remedy offered is the thing we
+   * wanted anyway rather than a punishment.
+   */
+  | "anonOffTopic";
 
 /** Unrelated photographs inside one question's window — not a day counter. */
 const UNRELATED_KIND = "unrelatedPhoto";

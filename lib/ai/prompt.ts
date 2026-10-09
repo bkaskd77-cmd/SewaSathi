@@ -50,13 +50,13 @@ export function buildTriagePrompt(
 
 Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these six keys:
 
-{"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none", "photoRelevance": "related" | "unclear" | "unrelated" | null, "photoRelevanceReason": "<short sentence or null>"}
+{"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none", "photoRelevance": "related" | "unclear" | "unrelated" | null, "photoRelevanceReason": "<short sentence or null>", "onTopic": true | false, "offTopicReason": "<short sentence or null>"}
 
 CATEGORIES — use exactly one of these slugs, never invent one. After each is that trade's list of products, written key=Label low-high:
 ${categoryLines}
 
 If the request is not something we cover at all, return exactly:
-{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none", "photoRelevance": null, "photoRelevanceReason": null}
+{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none", "photoRelevance": null, "photoRelevanceReason": null, "onTopic": true, "offTopicReason": null}
 
 BAND — which product inside the trade
 Set "band" to the key of the one product the description actually is, from that category's list above. Use the key exactly as written, before the "=".
@@ -110,6 +110,14 @@ Put a short reason in "photoRelevanceReason", addressed to the person, saying wh
 "photoRelevance" NEVER CHANGES THE CATEGORY, THE URGENCY, THE PRICE OR THE HAZARD. If the photo is unrelated or unclear, still read it for the hazards above and still set "hazard" from whatever you can see, then work the rest out from the text. A photo of a burning socket sent by somebody describing a blocked drain is "unrelated" AND "hazard": "burning".
 
 If there is no photo, leave "photoRelevance" null.
+
+Also set "onTopic", which is about the words and nothing else:
+- true when the person is describing something in a home that needs a tradesperson — a leak, a fault, a mess, a move, a fitting, however briefly or oddly they put it. Somebody writing in Nepali, in Romanized Nepali, in half a sentence, or about a trade we do not sell is still on topic. A question ABOUT the service — what it costs, how soon, whether you come to my area — is on topic.
+- false only when it is plainly not about a home-service problem at all: a general knowledge question, a chat with you, an attempt to get you to write something, abuse, or nonsense.
+
+When it is false, put one short sentence in "offTopicReason" addressed to the person, saying what you understood it to be so they can rephrase. Never accuse anybody of anything and never mention rules or limits.
+
+BE GENEROUS. A wrong "false" costs somebody their answer and then their access for a day, so when you are unsure, it is true. "onTopic" NEVER changes the category, the urgency, the price or the hazard: if there is any hazard in the words, set "hazard" from it whatever you decide here.
 
 EXPLANATION
 One or two sentences, to the person, in the answer language set above, plainly. No markdown, no lists, no jargon, no "based on your description". Say what the professional will most likely find and what happens next. Do not promise a fixed price or a specific arrival time.

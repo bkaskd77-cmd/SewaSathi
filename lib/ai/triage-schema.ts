@@ -82,6 +82,16 @@ export const triageResponseSchema = z.object({
    */
   photoRelevance: z.enum(["related", "unrelated", "unclear"]).nullish(),
   photoRelevanceReason: z.string().trim().min(1).max(160).nullish(),
+  /**
+   * Is this a home-service problem at all?
+   *
+   * A JUDGEMENT WITH A REASON, NEVER A SCORE — rule 6. There is no confidence number
+   * here and no threshold anywhere reads one. `false` is an answer the model gave;
+   * null is "nobody asked or nobody answered", which is what every reply from before
+   * this field reads as, and it is never counted as on-topic OR off-topic.
+   */
+  onTopic: z.boolean().nullish(),
+  offTopicReason: z.string().trim().min(1).max(160).nullish(),
 });
 
 /** What the photo was judged to be, when there was one and the model said. */
@@ -130,6 +140,8 @@ export function parseTriageResponse(
   result: TriageResult;
   hazard: Hazard | null;
   photo: { relevance: PhotoRelevance; reason: string | null } | null;
+  /** Null is "not recorded" — never on-topic and never off-topic. */
+  topic: { onTopic: boolean; reason: string | null } | null;
 } | null {
   const bandBySlug = new Map(bands.map((band) => [band.slug, band]));
   const candidate = extractJson(raw);
@@ -147,6 +159,8 @@ export function parseTriageResponse(
     band: chosenBand,
     photoRelevance,
     photoRelevanceReason,
+    onTopic,
+    offTopicReason,
   } = parsed.data;
   const band = bandBySlug.get(category) ?? FALLBACK_BAND_BY_SLUG.get(category);
   if (!band) return null;
@@ -193,6 +207,10 @@ export function parseTriageResponse(
      * same thing to every caller: nobody looked, so nothing is claimed. Rule 6
      * — "not recorded" must not render as "the photo was fine".
      */
+    topic:
+      typeof onTopic === "boolean"
+        ? { onTopic, reason: offTopicReason ?? null }
+        : null,
     photo: photoRelevance
       ? { relevance: photoRelevance, reason: photoRelevanceReason ?? null }
       : null,

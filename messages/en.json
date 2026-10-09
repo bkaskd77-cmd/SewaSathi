@@ -215,7 +215,19 @@
     "photoUnrelated": "That photo looks like something else —",
     "photoUnclear": "We could not make that photo out —",
     "photoRetakeClosed": "We will stop asking about the photo. Your answer is above, and the professional will see the problem when they arrive.",
-    "nothingToGoOn": "We couldn't read the photo this time, so there is nothing to price it from yet. Tell us in a few words what is wrong — even \"tap is dripping\" is enough."
+    "nothingToGoOn": "We couldn't read the photo this time, so there is nothing to price it from yet. Tell us in a few words what is wrong — even \"tap is dripping\" is enough.",
+    "ceiling": {
+      "signIn": "Sign in",
+      "free": "Tell us a bit more about what is wrong — a few words is enough, and up to {count, plural, one {{n} character} other {{n} characters}}.",
+      "photosNeedAccount": "Photos need an account. Sign in and you can send up to three with your question.",
+      "signInToContinue": "That is the free questions for today. Sign in to keep asking — everything else on the site stays open.",
+      "signInAfterOffTopic": "That did not look like a home repair problem, so we have stopped the AI for today on this device. Sign in to keep asking.",
+      "dailyTextSpent": "That is your {count, plural, one {{n} question} other {{n} questions}} for today. The AI is back after midnight; you can still book from the list of services.",
+      "dailyPhotosSpent": "That is your {count, plural, one {{n} photo} other {{n} photos}} for today. You can still describe the problem in words.",
+      "photosClosedForThisQuestion": "Two photos in a row did not show a home repair problem, so we have stopped looking at photos for this question. Describe it in words and we will price it.",
+      "paused": "The AI is paused on this account until {time} after a few questions that were not about home repairs. Everything else works, and you can reach a person on WhatsApp.",
+      "budgetSpent": "Our AI budget for today has run out. It is back at {time}. Pick a service from the list and you can book exactly as usual."
+    }
   },
   "services": {
     "eyebrow": "Services",

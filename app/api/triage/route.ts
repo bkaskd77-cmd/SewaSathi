@@ -24,7 +24,24 @@ import {
   parseTriageResponse,
   type PhotoRelevance,
 } from "@/lib/ai/triage-schema";
+import { judgeAiRequest, type GateRefusal } from "@/lib/ai/gate";
+import { applyTopicVerdict } from "@/lib/ai/offtopic";
+import { priceCall } from "@/lib/ai/spend";
+import { nepalDayEndsAt } from "@/lib/config/ai-limits";
+import {
+  readAccountState,
+  readAiLimits,
+  readSpendToday,
+  recordAiSpend,
+  writeAccountState,
+} from "@/lib/data/ai-ceilings";
 import { checkTriageRateLimit } from "@/lib/server/rate-limit";
+import {
+  spendDaily,
+  spendUnrelatedPhoto,
+  unrelatedPhotosSoFar,
+  usedToday,
+} from "@/lib/server/ai-quota";
 import { readTriageCache, writeTriageCache } from "@/lib/server/triage-cache";
 import { logTriage } from "@/lib/server/triage-log";
 import { createClient } from "@/lib/supabase/server";
@@ -125,6 +142,47 @@ async function currentUserId(): Promise<string | null> {
   }
 }
 
+/**
+ * Which browser this is, for a visitor who has not signed in.
+ *
+ * A COOKIE, AND IT IS A COST CEILING RATHER THAN AN IDENTITY. Anybody can clear it, open
+ * a private window, or send none at all — so it bounds what one ordinary afternoon
+ * spends and it stops nothing determined. That is said here because the alternative,
+ * counting visitors by IP, is worse in a way that matters locally: Nepali mobile networks
+ * put thousands of people behind one address, so an IP ceiling tight enough to be useful
+ * would lock out a whole carrier. The IP limit stays as a generous backstop in
+ * `checkTriageRateLimit`; this is the per-person half.
+ *
+ * `httpOnly` so no script can read or forge it from the page, `sameSite: lax` so it
+ * survives arriving from a search result, and a year so somebody who comes back next week
+ * is the same visitor.
+ */
+const DEVICE_COOKIE = "sk-device";
+
+function readDeviceId(request: NextRequest): { id: string; isNew: boolean } {
+  const existing = request.cookies.get(DEVICE_COOKIE)?.value;
+  if (existing && /^[0-9a-f-]{36}$/.test(existing)) {
+    return { id: existing, isNew: false };
+  }
+  return { id: crypto.randomUUID(), isNew: true };
+}
+
+function withDeviceCookie(
+  response: NextResponse,
+  device: { id: string; isNew: boolean },
+): NextResponse {
+  if (device.isNew) {
+    response.cookies.set(DEVICE_COOKIE, device.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
+  }
+  return response;
+}
+
 /** Decoded byte length of a base64 payload, without decoding it. */
 function base64Bytes(data: string): number {
   const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
@@ -139,7 +197,12 @@ async function askClaude(
   } | null,
   locale: Locale,
   copy: TriageCopy,
-): Promise<ReturnType<typeof parseTriageResponse>> {
+): Promise<
+  | (NonNullable<ReturnType<typeof parseTriageResponse>> & {
+      usage: Anthropic.Usage | null;
+    })
+  | { result: null; usage: Anthropic.Usage | null }
+> {
   // Both read the same `categories` table, so the bands in the prompt and the
   // bands the answer is clamped to are the same numbers.
   const [systemPrompt, bands] = await Promise.all([
@@ -187,7 +250,10 @@ async function askClaude(
      * Either ceiling still ends in an answer: the route falls through to the keyword
      * matcher with the "we couldn't look at your photo" line.
      */
-    { timeout: image ? TRIAGE_PHOTO_TIMEOUT_MS : TRIAGE_TIMEOUT_MS, maxRetries: 0 },
+    {
+      timeout: image ? TRIAGE_PHOTO_TIMEOUT_MS : TRIAGE_TIMEOUT_MS,
+      maxRetries: 0,
+    },
   );
 
   const raw = response.content
@@ -196,7 +262,14 @@ async function askClaude(
     .join("")
     .trim();
 
-  return raw ? parseTriageResponse(raw, bands) : null;
+  /*
+   * THE USAGE COMES BACK EVEN WHEN THE REPLY DOES NOT. Those tokens were spent, and a
+   * budget that only counts the parseable answers undercounts exactly when the model is
+   * misbehaving — which is when the bill is most likely to surprise somebody.
+   */
+  const usage = response.usage ?? null;
+  const parsed = raw ? parseTriageResponse(raw, bands) : null;
+  return parsed ? { ...parsed, usage } : { result: null, usage };
 }
 
 export async function POST(request: NextRequest) {
@@ -249,6 +322,78 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /* ------------------------------------------------------------------ *
+   * The ceilings: what this person may ask, and what today may cost
+   * ------------------------------------------------------------------ */
+
+  /*
+   * READ BEFORE THE CACHE, SPENT ONLY ON A REAL CALL. A cache hit costs nothing and must
+   * not come off anybody's allowance — but the gate still runs first, because a visitor
+   * who has used their questions should get the same sentence whether or not somebody
+   * else happened to ask the same thing ten minutes ago. A ceiling that leaks through a
+   * cache is a ceiling somebody can map.
+   */
+  const device = readDeviceId(request);
+  const subject = userId ?? `device:${device.id}`;
+  const limits = await readAiLimits();
+  const now = new Date();
+
+  const [
+    spend,
+    accountState,
+    anonTriages,
+    anonOffTopic,
+    userText,
+    userPhotos,
+    unrelatedPhotos,
+  ] = await Promise.all([
+    readSpendToday(limits, now),
+    readAccountState(userId),
+    userId ? Promise.resolve(0) : usedToday("anonTriage", subject, now),
+    userId ? Promise.resolve(0) : usedToday("anonOffTopic", subject, now),
+    userId ? usedToday("userText", subject, now) : Promise.resolve(0),
+    userId ? usedToday("userPhoto", subject, now) : Promise.resolve(0),
+    userId ? unrelatedPhotosSoFar(userId) : Promise.resolve(0),
+  ]);
+
+  const gate = judgeAiRequest({
+    limits,
+    accountId: userId,
+    text,
+    hasPhoto: Boolean(image),
+    used: { anonTriages, userText, userPhotos, unrelatedPhotos },
+    pausedUntil: accountState.pausedUntil,
+    anonOffTopicToday: anonOffTopic > 0,
+    budget: {
+      visitorRemainingUsd: spend.visitorRemainingUsd,
+      userRemainingUsd: spend.userRemainingUsd,
+    },
+    dayEndsAt: nepalDayEndsAt(now).toISOString(),
+    at: now,
+  });
+
+  /*
+   * A REFUSAL IS AN ANSWER, NOT AN ERROR, AND THAT IS THE WHOLE SHAPE OF IT. The keyword
+   * matcher runs, the safety floor runs over it, and a 200 comes back carrying the
+   * sentence that explains the ceiling. So somebody who has used their questions and then
+   * smells gas still gets "switch off at the mains" — which is the one thing no ceiling
+   * in this product may ever take away.
+   */
+  if (!gate.allowed) {
+    return withDeviceCookie(
+      await refusedAnswer({
+        refusal: gate.refusal,
+        text,
+        image,
+        locale,
+        copy,
+        userId,
+        startedAt,
+      }),
+      device,
+    );
+  }
+
   // Photos are never served from cache, and never written to it.
   const cached = !image && text ? readTriageCache(text, locale) : null;
 
@@ -264,19 +409,53 @@ export async function POST(request: NextRequest) {
   let reason: LoggableReason = cached ? "cache-hit" : "no-api-key";
   let result = cached;
   let visionHazard: Hazard | null = null;
-  let photoVerdict: { relevance: PhotoRelevance; reason: string | null } | null = null;
+  let photoVerdict: {
+    relevance: PhotoRelevance;
+    reason: string | null;
+  } | null = null;
+
+  let topicVerdict: { onTopic: boolean; reason: string | null } | null = null;
 
   if (!result && hasAnthropicConfig()) {
+    /*
+     * THE ALLOWANCE IS SPENT HERE AND NOT AT THE GATE, because this is the first line
+     * past which a model call is actually going to be attempted. Spending it at the gate
+     * would charge somebody for a cache hit, and spending it after the call would let two
+     * tabs a millisecond apart both pass a ceiling that each of them then used up.
+     * `spendDaily` is an atomic increment for that reason.
+     */
+    await Promise.all(
+      userId
+        ? [spendDaily(image ? "userPhoto" : "userText", subject, now)]
+        : [spendDaily("anonTriage", subject, now)],
+    );
+
     reason = "unparseable";
     try {
       const answer = await askClaude(text, image, locale, copy);
-      if (answer) {
+      if (answer.result) {
         result = answer.result;
         visionHazard = answer.hazard;
         photoVerdict = answer.photo;
+        topicVerdict = answer.topic ?? null;
         source = "claude";
         reason = "ok";
         if (!image && text) writeTriageCache(text, locale, answer.result);
+      }
+      /*
+       * PRICED FROM WHAT THE PROVIDER REPORTED, on every outcome including an answer we
+       * could not parse: the tokens were spent whether or not we could use them, and a
+       * budget that only counts the successes undercounts exactly when the model is
+       * misbehaving.
+       */
+      if (answer.usage) {
+        await recordAiSpend({
+          cost: priceCall(TRIAGE_MODEL, answer.usage),
+          model: TRIAGE_MODEL,
+          visitor: !userId,
+          hasPhoto: Boolean(image),
+          at: now,
+        });
       }
     } catch (error) {
       /*
@@ -318,6 +497,47 @@ export async function POST(request: NextRequest) {
     visionHazard: source === "claude" ? visionHazard : null,
     photoUnseen: Boolean(image) && source !== "claude",
   });
+
+  /* ------------------------------------------------------------------ *
+   * What this answer did to the person's standing
+   * ------------------------------------------------------------------ */
+
+  /*
+   * ONLY WHEN THE MODEL ACTUALLY JUDGED IT. A null verdict is "nobody asked or nobody
+   * answered" — the fallback, the cache, a reply that omitted the field — and counting
+   * one of those as off-topic would pause somebody for our outage. Rule 6 on a rule that
+   * takes the product away from a person for a day.
+   */
+  if (topicVerdict) {
+    if (userId) {
+      const outcome = applyTopicVerdict({
+        state: accountState,
+        onTopic: topicVerdict.onTopic,
+        at: now,
+        streakToPause: limits.offTopicStreakToPause,
+        pauseHours: limits.offTopicPauseHours,
+        repeatWindowDays: limits.offTopicRepeatWindowDays,
+      });
+      await writeAccountState({
+        profileId: userId,
+        state: outcome.next,
+        flagForReview: outcome.flagForReview,
+        at: now,
+      });
+    } else if (!topicVerdict.onTopic) {
+      await spendDaily("anonOffTopic", subject, now);
+    }
+  }
+
+  /*
+   * AN UNRELATED PHOTOGRAPH COUNTS AGAINST THIS QUESTION'S TWO, on the server, keyed to
+   * the account — which is the whole reason a refresh cannot reset it. `unclear` counts
+   * too: the cost is identical and "we could not tell" twice running is the same signal
+   * as "that is not it" twice running.
+   */
+  if (userId && photoVerdict && photoVerdict.relevance !== "related") {
+    await spendUnrelatedPhoto(userId, limits.photoRequestWindowMinutes);
+  }
 
   const latencyMs = Date.now() - startedAt;
 
@@ -365,42 +585,48 @@ export async function POST(request: NextRequest) {
     photoRelevanceReason: photoVerdict?.reason ?? null,
   });
 
-  return NextResponse.json(
-    {
-      result: safeResult,
-      source,
-      latencyMs,
-      /*
-       * THE PHOTO VERDICT GOES TO THE BROWSER SEPARATELY FROM THE RESULT, and
-       * that separation is the safety rule in the shape of a payload: the card
-       * renders the answer whatever the photo was. An unrelated photo asks for
-       * another one; it never withholds the triage, and it never touches the
-       * hazard — which was read from that same photo regardless of what it
-       * turned out to be of.
-       */
-      photo: photoVerdict,
-      // The choices for the "which of these is it?" question, when there is
-      // one to ask. Empty on every other path, which is what the card reads.
-      subBands: await askableSubBands(safeResult, locale),
-      /*
-       * THE JOIN KEY, AND IT WAS THE MISSING LINK IN A CHAIN THAT WAS
-       * OTHERWISE COMPLETE. `bookings.triage_log_id` has a column, a zod
-       * field, a flow-state slot and an insert — and `/book` reads it off
-       * `?triage=`. Nothing ever set it, because the id never left this
-       * route, so every booking ever made has a null there and the accuracy
-       * loop had no join to make.
-       *
-       * Null whenever logging is off, timed out or failed. The card must
-       * treat that as ordinary: the link simply carries no id, and the
-       * booking is made exactly as before.
-       */
-      triageLogId,
-      // For the dev-only badge. Nothing here is secret and nothing here is
-      // rendered to an ordinary visitor.
-      reason,
-      model: source === "claude" ? TRIAGE_MODEL : null,
-    },
-    { headers: { "cache-control": "no-store" } },
+  return withDeviceCookie(
+    NextResponse.json(
+      {
+        result: safeResult,
+        source,
+        latencyMs,
+        /*
+         * THE PHOTO VERDICT GOES TO THE BROWSER SEPARATELY FROM THE RESULT, and
+         * that separation is the safety rule in the shape of a payload: the card
+         * renders the answer whatever the photo was. An unrelated photo asks for
+         * another one; it never withholds the triage, and it never touches the
+         * hazard — which was read from that same photo regardless of what it
+         * turned out to be of.
+         */
+        photo: photoVerdict,
+        // The choices for the "which of these is it?" question, when there is
+        // one to ask. Empty on every other path, which is what the card reads.
+        subBands: await askableSubBands(safeResult, locale),
+        /*
+         * THE JOIN KEY, AND IT WAS THE MISSING LINK IN A CHAIN THAT WAS
+         * OTHERWISE COMPLETE. `bookings.triage_log_id` has a column, a zod
+         * field, a flow-state slot and an insert — and `/book` reads it off
+         * `?triage=`. Nothing ever set it, because the id never left this
+         * route, so every booking ever made has a null there and the accuracy
+         * loop had no join to make.
+         *
+         * Null whenever logging is off, timed out or failed. The card must
+         * treat that as ordinary: the link simply carries no id, and the
+         * booking is made exactly as before.
+         */
+        triageLogId,
+        // For the dev-only badge. Nothing here is secret and nothing here is
+        // rendered to an ordinary visitor.
+        reason,
+        model: source === "claude" ? TRIAGE_MODEL : null,
+        /* No ceiling refused this one. The field is always present so the browser never
+         has to tell "allowed" from "an older server that did not say". */
+        aiRefusal: null,
+      },
+      { headers: { "cache-control": "no-store" } },
+    ),
+    device,
   );
 }
 
@@ -451,4 +677,87 @@ async function askableSubBands(
     low: sub.low,
     high: sub.high,
   }));
+}
+
+/**
+ * A ceiling refused the call. Answer anyway.
+ *
+ * THE POINT OF THIS FUNCTION IS THAT IT IS NOT AN ERROR PATH. A 429 or a 4xx would make
+ * the browser fall back locally, which works — `triageProblem`'s own catch does exactly
+ * this — but it would lose the SENTENCE, and the sentence is the whole product decision:
+ * "sign in to continue", "the AI is back at midnight", "photographs are closed for this
+ * question". A refusal nobody can read is indistinguishable from a broken product.
+ *
+ * AND THE SAFETY FLOOR STILL RUNS. The keyword matcher costs nothing and the floor over
+ * it is deterministic, so somebody who has used every allowance in the product and then
+ * types "I can smell gas" still gets told to switch off at the mains and ring us. That is
+ * asserted as behaviour in `tests/unit/ai-gate.test.ts` rather than promised here.
+ *
+ * IT IS LOGGED AS `ceiling-reached`, which is its own reason rather than a fault: every
+ * other fallback reason is something going wrong, and counting a working ceiling among
+ * them would make the fallback rate unreadable.
+ */
+async function refusedAnswer(input: {
+  refusal: GateRefusal;
+  text: string;
+  image: { mediaType: string; data: string } | null;
+  locale: Locale;
+  copy: TriageCopy;
+  userId: string | null;
+  startedAt: number;
+}): Promise<NextResponse> {
+  const { result: safeResult } = applySafetyFloor(
+    input.text,
+    keywordTriage(input.text, input.copy),
+    {
+      copy: input.copy.safety,
+      visionHazard: null,
+      /*
+       * NOT `photoUnseen`, even with a photograph attached, and the distinction is worth
+       * the line: that sentence says "we could not look at your photo", which is about a
+       * failure. This is a ceiling, and the refusal's own sentence says so. Two
+       * explanations for one thing is how a screen stops being readable.
+       */
+      photoUnseen: false,
+    },
+  );
+
+  const latencyMs = Date.now() - input.startedAt;
+
+  const triageLogId = await logTriage({
+    userId: input.userId,
+    inputText: input.text,
+    hadPhoto: Boolean(input.image),
+    result: safeResult,
+    source: "fallback",
+    model: null,
+    latencyMs,
+    hazard: null,
+    textHazard: null,
+    visionHazard: null,
+    reason: "ceiling-reached",
+    photoRelevance: null,
+    photoRelevanceReason: null,
+  });
+
+  return NextResponse.json(
+    {
+      result: safeResult,
+      source: "fallback" satisfies TriageSource,
+      latencyMs,
+      photo: null,
+      subBands: [],
+      triageLogId,
+      reason: "ceiling-reached" satisfies LoggableReason,
+      model: null,
+      /*
+       * THE REFUSAL ITSELF, so the browser can render the sentence rather than inferring
+       * one from the absence of an answer. It is data the card reads by `kind`, never a
+       * message written here: the server does not know which language this reader has
+       * chosen for a string the client already holds in both.
+       */
+      aiRefusal: input.refusal,
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

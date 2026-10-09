@@ -66,6 +66,16 @@ export type TriageReason =
    */
   | "unparseable"
   /** The browser never reached us. Client-side only; never logged. */
+  /**
+   * A ceiling or the day's budget refused the call before it was made.
+   *
+   * NOT A FAULT, AND THAT IS WHY IT IS ITS OWN VALUE. Every other fallback reason here
+   * is something going wrong — a missing key, a refused credential, a model having a
+   * bad minute. This one is the product working exactly as designed, and counting it as
+   * `no-api-key` or `provider-error` would put a working ceiling into the same column
+   * as an outage and make the fallback rate unreadable.
+   */
+  | "ceiling-reached"
   | "unreachable"
   /** We answered 4xx — a rate limit or a bad request. Client-side only. */
   | "rejected";
@@ -88,6 +98,7 @@ export const LOGGABLE_REASONS = [
   "rate-limited",
   "provider-error",
   "unparseable",
+  "ceiling-reached",
 ] as const satisfies readonly TriageReason[];
 
 export type LoggableReason = (typeof LOGGABLE_REASONS)[number];

@@ -938,6 +938,63 @@ export type Database = {
         Relationships: [];
       };
 
+      ai_limits: {
+        Row: {
+          id: boolean;
+          anon_triages_per_day: number;
+          anon_max_chars: number;
+          user_text_per_day: number;
+          user_photos_per_day: number;
+          user_max_chars: number;
+          off_topic_streak_to_pause: number;
+          off_topic_pause_hours: number;
+          off_topic_repeat_window_days: number;
+          unrelated_photos_per_request: number;
+          photo_request_window_minutes: number;
+          daily_budget_usd: number;
+          visitor_share_bps: number;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ai_limits"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["ai_limits"]["Row"]>;
+        Relationships: [];
+      };
+
+      ai_spend: {
+        Row: {
+          day_key: string;
+          total_usd: number;
+          visitor_usd: number;
+          calls: number;
+          visitor_calls: number;
+          photo_calls: number;
+          unknown_model_calls: number;
+          updated_at: string;
+        };
+        Insert: { day_key: string } & Partial<
+          Database["public"]["Tables"]["ai_spend"]["Row"]
+        >;
+        Update: Partial<Database["public"]["Tables"]["ai_spend"]["Row"]>;
+        Relationships: [];
+      };
+
+      ai_account_state: {
+        Row: {
+          profile_id: string;
+          off_topic_streak: number;
+          paused_until: string | null;
+          last_paused_at: string | null;
+          review_flagged_at: string | null;
+          updated_at: string;
+        };
+        Insert: { profile_id: string } & Partial<
+          Database["public"]["Tables"]["ai_account_state"]["Row"]
+        >;
+        Update: Partial<Database["public"]["Tables"]["ai_account_state"]["Row"]>;
+        Relationships: [];
+      };
+
       photo_hashes: {
         Row: {
           id: string;
@@ -2089,6 +2146,16 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      add_ai_spend: {
+        Args: {
+          p_day_key: string;
+          p_usd: number;
+          p_visitor: boolean;
+          p_photo: boolean;
+          p_unknown_model: boolean;
+        };
+        Returns: undefined;
+      };
       is_admin: {
         Args: Record<string, never>;
         Returns: boolean;

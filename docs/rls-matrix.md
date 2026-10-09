@@ -18,6 +18,9 @@ default as a measurement.
 | table | rows | anon | customer (owner) | other customer | professional (assigned) | other professional | admin |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `addresses` | 2 | none | some | some | none | none | none |
+| `ai_account_state` | 0 | no data | no data | no data | no data | no data | no data |
+| `ai_limits` | 1 | none | none | none | none | none | all |
+| `ai_spend` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_assessments` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_consents` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_decisions` | 0 | no data | no data | no data | no data | no data | no data |

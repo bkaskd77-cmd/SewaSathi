@@ -130,6 +130,15 @@ export type SecurityEventKind =
   | "pricing.bandRejected"
   | "document.reviewed"
   /* Anything an admin does at all */
+  /**
+   * Somebody moved a ceiling on what the AI may cost.
+   *
+   * ITS OWN KIND RATHER THAN `admin.action`, because it is the one setting in the
+   * product that can be changed to spend money — a budget raised from one dollar to a
+   * hundred is a hundred-dollar decision taken in one field. A named kind is countable;
+   * the catch-all is not.
+   */
+  | "aiLimits.changed"
   | "admin.action";
 
 export type ActorRole = "customer" | "provider" | "admin" | "system" | "anonymous";
