@@ -322,6 +322,17 @@ export async function readGlobalSms(
   };
 }
 
+/**
+ * The shared counter store, or null when it is not configured.
+ *
+ * EXPORTED FOR `lib/server/ai-quota.ts`, which counts the same kind of thing against the
+ * same store and must not open a second connection or a second idea of what "configured"
+ * means. It is the one place that reads those two variables.
+ */
+export function sharedStoreConfig(): { url: string; token: string } | null {
+  return sharedConfig();
+}
+
 function sharedConfig(): { url: string; token: string } | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
