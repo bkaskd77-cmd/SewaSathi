@@ -1834,6 +1834,39 @@ in it either way. And **no verdict at all does not suppress** — the fallback a
 the key expired, and none of that is evidence the photograph was useless. Withholding the
 answer then would punish a customer for our outage.
 
+### A photograph nobody looked at is less evidence than one we judged badly
+
+`hasSomethingToTriage` shipped suppressing the priced card when the model said "this is a
+banana" — and showing it when **nothing said anything at all**. That is backwards, and it
+is the half the first fix missed. Found the same way the original was: by somebody using
+the product, the next day.
+
+The failing path: the vision call times out, the route falls through to the keyword
+matcher, the matcher is handed an empty string and returns `GENERIC_RULE` — plumbing,
+"needed soon", Rs 900 – Rs 4,000 — and the product prints it **underneath a sentence
+admitting it had not looked at the photograph**. The old rule returned true because the
+verdict was null, under a comment arguing that withholding the answer would punish a
+customer for our outage. Every word of that was about an *answer*. There was no answer;
+there was a default.
+
+So the rule now reads `source` as well as the verdict. Only `claude` means anything
+looked: the cache is text-only, so a request with a photograph never hits it, and the
+fallback is a keyword matcher that cannot see.
+
+**The safety line is not lost with the card.** `applySafetyFloor` puts "we couldn't look
+at your photo, so check it yourself" on that path, and the hero now renders that sentence
+on its own, from `copy.safety` rather than sliced off the explanation, with one line
+asking for a few words. Advice without an invented job attached.
+
+**And the look itself was failing because a photograph had a text-sized budget.**
+`TRIAGE_TIMEOUT_MS` is 9.5 seconds, measured comfortable for text — `?deep=1` reports
+1,374ms — and tight for a request that has to push about a megabyte of base64 to Anthropic
+first. `TRIAGE_PHOTO_TIMEOUT_MS` is 22 seconds, under the route's `maxDuration` of 30 so
+our own timeout fires and the failure stays one we have copy for. Raising it can cost a
+longer wait and cannot cost an answer: at either ceiling the route still falls through to
+the matcher, and if the platform kills the function first, `triageProblem`'s own catch
+produces the same sentence in the browser.
+
 ### Camera-only is not enforceable on the web
 
 The booking and triage inputs carry `capture="environment"`, which asks a phone to open

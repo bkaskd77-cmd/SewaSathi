@@ -8,6 +8,7 @@ import {
   hasAnthropicConfig,
   TRIAGE_MAX_TOKENS,
   TRIAGE_MODEL,
+  TRIAGE_PHOTO_TIMEOUT_MS,
   TRIAGE_TIMEOUT_MS,
 } from "@/lib/ai";
 import {
@@ -56,6 +57,20 @@ import { isLocale, routing, type Locale } from "@/i18n/routing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Longer than the default, and only because a photograph needs it.
+ *
+ * `TRIAGE_PHOTO_TIMEOUT_MS` is 22 seconds and this is 30, so OUR timeout is what fires and
+ * the customer gets a sentence we wrote rather than whatever the platform does to a
+ * function it kills. A text-only triage is unaffected: it still answers inside 9.5 seconds
+ * or falls back, and nothing here makes a fast request slower.
+ *
+ * If the plan clamps this below 22 seconds the product still answers — `triageProblem`'s
+ * own catch produces the same "we couldn't look at your photo" line in the browser — so
+ * this is a ceiling worth asking for and never one anything depends on.
+ */
+export const maxDuration = 30;
 
 /** ~1 MB of image bytes. The client compresses well under this. */
 const MAX_IMAGE_BYTES = 1_100_000;
@@ -165,7 +180,14 @@ async function askClaude(
       ],
       messages: [{ role: "user", content }],
     },
-    { timeout: TRIAGE_TIMEOUT_MS, maxRetries: 0 },
+    /*
+     * A PHOTOGRAPH GETS THE LONGER BUDGET. Pushing a megabyte of base64 to Anthropic and
+     * then waiting for inference is not the same call as 40 characters of text, and 9.5
+     * seconds was timing out on real phones in Kathmandu — reported by a customer, twice.
+     * Either ceiling still ends in an answer: the route falls through to the keyword
+     * matcher with the "we couldn't look at your photo" line.
+     */
+    { timeout: image ? TRIAGE_PHOTO_TIMEOUT_MS : TRIAGE_TIMEOUT_MS, maxRetries: 0 },
   );
 
   const raw = response.content

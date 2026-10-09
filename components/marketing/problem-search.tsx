@@ -128,13 +128,28 @@ export function ProblemSearch() {
    * so that "we have nothing to go on" is a decision the page makes, not something a
    * component hides from itself.
    */
+  /*
+   * `photoSent` SURVIVES THE CLEAR, like `captureSeen` beside it. `photo` is cleared the
+   * moment the triage returns, so reading it here would say "no photograph" on exactly the
+   * render where the question matters.
+   */
+  const [photoSent, setPhotoSent] = React.useState(false);
   const triageable = outcome
     ? hasSomethingToTriage({
         text: query,
+        hadPhoto: photoSent,
+        source: outcome.source,
         verdict: outcome.photo ?? null,
         urgency: outcome.result.urgency,
       })
     : true;
+  /*
+   * Nobody looked, and there were no words either. The card is suppressed — see
+   * `hasSomethingToTriage` — and this is what stays: the safety sentence, which is advice
+   * worth having on its own, and an ask for a few words. Never the invented job.
+   */
+  const unlooked =
+    Boolean(outcome) && !triageable && photoSent && outcome?.source !== "claude";
   /*
    * WHAT THE MODEL MADE OF THE LAST PHOTO, and how many it has turned down.
    *
@@ -269,6 +284,7 @@ export function ProblemSearch() {
       setPhoto(prepared);
       setCaptureTime(prepared.takenAt);
       setCaptureSeen(true);
+      setPhotoSent(true);
       // A photo on its own is a complete question, so triage runs immediately.
       void runTriage(query, prepared);
     } catch (error) {
@@ -491,6 +507,25 @@ export function ProblemSearch() {
         */}
         {!thinking && outcome && triageable ? (
           <TriageCard outcome={outcome} locale={locale} copy={copy} />
+        ) : null}
+        {/*
+          THE ADVICE WITHOUT THE INVENTED JOB. When nothing looked at the photograph and
+          nothing was typed, the card is suppressed — but `applySafetyFloor` had put "we
+          couldn't look at your photo, so check it yourself" on that answer, and that
+          sentence is worth more than the quote it was attached to. It is read from
+          `copy.safety` rather than sliced off the explanation, so it cannot drift from
+          the line the server would have shown.
+        */}
+        {!thinking && unlooked ? (
+          <div
+            role="status"
+            className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"
+          >
+            <p className="text-body-sm text-foreground">{copy.safety.unseenPhoto}</p>
+            <p className="text-caption mt-2 text-muted-foreground">
+              {t("nothingToGoOn")}
+            </p>
+          </div>
         ) : null}
       </div>
     </div>

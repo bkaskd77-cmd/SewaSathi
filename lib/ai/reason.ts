@@ -32,7 +32,8 @@ export type TriageReason =
   | "cache-hit"
   /** No `ANTHROPIC_API_KEY` at all. Nothing was ever asked. */
   | "no-api-key"
-  /** The model did not answer inside `TRIAGE_TIMEOUT_MS`. */
+  /** The model did not answer inside the budget — `TRIAGE_TIMEOUT_MS`, or
+   *  `TRIAGE_PHOTO_TIMEOUT_MS` when a photograph was attached. */
   | "timeout"
   /**
    * The key is set and the provider refused it.

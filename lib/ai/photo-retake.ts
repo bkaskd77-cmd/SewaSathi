@@ -103,6 +103,18 @@ export function photosFull(kept: number): boolean {
 export function hasSomethingToTriage(input: {
   /** What the customer actually typed. */
   text: string;
+  /** Whether a photograph came with the question at all. */
+  hadPhoto: boolean;
+  /**
+   * Where the answer came from.
+   *
+   * ONLY `claude` MEANS ANYTHING LOOKED AT THE PHOTOGRAPH. The cache is text-only, so a
+   * request carrying a photograph never hits it; the fallback is the keyword matcher,
+   * which reads words and cannot see. This is the field the first version of this rule
+   * was missing, and the gap was found the same way the original bug was — by somebody
+   * using the product.
+   */
+  source: "claude" | "cache" | "fallback";
   /** The photo verdict, or null when there was no photo or nobody judged it. */
   verdict: PhotoVerdict | null | undefined;
   /** The urgency the answer carries AFTER the safety floor. */
@@ -114,10 +126,32 @@ export function hasSomethingToTriage(input: {
   /* Words are evidence. Anything typed is something to work from, even a short phrase. */
   if (input.text.trim().length > 0) return true;
 
+  /* No words and no photograph is no question. Unreachable through the hero, which runs
+     no triage on an empty form — stated rather than left to be inferred. */
+  if (!input.hadPhoto) return false;
+
   /*
-   * No words. So the photograph is the whole basis, and it is only a basis if it showed the
-   * problem. `unclear` counts as nothing for the same reason `unrelated` does: we cannot
-   * see a problem in it either way.
+   * NO WORDS, AND NOBODY LOOKED AT THE PHOTOGRAPH. This is the half the first fix missed
+   * and it is the commoner of the two: the model timed out, or the key is unset, so the
+   * answer came from the keyword matcher — which was handed an empty string and returned
+   * `GENERIC_RULE`. The product then printed "Plumbing · Needed soon · Rs 900 – Rs 4,000"
+   * under a sentence admitting it had not looked at the photograph. The card was
+   * suppressed when the model said "this is a banana" and shown when nothing said
+   * anything at all, which is exactly backwards: a verdict we never got is less evidence
+   * than one we did.
+   *
+   * THE SAFETY LINE IS NOT LOST WITH IT. `applySafetyFloor` puts "we couldn't look at
+   * your photo, so check it yourself" on this path, and the hero renders that sentence on
+   * its own when the card is suppressed — advice without an invented job attached.
+   */
+  if (input.source !== "claude") return false;
+
+  /*
+   * The model looked. So the photograph is the whole basis, and it is only a basis if it
+   * showed the problem. `unclear` counts as nothing for the same reason `unrelated` does:
+   * we cannot see a problem in it either way. A null verdict here means the model
+   * answered without naming a relevance, which is an answer it derived from the
+   * photograph — shown, because something did look.
    */
   return !input.verdict || input.verdict.relevance === "related";
 }

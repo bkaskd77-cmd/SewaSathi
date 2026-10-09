@@ -214,7 +214,8 @@
     },
     "photoUnrelated": "That photo looks like something else —",
     "photoUnclear": "We could not make that photo out —",
-    "photoRetakeClosed": "We will stop asking about the photo. Your answer is above, and the professional will see the problem when they arrive."
+    "photoRetakeClosed": "We will stop asking about the photo. Your answer is above, and the professional will see the problem when they arrive.",
+    "nothingToGoOn": "We couldn't read the photo this time, so there is nothing to price it from yet. Tell us in a few words what is wrong — even \"tap is dripping\" is enough."
   },
   "services": {
     "eyebrow": "Services",

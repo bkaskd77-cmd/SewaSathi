@@ -98,36 +98,91 @@ describe("whether there is anything to triage", () => {
   const unclear = { relevance: "unclear" as const, reason: "too dark" };
   const related = { relevance: "related" as const, reason: null };
 
+  /** The ordinary case: a photograph went up and the model answered. */
+  const looked = { hadPhoto: true, source: "claude" as const };
+
   it("shows nothing priced for an unrelated photo and no words", () => {
     expect(
-      hasSomethingToTriage({ text: "", verdict: unrelated, urgency: "soon" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, urgency: "soon" }),
     ).toBe(false);
   });
 
   it("treats an unreadable photo with no words the same way", () => {
     expect(
-      hasSomethingToTriage({ text: "   ", verdict: unclear, urgency: "routine" }),
+      hasSomethingToTriage({ ...looked, text: "   ", verdict: unclear, urgency: "routine" }),
     ).toBe(false);
   });
 
   /* Words are evidence. The photograph being wrong does not make the sentence wrong. */
   it("still answers when the customer typed something", () => {
     expect(
-      hasSomethingToTriage({ text: "tap is leaking", verdict: unrelated, urgency: "soon" }),
+      hasSomethingToTriage({
+        ...looked,
+        text: "tap is leaking",
+        verdict: unrelated,
+        urgency: "soon",
+      }),
     ).toBe(true);
   });
 
   it("answers from a photo that showed the problem", () => {
-    expect(hasSomethingToTriage({ text: "", verdict: related, urgency: "soon" })).toBe(true);
+    expect(
+      hasSomethingToTriage({ ...looked, text: "", verdict: related, urgency: "soon" }),
+    ).toBe(true);
   });
 
   /*
-   * NOBODY JUDGED IT IS NOT THE SAME AS JUDGED BADLY. The fallback answered, the key
-   * expired, the model said nothing — none of those is evidence that the photograph was
-   * useless, and withholding the answer would punish a customer for our outage.
+   * THE HALF THE FIRST FIX MISSED, AND THIS CASE USED TO ASSERT THE BUG.
+   *
+   * It read "answers when no verdict was recorded at all", under a comment arguing that
+   * withholding the answer would punish a customer for our outage. Every word of that
+   * reasoning was about an ANSWER. There is no answer on this path: the model timed out,
+   * the keyword matcher was handed an empty string, and `GENERIC_RULE` returned plumbing
+   * at Rs 900 – Rs 4,000. Withholding an invented job punishes nobody, and printing one
+   * under a sentence admitting we had not looked at the photograph is worse than printing
+   * nothing.
+   *
+   * So the two cases that look alike are opposite: a verdict we GOT and did not like
+   * suppresses the card, and a verdict we never got suppresses it harder, because less
+   * is known rather than more. Found by somebody using the product, twice in two days.
    */
-  it("answers when no verdict was recorded at all", () => {
-    expect(hasSomethingToTriage({ text: "", verdict: null, urgency: "soon" })).toBe(true);
+  it("shows nothing priced when nobody looked at the photo", () => {
+    for (const source of ["fallback", "cache"] as const) {
+      expect(
+        hasSomethingToTriage({
+          text: "",
+          hadPhoto: true,
+          source,
+          verdict: null,
+          urgency: "soon",
+        }),
+      ).toBe(false);
+    }
+  });
+
+  /*
+   * THE MODEL ANSWERED AND SIMPLY DID NOT NAME A RELEVANCE. `photoRelevance` is nullish in
+   * the schema, so this is a real shape — and it is an answer the model derived FROM the
+   * photograph. Something looked; the card stands.
+   */
+  it("answers when the model replied without naming a relevance", () => {
+    expect(
+      hasSomethingToTriage({ ...looked, text: "", verdict: null, urgency: "soon" }),
+    ).toBe(true);
+  });
+
+  /* No words and no photograph is no question. The hero runs no triage on an empty form,
+     so this is unreachable — asserted rather than left to be inferred. */
+  it("has nothing to say about an empty form", () => {
+    expect(
+      hasSomethingToTriage({
+        text: "",
+        hadPhoto: false,
+        source: "fallback",
+        verdict: null,
+        urgency: "routine",
+      }),
+    ).toBe(false);
   });
 
   /*
@@ -137,10 +192,21 @@ describe("whether there is anything to triage", () => {
    */
   it("never hides an emergency, whatever the photo was judged to be", () => {
     expect(
-      hasSomethingToTriage({ text: "", verdict: unrelated, urgency: "emergency" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, urgency: "emergency" }),
     ).toBe(true);
     expect(
-      hasSomethingToTriage({ text: "", verdict: unclear, urgency: "emergency" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unclear, urgency: "emergency" }),
+    ).toBe(true);
+    /* Including when nobody looked at all: the text guard fired on something, or the
+       photo hazard read did, and neither is a reason to hide what to do right now. */
+    expect(
+      hasSomethingToTriage({
+        text: "",
+        hadPhoto: true,
+        source: "fallback",
+        verdict: null,
+        urgency: "emergency",
+      }),
     ).toBe(true);
   });
 });
