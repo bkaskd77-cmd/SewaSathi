@@ -1739,8 +1739,17 @@ actually landed — `to_regclass`, `information_schema.columns`, `pg_policies`,
 `pg_proc`. The file is still what the db suite runs and what a fresh project
 gets; applying it by hand from a dashboard is how the two drift apart.
 
-**A statement whose FIRST keyword is `DROP` hangs on the MCP transport. Nothing
-else does.** This paragraph has now been wrong twice and over-general once, so it is
+**A statement whose first keyword is `DROP` — or `DELETE` — hangs on the MCP
+transport.** The "nothing else does" this line used to carry was measured over
+DDL only and was wrong the first time a row had to be removed: deleting the
+break-glass grant from `provisioned_accounts` sat for the full sixty seconds and
+rolled back, with the row verifiably still there afterwards. The cause is the
+same one the paragraph already names — `execute_sql` says a destructive
+statement may need the user to confirm, and that prompt never reaches the agent —
+so the rule is about what the transport judges DESTRUCTIVE, not about DDL.
+`ALTER TABLE … DROP CONSTRAINT` remains instant, which is the measured exception
+and the one that matters most. A `DELETE` therefore goes in **Your turn** with
+its destination named, exactly like a migration whose point is a drop. This paragraph has now been wrong twice and over-general once, so it is
 written as the measurements rather than as a theory. Every row was run against the
 live project:
 

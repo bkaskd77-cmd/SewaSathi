@@ -67,12 +67,48 @@ function anyOf(...stems: string[]): RegExp {
   return new RegExp(`(${stems.map(foldNepali).join("|")})`, "i");
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * Typing mistakes, and how far this file is willing to go to absorb them
+ * ---------------------------------------------------------------------------
+ *
+ * "gas leek" produced no warning and "gas leak" did. Reported by the owner,
+ * and it is the worst possible word to be strict about: a misspelling of the
+ * single most dangerous thing this product detects.
+ *
+ * THE MODEL ALREADY HANDLES THIS AND THAT IS NOT THE POINT. Claude reads "gas
+ * leek" without blinking. This guard is the floor that runs when the model is
+ * unavailable, over budget, paused, or simply wrong — so it has to catch the
+ * obvious misspellings of the few words that matter, and it does not have to
+ * be a spell-checker.
+ *
+ * THE RULE, AND ITS BOUND. Widen a hazard word with a tight character class
+ * anchored at a WORD START, never with fuzzy matching or an edit distance.
+ * `foldNepali` is the precedent one script over: it folds one sound and
+ * nothing else, because collapsing `श`/`ष`/`स` would merge words that
+ * genuinely differ. The Latin equivalent of that mistake is a loose matcher
+ * that fires on a syllable inside an ordinary word, and `\b` is what stops it:
+ * `\bl[ea]{1,2}k` reaches leak, leek, lek and laek without touching
+ * "chulako".
+ *
+ * AND THE GATES ARE WHAT MAKE IT SAFE. Gas needs the substance AND a
+ * smell-or-leak word AND no AC context; burning needs a burn word AND
+ * something electrical; a shock needs a source AND the struck verb. Widening
+ * one half of a pair cannot fire on its own, which is why the widening is
+ * spent there rather than on `BARE_WIRE`, the one list that fires alone.
+ *
+ * Every widening below has cases in `tests/unit/hazard-corpus.test.ts` — the
+ * misspelling that must fire, and the ordinary sentence that must still not.
+ */
+
 // Smelling something. Devanagari stems cover the whole conjugation:
 //   गन्हा  -> गन्हायो, गन्हाउँछ, गन्हाइरहेको, गन्हाएको, गन्हाउन
 //   गनाउ  -> गनायो, गनाउँछ, गनाइरहेको   (the eastern/colloquial form)
 //   बास्न  -> बास्ना, बास्न आयो
 const SMELL = anyOf(
-  "smell", "smelt", "smelling", "stink", "stinking", "odou?r", "fumes",
+  // `\bsme+l+` reaches smel, smell, smeell and smelll — a doubled or dropped
+  // letter in the commonest word on this list.
+  "\\bsme+l+", "smelt", "stink", "stinking", "odou?r", "fumes",
   "gandha", "gandh", "ganha", "ganau", "gana+yo", "basna", "bassna",
   "गन्ध", "गन्हा", "गन्धा", "गनाउ", "गनाइ", "गनाय", "बास्न", "वास्न",
 );
@@ -81,7 +117,11 @@ const SMELL = anyOf(
 //   चुहि -> चुहियो, चुहिरहेको, चुहिएको     चुहे -> चुहेको
 //   पोखि -> पोखियो (spilling)             निस्कि -> निस्किरहेको (escaping)
 const LEAK = anyOf(
-  "leak", "leaking", "leakage", "leaked", "escaping",
+  // THE REPORTED MISS. `\bl[ea]{1,2}k` reaches leak, leek, lek and laek, and
+  // the suffixes (leaking, leaked, leakage) follow from the stem. The word
+  // start is what keeps it out of "chulako" and every other ordinary word
+  // with that syllable inside it.
+  "\\bl[ea]{1,2}k", "escaping", "escape",
   "chuhi", "chuhe", "chuha", "pokhi", "niski",
   "चुहि", "चुहे", "चुहा", "चुहाव", "पोखि", "निस्कि", "निस्के",
   "लिक", "लीक",
@@ -90,7 +130,10 @@ const LEAK = anyOf(
 // The substance. `ग्याँस` with the chandrabindu is at least as common as
 // `ग्यास` when typed on a phone, and missing it was a silent gap.
 const GAS = anyOf(
-  "\\bgas\\b", "\\bgais\\b", "\\bgyas\\b", "lpg", "cylinder", "silinder",
+  // `\bga+s+\b` reaches gas, gaas and gass; the cylinder class reaches
+  // cylinder, cylender, cilinder and silinder in one.
+  "\\bga+s+\\b", "\\bgais\\b", "\\bgyas\\b", "lpg",
+  "[cs][iy]l[iae]nd?[ae]r",
   "ग्यास", "ग्याँस", "ग्यास्", "सिलिन्डर", "सिलिण्डर", "एलपीजी",
 );
 
@@ -116,8 +159,12 @@ const AC_CONTEXT = anyOf(
 // `धुवा` without the chandrabindu is how it is usually typed.
 const BURNING = anyOf(
   "burn", "burnt", "burned", "burning", "smoke", "smoking", "smould",
-  "scorch", "singe", "spark", "sparking", "sparks", "flame", "flames",
-  "\\bfire\\b", "short.?circuit",
+  "scorch", "singe",
+  // spark, sparck, spak, sparks, sparking — a transposed or dropped letter in
+  // the word somebody types while looking at a socket.
+  "\\bspa?r?c?k", "flame", "flames",
+  // fire, fyre, fier — the last is the commonest typo of the four letters.
+  "\\bf[iy]re\\b", "\\bfier\\b", "short.?circuit",
   "poleko", "polyo", "jaleko", "jalyo", "dadheko", "dhuwa", "dhuwaa",
   "aago", "aagalagi", "aagolagyo", "sort ?circuit",
   "पोल", "जल्", "जले", "जलि", "डढ", "बलिरह", "बलेको", "आगो", "आगलागी",
@@ -130,7 +177,11 @@ const BURNING = anyOf(
  * that belongs to an electrical fire or a house fire before escalating.
  */
 const BURNING_CONTEXT = anyOf(
-  "smell", "smoke", "wire", "wiring", "switch", "socket", "board", "plug",
+  "\\bsme+l+", "smoke",
+  // wire, wiring, wier, wyre — and `\bw[iy]re?` stops short of "wireless",
+  // which is a router and not a fire.
+  "\\bw[iy]r(e|ing)", "\\bwier", "switch", "swich",
+  "\\bsoc?ket", "board", "plug",
   "fuse", "mcb", "meter", "plastic", "rubber", "panel", "cable", "heater",
   "tar\\b", "waayar", "wayar", "switch", "socket",
   "तार", "वायर", "स्विच", "स्वीच", "सकेट", "सोकेट", "बोर्ड", "प्लग",
@@ -161,11 +212,14 @@ const BARE_WIRE = anyOf(
  */
 const SHOCK_SOURCE = anyOf(
   "current", "karent", "kurrent", "bijuli", "bijulee", "jhatka", "jhatkaa",
-  "shock", "electric",
+  // shock, shok, shoock — gated by the struck verb either way, so widening
+  // this half cannot fire on its own.
+  "\\bsho+c?k", "electric",
   "करेन्ट", "करेण्ट", "कर्रेन्ट", "बिजुली", "विजुली", "झट्का", "झड्का", "शक",
 );
 const SHOCK_VERB = anyOf(
-  "shock", "electrocut", "lag", "lagyo", "laagyo", "lageko", "hit", "struck",
+  "\\bsho+c?k", "electrocut", "lag", "lagyo", "laagyo", "lageko", "hit",
+  "struck",
   "लाग", "लागे", "लाग्", "छो", "पस",
 );
 

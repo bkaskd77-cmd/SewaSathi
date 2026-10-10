@@ -21,6 +21,39 @@ import { detectHazard, type Hazard } from "@/lib/ai/safety";
 
 type Case = [text: string, expected: Hazard, note?: string];
 
+/**
+ * The same hazards, typed wrongly.
+ *
+ * "gas leek" produced no warning and "gas leak" did — reported by the owner,
+ * on the worst possible word to be strict about. People mistype, especially
+ * in a second language, especially in a hurry, especially when frightened,
+ * and the keyword guard is precisely the path that runs when the model — which
+ * reads "gas leek" without blinking — is unavailable, over budget or paused.
+ *
+ * Every line is a misspelling somebody would actually produce: a doubled
+ * letter, a dropped one, a transposition, or the wrong vowel in a word they
+ * have only ever heard.
+ */
+const TYPOS: Case[] = [
+  ["gas leek", "gas", "the reported one"],
+  ["i think there is a gas lek in the kitchen", "gas"],
+  ["gass leaking from the cylinder", "gas"],
+  ["gaas smel in the room", "gas"],
+  ["smel of gas near the silinder", "gas"],
+  ["lpg cylender leaking", "gas"],
+  ["gas smelll very strong", "gas"],
+
+  ["sparck coming from the socket", "burning"],
+  ["spak from the switch board", "burning"],
+  ["fier near the meter box", "burning"],
+  ["burning smel from the plug", "burning"],
+  ["wier is burning behind the fridge", "burning"],
+  ["smoke from the soket", "burning"],
+
+  ["shok lagyo from the heater", "live-wire"],
+  ["mujhe shoock lagyo touching the switch", "live-wire"],
+];
+
 const GAS: Case[] = [
   // Devanagari, verb conjugated every way it comes.
   ["भान्सामा ग्यास गन्हाइरहेको छ", "gas"],
@@ -135,7 +168,59 @@ const CALM: string[] = [
    */
   "करेंट आएको छैन",
   "एसीमा ग्यास भर्नुपर्‍यो सिलिंडर होइन",
+
+  /*
+   * AND THE ORDINARY SENTENCES NEAREST THE WIDENED PATTERNS.
+   *
+   * Absorbing typing mistakes is only worth having if it does not start
+   * shouting at people. Each of these sits one character away from something
+   * that now fires: a gas stove that will not light is not a leak, a gas
+   * refill misspelled is still a refill, and a wireless router has nothing to
+   * do with a fire.
+   */
+  "gas chulo balcha tara aanch kam cha",
+  "gass stove ko burner jam bhayo",
+  "ac ko gaas refill garnu parne",
+  "wireless router ko light balena",
+  "need two more sockets in the bedroom",
+  "my electricity bill is too high this month",
 ];
+
+/*
+ * WHAT THIS GUARD DOES NOT DO, written down rather than discovered.
+ *
+ * It reads no negation. "nothing is burnt" beside the word `socket` escalates,
+ * because `burnt` and `socket` are both present and the matcher is deliberately
+ * blunt — "a false positive costs one unnecessary safety sentence. A false
+ * negative costs something we are not willing to pay."
+ *
+ * Found while adding the typo cases above, by writing a CALM case the design
+ * refuses. It predates that change: the same sentence escalates on the commit
+ * before it, checked rather than assumed. Pinned here as behaviour so the next
+ * person meets it as a decision rather than as a surprise — and so that nobody
+ * "fixes" it by teaching a safety matcher to believe a negation, which is a far
+ * more dangerous thing to get wrong than an extra warning.
+ */
+const BLUNT_ON_PURPOSE: string[] = [
+  "need the sockets changed, nothing is burnt",
+  "no gas smell, just want the cylinder moved",
+];
+
+describe("deliberately blunt, and it is written down", () => {
+  for (const text of BLUNT_ON_PURPOSE) {
+    it(`escalates "${text}" and that is the accepted cost`, () => {
+      expect(detectHazard(text)).not.toBeNull();
+    });
+  }
+});
+
+describe("the same hazards, typed wrongly", () => {
+  for (const [text, expected, note] of TYPOS) {
+    it(`${text}${note ? ` — ${note}` : ""}`, () => {
+      expect(detectHazard(text)).toBe(expected);
+    });
+  }
+});
 
 describe("gas, as people actually report it", () => {
   for (const [text, expected] of GAS) {
