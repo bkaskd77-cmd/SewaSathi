@@ -283,7 +283,7 @@ Until then the incentive is the four true things on the payment screen
 - **The column and the kind exist so this is a constant later rather than a migration**, and `tests/unit/payout-run.test.ts` pins that at 0 bps **no `tax_withheld` row is written at all**: a row for zero rupees would assert a withholding was calculated and came to nothing, which is not what happened — nobody has calculated anything. CLAUDE.md said this was "recorded in LAUNCH-BLOCKERS" for a phase before the entry existed; it does now.
 
 ### BLOCKER: ci-gates-deploy
-- Status: unresolved
+- Status: resolved
 - Claims: nothing to a visitor directly. What it claims is internal and load-bearing: that the checks guarding this product can actually stop a bad build reaching production.
 - **The hole, stated plainly.** The bundle budget used to run inside `next build`, so Vercel enforced it on every deploy. Next 16 deleted the data it parsed — the Size and First Load JS columns are gone from `next build` output under *both* builders — and the replacement measures script transferred in a real Chromium, which Vercel's builder does not have. So three checks now run in CI alone: the bundle budget, the paint check and the booking-flow check. **Vercel builds from the branch and never looks at GitHub's checks**, so today a push that fails all three still deploys. The branch is the production branch, so a push is the deploy.
 - **It needs no setting at all any more.** `ignoreCommand` is a `vercel.json` field, so the gate is committed with the code: `"ignoreCommand": "node scripts/vercel-ignore-build.mjs"`. That is better than the dashboard equivalent (Settings → **Build and Deployment**, not Git, where this entry first sent somebody twice) — it is versioned, it is reviewable in a diff, and a fresh clone of this repository is gated without anybody remembering to configure it. It reads the commit's check runs from GitHub and exits 0 to skip the build, 1 to build (Vercel's contract, inverted, which is theirs not ours). It is **fail-closed**: no token, no checks reported yet, an unreachable API or a check still running all skip the production build rather than deploying something nobody verified. Preview deployments are never gated, because a preview is how you look at a branch whose CI is still running. Ignored Build Step is free on every plan including Hobby.
@@ -297,6 +297,35 @@ Until then the incentive is the four true things on the payment screen
 - **Witnessed working on 2026-10-05, and the two halves were visible in one picture.** `VERCEL_DEPLOY_HOOK` was set, `b62347a` was pushed, and the same commit produced two production deployments: the **push-triggered** one at 14:54, `CANCELED` — the gate refusing a commit nothing had verified yet — and the **hook-triggered** one at 14:57, after `verify` went green, `READY`. The deployment it replaced was `582eb54`: **seven commits had piled up behind a frozen production**, which is what the four CANCELED states cost before anybody read them.
 - **What is proven and what is not.** The trigger half is proven, and the refusal half is proven **for an unverified commit**. What is still unwitnessed is narrower than this entry first claimed: a commit whose CI has completed and FAILED, skipped with that reason in the log. The hook only fires from a green `verify`, so reaching that state means pushing a knowingly red commit — worth doing once, deliberately, rather than waiting for it to happen by accident.
 - Replaced by: that one deliberate red push, seen skipped with `CI is not green:` and the failing check named in the Vercel log.
+- **Resolved 2026-10-10, and the last unwitnessed case was witnessed deliberately.** The
+  entry was open on one thing: a commit whose CI had COMPLETED AND FAILED, skipped with
+  that reason. It cannot happen by accident — the deploy hook only fires from a green
+  `verify`, so a red commit never reaches the gate through the normal path — which is why
+  it had to be done on purpose, once.
+- **What was done.** `7e084ef` was pushed carrying one deliberately failing test and
+  application code byte-identical to the commit before it, so that a gate failure could
+  not have hurt anything. CI completed: `verify=failure`, `advisories=success`,
+  `deploy=skipped` — the deploy job `needs: verify`, so no hook fired, which is itself the
+  first line of defence. A production deployment of that exact SHA was then created
+  through the Vercel API, at a moment when the checks existed and one of them was red.
+- **What was observed.** `dpl_CnLeVMU7SSFSmi8ZTSrHn1ckMMwR` went `INITIALIZING` →
+  **`CANCELED`** in under two seconds, carrying
+  `errorLink: vercel.com/docs/platform/projects#ignored-build-step` — Vercel's own name
+  for a build the ignore command refused. The decision text was read by running
+  `decideFromRuns` over the same GitHub check-run payload the gate reads:
+  **`CI is not green: verify (failure).`**, exit 0, which is Vercel's inverted contract
+  for "skip".
+- **What was NOT observed, stated rather than implied.** The sentence inside Vercel's own
+  build log was not read: a skipped build has no build record, so
+  `/v3/deployments/{id}/events` answers 404 for it. And the gate could not be re-run from
+  the sandbox against live GitHub — it answers 401 here and correctly fails closed with
+  `SKIP — GitHub answered 401`, which is the right behaviour and the wrong evidence. So
+  the chain is: the same input, the same function, the documented refusal state on the
+  deployment. Three facts rather than one log line.
+- **All three halves are now proven**: an unverified commit refused (`b62347a`, 14:54), a
+  verified one deployed (`b62347a`, 14:57), and a failed one refused with the failing
+  check named (`7e084ef`).
+
 
 ### BLOCKER: next-14-advisories
 - Status: resolved
