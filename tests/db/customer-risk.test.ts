@@ -562,8 +562,21 @@ describe("the professional is actually paid for the trip", () => {
    * Each booking gets its own slot: `enforce_slot_capacity` refuses a second one for
    * the same professional at the same time, which is correct and nothing to do with
    * trips — three cases failed on it before the offset was added.
+   *
+   * ABSOLUTE DATES, NOT `now() + N days`, AND THE CHANGE WAS A REAL FAILURE RATHER THAN
+   * TIDYING. The ladder used to be relative, and the risk fixture above uses fixed
+   * instants in January 2027 for THIS SAME professional. On 2026-10-10 at 09:02 UTC,
+   * `now() + 92 days` landed at 2027-01-10T09:02Z — inside the 120-minute window of the
+   * risk fixture's 2027-01-10T08:15Z booking — and two cases failed with "already booked
+   * for this time". The same run had passed sixteen hours earlier, when `now() + 92 days`
+   * was 18:40 and missed it.
+   *
+   * SO THE DEFECT WAS A FIXTURE WHOSE CORRECTNESS DEPENDED ON WHAT TIME OF DAY IT RAN,
+   * and it would have come back every few months as the relative window swept through
+   * January 2027. Both ladders are absolute now and in their own years, so the two
+   * fixtures cannot meet whatever the clock says.
    */
-  let slot = 90;
+  let slot = 0;
 
   async function upheldClaim(reference: string): Promise<string> {
     slot += 1;
@@ -571,10 +584,15 @@ describe("the professional is actually paid for the trip", () => {
       `insert into public.bookings
          (reference, customer_id, provider_id, category_slug, address_id,
           description, quoted_min, quoted_max, scheduled_for)
-       values ($1, $2, $3, 'plumbing', $4, 'Nobody home', 900, 4500,
-               now() + ($5 || ' days')::interval)
+       values ($1, $2, $3, 'plumbing', $4, 'Nobody home', 900, 4500, $5)
        returning id`,
-      [reference, ANITA, manojProvider, anitaAddress, String(slot)],
+      [
+        reference,
+        ANITA,
+        manojProvider,
+        anitaAddress,
+        new Date(Date.UTC(2027, 3, 1 + slot, 3, 0)).toISOString(),
+      ],
     );
     return bookingRows[0].id as string;
   }
@@ -739,7 +757,9 @@ describe("a trip debt comes off a later bill, once", () => {
     debtorAddress = rows[0].id as string;
   });
 
-  let slot = 200;
+  /* Its own month as well as its own ladder — see the note above on why these are
+     absolute. July 2027 cannot meet April 2027 or January 2027. */
+  let slot = 0;
 
   async function billableBooking(
     reference: string,
@@ -751,10 +771,16 @@ describe("a trip debt comes off a later bill, once", () => {
       `insert into public.bookings
          (reference, customer_id, provider_id, category_slug, address_id,
           description, quoted_min, quoted_max, payment_method, scheduled_for)
-       values ($1, $2, $3, 'plumbing', $4, 'Tap again', 900, 4500, $5,
-               now() + ($6 || ' days')::interval)
+       values ($1, $2, $3, 'plumbing', $4, 'Tap again', 900, 4500, $5, $6)
        returning id`,
-      [reference, DEBTOR, manojProvider, debtorAddress, method, String(slot)],
+      [
+        reference,
+        DEBTOR,
+        manojProvider,
+        debtorAddress,
+        method,
+        new Date(Date.UTC(2027, 6, 1 + slot, 3, 0)).toISOString(),
+      ],
     );
     const id = rows[0].id as string;
     /* A final amount is only legal on a finished job — `bookings_final_amount_shape`
