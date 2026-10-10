@@ -27,9 +27,43 @@ const FALLBACK_BAND_BY_SLUG = new Map(
 );
 
 export const triageResponseSchema = z.object({
-  category: z.enum(SLUGS),
-  urgency: z.enum(["emergency", "soon", "routine"]),
-  priceRangeNPR: z.tuple([z.number().finite(), z.number().finite()]),
+  /*
+   * NULLABLE, AND THAT IS THE FIX FOR A BUG THAT RAN FOR A WHOLE PHASE.
+   *
+   * The prompt has asked the model for an `onTopic` verdict since the ceilings
+   * shipped. It never said what to put in `category` when the answer is "this
+   * is not a home-service problem", because there is nothing honest to put
+   * there — and this enum was required. So every reply that correctly judged a
+   * question off-topic failed `safeParse`, the whole object was discarded as
+   * `unparseable`, the verdict went with it, and the keyword matcher printed
+   * `GENERIC_RULE` — plumbing, "needed soon", Rs 900-4,000 — at somebody who
+   * had pasted lorem ipsum. Seven rows in production on 2026-10-10.
+   *
+   * A PROMPT THAT ASKS FOR AN ANSWER THE SCHEMA REFUSES is the same class as a
+   * list written twice: both halves were written carefully and nobody ran the
+   * pair. `tests/unit/triage-schema.test.ts` now parses the exact shape the
+   * prompt asks for, so the two cannot drift again.
+   *
+   * NULL IS ONLY EVER "NO TRADE NAMED", never a trade we failed to read: the
+   * enum still refuses a slug we do not sell.
+   */
+  category: z.enum(SLUGS).nullish(),
+  /*
+   * Nullable for the same reason and only in company with a null category: an
+   * urgency, a price and a band are all answers ABOUT a trade, and a reply that
+   * named none has nothing to say about them. `parseTriageResponse` is what
+   * holds them together — a null urgency beside a real category is a malformed
+   * reply and is still refused.
+   */
+  urgency: z.enum(["emergency", "soon", "routine"]).nullish(),
+  priceRangeNPR: z
+    .tuple([z.number().finite(), z.number().finite()])
+    .nullish(),
+  /*
+   * REQUIRED ON EVERY PATH, including the ones with no trade. It is the
+   * sentence the person actually reads, and a refusal with no sentence is the
+   * dead end `EmptyState` exists to prevent.
+   */
   explanation: z.string().trim().min(10).max(400),
   // Optional so a response in the old four-key shape still validates rather
   // than dropping to the fallback — a missing hazard reads as "none", which is
@@ -137,7 +171,14 @@ export function parseTriageResponse(
   raw: string,
   bands: PriceBand[] = FALLBACK_PRICE_BANDS,
 ): {
-  result: TriageResult;
+  /**
+   * The triage, or null when the model named no trade.
+   *
+   * NULL IS AN ANSWER AND NOT A FAILURE — the caller tells the two apart by
+   * this function returning an object at all. A reply it could not use at all
+   * still returns null for the whole thing, exactly as before.
+   */
+  result: TriageResult | null;
   hazard: Hazard | null;
   photo: { relevance: PhotoRelevance; reason: string | null } | null;
   /** Null is "not recorded" — never on-topic and never off-topic. */
@@ -162,6 +203,40 @@ export function parseTriageResponse(
     onTopic,
     offTopicReason,
   } = parsed.data;
+  const topic =
+    typeof onTopic === "boolean"
+      ? { onTopic, reason: offTopicReason ?? null }
+      : null;
+
+  /*
+   * NO TRADE NAMED. Everything about a trade goes with it, and the reply is
+   * still a good reply: the hazard, the photo verdict and the topic verdict all
+   * stand, because each was read from something other than the category.
+   *
+   * THE HAZARD ESPECIALLY. The prompt says in as many words that `onTopic`
+   * never changes it — somebody whose words mention gas gets the emergency line
+   * whatever else the model made of the sentence, and dropping this reply on
+   * the floor is precisely what used to lose it.
+   */
+  if (category == null) {
+    return {
+      result: null,
+      hazard: hazard && hazard !== "none" ? hazard : null,
+      topic,
+      photo: photoRelevance
+        ? { relevance: photoRelevance, reason: photoRelevanceReason ?? null }
+        : null,
+    };
+  }
+
+  /*
+   * A TRADE WITH NO URGENCY OR NO PRICE IS A MALFORMED REPLY, not a modest one,
+   * and it is refused exactly as it was before those two became nullable. The
+   * nullability is for the no-trade shape alone; widening it to "any field may
+   * be missing" would have made every reply partially acceptable.
+   */
+  if (!urgency || !priceRangeNPR) return null;
+
   const band = bandBySlug.get(category) ?? FALLBACK_BAND_BY_SLUG.get(category);
   if (!band) return null;
 
@@ -207,10 +282,7 @@ export function parseTriageResponse(
      * same thing to every caller: nobody looked, so nothing is claimed. Rule 6
      * — "not recorded" must not render as "the photo was fine".
      */
-    topic:
-      typeof onTopic === "boolean"
-        ? { onTopic, reason: offTopicReason ?? null }
-        : null,
+    topic,
     photo: photoRelevance
       ? { relevance: photoRelevance, reason: photoRelevanceReason ?? null }
       : null,

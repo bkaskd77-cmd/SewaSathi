@@ -12,7 +12,7 @@ import {
   TRIAGE_TIMEOUT_MS,
 } from "@/lib/ai";
 import {
-  triageProblem as keywordTriage,
+  keywordAnswer,
   type TriageResult,
 } from "@/lib/ai/mockTriage";
 import { getTriagePrompt } from "@/lib/ai/prompt";
@@ -197,17 +197,23 @@ async function askClaude(
     data: string;
   } | null,
   locale: Locale,
-  copy: TriageCopy,
-): Promise<
-  | (NonNullable<ReturnType<typeof parseTriageResponse>> & {
-      usage: Anthropic.Usage | null;
-    })
-  | { result: null; usage: Anthropic.Usage | null }
-> {
+): Promise<{
+  /**
+   * The reply, or null when we could not use it at all.
+   *
+   * ONE DISCRIMINATOR RATHER THAN A UNION ON `result`, because `result` itself
+   * became nullable: a model that names no trade returns a perfectly good reply
+   * with `result: null` in it, and that is a different fact from a reply we
+   * threw away. Collapsing the two is exactly the bug this change exists to
+   * fix, one layer up.
+   */
+  parsed: NonNullable<ReturnType<typeof parseTriageResponse>> | null;
+  usage: Anthropic.Usage | null;
+}> {
   // Both read the same `categories` table, so the bands in the prompt and the
   // bands the answer is clamped to are the same numbers.
   const [systemPrompt, bands] = await Promise.all([
-    getTriagePrompt(locale, copy.explanations.generic),
+    getTriagePrompt(locale),
     getPriceBands(),
   ]);
 
@@ -269,8 +275,7 @@ async function askClaude(
    * misbehaving — which is when the bill is most likely to surprise somebody.
    */
   const usage = response.usage ?? null;
-  const parsed = raw ? parseTriageResponse(raw, bands) : null;
-  return parsed ? { ...parsed, usage } : { result: null, usage };
+  return { parsed: raw ? parseTriageResponse(raw, bands) : null, usage };
 }
 
 export async function POST(request: NextRequest) {
@@ -416,6 +421,13 @@ export async function POST(request: NextRequest) {
 
   let source: TriageSource = cached ? "cache" : "fallback";
   /*
+   * A CACHED ANSWER REPLAYS ITS VERDICT ON THE WORDS. The call was paid for
+   * once and the judgement it produced is part of the answer — so a good
+   * question served from cache still clears a signed-in account's off-topic
+   * streak, which it silently did not before. Only `onTopic: true` can ever be
+   * replayed: an off-topic reply has no result and is never cached.
+   */
+  /*
    * TYPED AS THE LOGGABLE SUBSET, not the full `TriageReason`, and the compiler
    * is what keeps that honest: `unreachable` and `rejected` are produced by the
    * BROWSER when it never reached us or got a 4xx, so this route cannot
@@ -431,7 +443,23 @@ export async function POST(request: NextRequest) {
     reason: string | null;
   } | null = null;
 
-  let topicVerdict: { onTopic: boolean; reason: string | null } | null = null;
+  let topicVerdict: { onTopic: boolean; reason: string | null } | null =
+    cachedEntry?.topic ?? null;
+  /**
+   * The model replied and named no trade — off-topic, or a home problem it
+   * could not place. Tracked separately from `result` being null, because the
+   * keyword matcher fills `result` in a moment either way and the safety floor
+   * needs something to run over.
+   */
+  let modelNamedNoTrade = false;
+  /**
+   * Did ANYTHING point at the trade on the card?
+   *
+   * The model naming one counts; a keyword in the text counts; `GENERIC_RULE`
+   * does not. False is what stops the hero printing a plumbing recommendation
+   * at somebody who pasted lorem ipsum.
+   */
+  let matched = true;
 
   if (!result && hasAnthropicConfig()) {
     /*
@@ -449,16 +477,50 @@ export async function POST(request: NextRequest) {
 
     reason = "unparseable";
     try {
-      const answer = await askClaude(text, image, locale, copy);
-      if (answer.result) {
-        result = answer.result;
-        visionHazard = answer.hazard;
-        photoVerdict = answer.photo;
-        topicVerdict = answer.topic ?? null;
-        source = "claude";
-        reason = "ok";
-        if (cacheable) {
-          writeTriageCache(text, locale, answer.result, photoHash, answer.photo);
+      const answer = await askClaude(text, image, locale);
+      if (answer.parsed) {
+        /*
+         * THE VERDICTS SURVIVE A REPLY THAT NAMED NO TRADE, and that is the
+         * whole change. They used to be read inside `if (answer.result)`, so a
+         * model correctly answering "this is not a home-service problem" —
+         * which has no category to put in `result` — had its entire reply
+         * thrown away as unparseable. The hazard went with it, the topic
+         * verdict went with it, and the keyword matcher printed plumbing.
+         */
+        visionHazard = answer.parsed.hazard;
+        photoVerdict = answer.parsed.photo;
+        topicVerdict = answer.parsed.topic ?? null;
+
+        if (answer.parsed.result) {
+          result = answer.parsed.result;
+          source = "claude";
+          reason = "ok";
+          if (cacheable) {
+            writeTriageCache(
+              text,
+              locale,
+              answer.parsed.result,
+              photoHash,
+              answer.parsed.photo,
+              answer.parsed.topic,
+            );
+          }
+        } else {
+          /*
+           * A GOOD REPLY THAT NAMES NO TRADE. Two different facts and they are
+           * logged apart: `off-topic` ends a visitor's AI day and moves a
+           * signed-in streak, `no-trade` costs nobody anything and is the
+           * signal that the ten categories do not cover what people ask for.
+           *
+           * NOT CACHED. An off-topic answer is refused by the gate on the next
+           * attempt, so there is no repeat to save a call on; a no-trade answer
+           * is one we want re-asked once the person adds a detail.
+           */
+          reason =
+            answer.parsed.topic && !answer.parsed.topic.onTopic
+              ? "off-topic"
+              : "no-trade";
+          modelNamedNoTrade = true;
         }
       }
       /*
@@ -495,8 +557,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (!result) {
-    result = keywordTriage(text, copy);
-    source = "fallback";
+    const answer = keywordAnswer(text, copy);
+    result = answer.result;
+    matched = answer.matched;
+    /*
+     * A MODEL THAT DECLINED A TRADE IS NOT A FALLBACK, and `source` says where
+     * the answer came from. The matcher supplied the row underneath so the
+     * safety floor has something to run over — but if a keyword DID point
+     * somewhere, that is a better answer than nothing and the card shows it.
+     */
+    if (!modelNamedNoTrade) source = "fallback";
   }
 
   // Runs on every path, including the cache and the fallback. See lib/ai/safety.
@@ -504,6 +574,21 @@ export async function POST(request: NextRequest) {
   // The model's hazard read is passed in only when the model actually
   // answered. When a photo was attached and it did not, `photoUnseen` says so
   // — nobody looked at that picture, and the result should admit it.
+  /*
+   * DID THE MODEL REPLY AT ALL? `source` cannot answer that any more, and using
+   * it for this became wrong the moment a reply could be good and still name no
+   * trade — `source` then says `fallback`, because the matcher supplied the row
+   * underneath.
+   *
+   * THE COST WOULD HAVE BEEN THE HAZARD. The model reads a photograph for gas,
+   * burning and live wires BEFORE it decides what the words are about, so a
+   * sparking board photographed alongside a rambling message would have had its
+   * `visionHazard` dropped here and the customer told "we couldn't look at your
+   * photo" by the product that had just looked at it. It also decides whether
+   * `triage_logs.model` records which model answered.
+   */
+  const modelReplied = source === "claude" || modelNamedNoTrade;
+
   const {
     result: safeResult,
     hazard,
@@ -513,8 +598,8 @@ export async function POST(request: NextRequest) {
     readVisionHazard,
   } = applySafetyFloor(text, result, {
     copy: copy.safety,
-    visionHazard: source === "claude" ? visionHazard : null,
-    photoUnseen: Boolean(image) && source !== "claude",
+    visionHazard: modelReplied ? visionHazard : null,
+    photoUnseen: Boolean(image) && !modelReplied,
   });
 
   /* ------------------------------------------------------------------ *
@@ -566,7 +651,7 @@ export async function POST(request: NextRequest) {
     hadPhoto: Boolean(image),
     result: safeResult,
     source,
-    model: source === "claude" ? TRIAGE_MODEL : null,
+    model: modelReplied ? TRIAGE_MODEL : null,
     latencyMs,
     /*
      * THREE FIELDS, BECAUSE ONE CANNOT ANSWER THE QUESTION. `hazard` is the
@@ -619,6 +704,21 @@ export async function POST(request: NextRequest) {
          * turned out to be of.
          */
         photo: photoVerdict,
+        /*
+         * THE MODEL'S VERDICT ON THE WORDS, beside the answer for the same
+         * reason the photo verdict is: the safety floor has already run and a
+         * hazard is on screen whatever this says. It was computed and thrown
+         * away until now — used to move a streak and a counter, never sent — so
+         * the product knew a question was off-topic and the person reading the
+         * screen could not tell.
+         */
+        topic: topicVerdict,
+        /*
+         * WHETHER ANYTHING POINTED AT THE TRADE ON THE CARD. False means the
+         * answer is `GENERIC_RULE`: a reservation the scheduler needs, never a
+         * recommendation to read out.
+         */
+        matched,
         // The choices for the "which of these is it?" question, when there is
         // one to ask. Empty on every other path, which is what the card reads.
         subBands: await askableSubBands(safeResult, locale),
@@ -638,7 +738,7 @@ export async function POST(request: NextRequest) {
         // For the dev-only badge. Nothing here is secret and nothing here is
         // rendered to an ordinary visitor.
         reason,
-        model: source === "claude" ? TRIAGE_MODEL : null,
+        model: modelReplied ? TRIAGE_MODEL : null,
         /* No ceiling refused this one. The field is always present so the browser never
          has to tell "allowed" from "an older server that did not say". */
         aiRefusal: null,
@@ -725,9 +825,10 @@ async function refusedAnswer(input: {
   userId: string | null;
   startedAt: number;
 }): Promise<NextResponse> {
+  const answer = keywordAnswer(input.text, input.copy);
   const { result: safeResult } = applySafetyFloor(
     input.text,
-    keywordTriage(input.text, input.copy),
+    answer.result,
     {
       copy: input.copy.safety,
       visionHazard: null,
@@ -769,6 +870,17 @@ async function refusedAnswer(input: {
       triageLogId,
       reason: "ceiling-reached" satisfies LoggableReason,
       model: null,
+      /* Nobody asked the model anything, so there is no verdict on the words. */
+      topic: null,
+      /*
+       * AND THE MATCHER'S OWN VERDICT RIDES ALONG, which is what stops a refused
+       * call reading as a recommendation. This is the path the visitor in the
+       * bug report was on: the ceiling fired six times and every one of them
+       * rendered "Plumbing · Needed soon · Rs 900 – Rs 4,000" with the limit
+       * notice below the fold, so the ceiling was invisible behind the thing it
+       * had just refused to produce.
+       */
+      matched: answer.matched,
       /*
        * THE REFUSAL ITSELF, so the browser can render the sentence rather than inferring
        * one from the absence of an answer. It is data the card reads by `kind`, never a

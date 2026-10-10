@@ -1,7 +1,7 @@
 import type { Locale } from "@/i18n/routing";
 import type { TriageCopy } from "@/lib/ai/copy";
 import {
-  triageProblem as keywordTriage,
+  keywordAnswer,
   type TriageResult,
 } from "@/lib/ai/mockTriage";
 import type { TriageReason } from "@/lib/ai/reason";
@@ -109,6 +109,30 @@ export type TriageOutcome = {
    * do. This says why the model was not asked; it never replaces what came back.
    */
   aiRefusal?: GateRefusal | null;
+  /**
+   * What the model made of the WORDS, or null when nobody judged them.
+   *
+   * SAME SEPARATION AS THE PHOTO VERDICT, and for the same reason: the answer
+   * underneath has already been through the safety floor, so a hazard is on
+   * screen whatever this says. `onTopic: false` suppresses the recommendation
+   * and `reason` is the sentence shown instead.
+   */
+  topic?: TopicVerdict | null;
+  /**
+   * Did anything actually point at the trade on the card?
+   *
+   * FALSE MEANS `GENERIC_RULE` — plumbing, "needed soon", Rs 900-4,000, which is
+   * the reservation the scheduler falls back to and not a recommendation. It is
+   * optional only so an older server's payload still renders; absent is read as
+   * true, because every path that can answer `false` now says so.
+   */
+  matched?: boolean;
+};
+
+export type TopicVerdict = {
+  onTopic: boolean;
+  /** The model's own sentence saying what it took the question to be. */
+  reason: string | null;
 };
 
 export type PhotoVerdict = {
@@ -123,15 +147,25 @@ function localFallback(
   reason: TriageReason,
   photoUnseen = false,
 ): TriageOutcome {
+  const answer = keywordAnswer(text, copy);
   return {
     // Same floor as the server applies, including the note when a photo was
     // attached and nothing ever looked at it — which is precisely what this
     // path means.
-    result: applySafetyFloor(text, keywordTriage(text, copy), {
+    result: applySafetyFloor(text, answer.result, {
       copy: copy.safety,
       photoUnseen,
     }).result,
     source: "fallback",
+    /* Nobody asked a model anything on this path. */
+    topic: null,
+    /*
+     * AND THE MATCHER SAYS WHETHER IT FOUND ANYTHING. This is the browser's own
+     * fallback — the request never arrived — so it is the path most likely to
+     * be answering with `GENERIC_RULE`, and the one where printing it as a
+     * recommendation is least excusable.
+     */
+    matched: answer.matched,
     // Never reached the server, so nothing was logged and there is nothing to
     // attribute a later booking to. The booking still works; it is simply not
     // traceable back to a triage, which is the honest record of what happened.
@@ -189,6 +223,8 @@ export async function triageProblem(
       model?: string | null;
       photo?: PhotoVerdict | null;
       aiRefusal?: GateRefusal | null;
+      topic?: TopicVerdict | null;
+      matched?: boolean;
     };
 
     if (!payload.result)
@@ -202,6 +238,10 @@ export async function triageProblem(
       model: payload.model ?? null,
       photo: payload.photo ?? null,
       aiRefusal: payload.aiRefusal ?? null,
+      topic: payload.topic ?? null,
+      /* Absent reads as "it matched" — see the field's note. Only a server that
+         has not been deployed yet can omit it. */
+      matched: payload.matched ?? true,
     };
   } catch (error) {
     // An abort is the caller replacing this run with a newer one, not a

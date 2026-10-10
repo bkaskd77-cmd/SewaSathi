@@ -145,6 +145,8 @@ export function ProblemSearch() {
         source: outcome.source,
         verdict: outcome.photo ?? null,
         urgency: outcome.result.urgency,
+        topic: outcome.topic ?? null,
+        matched: outcome.matched ?? true,
       })
     : true;
   /*
@@ -158,6 +160,30 @@ export function ProblemSearch() {
     photoSent &&
     outcome?.source !== "claude" &&
     !outcome?.aiRefusal;
+  /*
+   * WHAT GOES IN PLACE OF THE CARD, AND IT IS ONE THING.
+   *
+   * There are four reasons the recommendation can be missing and they must not stack:
+   * somebody who pasted a paragraph of filler while out of free questions would otherwise
+   * read a limit notice, a "that is not about a home" sentence and a "we could not tell
+   * which trade" sentence, about one tap. `attentionFor` settled the same question for the
+   * bookings list — one answer per card, in a stated order.
+   *
+   * THE ORDER IS BY WHAT THE PERSON CAN DO NEXT. A ceiling is the only one with an action
+   * behind it, so it leads; then the model's own reading of their words; then a photograph
+   * nobody looked at; then "we could not place this", which is the vaguest and so last.
+   */
+  const instead: "refusal" | "offTopic" | "unlooked" | "noTrade" | null = !outcome
+    ? null
+    : outcome.aiRefusal
+      ? "refusal"
+      : triageable
+        ? null
+        : outcome.topic && !outcome.topic.onTopic
+          ? "offTopic"
+          : unlooked
+            ? "unlooked"
+            : "noTrade";
   /*
    * A CEILING REFUSED THE CALL. The answer underneath is the keyword matcher's and the
    * safety floor has already run over it, so a hazard is on screen whatever this says —
@@ -519,25 +545,14 @@ export function ProblemSearch() {
       <div aria-live="polite" aria-atomic="true">
         {thinking ? <TriageSkeleton /> : null}
         {/*
-          NO PRICE WITHOUT SOMETHING TO PRICE IT FROM. A photograph of bananas with no
-          words produced "Plumbing · Needed soon · Rs 900 – Rs 4,000" — the photo check had
-          worked and said so, and the priced recommendation sat underneath it anyway,
-          because `TriageResult` requires a category and `GENERIC_RULE` is plumbing. That
-          default is right for a FAILURE and nonsense for an absence. A hazard is never
-          suppressed; see `hasSomethingToTriage`.
+          THE LIMIT GOES ABOVE THE ANSWER, and it used to go below it. Six ceilings fired
+          on one visitor in eight minutes and every one of them rendered a full plumbing
+          recommendation with a "Find plumbing professionals" button, the notice sitting
+          under the fold beneath it — so the report that came back was "no ceiling". A
+          refusal somebody has to scroll past the refused thing to find is one they do not
+          read.
         */}
-        {!thinking && outcome && triageable ? (
-          <TriageCard outcome={outcome} locale={locale} copy={copy} />
-        ) : null}
-        {/*
-          THE ADVICE WITHOUT THE INVENTED JOB. When nothing looked at the photograph and
-          nothing was typed, the card is suppressed — but `applySafetyFloor` had put "we
-          couldn't look at your photo, so check it yourself" on that answer, and that
-          sentence is worth more than the quote it was attached to. It is read from
-          `copy.safety` rather than sliced off the explanation, so it cannot drift from
-          the line the server would have shown.
-        */}
-        {!thinking && refusal ? (
+        {!thinking && instead === "refusal" && refusal ? (
           <div
             role="status"
             className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"
@@ -565,8 +580,76 @@ export function ProblemSearch() {
             ) : null}
           </div>
         ) : null}
-
-        {!thinking && unlooked ? (
+        {/*
+          NO PRICE WITHOUT SOMETHING TO PRICE IT FROM. A photograph of bananas with no
+          words produced "Plumbing · Needed soon · Rs 900 – Rs 4,000" — the photo check had
+          worked and said so, and the priced recommendation sat underneath it anyway,
+          because `TriageResult` requires a category and `GENERIC_RULE` is plumbing. That
+          default is right for a FAILURE and nonsense for an absence. A hazard is never
+          suppressed; see `hasSomethingToTriage`.
+        */}
+        {!thinking && outcome && triageable ? (
+          <TriageCard outcome={outcome} locale={locale} copy={copy} />
+        ) : null}
+        {/*
+          AND NOW THE SAME RULE FOR WORDS. A visitor pasted a paragraph of lorem ipsum and
+          read "Plumbing · Needed soon · Rs 900 – Rs 4,000" three times running, because
+          the suppression above only ever asked about the photograph: any text at all was
+          treated as evidence that the text described a problem we fix. The model had in
+          fact judged it off-topic every time — and its reply was being discarded by the
+          schema, so the verdict never arrived. Both halves are fixed; this is where the
+          sentence lands.
+        */}
+        {!thinking && instead === "offTopic" ? (
+          <div
+            role="status"
+            className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"
+          >
+            <p className="text-body-sm text-foreground">{t("offTopic.lead")}</p>
+            {/* The model's own sentence, for the same reason the photo verdict shows one:
+                "that is not a home repair" tells somebody nothing they can act on. */}
+            {outcome?.topic?.reason ? (
+              <p className="text-caption mt-2 text-muted-foreground">
+                {outcome.topic.reason}
+              </p>
+            ) : null}
+            <p className="text-caption mt-2 text-muted-foreground">
+              {t("offTopic.ask")}
+            </p>
+          </div>
+        ) : null}
+        {/*
+          WE COULD NOT PLACE IT. Nothing in the words pointed at a trade, so the answer
+          underneath is `GENERIC_RULE` — the scheduler's reservation, which has no business
+          on a screen. The ten services are a real way forward rather than a dead end, which
+          is what `EmptyState` asks of every one of these.
+        */}
+        {!thinking && instead === "noTrade" ? (
+          <div
+            role="status"
+            className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"
+          >
+            <p className="text-body-sm text-foreground">{t("noTrade.lead")}</p>
+            <p className="text-caption mt-2 text-muted-foreground">
+              {t("noTrade.ask")}
+            </p>
+            <Link
+              href="/services"
+              className="text-caption mt-2 inline-block font-medium text-primary underline underline-offset-4"
+            >
+              {t("noTrade.browse")}
+            </Link>
+          </div>
+        ) : null}
+        {/*
+          THE ADVICE WITHOUT THE INVENTED JOB. When nothing looked at the photograph and
+          nothing was typed, the card is suppressed — but `applySafetyFloor` had put "we
+          couldn't look at your photo, so check it yourself" on that answer, and that
+          sentence is worth more than the quote it was attached to. It is read from
+          `copy.safety` rather than sliced off the explanation, so it cannot drift from
+          the line the server would have shown.
+        */}
+        {!thinking && instead === "unlooked" ? (
           <div
             role="status"
             className="animate-rise mt-4 rounded-xl border border-border bg-card p-4"

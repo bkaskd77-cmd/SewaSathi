@@ -46,9 +46,28 @@ function reply(over: Record<string, unknown>): string {
   });
 }
 
+
+/**
+ * The triage out of a reply that names a trade.
+ *
+ * `parseTriageResponse().result` became nullable when the schema learned to accept a
+ * reply with no trade in it — an off-topic verdict, or a home problem the model could not
+ * place. Every case below names one, and this keeps the two failures apart in the message:
+ * "the whole reply was discarded" and "the reply named no trade" are different faults, and
+ * a bare `!` would report them identically.
+ */
+function named(raw: string): NonNullable<
+  NonNullable<ReturnType<typeof parseTriageResponse>>["result"]
+> {
+  const out = parseTriageResponse(raw);
+  expect(out, "the whole reply was discarded").not.toBeNull();
+  expect(out!.result, "the reply named no trade").not.toBeNull();
+  return out!.result!;
+}
+
 describe("the model may name a product, and only one this trade sells", () => {
   it("keeps a slug the category actually has", () => {
-    expect(parseTriageResponse(reply({ band: "blockage" }))!.result.band).toBe(
+    expect(named(reply({ band: "blockage" })).band).toBe(
       "blockage",
     );
   });
@@ -60,15 +79,15 @@ describe("the model may name a product, and only one this trade sells", () => {
    * would reserve four days of somebody's week for a tap washer.
    */
   it("drops a slug that belongs to a different trade", () => {
-    expect(parseTriageResponse(reply({ band: "flat" }))!.result.band).toBeNull();
+    expect(named(reply({ band: "flat" })).band).toBeNull();
     expect(
-      parseTriageResponse(reply({ band: "room-supplied" }))!.result.band,
+      named(reply({ band: "room-supplied" })).band,
     ).toBeNull();
   });
 
   it("drops a slug that exists nowhere", () => {
     expect(
-      parseTriageResponse(reply({ band: "not-a-product" }))!.result.band,
+      named(reply({ band: "not-a-product" })).band,
     ).toBeNull();
   });
 
@@ -79,10 +98,10 @@ describe("the model may name a product, and only one this trade sells", () => {
    * scheduled before duration existed.
    */
   it("still answers, with the price clamped, when the band is wrong", () => {
-    const out = parseTriageResponse(reply({ band: "flat", priceRangeNPR: [900, 40000] }));
+    const out = named(reply({ band: "flat", priceRangeNPR: [900, 40000] }));
     expect(out).not.toBeNull();
-    expect(out!.result.category).toBe("plumbing");
-    expect(out!.result.priceRangeNPR[1]).toBeLessThanOrEqual(plumbing.high);
+    expect(out.category).toBe("plumbing");
+    expect(out.priceRangeNPR[1]).toBeLessThanOrEqual(plumbing.high);
   });
 
   /*
@@ -90,15 +109,15 @@ describe("the model may name a product, and only one this trade sells", () => {
    * a customer to the fallback over a key that only affects scheduling.
    */
   it("accepts a reply that has no band at all", () => {
-    const out = parseTriageResponse(reply({}));
+    const out = named(reply({}));
     expect(out).not.toBeNull();
-    expect(out!.result.band).toBeNull();
+    expect(out.band).toBeNull();
   });
 
   it("accepts an explicit null", () => {
-    const out = parseTriageResponse(reply({ band: null }));
+    const out = named(reply({ band: null }));
     expect(out).not.toBeNull();
-    expect(out!.result.band).toBeNull();
+    expect(out.band).toBeNull();
   });
 });
 

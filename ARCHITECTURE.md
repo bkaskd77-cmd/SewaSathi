@@ -1858,6 +1858,81 @@ at your photo, so check it yourself" on that path, and the hero now renders that
 on its own, from `copy.safety` rather than sliced off the explanation, with one line
 asking for a few words. Advice without an invented job attached.
 
+### The third time, and this one was words: a prompt asking for an answer the schema refused
+
+The same card, the same price, no photograph at all. A visitor pasted a paragraph of lorem
+ipsum into the hero on a desktop and on a phone and read **Plumbing · Needed soon ·
+Rs 900 – Rs 4,000** every time, reported it, and said there was no ceiling either.
+
+**The ceiling was working.** Six of their eight requests were logged `ceiling-reached`. The
+notice rendered — *below the card*, under a full recommendation with a "Find plumbing
+professionals" button, so the limit sat beneath the thing it had just refused to produce
+and was never read. It is above the card now. A refusal somebody has to scroll past the
+refused thing to find is one that does not exist.
+
+**And the model had judged every one of those questions off-topic.** The prompt has asked
+for an `onTopic` verdict since the ceilings shipped. It never said what to put in
+`category` when the answer is "this is not a home-service problem", because there is
+nothing honest to put there — and `triageResponseSchema` had `category` as a **required**
+enum. So every reply that followed our own instruction failed `safeParse`, the whole object
+was discarded, and the route logged `unparseable`. Seven production rows on 2026-10-10 are
+exactly that shape.
+
+**The verdict went in the bin with the reply, and so did everything else in it.** The
+hazard read — which the prompt says in as many words `onTopic` must never change. The photo
+relevance. The off-topic count that ends a visitor's AI day and moves a signed-in account's
+streak. A ceiling built to stop repeated off-topic questions could never see one, because
+the only thing that produces the evidence was being thrown away before it was read.
+
+**A prompt and a schema are one list written twice.** Both halves were written carefully;
+nobody ran the pair. `tests/unit/triage-off-topic.test.ts` parses the exact JSON the prompt
+instructs the model to send, and asserts the instruction is still in the prompt — the same
+arrangement as `LOGGABLE_REASONS` against its check constraint, with the second copy living
+in English prose rather than in SQL.
+
+**`category` is nullable now and `result` can be null with it**, which is a reply and not a
+failure: `parseTriageResponse` returning an object at all is what says the reply was
+usable. `urgency` and `priceRangeNPR` came with it, because they are answers *about* a
+trade — and the loosening stops there: a reply that names a trade and omits them is
+malformed and still refused.
+
+**Two reasons, not one.** `off-topic` ends a visitor's AI day and moves a streak;
+`no-trade` — a real home problem the model could not place — costs nobody anything and is
+the only signal that the ten categories do not cover what people ask for. Collapsing them
+would pause people for being vague, which is what the prompt's "BE GENEROUS" instruction
+exists to avoid. Both group as `modelDeclined` in `fallbackCause` and neither counts as
+`firedDespiteKey`: the reply arrived, survived validation and said something useful.
+
+**`ceiling-reached` was already wrong there.** `reason.ts` has said since the ceilings
+shipped that counting a working ceiling among the faults "would make the fallback rate
+unreadable", and `fallbackCause` had no case for it — so every refusal fell through
+`default` into `notRecorded` and `/admin/triage-accuracy` reported it as a fallback nobody
+had diagnosed. A comment describing behaviour the code did not have, one module over from
+where it was written.
+
+**The fix does not depend on the model complying.** `keywordAnswer` reports whether any
+keyword in the text pointed at the trade on the card; `matched: false` is `GENERIC_RULE`,
+which exists so the scheduler always has a reservation and was never meant to be read out.
+So on every path — a reply we could not parse, a timeout, a missing key, a ceiling — the
+hero now shows "we could not tell which trade this needs" and the ten services, rather than
+a price. `hasSomethingToTriage` holds all of it, with the emergency escape still first: a
+hazard outranks every opinion about relevance, including the model's own opinion that the
+sentence was not about a home at all.
+
+**The streak resets correctly now too.** The cache stored the result and the photo verdict
+and not the topic verdict, so a good question served from cache read as "nobody judged
+these words" and cleared nothing — somebody at streak 1 stayed there and was paused by
+their next slip. The module's own comment had argued for exactly this when the photo
+verdict was added a phase earlier; the second verdict simply arrived without it. An
+off-topic reply is never cached at all: it has no result to cache, and the gate refuses the
+next attempt anyway.
+
+**And one screen may say only one thing.** Four reasons the card can be missing — a
+ceiling, an off-topic verdict, a photograph nobody looked at, no trade named — and a
+visitor out of free questions who pasted filler would have read three sentences about one
+tap. `instead` returns one, in a stated order, the way `attentionFor` settled it for the
+bookings list.
+
 **And the look itself was failing because a photograph had a text-sized budget.**
 `TRIAGE_TIMEOUT_MS` is 9.5 seconds, measured comfortable for text — `?deep=1` reports
 1,374ms — and tight for a request that has to push about a megabyte of base64 to Anthropic

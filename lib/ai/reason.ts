@@ -76,6 +76,27 @@ export type TriageReason =
    * as an outage and make the fallback rate unreadable.
    */
   | "ceiling-reached"
+  /**
+   * The model read the words and said they are not a home-service problem.
+   *
+   * A REPLY, NOT A FAILURE, and it had no way to be recorded until the schema
+   * would accept it. The prompt has asked for `onTopic` since the ceilings
+   * shipped, and `category` was a required enum — so every reply that followed
+   * our own instruction and named no trade was thrown away as `unparseable`,
+   * taking the verdict with it. Seven rows in production on 2026-10-10 say
+   * exactly that, each one a lorem-ipsum paste answered with a plumbing card.
+   */
+  | "off-topic"
+  /**
+   * A real home problem the model could not pin to a trade.
+   *
+   * SEPARATE FROM `off-topic` BECAUSE THE CONSEQUENCES DIFFER ENTIRELY. An
+   * off-topic answer ends a visitor's AI day and moves a signed-in account's
+   * streak; this one costs nobody anything and is simply the honest answer to
+   * "which of our ten is this". Collapsing them would pause people for being
+   * vague.
+   */
+  | "no-trade"
   | "unreachable"
   /** We answered 4xx — a rate limit or a bad request. Client-side only. */
   | "rejected";
@@ -99,6 +120,8 @@ export const LOGGABLE_REASONS = [
   "provider-error",
   "unparseable",
   "ceiling-reached",
+  "off-topic",
+  "no-trade",
 ] as const satisfies readonly TriageReason[];
 
 export type LoggableReason = (typeof LOGGABLE_REASONS)[number];

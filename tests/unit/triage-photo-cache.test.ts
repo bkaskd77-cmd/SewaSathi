@@ -89,3 +89,33 @@ describe("the verdict rides with the answer", () => {
     expect(readTriageCache("tap is dripping", "en")?.photo).toBeNull();
   });
 });
+
+/**
+ * The verdict on the words rides with the answer, exactly as the photo verdict does.
+ *
+ * THE COST OF LEAVING IT OUT IS NOT THE MISSING LINE, IT IS THE RESET. One on-topic
+ * question clears a signed-in account's off-topic streak — and with `topic` dropped on a
+ * cache hit, the route read `null` ("nobody judged these words") and cleared nothing.
+ * Somebody at streak 1 who asked a perfectly good question that happened to be cached
+ * stayed at streak 1 and was paused by their next slip.
+ *
+ * The module's own comment had argued for exactly this when the photo verdict was added
+ * one phase earlier; the second verdict simply arrived without it.
+ */
+describe("the verdict on the words is part of the answer", () => {
+  it("replays the topic verdict, so a cached good question still counts as one", () => {
+    writeTriageCache("tap is dripping", "en", ANSWER, null, null, {
+      onTopic: true,
+      reason: null,
+    });
+    expect(readTriageCache("tap is dripping", "en")?.topic).toEqual({
+      onTopic: true,
+      reason: null,
+    });
+  });
+
+  it("reads as not recorded when nothing was stored", () => {
+    writeTriageCache("tap is dripping", "en", ANSWER);
+    expect(readTriageCache("tap is dripping", "en")?.topic).toBeNull();
+  });
+});

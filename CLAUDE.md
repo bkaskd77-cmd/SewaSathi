@@ -238,6 +238,38 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   what to check, on the categories where a hazard could live (electrical,
   plumbing, appliance, AC). Urgency is not raised — not seeing something is not
   evidence of a hazard — and a cleaning job gets no warning about flames.
+- **`GENERIC_RULE` is a reservation, never a recommendation, and it reached a
+  customer three times.** It is plumbing, "needed soon", Rs 900-4,000 — what the
+  matcher returns when NOTHING matched — and the hero printed it under "here's
+  what we think you need" for a photograph of a banana, then for a photograph
+  nobody looked at, then for a paragraph of lorem ipsum. `hasSomethingToTriage`
+  is the one gate and it now asks three things: did the model judge the words
+  off-topic, did any keyword point at the trade on the card, and was there
+  anything to look at. **An emergency escapes all three** — a hazard outranks
+  every opinion about relevance, including the model's own opinion that the
+  sentence was not about a home. `keywordAnswer` carries the `matched` flag
+  because the matcher is the only thing that knows which of its two answers it
+  just gave.
+- **A prompt that asks for an answer the schema refuses is one list written
+  twice.** The prompt has asked for an `onTopic` verdict since the ceilings
+  shipped and `category` was a required enum, so every reply that correctly
+  judged a question off-topic failed validation and was discarded whole —
+  `unparseable`, and the verdict, the hazard read and the photo verdict went
+  with it. The off-topic ceiling could therefore never fire, because the only
+  thing that produces its evidence was being thrown away before it was read.
+  `category`, `urgency` and `priceRangeNPR` are nullable now and `result` can be
+  null with them; the loosening stops there, so a reply naming a trade and
+  omitting the rest is still refused. The test parses the exact JSON the prompt
+  asks for, which is the only thing that keeps the two halves in step.
+  **Two reasons, not one**: `off-topic` ends a visitor's AI day and moves a
+  streak, `no-trade` costs nobody anything and is the signal that the ten
+  categories miss what people ask for. Collapsing them would pause people for
+  being vague.
+- **A limit goes above the answer it refused.** Six ceilings fired on one
+  visitor and each rendered a full plumbing recommendation with the notice
+  underneath it, so the report that came back was "no ceiling". One screen says
+  one thing, too: `instead` picks a single replacement for the card in a stated
+  order, the way `attentionFor` settled it for `/bookings`.
 - **Rate limit** 12/min and 60/hour, per user id when signed in, per IP
   otherwise. **Cache** 10 minutes, text only, 500 entries. Both are in-process,
   so on Vercel they are per-instance: a soft cost ceiling, not a security

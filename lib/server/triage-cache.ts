@@ -44,9 +44,26 @@ const MAX_ENTRIES = 500;
  */
 type CachedPhoto = { relevance: string; reason: string | null } | null;
 
+/**
+ * THE SAME RULE, APPLIED TO THE SECOND VERDICT. The paragraph above was written
+ * for the photo and the topic verdict arrived a phase later without it, so a
+ * cached answer came back with `topic: null` — "nobody judged these words".
+ *
+ * The cost is not the missing line, it is the RESET: one good question clears a
+ * signed-in account's off-topic streak, and a good question that happened to be
+ * cached cleared nothing. Somebody at streak 1 stayed at streak 1 and was paused
+ * by their next slip. A verdict is part of the answer, not a side effect of
+ * having paid for the call.
+ *
+ * An off-topic reply is never cached at all — it has no result to cache, and the
+ * gate refuses the next attempt anyway — so this only ever replays `onTopic: true`.
+ */
+type CachedTopic = { onTopic: boolean; reason: string | null } | null;
+
 type Entry = {
   result: TriageResult;
   photo: CachedPhoto;
+  topic: CachedTopic;
   expiresAt: number;
 };
 
@@ -78,7 +95,7 @@ export function readTriageCache(
   text: string,
   locale: Locale,
   photoHash?: string | null,
-): { result: TriageResult; photo: CachedPhoto } | null {
+): { result: TriageResult; photo: CachedPhoto; topic: CachedTopic } | null {
   const key = cacheKey(text, locale, photoHash);
   const entry = cache.get(key);
   if (!entry) return null;
@@ -92,7 +109,7 @@ export function readTriageCache(
   // the eviction below becomes least-recently-used rather than oldest-written.
   cache.delete(key);
   cache.set(key, entry);
-  return { result: entry.result, photo: entry.photo };
+  return { result: entry.result, photo: entry.photo, topic: entry.topic };
 }
 
 export function writeTriageCache(
@@ -101,10 +118,11 @@ export function writeTriageCache(
   result: TriageResult,
   photoHash?: string | null,
   photo: CachedPhoto = null,
+  topic: CachedTopic = null,
 ) {
   const key = cacheKey(text, locale, photoHash);
   cache.delete(key);
-  cache.set(key, { result, photo, expiresAt: Date.now() + TTL_MS });
+  cache.set(key, { result, photo, topic, expiresAt: Date.now() + TTL_MS });
 
   while (cache.size > MAX_ENTRIES) {
     const oldest = cache.keys().next();

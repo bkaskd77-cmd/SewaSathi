@@ -2,7 +2,6 @@ import "server-only";
 
 import type { Locale } from "@/i18n/routing";
 import { ANSWER_LANGUAGE } from "@/lib/ai/copy";
-import { GENERIC_RULE } from "@/lib/ai/mockTriage";
 import { getPriceBands, type PriceBand } from "@/lib/ai/price-bands";
 
 /**
@@ -24,15 +23,16 @@ import { getPriceBands, type PriceBand } from "@/lib/ai/price-bands";
  *
  * The prompt itself stays English in both locales — it is instructions to a
  * model, not copy — but the answer follows the reader. That is one sentence
- * (ANSWER_LANGUAGE) plus the "nothing fits" explanation, so the cache below is
- * keyed by locale.
+ * (ANSWER_LANGUAGE), so the cache below is keyed by locale.
+ *
+ * IT USED TO TAKE THE MATCHER'S "NOTHING FITS" SENTENCE and hand it to the
+ * model as a canned reply for a request we do not cover. That instruction is
+ * gone: it told the model to answer `plumbing` at Rs 900-4,000 whenever it
+ * could not place a job, which is `GENERIC_RULE` — a reservation the scheduler
+ * needs, printed to a customer as a recommendation.
  */
 
-export function buildTriagePrompt(
-  bands: PriceBand[],
-  locale: Locale,
-  genericExplanation: string,
-): string {
+export function buildTriagePrompt(bands: PriceBand[], locale: Locale): string {
   const categoryLines = bands
     .map(({ slug, name, nameNe, low, high, note, model }) =>
       /*
@@ -48,15 +48,20 @@ export function buildTriagePrompt(
 
   return `You triage household repair requests for SajiloKaam, a home services platform in the Kathmandu Valley, Nepal. A person has described what is wrong — in English, in Nepali, in Romanized Nepali, or with a photo. You decide what kind of professional they need, how urgent it is, and what it should cost.
 
-Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these six keys:
+Reply with a single JSON object and nothing else. No preamble, no explanation of your reasoning, no markdown code fences. Exactly these keys:
 
 {"category": "<slug>", "band": "<band key or null>", "urgency": "emergency" | "soon" | "routine", "priceRangeNPR": [<low>, <high>], "explanation": "<1-2 sentences>", "hazard": "gas" | "burning" | "live-wire" | "none", "photoRelevance": "related" | "unclear" | "unrelated" | null, "photoRelevanceReason": "<short sentence or null>", "onTopic": true | false, "offTopicReason": "<short sentence or null>"}
 
 CATEGORIES — use exactly one of these slugs, never invent one. After each is that trade's list of products, written key=Label low-high:
 ${categoryLines}
 
-If the request is not something we cover at all, return exactly:
-{"category": "${GENERIC_RULE.category}", "band": null, "urgency": "${GENERIC_RULE.urgency}", "priceRangeNPR": [${GENERIC_RULE.priceRangeNPR[0]}, ${GENERIC_RULE.priceRangeNPR[1]}], "explanation": "${genericExplanation.replace(/"/g, '\\"')}", "hazard": "none", "photoRelevance": null, "photoRelevanceReason": null, "onTopic": true, "offTopicReason": null}
+NO TRADE NAMED — the shape to use when you cannot name one
+Set "category", "band", "urgency" and "priceRangeNPR" all to null, keep "explanation", and still set "hazard" from whatever is in the words. There are exactly two reasons to do it:
+
+1. It IS a home problem and you cannot tell which of the ten trades it is. "Something is wrong in the bathroom" could be three of them. Say so in "explanation" and ask for the one detail that would settle it, in the answer language set above. Keep "onTopic": true.
+2. It is not a home-service problem at all — see "onTopic" below. Put your sentence in "offTopicReason" and keep "explanation" short and friendly.
+
+DO NOT REACH FOR THIS. A brief, odd or badly typed description of a real problem still gets a trade: name the most likely one and let the price band be wide. Null is for when naming one would be a guess somebody could act on, which is worse than asking.
 
 BAND — which product inside the trade
 Set "band" to the key of the one product the description actually is, from that category's list above. Use the key exactly as written, before the "=".
@@ -133,18 +138,11 @@ const PROMPT_TTL_MS = 10 * 60_000;
 // time the language alternated and never hit.
 const cached = new Map<Locale, { text: string; expiresAt: number }>();
 
-export async function getTriagePrompt(
-  locale: Locale,
-  genericExplanation: string,
-): Promise<string> {
+export async function getTriagePrompt(locale: Locale): Promise<string> {
   const hit = cached.get(locale);
   if (hit && hit.expiresAt > Date.now()) return hit.text;
 
-  const text = buildTriagePrompt(
-    await getPriceBands(),
-    locale,
-    genericExplanation,
-  );
+  const text = buildTriagePrompt(await getPriceBands(), locale);
   cached.set(locale, { text, expiresAt: Date.now() + PROMPT_TTL_MS });
   return text;
 }

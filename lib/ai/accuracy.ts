@@ -189,7 +189,28 @@ export type FallbackCause =
   | "noKey"
   | "keyRejected"
   | "providerFailed"
-  | "answerRejected";
+  | "answerRejected"
+  /**
+   * A ceiling or the day's budget refused the call.
+   *
+   * `reason.ts` has said since the ceilings shipped that counting a working
+   * ceiling among the faults "would make the fallback rate unreadable" — and
+   * this function had no case for it, so every refusal fell through `default`
+   * into `notRecorded` and was reported as a fallback nobody had diagnosed. A
+   * comment describing behaviour the code did not have, one module over from
+   * where it was written.
+   */
+  | "ceilingReached"
+  /**
+   * The model answered and declined to name a trade — off-topic, or a home
+   * problem it could not place.
+   *
+   * NOT A FAILURE OF ANYTHING. The reply arrived, survived validation and said
+   * something useful; what it did not do is produce a triage. Grouping it with
+   * `answerRejected` would count the model being honest as the model being
+   * broken.
+   */
+  | "modelDeclined";
 
 export type FallbackTally = Record<FallbackCause, number> & {
   /** Fallback rows considered, so every count above has its denominator. */
@@ -229,6 +250,11 @@ export function fallbackCause(row: {
       return "providerFailed";
     case "unparseable":
       return "answerRejected";
+    case "ceiling-reached":
+      return "ceilingReached";
+    case "off-topic":
+    case "no-trade":
+      return "modelDeclined";
     /*
      * A reason we do not recognise, or none on a row that should have one. Not
      * `noKey` and not `providerFailed`: a value this function has never seen is
@@ -253,6 +279,12 @@ export function fallbackCause(row: {
  * an absence.
  */
 export function firedDespiteKey(cause: FallbackCause | null): boolean {
+  /*
+   * `ceilingReached` AND `modelDeclined` ARE DELIBERATELY ABSENT. Both happen
+   * with a perfectly good key and neither is a fault to chase: one is a limit
+   * doing its job, the other is the model answering a question honestly. An
+   * alarm that fires on them is an alarm somebody mutes.
+   */
   return (
     cause === "keyRejected" ||
     cause === "providerFailed" ||

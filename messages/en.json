@@ -206,7 +206,10 @@
         "unreachable": "the request never arrived",
         "rejected": "rate limited or refused",
         "auth-rejected": "the key was refused — rotate it",
-        "rate-limited": "the API rate limited us"
+        "rate-limited": "the API rate limited us",
+        "off-topic": "the model said it is not a home problem",
+        "no-trade": "the model could not name a trade",
+        "ceiling-reached": "a ceiling refused the call"
       },
       "band": "product {band}",
       "noBand": "no product",
@@ -227,6 +230,15 @@
       "photosClosedForThisQuestion": "Two photos in a row did not show a home repair problem, so we have stopped looking at photos for this question. Describe it in words and we will price it.",
       "paused": "The AI is paused on this account until {time} after a few questions that were not about home repairs. Everything else works, and you can reach a person on WhatsApp.",
       "budgetSpent": "Our AI budget for today has run out. It is back at {time}. Pick a service from the list and you can book exactly as usual."
+    },
+    "offTopic": {
+      "lead": "That does not look like a problem in a home, so there is nothing for us to price.",
+      "ask": "Tell us what is wrong at the house — “tap is dripping” or “no power in the kitchen” is enough."
+    },
+    "noTrade": {
+      "lead": "We could not tell which trade this needs.",
+      "ask": "One more detail would settle it — what is the thing that is broken, and in which room?",
+      "browse": "Or pick a service yourself"
     }
   },
   "services": {
@@ -2334,6 +2346,8 @@
         "providerFailed": "The key works; the model timed out, errored or throttled us",
         "answerRejected": "The model answered and we rejected the answer",
         "noKey": "No key was set",
+        "ceilingReached": "A ceiling or the day's budget refused the call — not a fault",
+        "modelDeclined": "The model answered and named no trade — off-topic, or it could not place the job",
         "notRecorded": "Written before we kept the reason"
       }
     },

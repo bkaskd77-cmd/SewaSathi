@@ -76,7 +76,7 @@ describe("the route answers a refusal rather than erroring", () => {
     const body = fn.slice(0, fn.indexOf("\n}\n") + 2);
 
     expect(body).toMatch(/applySafetyFloor\(/);
-    expect(body).toMatch(/keywordTriage\(/);
+    expect(body).toMatch(/keywordAnswer\(/);
     expect(body).toMatch(/aiRefusal: input\.refusal/);
     expect(body).toMatch(/reason: "ceiling-reached"/);
     /* No status and no throw: a 200 carrying the sentence. */

@@ -608,7 +608,34 @@ export const GENERIC_SYMPTOMS = new Set(
   ].map((word) => foldNepali(word)),
 );
 
-export function triageProblem(input: string, copy: TriageCopy): TriageResult {
+/**
+ * The matcher's answer, and whether anything in the text actually pointed at it.
+ *
+ * WHY THE SECOND FIELD EXISTS. `GENERIC_RULE` is plumbing, "needed soon",
+ * Rs 900-4,000 — and it is what comes back when NOTHING matched. As a
+ * reservation that is fine and deliberate; printed to a customer under "here's
+ * what we think you need" it is an invented recommendation, which is what a
+ * visitor pasting lorem ipsum was shown three separate times before anybody
+ * could say so. The matcher is the only thing that knows which of the two it
+ * just returned, so it is the thing that says.
+ *
+ * `matched` IS ABOUT THE TEXT, NOT ABOUT CONFIDENCE. One keyword hit is a match
+ * even if it is a weak one; no keyword at all is not. A score would invite a
+ * threshold and nobody has the data for one — rule 6's shape for a judgement.
+ */
+export type KeywordAnswer = {
+  result: TriageResult;
+  /** True when at least one keyword in the text pointed at the category. */
+  matched: boolean;
+};
+
+/**
+ * The matcher, with its own verdict on whether it found anything.
+ *
+ * `triageProblem` is this with the verdict dropped, kept because most callers
+ * only want the answer and because it is the name the whole product imports.
+ */
+export function keywordAnswer(input: string, copy: TriageCopy): KeywordAnswer {
   // Folded, like the safety guard and the catalogue search. The keywords are
   // folded beside it below, so a list authored with `ट्याङ्की` still matches
   // somebody who typed `ट्यांकी`. See lib/text/nepali.ts.
@@ -621,7 +648,7 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
     band: GENERIC_RULE.band,
   });
 
-  if (!text) return generic();
+  if (!text) return { result: generic(), matched: false };
 
   /*
    * AN OBJECT BEATS A SYMPTOM; WITHIN A KIND, LONGEST WINS.
@@ -655,19 +682,38 @@ export function triageProblem(input: string, copy: TriageCopy): TriageResult {
 
   const isUrgent = URGENT_MARKERS.some((marker) => text.includes(marker));
 
-  if (!best) return generic(isUrgent ? "emergency" : GENERIC_RULE.urgency);
+  if (!best) {
+    /*
+     * NOTHING MATCHED, AND AN URGENT MARKER DOES NOT CHANGE THAT. "right now"
+     * raises the urgency of an answer nobody found; it does not find one. The
+     * raised urgency is still returned, because `applySafetyFloor` and the
+     * card both read it, and `matched: false` is what stops the category
+     * beside it being read as a recommendation.
+     */
+    return {
+      result: generic(isUrgent ? "emergency" : GENERIC_RULE.urgency),
+      matched: false,
+    };
+  }
 
   const { rule } = best;
 
   return {
-    category: rule.category,
-    // An explicit "right now" upgrades urgency but never downgrades it.
-    urgency:
-      isUrgent && rule.urgency !== "emergency" ? "emergency" : rule.urgency,
-    priceRangeNPR: rule.priceRangeNPR,
-    explanation: copy.explanations[rule.explanationKey],
-    band: rule.band,
+    result: {
+      category: rule.category,
+      // An explicit "right now" upgrades urgency but never downgrades it.
+      urgency:
+        isUrgent && rule.urgency !== "emergency" ? "emergency" : rule.urgency,
+      priceRangeNPR: rule.priceRangeNPR,
+      explanation: copy.explanations[rule.explanationKey],
+      band: rule.band,
+    },
+    matched: true,
   };
+}
+
+export function triageProblem(input: string, copy: TriageCopy): TriageResult {
+  return keywordAnswer(input, copy).result;
 }
 
 /** Display name for a category slug, for rendering triage results. */

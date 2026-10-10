@@ -119,9 +119,49 @@ export function hasSomethingToTriage(input: {
   verdict: PhotoVerdict | null | undefined;
   /** The urgency the answer carries AFTER the safety floor. */
   urgency: "emergency" | "soon" | "routine";
+  /**
+   * The model's verdict on the WORDS, or null when nobody judged them.
+   *
+   * THE THIRD TIME THIS SCREEN HAS PRINTED AN INVENTED JOB, and the first two
+   * fixes were both about photographs. A visitor pasted lorem ipsum and read
+   * "Plumbing · Needed soon · Rs 900 – Rs 4,000" — because the line below this
+   * one said any text at all is evidence, and `GENERIC_RULE` supplies a trade
+   * whether or not anything pointed at it.
+   *
+   * Null is "nobody asked or nobody answered" and is never read as on-topic:
+   * the `matched` flag below is what covers the paths where no model answered.
+   */
+  topic?: { onTopic: boolean } | null;
+  /**
+   * Did anything in the text actually point at the trade on the card?
+   *
+   * FALSE IS `GENERIC_RULE`, which exists so the scheduler always has a
+   * reservation and was never meant to be read out to a customer. Optional and
+   * defaulting to "yes, assume it matched", because the only caller that cannot
+   * answer is one holding an answer the model itself produced — and a trade the
+   * model named deliberately is a judgement, not a default.
+   */
+  matched?: boolean;
 }): boolean {
-  /* The safety floor fired, or the answer is an emergency for some other reason. Show it. */
+  /* The safety floor fired, or the answer is an emergency for some other reason. Show it.
+     Above every rule below it: a hazard outranks every opinion about relevance, including
+     the model's own opinion that the sentence was not about a home at all. */
   if (input.urgency === "emergency") return true;
+
+  /*
+   * THE MODEL READ THE WORDS AND SAID THEY ARE NOT ABOUT A HOME. There is nothing to
+   * price, and the sentence it wrote instead is what the hero shows. This outranks the
+   * text check below, which is the whole bug: "they typed something" was being treated as
+   * evidence that what they typed was a problem we fix.
+   */
+  if (input.topic && !input.topic.onTopic) return false;
+
+  /*
+   * NOTHING IN THE TEXT POINTED AT A TRADE. The card would be `GENERIC_RULE` — the
+   * reservation, not an answer — and printing it under "here's what we think you need"
+   * is the same invention as the banana case with different words in front of it.
+   */
+  if (input.matched === false) return false;
 
   /* Words are evidence. Anything typed is something to work from, even a short phrase. */
   if (input.text.trim().length > 0) return true;

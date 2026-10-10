@@ -273,6 +273,13 @@ export default async function TriageAccuracyPage() {
                 "providerFailed",
                 "answerRejected",
                 "noKey",
+                /* Neither of these is a fault, and they sit below the four that
+                   are so the list still reads worst-first. Printed rather than
+                   filtered: a ceiling that fires often is worth knowing about,
+                   and a model declining to name a trade is the signal that the
+                   ten categories do not cover what people are asking for. */
+                "ceilingReached",
+                "modelDeclined",
                 "notRecorded",
               ] as FallbackCause[]
             ).map((cause) => (

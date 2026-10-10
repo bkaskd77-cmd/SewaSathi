@@ -245,6 +245,8 @@ export async function triageAccuracy(): Promise<TriageAccuracy> {
       keyRejected: 0,
       providerFailed: 0,
       answerRejected: 0,
+      ceilingReached: 0,
+      modelDeclined: 0,
       total: 0,
     };
 
