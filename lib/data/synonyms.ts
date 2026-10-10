@@ -167,8 +167,11 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
   { term: "पानी ट्यांकी", categories: ["water-tank-cleaning"] },
 
   // --- movers ------------------------------------------------------------
-  { term: "movers", categories: ["movers-packers"] },
-  { term: "packers", categories: ["movers-packers"] },
+  /* STEMS, so somebody who types the singular is not missed. `containsKeyword`
+     lets the text carry a suffix and never the keyword, so "mover" reaches
+     "movers" and "movers" reaches nothing else — see keyword-stems.test.ts. */
+  { term: "mover", categories: ["movers-packers"] },
+  { term: "packer", categories: ["movers-packers"] },
   { term: "shifting", categories: ["movers-packers"] },
   { term: "सामान सार्ने", categories: ["movers-packers"] },
   { term: "ढुवानी", categories: ["movers-packers"] },

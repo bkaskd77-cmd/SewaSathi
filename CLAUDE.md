@@ -98,7 +98,21 @@ same commit as the change, never afterwards.
    stems, not words**, everywhere text is matched — `lib/ai/safety.ts` and the
    `KEYWORD_RULES` in `lib/ai/mockTriage.ts` are both built that way and say so.
    Devanagari has no usable word boundary for a regex, which makes stems the
-   natural approach as well as the correct one. Romanized Nepali has no
+   natural approach as well as the correct one.
+   **And the rule is not only Nepali's, which this paragraph implied and the
+   English lists did not honour.** `containsKeyword` lets the TEXT carry a
+   suffix and never the keyword, so a Latin keyword authored in the PLURAL is
+   invisible to everybody who types the singular: "insects in the room" was
+   answered and "insect in the room" was not, reported by a customer.
+   The list had half-noticed — `cockroach`/`cockroaches`, `termite`/`termites`
+   and `rat`/`rats` were each written out twice, which fixed three words and
+   hid the rule from the next reader, while `ants`, `insects` and `packers` had
+   no singular at all. One entry each now, as the stem, with the duplicates
+   deleted because two spellings of one word is how a rule gets lost.
+   `tests/unit/keyword-stems.test.ts` scans every Latin keyword at RUNTIME —
+   which is what catches the aliases `lib/data/synonyms.ts` folds in, and is
+   where two of the three misses actually lived — and names the exceptions that
+   merely end in `s` (`mess`, `smell of gas`, `udus`) with a reason each. Romanized Nepali has no
    spelling standard, so those lists stay deliberately loose.
    **And Devanagari has no single spelling either**, which is the same lesson
    one level down and cost eighteen safety stems before anybody noticed. A

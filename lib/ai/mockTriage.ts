@@ -336,20 +336,37 @@ const PROBLEM_RULES: KeywordRule[] = [
   },
   {
     category: "pest-control",
+    /*
+     * STEMS, NOT WORDS — THE SAME RULE THE NEPALI LISTS ALREADY FOLLOW.
+     *
+     * `containsKeyword` lets the TEXT carry a suffix: `insect` matches
+     * "insects", "cockroach" matches "cockroaches". It cannot work the other
+     * way, so a keyword authored in the PLURAL is invisible to anybody typing
+     * the singular — and that is what shipped. "insects in the room" was
+     * answered and "insect in the room" was not, reported by a customer.
+     *
+     * The list had already half-noticed: `cockroach`/`cockroaches`,
+     * `termite`/`termites` and `rat`/`rats` were each written twice, which
+     * fixed three words and hid the rule. `ants` and `insects` had no singular
+     * at all. One entry each now, as the stem, and the duplicates are gone
+     * because two spellings of one word is how the rule got lost.
+     *
+     * `tests/unit/keyword-stems.test.ts` fails on any Latin keyword authored in
+     * a plural whose stem is absent, so this cannot come back quietly.
+     */
     keywords: [
       "cockroach",
-      "cockroaches",
       "termite",
-      "termites",
       "bed bug",
       "bedbug",
-      "rats",
       "rat",
+      // Irregular, so the suffix rule cannot reach it from either side.
+      "mouse",
       "mice",
       "mosquito",
-      "ants",
+      "ant",
       "pest",
-      "insects",
+      "insect",
       "साङ्लो",
       "धमिरा",
       "उडुस",
@@ -474,8 +491,10 @@ const PROBLEM_RULES: KeywordRule[] = [
       "shifting",
       "move",
       "moving",
-      "movers",
-      "packers",
+      // `move` already reaches "mover" and "movers" through the `er`/`ers`
+      // suffixes; `pack` is the stem that was missing, and it reaches packing,
+      // packed, packer and packers.
+      "pack",
       "relocate",
       "transport",
       "new flat",
