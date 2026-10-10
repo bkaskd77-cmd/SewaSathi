@@ -25,7 +25,11 @@ import {
   type PhotoRelevance,
 } from "@/lib/ai/triage-schema";
 import { judgeAiRequest, type GateRefusal } from "@/lib/ai/gate";
-import { applyTopicVerdict } from "@/lib/ai/offtopic";
+import {
+  applyTopicVerdict,
+  offTopicConsequence,
+  type OffTopicConsequence,
+} from "@/lib/ai/offtopic";
 import { priceCall } from "@/lib/ai/spend";
 import { nepalDayEndsAt } from "@/lib/config/ai-limits";
 import {
@@ -612,6 +616,16 @@ export async function POST(request: NextRequest) {
    * one of those as off-topic would pause somebody for our outage. Rule 6 on a rule that
    * takes the product away from a person for a day.
    */
+  /**
+   * What the person is told will happen if the next one is off-topic too.
+   *
+   * COMPUTED FROM THE STATE THAT WAS ACTUALLY STORED, never from a second
+   * reading of the counters: the warning and the pause have to be the same
+   * arithmetic, or the screen promises a count the database does not keep.
+   * Null on every path that produced no off-topic verdict.
+   */
+  let offTopic: OffTopicConsequence | null = null;
+
   if (topicVerdict) {
     if (userId) {
       const outcome = applyTopicVerdict({
@@ -628,8 +642,27 @@ export async function POST(request: NextRequest) {
         flagForReview: outcome.flagForReview,
         at: now,
       });
+      if (!topicVerdict.onTopic) {
+        offTopic = offTopicConsequence({
+          signedIn: true,
+          state: outcome.next,
+          streakToPause: limits.offTopicStreakToPause,
+          pauseHours: limits.offTopicPauseHours,
+          at: now,
+        });
+      }
     } else if (!topicVerdict.onTopic) {
       await spendDaily("anonOffTopic", subject, now);
+      /* One off-topic answer IS a visitor's AI day. Saying so here is the whole
+         point: they would otherwise meet it on the next question as a refusal
+         that reads like the product breaking. */
+      offTopic = offTopicConsequence({
+        signedIn: false,
+        state: accountState,
+        streakToPause: limits.offTopicStreakToPause,
+        pauseHours: limits.offTopicPauseHours,
+        at: now,
+      });
     }
   }
 
@@ -713,6 +746,14 @@ export async function POST(request: NextRequest) {
          * screen could not tell.
          */
         topic: topicVerdict,
+        /*
+         * AND WHAT HAPPENS IF THEY DO IT AGAIN. The pause was unpublished: a
+         * second awkwardly-worded question took the AI away for a day with
+         * nothing having said a count was running. `/providers/standards`
+         * settled the same argument for professionals — a threshold people can
+         * only find by tripping it is a trap, not a deterrent.
+         */
+        offTopic,
         /*
          * WHAT THE SAFETY FLOOR FOUND, so the browser can apply the one rule
          * that outranks every suppression. It used to read the urgency for

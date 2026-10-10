@@ -288,6 +288,22 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   streak, `no-trade` costs nobody anything and is the signal that the ten
   categories miss what people ask for. Collapsing them would pause people for
   being vague.
+- **A threshold people can only find by tripping it is a trap, and the off-topic
+  pause was one.** The model names what it read, the card is suppressed, and
+  nothing said a count was running — so a second awkwardly-worded question took
+  the AI away for a day out of nowhere. `/providers/standards` settled the same
+  argument for professionals and the sentence transfers verbatim: deterrence
+  nobody can read is not deterrence. `offTopicConsequence` is the rule, pure and
+  beside `applyTopicVerdict`, and it is handed that function's **own stored
+  state** rather than recomputing a streak — a screen promising "one more"
+  must not be describing a count the database does not keep. **Three outcomes,
+  because the rule differs**: a visitor's AI day ends on ONE off-topic answer, a
+  signed-in account gets `offTopicStreakToPause`, and the third is the pause
+  having already started. Printing one number at all three would be wrong for
+  the visitor, who has no account to read a history from. It is the rule stated
+  with the count it is about to act on, never a score — `claimRateWorthReading`'s
+  posture — and it sits **below** the way forward, because the first thing
+  somebody reads has to be how to get help.
 - **A limit goes above the answer it refused.** Six ceilings fired on one
   visitor and each rendered a full plumbing recommendation with the notice
   underneath it, so the report that came back was "no ceiling". One screen says

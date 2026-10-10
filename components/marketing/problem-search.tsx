@@ -624,6 +624,34 @@ export function ProblemSearch() {
             <p className="text-caption mt-2 text-muted-foreground">
               {t("offTopic.ask")}
             </p>
+            {/*
+              WHAT HAPPENS IF IT KEEPS HAPPENING, said before it does. The pause was a
+              threshold somebody could only find by tripping it, which is the thing
+              `/providers/standards` publishes the enforcement ladder to refuse one
+              surface over: deterrence nobody can read is a trap, not a deterrent.
+
+              QUIET, NOT A THREAT. Muted caption below the way forward, never above it —
+              the first thing somebody reads has to be how to get help, and the rule is
+              a footnote to that rather than the point of the screen.
+            */}
+            {outcome?.offTopic ? (
+              <p className="text-caption mt-3 border-t border-border pt-2 text-muted-foreground">
+                {outcome.offTopic.kind === "visitorDayOver"
+                  ? t("offTopic.visitorDayOver")
+                  : outcome.offTopic.kind === "paused"
+                    ? t("offTopic.paused", { time: localTime(outcome.offTopic.until) })
+                    : t("offTopic.warn", {
+                        /* `n` prints, `count` selects the plural branch — the
+                           catalogue's idiom, same as `ceilingValues`. */
+                        count: outcome.offTopic.remaining,
+                        n: String(outcome.offTopic.remaining),
+                        hours: t("offTopic.hours", {
+                          count: outcome.offTopic.pauseHours,
+                          n: String(outcome.offTopic.pauseHours),
+                        }),
+                      })}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {/*

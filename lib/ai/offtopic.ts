@@ -160,3 +160,66 @@ export function aiPaused(state: OffTopicState, at: Date = new Date()): boolean {
   const until = Date.parse(state.pausedUntil);
   return !Number.isNaN(until) && until > at.getTime();
 }
+
+/**
+ * What happens if the next question is off-topic too — said before it happens.
+ *
+ * THE RULE THIS COMES FROM IS ALREADY WRITTEN DOWN, one surface over.
+ * `/providers/standards` publishes the enforcement ladder because "deterrence
+ * nobody can read is not deterrence, it is a trap — the honest leave and the
+ * rest learn the thresholds by experiment". The off-topic pause is the same
+ * shape and was unpublished: somebody's second awkwardly-worded question took
+ * the AI away for a day with no warning that a count was running.
+ *
+ * ASKED FOR BY THE OWNER, AND IT IS A FAIRNESS FIX RATHER THAN A FEATURE. The
+ * cost of not saying it falls hardest on the people least able to phrase a
+ * request well — a Nepali speaker typing in a hurry, somebody describing a
+ * problem they do not have the word for — which is precisely the group the
+ * model's "BE GENEROUS" instruction exists to protect.
+ *
+ * THREE OUTCOMES, BECAUSE THE RULE IS NOT THE SAME FOR EVERYBODY. A visitor's
+ * AI day ends on ONE off-topic answer; a signed-in account gets
+ * `streakToPause` of them. Printing one number at both would be wrong for one
+ * of them, and the one it would be wrong for is the visitor, who has no
+ * account to read a history from.
+ *
+ * NOTHING HERE IS A SCORE. It is the rule, stated, with the count it is about
+ * to act on — the same posture as `claimRateWorthReading`: say the number and
+ * the denominator, judge nobody.
+ */
+export type OffTopicConsequence =
+  /** Signed out. One off-topic answer is the whole day, and it has just gone. */
+  | { kind: "visitorDayOver" }
+  /** Signed in, with room left. `remaining` is how many more it would take. */
+  | { kind: "warn"; remaining: number; pauseHours: number }
+  /** Signed in, and this answer started the pause. */
+  | { kind: "paused"; until: string };
+
+/**
+ * Pure, and handed the state AFTER the verdict was applied.
+ *
+ * Taking `applyTopicVerdict`'s own `next` rather than recomputing the streak is
+ * what stops the warning and the pause disagreeing about the same account — the
+ * divergence `lib/provider/measured.ts` exists to prevent, in miniature.
+ */
+export function offTopicConsequence(input: {
+  signedIn: boolean;
+  /** The state as stored after this answer. */
+  state: OffTopicState;
+  streakToPause: number;
+  pauseHours: number;
+  at: Date;
+}): OffTopicConsequence {
+  if (!input.signedIn) return { kind: "visitorDayOver" };
+  if (aiPaused(input.state, input.at)) {
+    return { kind: "paused", until: input.state.pausedUntil as string };
+  }
+  /*
+   * AT LEAST ONE, ALWAYS. A streak that somehow sits at or past the threshold
+   * without a pause having been written would compute zero or less, and "0 more
+   * questions like this" is a sentence that tells somebody nothing. The floor
+   * keeps the warning readable whatever the configured numbers are.
+   */
+  const remaining = Math.max(1, input.streakToPause - input.state.streak);
+  return { kind: "warn", remaining, pauseHours: input.pauseHours };
+}

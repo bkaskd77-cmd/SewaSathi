@@ -4,6 +4,11 @@ import { buildTriagePrompt } from "@/lib/ai/prompt";
 import { parseTriageResponse } from "@/lib/ai/triage-schema";
 import { FALLBACK_PRICE_BANDS } from "@/lib/ai/price-bands";
 import { hasSomethingToTriage } from "@/lib/ai/photo-retake";
+import {
+  applyTopicVerdict,
+  offTopicConsequence,
+  type OffTopicState,
+} from "@/lib/ai/offtopic";
 import { keywordAnswer, GENERIC_RULE } from "@/lib/ai/mockTriage";
 import { fallbackCause, firedDespiteKey } from "@/lib/ai/accuracy";
 import { LOGGABLE_REASONS } from "@/lib/ai/reason";
@@ -369,5 +374,148 @@ describe("the lorem ipsum that reached a customer", () => {
     const answer = keywordAnswer("tap is leaking, need someone right now", COPY);
     expect(answer.matched).toBe(true);
     expect(answer.result.urgency).toBe("emergency");
+  });
+});
+
+/**
+ * The pause is published before it bites.
+ *
+ * ASKED FOR AFTER THE OFF-TOPIC VERDICT SHIPPED AND WORKED: the model names what it
+ * read, the card is suppressed — and nothing said a count was running, so a second
+ * awkwardly-worded question would take the AI away for a day out of nowhere.
+ *
+ * `/providers/standards` settled the same argument one surface over and the sentence
+ * there applies verbatim: deterrence nobody can read is not deterrence, it is a trap —
+ * the honest leave and the rest learn the thresholds by experiment. The people most
+ * likely to trip this are the ones least able to phrase a request well, which is the
+ * group the prompt's "BE GENEROUS" instruction already exists to protect.
+ */
+describe("what happens if the next one is off-topic too", () => {
+  const at = new Date("2026-10-10T09:00:00Z");
+  const clean = { streak: 0, pausedUntil: null, lastPausedAt: null };
+
+  it("tells a visitor their AI day is over, because one answer is the whole rule", () => {
+    expect(
+      offTopicConsequence({
+        signedIn: false,
+        state: clean,
+        streakToPause: 2,
+        pauseHours: 24,
+        at,
+      }),
+    ).toEqual({ kind: "visitorDayOver" });
+  });
+
+  it("counts down for a signed-in account", () => {
+    const after = applyTopicVerdict({
+      state: clean,
+      onTopic: false,
+      at,
+      streakToPause: 2,
+      pauseHours: 24,
+      repeatWindowDays: 7,
+    });
+    expect(
+      offTopicConsequence({
+        signedIn: true,
+        state: after.next,
+        streakToPause: 2,
+        pauseHours: 24,
+        at,
+      }),
+    ).toEqual({ kind: "warn", remaining: 1, pauseHours: 24 });
+  });
+
+  it("says it has started once the pause is on", () => {
+    const first = applyTopicVerdict({
+      state: clean,
+      onTopic: false,
+      at,
+      streakToPause: 2,
+      pauseHours: 24,
+      repeatWindowDays: 7,
+    });
+    const second = applyTopicVerdict({
+      state: first.next,
+      onTopic: false,
+      at,
+      streakToPause: 2,
+      pauseHours: 24,
+      repeatWindowDays: 7,
+    });
+    expect(second.paused).toBe(true);
+    const said = offTopicConsequence({
+      signedIn: true,
+      state: second.next,
+      streakToPause: 2,
+      pauseHours: 24,
+      at,
+    });
+    expect(said.kind).toBe("paused");
+  });
+
+  /**
+   * THE WARNING AND THE PAUSE ARE ONE PIECE OF ARITHMETIC. It reads
+   * `applyTopicVerdict`'s own stored state rather than recomputing a streak, so a screen
+   * promising "one more" cannot be describing a count the database does not keep. Walked
+   * rather than asserted at one point, because the failure worth catching is a drift that
+   * only appears at a particular streak.
+   */
+  it("never promises a count the pause does not honour", () => {
+    for (const streakToPause of [2, 3, 5]) {
+      let state: OffTopicState = clean;
+      for (let asked = 1; asked <= streakToPause; asked += 1) {
+        const outcome = applyTopicVerdict({
+          state,
+          onTopic: false,
+          at,
+          streakToPause,
+          pauseHours: 24,
+          repeatWindowDays: 7,
+        });
+        const said = offTopicConsequence({
+          signedIn: true,
+          state: outcome.next,
+          streakToPause,
+          pauseHours: 24,
+          at,
+        });
+        if (asked < streakToPause) {
+          expect(said, `${streakToPause}: question ${asked}`).toEqual({
+            kind: "warn",
+            remaining: streakToPause - asked,
+            pauseHours: 24,
+          });
+        } else {
+          expect(outcome.paused, `${streakToPause}: question ${asked}`).toBe(true);
+          expect(said.kind).toBe("paused");
+        }
+        state = outcome.next;
+      }
+    }
+  });
+
+  /** An on-topic question clears the streak, so nothing is warned about. */
+  it("says nothing after a good question", () => {
+    const after = applyTopicVerdict({
+      state: { streak: 1, pausedUntil: null, lastPausedAt: null },
+      onTopic: true,
+      at,
+      streakToPause: 2,
+      pauseHours: 24,
+      repeatWindowDays: 7,
+    });
+    expect(after.next.streak).toBe(0);
+    /* The route only computes a consequence for an OFF-topic verdict; this pins the
+       state it would be computed from, so a future caller cannot warn after a good one. */
+    expect(
+      offTopicConsequence({
+        signedIn: true,
+        state: after.next,
+        streakToPause: 2,
+        pauseHours: 24,
+        at,
+      }),
+    ).toEqual({ kind: "warn", remaining: 2, pauseHours: 24 });
   });
 });

@@ -7,6 +7,7 @@ import {
 import type { TriageReason } from "@/lib/ai/reason";
 import type { GateRefusal } from "@/lib/ai/gate";
 import { applySafetyFloor } from "@/lib/ai/safety";
+import type { OffTopicConsequence } from "@/lib/ai/offtopic";
 
 /**
  * Triage, from the browser's point of view.
@@ -136,6 +137,14 @@ export type TriageOutcome = {
    * because the text contained the word "now".
    */
   hazard?: "gas" | "burning" | "live-wire" | null;
+  /**
+   * What happens if the next question is off-topic too, or null.
+   *
+   * SAID BEFORE IT HAPPENS, which is the whole of it. The pause was a threshold
+   * people could only find by tripping it — the thing `/providers/standards`
+   * exists to refuse one surface over.
+   */
+  offTopic?: OffTopicConsequence | null;
 };
 
 export type TopicVerdict = {
@@ -239,6 +248,7 @@ export async function triageProblem(
       topic?: TopicVerdict | null;
       matched?: boolean;
       hazard?: "gas" | "burning" | "live-wire" | null;
+      offTopic?: OffTopicConsequence | null;
     };
 
     if (!payload.result)
@@ -254,6 +264,7 @@ export async function triageProblem(
       aiRefusal: payload.aiRefusal ?? null,
       topic: payload.topic ?? null,
       hazard: payload.hazard ?? null,
+      offTopic: payload.offTopic ?? null,
       /* Absent reads as "it matched" — see the field's note. Only a server that
          has not been deployed yet can omit it. */
       matched: payload.matched ?? true,

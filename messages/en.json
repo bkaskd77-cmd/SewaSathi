@@ -233,7 +233,11 @@
     },
     "offTopic": {
       "lead": "That does not look like a problem in a home, so there is nothing for us to price.",
-      "ask": "Tell us what is wrong at the house — “tap is dripping” or “no power in the kitchen” is enough."
+      "ask": "Tell us what is wrong at the house — “tap is dripping” or “no power in the kitchen” is enough.",
+      "visitorDayOver": "That was the AI for today on this device. Everything else on the site stays open, and signing in gets you more questions.",
+      "warn": "{count, plural, one {One more question like this and the AI pauses on this account.} other {{n} more questions like this and the AI pauses on this account.}} It lifts after {hours}, and nothing else is affected.",
+      "hours": "{count, plural, one {{n} hour} other {{n} hours}}",
+      "paused": "The AI is paused on this account until {time}. Everything else keeps working, and you can reach a person on WhatsApp."
     },
     "noTrade": {
       "lead": "We could not tell which trade this needs.",
