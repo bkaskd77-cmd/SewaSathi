@@ -144,7 +144,10 @@ export function ProblemSearch() {
         hadPhoto: photoSent,
         source: outcome.source,
         verdict: outcome.photo ?? null,
-        urgency: outcome.result.urgency,
+        /* The hazard, NOT the urgency. An urgency is a label and `URGENT_MARKERS` put
+           `emergency` on an answer that matched nothing, which dragged the card back onto
+           the screen over its own `matched: false`. */
+        hazard: outcome.hazard ?? null,
         topic: outcome.topic ?? null,
         matched: outcome.matched ?? true,
       })
@@ -560,10 +563,15 @@ export function ProblemSearch() {
             <p className="text-body-sm text-foreground">
               {t(`ceiling.${refusal.kind}`, ceilingValues(refusal))}
             </p>
-            {/* The emergency guidance, when the matcher found one. It is in the answer
+            {/* The safety guidance, when the floor found a hazard. It is in the answer
                 underneath either way; repeating it here is how somebody reads it without
-                scrolling past a sentence about limits. */}
-            {outcome?.result.urgency === "emergency" ? (
+                scrolling past a sentence about limits.
+
+                KEYED ON THE HAZARD, NOT THE URGENCY, for the reason above — and the cost
+                of the old test was visible: a lorem-ipsum paste raised to `emergency` by
+                the word "now" printed "We'll match you with the right professional" in
+                alarm red, which is the safety colour spent on nothing. */}
+            {outcome?.hazard ? (
               <p className="text-body-sm mt-2 font-medium text-destructive-ink">
                 {outcome.result.explanation}
               </p>

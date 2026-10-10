@@ -684,16 +684,33 @@ export function keywordAnswer(input: string, copy: TriageCopy): KeywordAnswer {
 
   if (!best) {
     /*
-     * NOTHING MATCHED, AND AN URGENT MARKER DOES NOT CHANGE THAT. "right now"
-     * raises the urgency of an answer nobody found; it does not find one. The
-     * raised urgency is still returned, because `applySafetyFloor` and the
-     * card both read it, and `matched: false` is what stops the category
-     * beside it being read as a recommendation.
+     * NOTHING MATCHED, SO NOTHING IS URGENT. Urgency is a property of a job,
+     * and with no job identified there is nothing for it to be a property of.
+     *
+     * THIS SHIPPED WRONG ONCE AND THE COMMENT THAT REPLACED IT WAS WRONG TOO.
+     * The first version raised an unmatched answer to `emergency` on an urgent
+     * marker; the second kept doing it under a comment claiming `matched:
+     * false` was what stopped the category being read as a recommendation. It
+     * was not — `hasSomethingToTriage` tests the urgency BEFORE it tests
+     * `matched`, so an emergency drags the card back onto the screen. A
+     * visitor pasting a paragraph of lorem ipsum containing the word "now"
+     * read "Plumbing · Emergency · Rs 900 – Rs 4,000", which is worse than the
+     * "Needed soon" it replaced.
+     *
+     * `URGENT_MARKERS` IS WHY, AND IT IS NOT FIXABLE BY A BOUNDARY. "now" is
+     * on the list and the text really did contain the word: "now use Lorem
+     * Ipsum as their default model text". `containsKeyword` would match it
+     * too, correctly. The marker is simply weak English that appears in
+     * ordinary prose, and the answer is not to narrow the marker but to stop
+     * an unmatched answer carrying an urgency at all.
+     *
+     * NOTHING IS LOST ON SAFETY. `applySafetyFloor` reads the raw text for gas,
+     * burning and live wires on every path, independently of this matcher, and
+     * raises to `emergency` with the guidance attached. "I can smell gas right
+     * now" is still an emergency; it is one because of the gas, never because
+     * of the "now".
      */
-    return {
-      result: generic(isUrgent ? "emergency" : GENERIC_RULE.urgency),
-      matched: false,
-    };
+    return { result: generic(GENERIC_RULE.urgency), matched: false };
   }
 
   const { rule } = best;

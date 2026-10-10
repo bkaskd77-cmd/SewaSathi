@@ -103,13 +103,13 @@ describe("whether there is anything to triage", () => {
 
   it("shows nothing priced for an unrelated photo and no words", () => {
     expect(
-      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, urgency: "soon" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, hazard: null }),
     ).toBe(false);
   });
 
   it("treats an unreadable photo with no words the same way", () => {
     expect(
-      hasSomethingToTriage({ ...looked, text: "   ", verdict: unclear, urgency: "routine" }),
+      hasSomethingToTriage({ ...looked, text: "   ", verdict: unclear, hazard: null }),
     ).toBe(false);
   });
 
@@ -120,14 +120,14 @@ describe("whether there is anything to triage", () => {
         ...looked,
         text: "tap is leaking",
         verdict: unrelated,
-        urgency: "soon",
+        hazard: null,
       }),
     ).toBe(true);
   });
 
   it("answers from a photo that showed the problem", () => {
     expect(
-      hasSomethingToTriage({ ...looked, text: "", verdict: related, urgency: "soon" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: related, hazard: null }),
     ).toBe(true);
   });
 
@@ -154,7 +154,7 @@ describe("whether there is anything to triage", () => {
           hadPhoto: true,
           source,
           verdict: null,
-          urgency: "soon",
+          hazard: null,
         }),
       ).toBe(false);
     }
@@ -167,7 +167,7 @@ describe("whether there is anything to triage", () => {
    */
   it("answers when the model replied without naming a relevance", () => {
     expect(
-      hasSomethingToTriage({ ...looked, text: "", verdict: null, urgency: "soon" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: null, hazard: null }),
     ).toBe(true);
   });
 
@@ -180,7 +180,7 @@ describe("whether there is anything to triage", () => {
         hadPhoto: false,
         source: "fallback",
         verdict: null,
-        urgency: "routine",
+        hazard: null,
       }),
     ).toBe(false);
   });
@@ -192,10 +192,10 @@ describe("whether there is anything to triage", () => {
    */
   it("never hides an emergency, whatever the photo was judged to be", () => {
     expect(
-      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, urgency: "emergency" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unrelated, hazard: "gas" }),
     ).toBe(true);
     expect(
-      hasSomethingToTriage({ ...looked, text: "", verdict: unclear, urgency: "emergency" }),
+      hasSomethingToTriage({ ...looked, text: "", verdict: unclear, hazard: "gas" }),
     ).toBe(true);
     /* Including when nobody looked at all: the text guard fired on something, or the
        photo hazard read did, and neither is a reason to hide what to do right now. */
@@ -205,7 +205,7 @@ describe("whether there is anything to triage", () => {
         hadPhoto: true,
         source: "fallback",
         verdict: null,
-        urgency: "emergency",
+        hazard: "gas",
       }),
     ).toBe(true);
   });

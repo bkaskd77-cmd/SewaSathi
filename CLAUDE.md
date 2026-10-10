@@ -245,11 +245,20 @@ The path: `lib/ai/triage.ts` (client) → `POST /api/triage` → Claude
   nobody looked at, then for a paragraph of lorem ipsum. `hasSomethingToTriage`
   is the one gate and it now asks three things: did the model judge the words
   off-topic, did any keyword point at the trade on the card, and was there
-  anything to look at. **An emergency escapes all three** — a hazard outranks
-  every opinion about relevance, including the model's own opinion that the
-  sentence was not about a home. `keywordAnswer` carries the `matched` flag
-  because the matcher is the only thing that knows which of its two answers it
-  just gave.
+  anything to look at. `keywordAnswer` carries the `matched` flag because the
+  matcher is the only thing that knows which of its two answers it just gave.
+  **The one escape is the HAZARD, and writing "emergency" there was the same
+  bug one turn later.** `URGENT_MARKERS` contains "now", a visitor's lorem
+  ipsum contained "now use Lorem Ipsum as their default model text", so the
+  matcher raised an answer it had found nothing for to `emergency` — and the
+  escape, tested before `matched`, dragged the card back onto the screen
+  wearing an Emergency badge. A word boundary would not have saved it; the
+  text really does contain the word. **An answer nobody found cannot be urgent
+  about anything**, so the matcher no longer raises one, and the rule now tests
+  the hazard `applySafetyFloor` actually read. A hazard is evidence; an urgency
+  is a label, and a label can be stuck on an answer nobody found. Nothing is
+  lost on safety — the floor reads the raw text on every path, so gas is an
+  emergency because of the gas and never because of the "now".
 - **A prompt that asks for an answer the schema refuses is one list written
   twice.** The prompt has asked for an `onTopic` verdict since the ceilings
   shipped and `category` was a required enum, so every reply that correctly

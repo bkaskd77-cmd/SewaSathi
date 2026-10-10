@@ -127,6 +127,15 @@ export type TriageOutcome = {
    * true, because every path that can answer `false` now says so.
    */
   matched?: boolean;
+  /**
+   * What the safety floor found in the words or the photograph, or null.
+   *
+   * THE ONE THING THAT OUTRANKS EVERY SUPPRESSION RULE, and it is carried
+   * rather than re-derived from the urgency because an urgency is a label:
+   * `URGENT_MARKERS` put `emergency` on an answer that had matched nothing,
+   * because the text contained the word "now".
+   */
+  hazard?: "gas" | "burning" | "live-wire" | null;
 };
 
 export type TopicVerdict = {
@@ -148,14 +157,18 @@ function localFallback(
   photoUnseen = false,
 ): TriageOutcome {
   const answer = keywordAnswer(text, copy);
+  /* The same floor the server applies, including the note when a photograph was
+     attached and nothing ever looked at it — which is precisely what this path
+     means. The HAZARD is kept and not only the result: it is what decides
+     whether the card may be suppressed, and reading it back off the urgency is
+     the mistake this replaced. */
+  const floor = applySafetyFloor(text, answer.result, {
+    copy: copy.safety,
+    photoUnseen,
+  });
   return {
-    // Same floor as the server applies, including the note when a photo was
-    // attached and nothing ever looked at it — which is precisely what this
-    // path means.
-    result: applySafetyFloor(text, answer.result, {
-      copy: copy.safety,
-      photoUnseen,
-    }).result,
+    result: floor.result,
+    hazard: floor.hazard,
     source: "fallback",
     /* Nobody asked a model anything on this path. */
     topic: null,
@@ -225,6 +238,7 @@ export async function triageProblem(
       aiRefusal?: GateRefusal | null;
       topic?: TopicVerdict | null;
       matched?: boolean;
+      hazard?: "gas" | "burning" | "live-wire" | null;
     };
 
     if (!payload.result)
@@ -239,6 +253,7 @@ export async function triageProblem(
       photo: payload.photo ?? null,
       aiRefusal: payload.aiRefusal ?? null,
       topic: payload.topic ?? null,
+      hazard: payload.hazard ?? null,
       /* Absent reads as "it matched" — see the field's note. Only a server that
          has not been deployed yet can omit it. */
       matched: payload.matched ?? true,

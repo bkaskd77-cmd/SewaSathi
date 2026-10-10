@@ -117,8 +117,24 @@ export function hasSomethingToTriage(input: {
   source: "claude" | "cache" | "fallback";
   /** The photo verdict, or null when there was no photo or nobody judged it. */
   verdict: PhotoVerdict | null | undefined;
-  /** The urgency the answer carries AFTER the safety floor. */
-  urgency: "emergency" | "soon" | "routine";
+  /**
+   * The hazard the safety floor found, or null.
+   *
+   * THIS USED TO BE THE URGENCY AND THE DIFFERENCE IS THE WHOLE RULE. "A hazard
+   * is never suppressed" is what this product promises; "an answer marked
+   * urgent is never suppressed" is what the code tested, and they are not the
+   * same sentence. `URGENT_MARKERS` raised an answer that had matched NOTHING
+   * to `emergency` because the text contained the word "now" — so a paragraph
+   * of lorem ipsum came back "Plumbing · Emergency · Rs 900 – Rs 4,000", and
+   * the emergency check, running first, overrode the `matched: false` beside
+   * it.
+   *
+   * A hazard is the thing that must never be hidden: gas, burning, a live
+   * wire, read from the words or the photograph by `applySafetyFloor`. It is
+   * evidence. An urgency is a label, and a label can be put on an answer
+   * nobody found.
+   */
+  hazard: "gas" | "burning" | "live-wire" | null;
   /**
    * The model's verdict on the WORDS, or null when nobody judged them.
    *
@@ -143,10 +159,11 @@ export function hasSomethingToTriage(input: {
    */
   matched?: boolean;
 }): boolean {
-  /* The safety floor fired, or the answer is an emergency for some other reason. Show it.
-     Above every rule below it: a hazard outranks every opinion about relevance, including
-     the model's own opinion that the sentence was not about a home at all. */
-  if (input.urgency === "emergency") return true;
+  /* The safety floor found gas, burning or a live wire. Show it, whatever else is true:
+     a hazard outranks every opinion about relevance, including the model's own opinion
+     that the sentence was not about a home at all. This is the ONE escape, and it is
+     evidence rather than a label — see the field's note. */
+  if (input.hazard) return true;
 
   /*
    * THE MODEL READ THE WORDS AND SAID THEY ARE NOT ABOUT A HOME. There is nothing to

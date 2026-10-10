@@ -181,7 +181,7 @@ describe("what the hero shows when nobody named a trade", () => {
     hadPhoto: false,
     source: "claude" as const,
     verdict: null,
-    urgency: "soon" as const,
+    hazard: null,
   };
 
   it("suppresses the card on an off-topic verdict", () => {
@@ -222,7 +222,7 @@ describe("what the hero shows when nobody named a trade", () => {
       hasSomethingToTriage({
         ...base,
         text: "whatever",
-        urgency: "emergency",
+        hazard: "gas" as const,
         topic: { onTopic: false },
         matched: false,
       }),
@@ -299,5 +299,75 @@ describe("the route tells 'the model replied' from 'where the answer came from'"
       "utf8",
     );
     expect(src).toMatch(/\? "off-topic"\s*:\s*"no-trade"/);
+  });
+});
+
+/**
+ * The sentence that got through, kept verbatim.
+ *
+ * `matched: false` shipped and the card still appeared, carrying an EMERGENCY badge — a
+ * worse answer than the "Needed soon" it replaced. `URGENT_MARKERS` contains "now", the
+ * paste contained "now use Lorem Ipsum as their default model text", so the matcher
+ * raised an answer it had found nothing for to `emergency`; and `hasSomethingToTriage`
+ * tested the urgency BEFORE `matched`, so the escape meant for a hazard let it through.
+ *
+ * A word boundary would not have saved it: the text really does contain the word "now".
+ * The fault is that an answer nobody found cannot be urgent about anything.
+ *
+ * TWO FIXES, SO TWO SETS OF CASES. The matcher no longer raises an unmatched answer, and
+ * the one escape left in the suppression rule is the HAZARD rather than the label.
+ */
+describe("the lorem ipsum that reached a customer", () => {
+  const PASTED =
+    "now use Lorem Ipsum as their default model text, and a search for 'lorem ipsum' " +
+    "will uncover many web sites still in their infancy";
+
+  it("does not call an answer it never found urgent", () => {
+    const answer = keywordAnswer(PASTED, COPY);
+    expect(answer.matched).toBe(false);
+    expect(answer.result.urgency, "the word 'now' is not an emergency").not.toBe(
+      "emergency",
+    );
+  });
+
+  it("shows no card for it, with or without a topic verdict", () => {
+    const base = { hadPhoto: false, source: "fallback" as const, verdict: null };
+    expect(
+      hasSomethingToTriage({ ...base, text: PASTED, hazard: null, matched: false }),
+    ).toBe(false);
+    expect(
+      hasSomethingToTriage({
+        ...base,
+        text: PASTED,
+        hazard: null,
+        matched: false,
+        topic: { onTopic: false },
+      }),
+    ).toBe(false);
+  });
+
+  /**
+   * THE HALF THAT MUST NOT HAVE BROKEN. Removing the urgency escape would be worthless if
+   * it cost a hazard, so the same unmatched shape with gas in it still shows — and it
+   * shows because `applySafetyFloor` read the gas, not because anything said "now".
+   */
+  it("still shows an answer when the words carry a hazard", () => {
+    expect(
+      hasSomethingToTriage({
+        hadPhoto: false,
+        source: "fallback",
+        verdict: null,
+        text: "ghar bhari gas ko gandha aairacha, kehi bhayo ki",
+        hazard: "gas",
+        matched: false,
+      }),
+    ).toBe(true);
+  });
+
+  /** And an ordinary urgent request is untouched: it matched, so it has a trade. */
+  it("leaves a real urgent job alone", () => {
+    const answer = keywordAnswer("tap is leaking, need someone right now", COPY);
+    expect(answer.matched).toBe(true);
+    expect(answer.result.urgency).toBe("emergency");
   });
 });

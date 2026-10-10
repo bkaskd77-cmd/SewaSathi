@@ -1915,9 +1915,24 @@ keyword in the text pointed at the trade on the card; `matched: false` is `GENER
 which exists so the scheduler always has a reservation and was never meant to be read out.
 So on every path — a reply we could not parse, a timeout, a missing key, a ceiling — the
 hero now shows "we could not tell which trade this needs" and the ten services, rather than
-a price. `hasSomethingToTriage` holds all of it, with the emergency escape still first: a
-hazard outranks every opinion about relevance, including the model's own opinion that the
-sentence was not about a home at all.
+a price. `hasSomethingToTriage` holds all of it.
+
+**And its escape was the same bug one layer along, found the same way — by somebody using
+the product.** The rule read "an emergency is never suppressed" where the promise is "a
+hazard is never suppressed", and the two are not the same sentence. `URGENT_MARKERS`
+contains `now`; the pasted text was "now use Lorem Ipsum as their default model text"; so
+the matcher raised an answer that had matched **nothing** to `emergency`, and the escape —
+tested before `matched` — put the card back on screen with an Emergency badge and the
+generic "we'll match you with the right professional" printed in alarm red. Worse than the
+"Needed soon" it replaced.
+
+A word boundary would not have helped: the text contains the actual word. Two fixes, one
+cause. **An answer nobody found cannot be urgent about anything**, so the matcher stopped
+raising an unmatched result; and the escape is now the hazard `applySafetyFloor` read,
+carried to the browser rather than inferred from the urgency. A hazard is evidence, an
+urgency is a label, and a label can be stuck on an answer nobody found. Safety loses
+nothing: the floor reads the raw text on every path, so "I can smell gas right now" is an
+emergency because of the gas.
 
 **The streak resets correctly now too.** The cache stored the result and the photo verdict
 and not the topic verdict, so a good question served from cache read as "nobody judged

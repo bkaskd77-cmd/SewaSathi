@@ -714,6 +714,14 @@ export async function POST(request: NextRequest) {
          */
         topic: topicVerdict,
         /*
+         * WHAT THE SAFETY FLOOR FOUND, so the browser can apply the one rule
+         * that outranks every suppression. It used to read the urgency for
+         * this, and an urgency is a label somebody can put on an answer that
+         * matched nothing — which is exactly what `URGENT_MARKERS` did with
+         * the word "now". A hazard is evidence.
+         */
+        hazard,
+        /*
          * WHETHER ANYTHING POINTED AT THE TRADE ON THE CARD. False means the
          * answer is `GENERIC_RULE`: a reservation the scheduler needs, never a
          * recommendation to read out.
@@ -826,7 +834,7 @@ async function refusedAnswer(input: {
   startedAt: number;
 }): Promise<NextResponse> {
   const answer = keywordAnswer(input.text, input.copy);
-  const { result: safeResult } = applySafetyFloor(
+  const { result: safeResult, hazard } = applySafetyFloor(
     input.text,
     answer.result,
     {
@@ -872,6 +880,9 @@ async function refusedAnswer(input: {
       model: null,
       /* Nobody asked the model anything, so there is no verdict on the words. */
       topic: null,
+      /* The floor still ran over the matcher's answer — a ceiling may not hide a
+         hazard, which is the whole reason this path answers rather than erroring. */
+      hazard,
       /*
        * AND THE MATCHER'S OWN VERDICT RIDES ALONG, which is what stops a refused
        * call reading as a recommendation. This is the path the visitor in the
