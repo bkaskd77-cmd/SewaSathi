@@ -52,6 +52,36 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 - Claims: nothing to a visitor — this one is a way in rather than a promise on a screen. Seven numbers in `provisioned_accounts` carry standing roles, three of them admin, and six are configured in Supabase as test numbers with a fixed six-digit code. A fixed code is a password that never rotates, and it opens an account that can read every profile, every address and every identity document. Today that is a product with no real customers in it and the exposure is one unshipped database; the day there are real users it is an unrotatable admin credential on a public login form.
 - Lives in: Supabase → Authentication → Providers → Phone → test numbers (an external dashboard, not this repository), and `public.provisioned_accounts`, whose roster is recorded in `scripts/provision-accounts.sql`
 - Replaced by: deleting the four walkthrough numbers (`9800000011`, `9800000012`, `9800000021`, `9800000022`) from both the Supabase test list and `provisioned_accounts`, and deciding one of two things about the two test-number admins (`9800000001`, `9841234567`) — either they keep their fixed codes as the documented break-glass (SECURITY.md § 3), which is a deliberate accepted risk that must be written down as such and the codes rotated, or they lose them and admin recovery moves to a real second factor. Not both by default: leaving them because nobody chose is how this becomes a credential nobody remembers. `9843119897` is not a test number and is unaffected.
+- **Measured against production on 2026-10-10, and this entry was describing a roster that
+  no longer exists.** It said "seven numbers … three of them admin". There are **four**
+  rows in `provisioned_accounts` and **three** accounts that have ever signed in:
+
+  | Number | Role | Account | Second factor |
+  | --- | --- | --- | --- |
+  | `9779800000012` | admin | yes — 14 bookings' worth of admin work | **1 verified TOTP factor** |
+  | `9779841234567` | customer | yes — 14 bookings | none, and none is required of a customer |
+  | `9779800000011` | provider | yes — linked to a listing | none, and none is required |
+  | `9779800000001` | admin | **never signed in; no profile, no auth user** | n/a |
+
+  `9800000021` and `9800000022` are gone, and so is `9843119897`. `auth.users` holds
+  exactly three rows, all with profiles. So the deletion this entry asks for is one row,
+  not four, and it is the break-glass — which is a decision rather than a tidy-up.
+- **The admin's second factor is enrolled and enforced, which is the half that can be
+  confirmed from here.** `stepUpFor` returns `enrol` with no factor, `challenge` with one
+  that has not been used or whose proof is older than `STEP_UP_HOURS` (8), and
+  `stepUpBlocks` treats both as shut. `adminGate()` reads it on all 21 admin pages and
+  `adminActor()` on all 10 admin action files — **asserted now by
+  `tests/unit/admin-gate-coverage.test.ts` rather than by inspection**, because the
+  eleventh action file is the one that matters: a server action is a public POST, so one
+  that forgets the gate is an open endpoint rather than a weaker screen. Break-tested by
+  adding an ungated page and action and watching both cases go red.
+- **What CANNOT be confirmed from here, and it is the half the entry turns on.** Which
+  numbers are configured as Supabase *test numbers* — the fixed-code list — is a
+  dashboard setting with no API this project holds, so the fixed-code question is
+  answerable only by the owner opening Authentication → Providers → Phone. The shape of
+  `9779800000012` suggests it is one, which would mean the admin we are keeping has the
+  same fixed-code property as the break-glass we would be deleting. Deleting one and
+  keeping the other would then remove a duplicate rather than the class.
 
 ### BLOCKER: trust-strip-counts
 - Status: unresolved
