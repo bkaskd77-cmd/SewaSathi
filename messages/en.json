@@ -574,7 +574,12 @@
         "photoAlt": "The photo you attached",
         "photoUploading": "Uploading…",
         "photoAttached": "Photo attached",
-        "photoRemove": "Remove photo"
+        "photoRemove": "Remove photo",
+        "bandQuestion": "Which of these is it?",
+        "bandWhy": "It narrows the price and tells the professional how long to set aside. Skip it if you are not sure — it is not required.",
+        "bandUnsure": "I'm not sure",
+        "bandChosen": "You said: {product}.",
+        "bandChange": "Change"
       },
       "address": {
         "savedTitle": "Saved addresses",
@@ -2161,6 +2166,21 @@
         "ofWork": "Busiest one's share of finished work",
         "share": "{pct}% — {n} of {count, plural, one {{total} job} other {{total} jobs}}",
         "nothingYet": "Nothing to read yet"
+      },
+      "bandCoverage": {
+        "title": "Which product a booking knows it is",
+        "lead": "Everything measured per sub-band reads this: observed durations, per-product bands, multi-day spans. A booking with no product teaches none of them anything. Survey trades are excluded — they sell no products to choose between — and “not sure” is a legitimate answer that records nothing on purpose, so there is no target here.",
+        "named": "Bookings that name a product",
+        "ofEligible": "{n} of {total}",
+        "none": "Nothing has recorded a product yet, so there is no rate to read — not 0%. {count, plural, one {{n} booking predates} other {{n} bookings predate}} the column.",
+        "since": "Measured from the first booking that recorded one, {date}. {count, plural, one {{n} earlier booking is} other {{n} earlier bookings are}} silent rather than missing: the column did not exist.",
+        "source": {
+          "model": "Named by the model",
+          "matcher": "Named by the keyword matcher",
+          "customer": "Chosen by the customer",
+          "inherited": "Inherited by a guarantee visit",
+          "unrecorded": "Product recorded, source not"
+        }
       }
     },
     "audit": {

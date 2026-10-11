@@ -36,9 +36,18 @@ let address: string;
 let band: { low: number; high: number };
 let counter = 0;
 
+/**
+ * A BAND NOW NEEDS A SOURCE, so the default is one rather than null.
+ *
+ * `bookings_band_needs_source` refuses a product with no provenance, which is
+ * the state a live guarantee visit was writing. These fixtures were writing it
+ * too — the constraint caught ten of them — and that is the guard working
+ * rather than a fixture to loosen: a product nobody named is exactly what the
+ * duration loop must not read as evidence.
+ */
 async function book(
   bandSlug: string | null,
-  bandSource: "model" | "matcher" | null = null,
+  bandSource: "model" | "matcher" | "inherited" = "model",
 ): Promise<string> {
   const { rows } = await pg.admin.query(
     `insert into public.bookings
@@ -327,6 +336,62 @@ describe("what actually happened, and what is refused as evidence", () => {
  * matters and it is the same one — category, product, window, and optionally
  * the source.
  */
+/**
+ * A product always records who named it.
+ *
+ * THE LIVE ROW THIS CAME FROM. `SK-RDKW7` carries `band_slug = burst` and a
+ * null source, written two days AFTER the column and its check existed — so
+ * not the usual "the column shipped later" silence. `lib/data/claims.ts`
+ * copied the parent booking's band onto a guarantee visit and copied no
+ * source.
+ *
+ * It matters beyond tidiness: everything measured per sub-band reads that
+ * column, and a guarantee visit is the SAME fault revisited rather than fresh
+ * evidence about the product. A source of `inherited` is what lets the
+ * duration loop tell the two apart; a null tells it nothing.
+ */
+describe("a band cannot be written without a source", () => {
+  it("refuses a product with no provenance", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.bookings
+           (reference, customer_id, category_slug, address_id, description,
+            quoted_min, quoted_max, band_slug, band_source)
+         values ('SK-NOSRC', $1, 'painting', $2, 'Living room needs doing',
+                 $3, $4, 'touch-up', null)`,
+        [ANITA, address, band.low, band.high],
+      ),
+      "a band with no source is what SK-RDKW7 is, and it must not happen again",
+    ).rejects.toThrow(/bookings_band_needs_source/);
+  });
+
+  it("refuses one on update too, not only on insert", async () => {
+    const id = await book("touch-up", "model");
+    await expect(
+      pg.admin.query(
+        "update public.bookings set band_source = null where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/bookings_band_needs_source/);
+  });
+
+  /* Clearing BOTH together is how a swept booking loses its product, and that
+     has to stay legal or `rebandBookings` could not run at all. */
+  it("allows clearing the product and its source together", async () => {
+    const id = await book("touch-up", "matcher");
+    await pg.admin.query(
+      "update public.bookings set band_slug = null, band_source = null where id = $1",
+      [id],
+    );
+    expect((await durationOf(id)).band_slug).toBeNull();
+  });
+
+  it("accepts inherited, which is what a guarantee visit writes", async () => {
+    const id = await book("touch-up", "inherited");
+    expect((await durationOf(id)).band_slug).toBe("touch-up");
+  });
+});
+
 describe("clearing a product a rule got wrong", () => {
   const clear = async (source?: "model" | "matcher") =>
     (
@@ -376,11 +441,24 @@ describe("clearing a product a rule got wrong", () => {
    * clearing costs a scheduling estimate; under-clearing leaves a wrong one in
    * the evidence, and only one of those is recoverable.
    */
+  /*
+   * THE THIRD ROW USED TO CARRY NO SOURCE AT ALL, and that shape can no longer
+   * be built: `bookings_band_needs_source` refuses a product with no
+   * provenance on insert and on update alike.
+   *
+   * One live row still has it — `SK-RDKW7`, a guarantee visit written before
+   * the visit insert carried a source — and it is deliberately not backfilled,
+   * so the unfiltered sweep does still have to reach rows like it. That falls
+   * out of SQL rather than needing a case: the predicate names no source, so a
+   * null one is matched like any other. What this case is actually for is the
+   * regression where somebody adds a default source filter, and three
+   * DIFFERENT sources prove that as well as a null ever did.
+   */
   it("clears regardless of source when no source is named", async () => {
     await pg.admin.query("delete from public.bookings");
     await book("touch-up", "matcher");
     await book("touch-up", "model");
-    await book("touch-up", null);
+    await book("touch-up", "inherited");
 
     expect(await clear()).toBe(3);
   });

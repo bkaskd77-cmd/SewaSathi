@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { readFileSync } from "node:fs";
 
-import { bandBounds, BAND_SOURCES, correctionFitsFloor } from "@/lib/booking";
+import {
+  bandBounds,
+  BAND_SOURCES,
+  REQUESTABLE_BAND_SOURCES,
+  correctionFitsFloor,
+} from "@/lib/booking";
 import { judgeFinalAmount } from "@/lib/payments/pricing";
 
 /**
@@ -174,10 +179,46 @@ describe("a correction cannot price the job under the customer's statement", () 
  * them agree.
  */
 describe("every band source the product emits is one a booking accepts", () => {
-  it("names all three, in one place", () => {
-    // `createBooking`'s zod enum is built from this array and the card writes
-    // one of its values, so they cannot disagree again.
-    expect([...BAND_SOURCES]).toEqual(["model", "matcher", "customer"]);
+  it("names every value the column may hold, in one place", () => {
+    expect([...BAND_SOURCES]).toEqual([
+      "model",
+      "matcher",
+      "customer",
+      "inherited",
+    ]);
+  });
+
+  /**
+   * AND WHAT A BROWSER MAY CLAIM IS A SMALLER LIST, which is the lesson this
+   * case learned the second time.
+   *
+   * These were one array, and `createBooking`'s enum was built from it. Adding
+   * `inherited` for the COLUMN's sake — a guarantee visit copying the band of
+   * the job it is putting right — would silently have let any browser assert
+   * that its own fresh booking was inherited. Same shape as the bug the
+   * comment above records, with the direction reversed: there a schema nobody
+   * widened refused a real value, here a schema widened for free would have
+   * accepted a false one.
+   *
+   * `inherited` is written by `lib/data/claims.ts` under the service role and
+   * nowhere else. The actor comes from the session, never from the caller.
+   */
+  it("does not let a browser claim a source only the server writes", () => {
+    expect([...REQUESTABLE_BAND_SOURCES]).toEqual([
+      "model",
+      "matcher",
+      "customer",
+    ]);
+    expect(
+      REQUESTABLE_BAND_SOURCES as readonly string[],
+      "a booking request must never be able to assert inherited provenance",
+    ).not.toContain("inherited");
+  });
+
+  it("keeps the requestable set inside the column's domain", () => {
+    for (const source of REQUESTABLE_BAND_SOURCES) {
+      expect(BAND_SOURCES as readonly string[]).toContain(source);
+    }
   });
 
   it("is what the booking schema validates against", () => {
@@ -188,7 +229,7 @@ describe("every band source the product emits is one a booking accepts", () => {
      * the schema must build its enum FROM the array rather than restating it.
      */
     const src = readFileSync("lib/data/bookings.ts", "utf8");
-    expect(src).toContain("z.enum(BAND_SOURCES)");
+    expect(src).toContain("z.enum(REQUESTABLE_BAND_SOURCES)");
     expect(src).not.toMatch(/z\.enum\(\s*\[\s*"model"/);
   });
 });

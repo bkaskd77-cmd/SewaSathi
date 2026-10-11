@@ -577,6 +577,38 @@ not travel, which the gate may act on later without anything being scored — an
 `price` is never a signal against anybody, for the same reason
 `category_pricing_signals` never is. Null is "not recorded", not backfilled.
 
+**A booking that does not know which product it is teaches nothing, and 12 of
+14 did not know.** Everything measured per sub-band reads `band_slug` — observed
+durations, per-product bands, the multi-day span — and the "which of these is
+it?" question existed **only on the triage card**. Anybody tapping a category on
+`/services` reached a booking with no product and no prompt, and the AI ceilings
+made that the common path by refusing the card to whoever was out of free
+questions. The question is in the flow now (`step-problem.tsx`), asked once,
+**skippable** — "not sure" writes null on purpose, because forcing a choice is
+`booking_refusals.reason_code`'s mistake: everybody lands on whichever option is
+least wrong and the column stops meaning anything. `/admin/signals` reports the
+coverage with **the cutover derived from the first booking that recorded a
+product**, never a date constant — `triage-accuracy`'s rule, since a rate
+measured from an unverifiable date is one nobody can argue with — and survey
+trades are excluded because they sell no products to choose between.
+**A product now always records who named it**, refused by
+`bookings_band_needs_source`. It is `NOT VALID`, which is the Postgres idiom for
+"no backfill, and new rows must comply": one live row (`SK-RDKW7`) carries a band
+with a null source, written two days AFTER the column existed because
+`lib/data/claims.ts` copied a guarantee visit's band and not its provenance.
+**`inherited` is a fourth value rather than the parent's own**: the model,
+matcher or customer who named the original said nothing about the callback, and
+a guarantee visit is the same fault revisited rather than fresh evidence about
+that product — which is precisely the filter the duration loop needs.
+**And the column's domain is not the list a browser may claim.** Those were one
+array, so widening `BAND_SOURCES` for `inherited` silently widened
+`createBooking`'s zod enum too — letting any browser assert its own fresh booking
+was inherited. `REQUESTABLE_BAND_SOURCES` is the subset a request may carry, and
+the split was forced by a test that pinned the other list's exact contents. It is
+the same shape as the bug that test already records, reversed: there a schema
+nobody widened refused a real value; here a schema widened for free would have
+accepted a false one.
+
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
 reasoning next to each number. Rating goes through a Bayesian average

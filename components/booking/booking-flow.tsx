@@ -439,6 +439,8 @@ export function BookingFlow({
               photoPath={state.photoPath}
               photoPreview={photoPreview}
               error={errors.description ?? errors.category}
+              band={state.band}
+              asked={state.asked}
               onChange={patch}
               onPhoto={({ path, preview, takenAt }) => {
                 setPhotoPreview(preview);

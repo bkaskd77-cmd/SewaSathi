@@ -29,6 +29,24 @@ export type CategoryOption = {
   quoteLabel: string;
   /** True when this trade publishes no price at all. See `isSurveyPriced`. */
   surveyPriced: boolean;
+  /**
+   * The products inside this trade, for the "which of these is it?" question.
+   *
+   * THE QUESTION ONLY EXISTED ON THE TRIAGE CARD, which is how most bookings
+   * came to carry no product at all. Somebody tapping a category on
+   * `/services` reaches this flow with no band, no source and nothing that
+   * ever asks — and that path is now the COMMON one, because the AI ceilings
+   * suppress or refuse the card for anybody out of free questions.
+   *
+   * Slug and label only, with the locale already picked on the server, for the
+   * same reason the triage route sends them back on its response rather than
+   * shipping them in the bundle: thirty-six labels in two languages is weight
+   * on a page that does not need it, and the bundle would freeze to the seed
+   * while the table is what a price is read from.
+   *
+   * Empty on a survey trade, which sells no products to choose between.
+   */
+  subBands: { slug: string; label: string }[];
 };
 
 /**
@@ -56,6 +74,8 @@ const KNOWN_PHOTO_ERRORS = [
 
 export function StepProblem({
   categories,
+  band,
+  asked,
   category,
   description,
   photoPath,
@@ -70,7 +90,17 @@ export function StepProblem({
   photoPath: string | null;
   photoPreview: string | null;
   error?: string | null;
-  onChange: (patch: { category?: string; description?: string }) => void;
+  onChange: (patch: {
+    category?: string;
+    description?: string;
+    band?: string | null;
+    bandSource?: string | null;
+    asked?: boolean;
+  }) => void;
+  /** The product chosen so far, if any. */
+  band: string | null;
+  /** True once this customer has been put the product question. */
+  asked: boolean;
   onPhoto: (next: {
     path: string | null;
     preview: string | null;
@@ -179,6 +209,78 @@ export function StepProblem({
             </option>
           ))}
         </select>
+        {/*
+          WHICH PRODUCT, ASKED HERE BECAUSE NOTHING ELSE ASKS ON THIS PATH.
+          The triage card has always put this question; a customer who picked a
+          category off `/services` was never asked at all, and that is now the
+          common route. Without it the booking carries no product, and a
+          booking with no product teaches the duration loop nothing and holds a
+          flat two hours whatever the job is.
+
+          SHOWN ONCE, AND SKIPPABLE. `asked` is what stops it reappearing after
+          somebody has answered or declined — and "I'm not sure" writes NULL
+          rather than a guess, for the reason `booking_refusals.reason_code`
+          records: forcing a choice pushes everybody onto whichever option is
+          least wrong and makes the whole column meaningless. A product nobody
+          could name is an ordinary answer.
+        */}
+        {selected && selected.subBands.length > 0 && !asked && !band ? (
+          <div className="animate-rise mt-4 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-body-sm font-medium text-foreground">
+              {t("bandQuestion")}
+            </p>
+            <p className="mt-1 text-caption text-muted-foreground">
+              {t("bandWhy")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selected.subBands.map((sub) => (
+                <button
+                  key={sub.slug}
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      band: sub.slug,
+                      bandSource: "customer",
+                      asked: true,
+                    })
+                  }
+                  className="rounded-full border border-input bg-card px-3 py-1.5 text-caption transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {sub.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ band: null, bandSource: null, asked: true })
+                }
+                className="text-caption px-2 py-1.5 text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t("bandUnsure")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {/* What they chose, with a way back. A choice that cannot be undone is
+            one people refuse to make. */}
+        {selected && band ? (
+          <p className="mt-3 text-caption text-muted-foreground">
+            {t("bandChosen", {
+              product:
+                selected.subBands.find((sub) => sub.slug === band)?.label ??
+                band,
+            })}{" "}
+            <button
+              type="button"
+              onClick={() =>
+                onChange({ band: null, bandSource: null, asked: false })
+              }
+              className="font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("bandChange")}
+            </button>
+          </p>
+        ) : null}
         {selected ? (
           <p className="mt-2 text-caption tabular-nums text-muted-foreground">
             {/* "Usually Rs 5,000-20,000" on a trade that publishes no price is

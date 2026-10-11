@@ -31,7 +31,52 @@
  * happens at all was the one nobody widened. It is exported so the schema, the
  * card and the test all read the same array.
  */
-export const BAND_SOURCES = ["model", "matcher", "customer"] as const;
+/**
+ * How we know which product a booking is.
+ *
+ * `inherited` IS NOT THE PARENT'S OWN SOURCE, and the distinction is the point.
+ * A guarantee visit copies the band of the job it is putting right, so the
+ * product is known — but nobody named it for THIS booking: the model, matcher
+ * or customer that named the parent said nothing about the callback. Copying
+ * their answer across would manufacture a statement nobody made.
+ *
+ * It is also what lets the duration loop avoid double-counting. A guarantee
+ * visit is the same fault revisited, so its duration is not independent
+ * evidence about that sub-band, and the filter needs a column that says so.
+ *
+ * One list written twice with `bookings_band_source_check`; the db suite
+ * compares them.
+ */
+export const BAND_SOURCES = [
+  "model",
+  "matcher",
+  "customer",
+  "inherited",
+] as const;
+
+/**
+ * The subset a BROWSER may claim, which is not the same list.
+ *
+ * `inherited` is written by `lib/data/claims.ts` under the service role when a
+ * guarantee visit copies the band of the job it is putting right. Nothing a
+ * customer sends can legitimately be that, so `createBooking`'s schema is
+ * built from this and never from `BAND_SOURCES` — the actor comes from the
+ * session, never from the caller, and provenance is exactly the kind of field
+ * where believing the caller costs you the column's meaning.
+ *
+ * FOUND BY A TEST THAT PINNED THE OTHER LIST'S EXACT CONTENTS, which is why
+ * that test is written the way it is: widening `BAND_SOURCES` for the column's
+ * sake would silently have widened what a browser may assert, because the two
+ * had been one array. The same shape as the bug its comment already records —
+ * a schema nobody widened — with the direction reversed.
+ */
+export const REQUESTABLE_BAND_SOURCES = [
+  "model",
+  "matcher",
+  "customer",
+] as const satisfies readonly BandSourceName[];
+
+type BandSourceName = (typeof BAND_SOURCES)[number];
 
 export type BandSource = (typeof BAND_SOURCES)[number];
 

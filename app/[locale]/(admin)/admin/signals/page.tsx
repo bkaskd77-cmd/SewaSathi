@@ -30,6 +30,7 @@ import {
 } from "@/lib/data/concentration";
 import { RELEVANCE_WEIGHTS, weightEvidence } from "@/lib/data/ranking";
 import { formatBand, formatNpr } from "@/lib/utils";
+import { bandCoverage } from "@/lib/data/band-coverage";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -86,6 +87,15 @@ export default async function SignalsPage() {
       proximityEvidence(),
     ]);
 
+  /*
+   * HOW MANY BOOKINGS KNOW WHICH PRODUCT THEY ARE, which is the feed every
+   * per-sub-band measurement in this product runs on. It was 2 of 14 when
+   * first measured — because the "which of these is it?" question existed only
+   * on the triage card, and the AI ceilings made the category picker the
+   * common path.
+   */
+  const coverage = await bandCoverage();
+
   const stats = await listRankingEvidence();
 
   /*
@@ -118,6 +128,58 @@ export default async function SignalsPage() {
 
       {/* ---------------------------------------------------------------- */}
       <h2 className="animate-rise text-heading-md mt-10 font-display">
+        {t("bandCoverage.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("bandCoverage.lead")}
+      </p>
+
+      {!coverage.ok ? (
+        <Unreadable text={t("unreadable")} />
+      ) : coverage.value.eligible === 0 ? (
+        /* No cutover, or nothing since it. Not 0% — see `bandCoverage`. */
+        <p className="animate-rise mt-4 text-body-md text-muted-foreground">
+          {t("bandCoverage.none", {
+            count: coverage.value.beforeColumn,
+            n: String(coverage.value.beforeColumn),
+          })}
+        </p>
+      ) : (
+        <div className="animate-rise mt-4 rounded-xl border border-border bg-card p-4">
+          <dl className="space-y-1.5 text-body-sm text-muted-foreground">
+            <Row
+              label={t("bandCoverage.named")}
+              /* The denominator travels with it, always — two of two and two of
+                 two hundred are different facts. */
+              value={t("bandCoverage.ofEligible", {
+                n: String(coverage.value.withBand),
+                total: String(coverage.value.eligible),
+              })}
+            />
+            {Object.entries(coverage.value.bySource)
+              .filter(([, count]) => count > 0)
+              .map(([source, count]) => (
+                <Row
+                  key={source}
+                  label={t(`bandCoverage.source.${source}`)}
+                  value={String(count)}
+                />
+              ))}
+          </dl>
+          <p className="text-caption mt-3 border-t border-border pt-2 text-muted-foreground">
+            {/* The cutover, said out loud. A coverage figure measured from a date
+                nobody can see is a figure nobody can argue with. */}
+            {t("bandCoverage.since", {
+              date: formatInstant(coverage.value.since ?? "", locale),
+              count: coverage.value.beforeColumn,
+              n: String(coverage.value.beforeColumn),
+            })}
+          </p>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("pricing.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">

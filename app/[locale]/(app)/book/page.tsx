@@ -11,7 +11,7 @@ import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
 import { customerHistory } from "@/lib/data/customer-risk";
-import { getCategories } from "@/lib/data/categories";
+import { getCategories, getSubBands } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import { getProvider } from "@/lib/data/providers";
 import { TRIAGE_PARAM } from "@/lib/routes/booking";
@@ -78,8 +78,9 @@ export default async function BookPage(props: {
    */
   const messages = await getMessages();
 
-  const [categories, addresses, provider, risk] = await Promise.all([
+  const [categories, subBands, addresses, provider, risk] = await Promise.all([
     getCategories(),
+    getSubBands(),
     profile ? listAddresses() : Promise.resolve([]),
     providerId ? getProvider(providerId) : Promise.resolve(null),
     /*
@@ -211,6 +212,31 @@ export default async function BookPage(props: {
                 priceMin: survey ? null : category.basePriceMin,
                 priceMax: survey ? null : category.basePriceMax,
                 surveyPriced: survey,
+                /*
+                 * THE PRODUCTS, SO THIS FLOW CAN ASK WHICH ONE. Until now that
+                 * question lived only on the triage card, so everybody who
+                 * picked a category off `/services` reached a booking with no
+                 * product at all — and that is the common path now the AI
+                 * ceilings refuse the card to anybody out of free questions.
+                 *
+                 * Slug and label only, with the locale already chosen here:
+                 * `categoryCopy`'s rule, and the same reason the triage route
+                 * sends labels back on its response rather than shipping all
+                 * thirty-six in two languages to the browser.
+                 *
+                 * A SURVEY TRADE GETS NONE, like the prices above — it sells no
+                 * products to choose between, and an empty list is what the
+                 * step reads to know not to ask.
+                 */
+                subBands: survey
+                  ? []
+                  : subBands
+                      .filter((sub) => sub.categorySlug === category.slug)
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((sub) => ({
+                        slug: sub.slug,
+                        label: locale === "ne" ? sub.labelNe : sub.labelEn,
+                      })),
                 // Formatted here rather than passed as a formatter: a function
                 // cannot cross the server/client boundary, and the locale-aware
                 // currency rules belong on the server anyway.

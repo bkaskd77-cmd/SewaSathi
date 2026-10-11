@@ -131,6 +131,7 @@ export {
   bandBounds,
   correctionFitsFloor,
   BAND_SOURCES,
+  REQUESTABLE_BAND_SOURCES,
   type BandBounds,
   type BandRange,
   type BandSource,

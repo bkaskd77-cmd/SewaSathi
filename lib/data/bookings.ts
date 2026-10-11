@@ -27,7 +27,11 @@ import {
   quoteFloor,
   servingWhen,
 } from "@/lib/provider";
-import { bandBounds, BAND_SOURCES, type BandSource } from "@/lib/booking";
+import {
+  bandBounds,
+  REQUESTABLE_BAND_SOURCES,
+  type BandSource,
+} from "@/lib/booking";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -287,7 +291,15 @@ export const bookingInputSchema = z.object({
    * guard around the band held; the schema that decides whether the booking
    * happens at all did not know the value existed.
    */
-  bandSource: z.enum(BAND_SOURCES).nullish(),
+  /*
+   * THE REQUESTABLE SUBSET, NOT THE COLUMN'S WHOLE DOMAIN. `inherited` is a
+   * real `band_source` and is written only by the guarantee-visit insert under
+   * the service role; a browser claiming it would be asserting that its fresh
+   * booking copied a product from a job it is putting right. Validating
+   * against `BAND_SOURCES` would have accepted exactly that the moment the
+   * column learned the value.
+   */
+  bandSource: z.enum(REQUESTABLE_BAND_SOURCES).nullish(),
   /*
    * Whether the card PUT the question, which is not the same fact as whether
    * anybody answered. "Never asked" and "I am not sure" both arrive here with

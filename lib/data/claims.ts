@@ -542,6 +542,20 @@ async function createGuaranteeVisit(input: {
         quoted_max: parent.quoted_max as number | null,
         band_min: parent.band_min as number | null,
         band_slug: parent.band_slug as string | null,
+        /*
+         * AND ITS PROVENANCE, WHICH WAS DROPPED HERE AND IS WHY ONE LIVE ROW
+         * CARRIES A PRODUCT NOBODY NAMED. `SK-RDKW7` has `band_slug = burst`
+         * and a null source, written two days after the column existed — not
+         * the usual "the column shipped later" silence, but this line.
+         *
+         * `inherited` rather than the parent's own source: the model, matcher
+         * or customer who named the original said nothing about this callback,
+         * and copying their answer across would manufacture a statement nobody
+         * made. It is also what keeps a guarantee visit out of the duration
+         * loop's evidence — the same fault revisited is not a second
+         * measurement of that product.
+         */
+        band_source: parent.band_slug ? "inherited" : null,
         guarantee_claim_id: claim.id as string,
         // The one place in the product that writes this false, and the check
         // constraint refuses it on anything that is not a guarantee visit.
