@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { BAND_SOURCES } from "@/lib/booking";
+
 import { startPostgres, type Harness } from "../support/postgres";
 
 /**
@@ -591,5 +593,57 @@ describe("the ask is measurable on real bookings", () => {
     expect(columns).not.toContain("provider_id");
     expect(columns).toContain("category_slug");
     expect(columns).toContain("month");
+  });
+});
+
+/**
+ * The provenance list is one list written twice, and nothing was comparing them.
+ *
+ * `BAND_SOURCES` in `lib/booking/band-bounds.ts` carried a comment saying "one
+ * list written twice with `bookings_band_source_check`; the db suite compares
+ * them" — and the db suite did not. A comment describing behaviour the code does
+ * not have is the class this repository keeps paying for, so here is the
+ * comparison it promised.
+ *
+ * WHAT IT CATCHES. A source added to the TypeScript array and not to the column
+ * fails on the first production write that produces the new value, losing the
+ * row — and on a `band_source` that means losing which product a job was, which
+ * is the one thing the duration loop reads. A value added to the column and not
+ * to the array is a column whose domain nothing in the product can produce.
+ *
+ * READ OUT OF `pg_constraint` RATHER THAN OUT OF A MIGRATION FILE, because the
+ * constraint is dropped and re-added by three different migrations as the list
+ * grew — `20260920000001`, `20260920000005`, `20261010000002`, `20261011000002`
+ * — and grepping for the first one answers a question about history.
+ */
+describe("the band sources the product emits are the ones the column admits", () => {
+  it("agrees with the check constraint, both ways", async () => {
+    const { rows } = await pg.admin.query(
+      `select pg_get_constraintdef(oid) as def
+         from pg_constraint
+        where conrelid = 'public.bookings'::regclass
+          and conname = 'bookings_band_source_check'`,
+    );
+    expect(rows, "the constraint itself has gone missing").toHaveLength(1);
+
+    const inSql = [...(rows[0].def as string).matchAll(/'([a-z]+)'::text/g)].map(
+      (match) => match[1],
+    );
+    expect([...inSql].sort()).toEqual([...BAND_SOURCES].sort());
+  });
+
+  /*
+   * AND THE NEW ONE IS ACCEPTED IN FACT, not merely named in a constraint
+   * definition. A value the constraint lists and the column refuses for some
+   * other reason — a trigger, another constraint — would pass the comparison
+   * above and fail in production.
+   */
+  it("accepts a product named by the professional who did the work", async () => {
+    const id = await book({ band: "leak", source: "professional" });
+    const { rows } = await pg.admin.query(
+      "select band_source from public.bookings where id = $1",
+      [id],
+    );
+    expect(rows[0].band_source).toBe("professional");
   });
 });

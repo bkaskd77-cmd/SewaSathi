@@ -608,6 +608,41 @@ the split was forced by a test that pinned the other list's exact contents. It i
 the same shape as the bug that test already records, reversed: there a schema
 nobody widened refused a real value; here a schema widened for free would have
 accepted a false one.
+**`professional` is the fifth, and it exists because the other four can all come
+out empty.** "I'm not sure" writes null on purpose and the category picker asked
+nothing at all, so a job can be booked, worked and finished with no product —
+teaching the duration loop, the per-product bands and the span nothing, and
+holding a flat two hours whatever it turned out to be. The person who just did
+the work knows. One tap on their job card (`NameBandPanel`), recorded as its own
+source rather than as `customer`, because who said so is what a provenance column
+is for: somebody standing in the room after the work is better evidence than a
+guess from somebody describing it beforehand, and folding the two together loses
+that for ever. **No "not sure" option here**, which is the opposite of the
+customer's version of the same question and for the stated reason — the customer
+genuinely may not know, so forcing them would land everybody on whichever option
+is least wrong; the professional does know, and somebody who does not want to
+answer simply does not tap. Nothing is stored for the absence.
+**It is NOT the price correction**, and the two windows provably do not overlap:
+`canProposeCorrection` needs a stated band and runs before work starts,
+`canNameBand` needs a null one and runs from `in_progress`. A correction moves
+the band and the customer must agree, because it is about money; this moves
+nothing — `freeze_booking_band` pins `band_min` and `band_revision_id` on every
+UPDATE and `booking_band_bounds` treats only `customer` as a stated band, both
+read out of `pg_proc` before the panel was built rather than assumed.
+**An estimate is what we said BEFOREHAND, so a late product gets none.**
+`sync_booking_duration` copies the sub-band's researched figures whenever the
+product is set, which is right at booking time and wrong at completion: writing
+them with the answer in hand would mint an estimate that informed no scheduling
+decision, and every estimate-against-actual reading would then be flattered by
+rows that are really hindsight. The guard is `started_at`, not the status — up to
+the moment work begins the estimate still has a job to do, because it is what the
+scheduler holds.
+**And the comment claiming the db suite compared the two lists was false.**
+`BAND_SOURCES` said "one list written twice with `bookings_band_source_check`;
+the db suite compares them" and nothing did — the class this file keeps
+recording. `tests/db/price-correction.test.ts` compares them now, out of
+`pg_constraint` rather than out of a migration file, because that constraint is
+dropped and re-added by four different migrations as the list grew.
 
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the

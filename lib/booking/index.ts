@@ -130,6 +130,7 @@ export {
 export {
   bandBounds,
   correctionFitsFloor,
+  canNameBand,
   BAND_SOURCES,
   REQUESTABLE_BAND_SOURCES,
   type BandBounds,

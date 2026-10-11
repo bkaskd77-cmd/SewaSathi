@@ -6,7 +6,7 @@ import {
   type BookingStatus,
   type QuoteModel,
 } from "@/lib/booking";
-import { canTransition } from "@/lib/booking";
+import { canNameBand, canTransition } from "@/lib/booking";
 import { providerCapacity } from "@/lib/data/capacity";
 import { isRefusalReasonCode } from "@/lib/provider";
 import { describeError } from "@/lib/data/source";
@@ -340,7 +340,9 @@ async function readAssignedBooking(bookingId: string) {
   try {
     const { data, error } = await createClient()
       .from("bookings")
-      .select("id, reference, status, provider_id, customer_id")
+      .select(
+        "id, reference, status, provider_id, customer_id, category_slug, band_slug, quote_model",
+      )
       .eq("id", bookingId)
       .maybeSingle();
     if (error) {
@@ -353,6 +355,9 @@ async function readAssignedBooking(bookingId: string) {
       status: string;
       provider_id: string | null;
       customer_id: string;
+      category_slug: string;
+      band_slug: string | null;
+      quote_model: string | null;
     } | null;
   } catch (thrown) {
     console.error(`[provider-jobs] read threw — ${describeError(thrown)}`);
@@ -1068,6 +1073,81 @@ export async function proposeBandCorrection(input: {
     params: { reference: booking.reference as string, provider: me.displayName },
     bookingId: input.bookingId,
   });
+
+  return { ok: true };
+}
+
+/**
+ * The professional names the product on a job nobody classified.
+ *
+ * WHY THIS EXISTS. "I'm not sure" is a legitimate answer in the booking flow
+ * and the category picker asks nothing at all, so a job can be worked and
+ * finished with `band_slug` null — and then it is invisible to the duration
+ * loop, the per-product bands and the span. The person who just did the work
+ * knows which product it was. One tap, at the end.
+ *
+ * IT MOVES NO MONEY, AND THAT IS STRUCTURAL RATHER THAN CAREFUL.
+ * `freeze_booking_band` pins `band_min` and `band_revision_id` to their old
+ * values on every UPDATE of a non-survey booking, and `booking_band_bounds`
+ * treats only a `customer` source as a stated band — so the commission basis,
+ * the quote floor and the published range are all untouched by this write.
+ * Both were read out of `pg_proc` before the panel was built, because "it
+ * probably cannot" is not an answer about somebody's price.
+ *
+ * SERVICE ROLE AFTER AN RLS READ, the `declineJob` shape, and here it is forced:
+ * `enforce_booking_immutability` refuses `band_slug` from any caller with an
+ * `auth.uid()`, which is correct — a customer able to write it could reprice
+ * their own job — so ownership is proved through the policy and the write is
+ * ours. The gate is `canNameBand`, pure in `lib/booking`, so the panel and the
+ * server cannot disagree about when the question exists.
+ */
+export async function nameJobBand(input: {
+  bookingId: string;
+  bandSlug: string;
+  actorId: string;
+}): Promise<AdvanceResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "notConfigured" };
+
+  const me = await getMyProvider(input.actorId);
+  if (!me) return { ok: false, reason: "notAProvider" };
+
+  const booking = await readAssignedBooking(input.bookingId);
+  if (!booking) return { ok: false, reason: "notFound" };
+  if (booking.provider_id !== me.providerId) {
+    return { ok: false, reason: "notYours" };
+  }
+
+  if (
+    !canNameBand({
+      status: booking.status,
+      bandSlug: booking.band_slug,
+      quoteModel: booking.quote_model,
+    })
+  ) {
+    return { ok: false, reason: "notAskable" };
+  }
+
+  /*
+   * The product has to be one this trade sells, and
+   * `bookings_band_slug_fkey` is a composite key over (category_slug,
+   * band_slug) — so a slug from another trade is refused by the database
+   * rather than by a check here that the next writer could forget. Mapped to
+   * its own reason so the screen can say which thing went wrong.
+   */
+  const { error } = await createAdminClient()
+    .from("bookings")
+    .update({ band_slug: input.bandSlug, band_source: "professional" })
+    .eq("id", input.bookingId);
+
+  if (error) {
+    console.error(`[provider-jobs] naming failed — ${describeError(error)}`);
+    return {
+      ok: false,
+      reason: /foreign key/i.test(describeError(error))
+        ? "notThisTrade"
+        : "saveFailed",
+    };
+  }
 
   return { ok: true };
 }

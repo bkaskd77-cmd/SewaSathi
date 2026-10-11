@@ -10,6 +10,7 @@ import {
   claimJob,
   declineJob,
   getMyProvider,
+  nameJobBand,
   offerOverbookAndClaim,
   proposeBandCorrection,
   recordOverbookMiss,
@@ -444,6 +445,37 @@ export async function proposeCorrectionAction(
   if (result.ok) {
     revalidatePath("/provider/jobs");
     revalidatePath(`/bookings/${bookingId}`);
+  }
+  return result;
+}
+
+/**
+ * "Which of these was it?", answered by the person who did the work.
+ *
+ * SEPARATE FROM `proposeCorrectionAction` ON PURPOSE. That one says the job is
+ * a different one from the one booked: it moves the band, needs a reason, and
+ * the customer has to agree before work may start, because it is a question
+ * about money. This names a job nobody ever classified, after the work, and
+ * cannot move a rupee — `freeze_booking_band` pins the frozen floor on every
+ * update. One action each, so neither screen can reach the other's rule.
+ */
+export async function nameBandAction(
+  bookingId: string,
+  bandSlug: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const profile = await getSessionProfile();
+  if (!profile) return { ok: false, reason: "notSignedIn" };
+
+  const result = await nameJobBand({
+    bookingId,
+    bandSlug,
+    actorId: profile.id,
+  });
+  if (result.ok) {
+    revalidatePath("/provider/jobs");
+    revalidatePath(`/bookings/${bookingId}`);
+    // The coverage figure this feeds is the whole reason the question exists.
+    revalidatePath("/admin/signals");
   }
   return result;
 }

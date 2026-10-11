@@ -961,3 +961,93 @@ describe("the span gate reads the span's own provenance", () => {
     expect(await dayCount(id)).toBe(0);
   });
 });
+
+/**
+ * AN ESTIMATE IS WHAT WE SAID BEFOREHAND, so a product named afterwards gets none.
+ *
+ * The professional can now name the product on a job nobody classified, at
+ * completion. `sync_booking_duration` copies the sub-band's researched figures
+ * whenever the product is set — which is right at booking time and wrong here:
+ * the whole value of `estimated_working_minutes` is that it is what we said the
+ * job would take BEFORE anybody did it, which is the only thing that ever makes
+ * the researched numbers better than a guess. Writing it with the answer in hand
+ * would mint an estimate that informed no scheduling decision, and any
+ * estimate-against-actual reading would then be flattered by rows that are
+ * really hindsight.
+ *
+ * The line is `started_at` rather than the status: up to the moment work begins
+ * the estimate still has a job to do, because it is what the scheduler holds.
+ */
+describe("naming a product after the work records it without inventing an estimate", () => {
+  /* `enforce_slot_capacity` refuses a second job in the same window for one
+     professional, and these cases walk jobs to in_progress without picking a
+     slot each — cleared rather than scattered across invented times. */
+  beforeEach(async () => {
+    await pg.admin.query("delete from public.bookings");
+  });
+
+  it("still copies the estimate when the product is named before work starts", async () => {
+    const id = await book(null);
+    await pg.admin.query(
+      "update public.bookings set provider_id = $2, status = 'accepted' where id = $1",
+      [id, krishna],
+    );
+    await pg.admin.query(
+      `update public.bookings set band_slug = 'touch-up', band_source = 'customer'
+        where id = $1`,
+      [id],
+    );
+
+    const row = await durationOf(id);
+    expect(row.band_slug).toBe("touch-up");
+    expect(Number(row.estimated_working_minutes)).toBeGreaterThan(0);
+  });
+
+  it("records the product and no estimate once work has started", async () => {
+    const id = await book(null);
+    await pg.admin.query(
+      "update public.bookings set provider_id = $2, status = 'accepted' where id = $1",
+      [id, krishna],
+    );
+    await pg.admin.query(
+      "update public.bookings set status = 'en_route' where id = $1",
+      [id],
+    );
+    await pg.admin.query(
+      "update public.bookings set status = 'in_progress' where id = $1",
+      [id],
+    );
+    await pg.admin.query(
+      `update public.bookings
+          set band_slug = 'touch-up', band_source = 'professional'
+        where id = $1`,
+      [id],
+    );
+
+    const row = await durationOf(id);
+    expect(row.band_slug).toBe("touch-up");
+    expect(row.estimated_working_minutes).toBeNull();
+    expect(row.estimated_elapsed_days).toBeNull();
+  });
+
+  /*
+   * AND THE ANSWER SURVIVES COMPLETION, which is the common case: the panel is
+   * on the card of a finished job because that is the one chance to ask.
+   */
+  it("records it on a job that is already over", async () => {
+    const id = await book(null);
+    await complete(id, 95 * 60);
+    await pg.admin.query(
+      `update public.bookings
+          set band_slug = 'touch-up', band_source = 'professional'
+        where id = $1`,
+      [id],
+    );
+
+    const row = await durationOf(id);
+    expect(row.band_slug).toBe("touch-up");
+    expect(row.estimated_working_minutes).toBeNull();
+    // The measurement is untouched — naming the product does not re-run it.
+    expect(Number(row.actual_working_minutes)).toBeGreaterThanOrEqual(95);
+  });
+});

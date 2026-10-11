@@ -6,6 +6,8 @@ import {
   bandBounds,
   BAND_SOURCES,
   REQUESTABLE_BAND_SOURCES,
+  canNameBand,
+  canProposeCorrection,
   correctionFitsFloor,
 } from "@/lib/booking";
 import { judgeFinalAmount } from "@/lib/payments/pricing";
@@ -185,6 +187,7 @@ describe("every band source the product emits is one a booking accepts", () => {
       "matcher",
       "customer",
       "inherited",
+      "professional",
     ]);
   });
 
@@ -213,6 +216,16 @@ describe("every band source the product emits is one a booking accepts", () => {
       REQUESTABLE_BAND_SOURCES as readonly string[],
       "a booking request must never be able to assert inherited provenance",
     ).not.toContain("inherited");
+    /*
+     * `professional` is out for the same reason and not a weaker one: it is the
+     * most trustworthy provenance the column has — somebody who stood in the
+     * room after the work — and a booking POST claiming it would be a customer
+     * asserting the best possible evidence about their own price.
+     */
+    expect(
+      REQUESTABLE_BAND_SOURCES as readonly string[],
+      "a booking request must never be able to assert a professional's reading",
+    ).not.toContain("professional");
   });
 
   it("keeps the requestable set inside the column's domain", () => {
@@ -231,5 +244,75 @@ describe("every band source the product emits is one a booking accepts", () => {
     const src = readFileSync("lib/data/bookings.ts", "utf8");
     expect(src).toContain("z.enum(REQUESTABLE_BAND_SOURCES)");
     expect(src).not.toMatch(/z\.enum\(\s*\[\s*"model"/);
+  });
+});
+
+/**
+ * When the professional may name a job nobody classified.
+ *
+ * TWO HALVES, AND BOTH MATTER. Nobody named it — otherwise this would be a
+ * record of who answered last rather than a provenance, and a professional who
+ * thinks the product is WRONG has `canProposeCorrection`, which moves the band
+ * and asks the customer because that is a question about money. And after the
+ * work — before `in_progress` the professional is guessing from the same
+ * description the customer wrote, which is exactly what the model already did.
+ */
+describe("the professional names a job nobody classified", () => {
+  const job = { status: "completed", bandSlug: null, quoteModel: null };
+
+  it("asks once the work has started, and not before", () => {
+    for (const status of ["pending", "accepted", "en_route"]) {
+      expect(canNameBand({ ...job, status })).toBe(false);
+    }
+    expect(canNameBand({ ...job, status: "in_progress" })).toBe(true);
+    expect(canNameBand({ ...job, status: "completed" })).toBe(true);
+  });
+
+  /*
+   * A FINISHED JOB STAYS OPEN, deliberately. This is the one chance: nothing
+   * else will ever ask, and a classification does not go stale the way a price
+   * does. The alternative — closing it at completion — means the answer is lost
+   * if the professional puts the phone away before tapping.
+   */
+  it("still asks on a job that is over", () => {
+    expect(canNameBand({ ...job, status: "completed" })).toBe(true);
+  });
+
+  it("never asks about a job that already has a product", () => {
+    expect(canNameBand({ ...job, bandSlug: "leak" })).toBe(false);
+    expect(
+      canNameBand({ status: "in_progress", bandSlug: "leak", quoteModel: null }),
+    ).toBe(false);
+  });
+
+  /* A survey trade sells no products, so there is nothing to choose between —
+     the same exclusion `bandCoverage` makes from its denominator. */
+  it("never asks on a survey job", () => {
+    expect(canNameBand({ ...job, quoteModel: "survey" })).toBe(false);
+  });
+
+  /*
+   * THE TWO WINDOWS DO NOT OVERLAP, and that is what keeps the two panels from
+   * both appearing on one card. A correction argues with a stated product and
+   * runs before work starts; naming needs a null product and runs after.
+   */
+  it("never opens at the same time as a price correction", () => {
+    for (const status of [
+      "pending",
+      "accepted",
+      "en_route",
+      "in_progress",
+      "completed",
+    ]) {
+      for (const bandSlug of [null, "leak"]) {
+        const naming = canNameBand({ status, bandSlug, quoteModel: null });
+        const correcting = canProposeCorrection({
+          status,
+          state: "none",
+          quoteModel: null,
+        });
+        expect(naming && correcting).toBe(false);
+      }
+    }
   });
 });

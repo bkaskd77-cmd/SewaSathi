@@ -1705,6 +1705,21 @@
         "failed": "did not arrive"
       },
       "toFull": "See all of it"
+    },
+    "nameBand": {
+      "title": "Which of these was it?",
+      "why": "Nobody picked a type of job when this was booked, so we are guessing how long it took and what it should cost. One tap and we are not. It changes nothing about this job or what you are paid.",
+      "errors": {
+        "failed": "That did not save. Try again.",
+        "notAskable": "This job already has a type recorded.",
+        "notThisTrade": "That is not one of this trade's jobs.",
+        "notYours": "That job is not yours.",
+        "notFound": "We could not find that job.",
+        "notSignedIn": "Sign in again to save that.",
+        "notAProvider": "Your account is not linked to a listing yet.",
+        "saveFailed": "That did not save. Try again.",
+        "notConfigured": "Saving is unavailable right now."
+      }
     }
   },
   "admin": {
@@ -2179,7 +2194,8 @@
           "matcher": "Named by the keyword matcher",
           "customer": "Chosen by the customer",
           "inherited": "Inherited by a guarantee visit",
-          "unrecorded": "Product recorded, source not"
+          "unrecorded": "Product recorded, source not",
+          "professional": "Named by the professional who did it"
         }
       }
     },

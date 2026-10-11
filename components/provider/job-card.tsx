@@ -13,6 +13,10 @@ import {
   CorrectionPanel,
   type CorrectionProduct,
 } from "@/components/provider/correction-panel";
+import {
+  NameBandPanel,
+  type NameBandProduct,
+} from "@/components/provider/name-band-panel";
 import { VisitReview } from "@/components/provider/visit-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,6 +169,15 @@ export type JobCardProps = {
     statedLabel: string | null;
     proposedLabel: string | null;
   } | null;
+  /**
+   * The products to name this job as, when nobody ever did.
+   *
+   * Empty whenever the question does not apply — `canNameBand` in lib/booking
+   * decides, and the page asks it rather than this card, so the panel never
+   * exists on a job the server would refuse to record. Separate from
+   * `correction` because that one moves money and this one does not.
+   */
+  nameBand?: NameBandProduct[];
   arrivedAt?: string | null;
   /** True once a wasted-trip claim exists, so the panel stops offering one. */
   noShowClaimed?: boolean;
@@ -413,6 +426,18 @@ export function JobCard(props: JobCardProps) {
           statedLabel={props.correction.statedLabel}
           proposedLabel={props.correction.proposedLabel}
         />
+      ) : null}
+
+      {/*
+        AND THE OTHER HALF OF THE SAME QUESTION: a job nobody ever classified.
+        Below the correction, because a correction is about the price of work
+        that has not started and this is about a job that is finished or nearly
+        — and because only one of the two can ever be on a card at a time
+        (`canNameBand` requires a null band, `correctionState` needs a stated
+        one to argue with).
+      */}
+      {props.nameBand && props.nameBand.length > 0 ? (
+        <NameBandPanel bookingId={props.id} products={props.nameBand} />
       ) : null}
 
       {/*

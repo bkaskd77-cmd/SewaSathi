@@ -11,9 +11,11 @@ import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
 import type { CorrectionProduct } from "@/components/provider/correction-panel";
+import type { NameBandProduct } from "@/components/provider/name-band-panel";
 import {
   QUOTE_VALID_HOURS,
   canProposeCorrection,
+  canNameBand,
   correctionState,
   formatInstant,
   formatSlotInstant,
@@ -210,6 +212,39 @@ export default async function ProviderJobsPage() {
     };
   };
 
+  /*
+   * "WHICH OF THESE WAS IT?", on a job nobody ever classified.
+   *
+   * The other end of the same gap `correctionFor` covers. A correction argues
+   * with a product somebody named; this exists because nobody did — "I'm not
+   * sure" writes null on purpose and the category picker asked nothing at all,
+   * so the job reached completion teaching the duration loop, the per-product
+   * bands and the span nothing whatsoever.
+   *
+   * `canNameBand` IS ASKED HERE AND AGAIN IN `nameJobBand`, which is the point
+   * of it being pure: a panel on a job the server will refuse is worse than no
+   * panel, and two copies of the window would eventually disagree about when
+   * the question closes.
+   */
+  const nameBandFor = (job: (typeof jobs)[number]): NameBandProduct[] => {
+    if (
+      !canNameBand({
+        status: job.status,
+        bandSlug: job.bandSlug,
+        quoteModel: job.quoteModel,
+      })
+    ) {
+      return [];
+    }
+    return subBands
+      .filter((band) => band.categorySlug === job.categorySlug)
+      .map((band) => ({
+        slug: band.slug,
+        label: locale === "ne" ? band.labelNe : band.labelEn,
+        bandLabel: formatBand({ min: band.low, max: band.high }, { locale }) ?? "",
+      }));
+  };
+
   // Category names are data, not interface copy, so they are resolved here
   // rather than in the card — and a function cannot cross to a Client
   // Component anyway.
@@ -222,6 +257,7 @@ export default async function ProviderJobsPage() {
           ? categoryCopy(category, locale).name
           : job.categorySlug,
         correction: correctionFor(job),
+        nameBand: nameBandFor(job),
       };
     }),
   );
@@ -323,10 +359,11 @@ export default async function ProviderJobsPage() {
           messages={{ provider: messages.provider }}
         >
           <div className="assemble mt-6 space-y-4">
-            {named.map(({ job, categoryName, correction }, i) => (
+            {named.map(({ job, categoryName, correction, nameBand }, i) => (
               <div key={job.id} style={{ ["--i" as string]: i }}>
                 <JobCard
                   correction={correction}
+                  nameBand={nameBand}
                   id={job.id}
                   reference={job.reference}
                   status={job.status}

@@ -212,8 +212,8 @@
     "file": "20261011000001_duration_evidence.sql"
   },
   "sync_booking_duration": {
-    "sha": "8bb1ea51074e6953",
-    "file": "20260919000002_booking_duration.sql"
+    "sha": "74f051d4bf98a5ad",
+    "file": "20261011000002_band_source_professional.sql"
   },
   "sync_booking_quote_floor": {
     "sha": "da0ad41836f73470",

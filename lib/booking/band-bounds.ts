@@ -44,6 +44,23 @@
  * visit is the same fault revisited, so its duration is not independent
  * evidence about that sub-band, and the filter needs a column that says so.
  *
+ * `professional` IS THE ANSWER FROM THE ONE PERSON WHO ACTUALLY SAW THE JOB,
+ * and it exists because the other four can all come out empty. The customer may
+ * say "not sure" on purpose and the category picker asks nothing at all, so a
+ * booking can reach completion with no product — and then it teaches the
+ * duration loop, the per-product bands and the span nothing whatsoever. The
+ * professional who just finished it knows. It is recorded as its own source
+ * rather than as `customer`, because who said so is exactly what a provenance
+ * column is for: an answer from somebody standing in the room after the work is
+ * better evidence than a guess from somebody describing it beforehand, and
+ * folding the two together would lose that for ever.
+ *
+ * It is NOT a price correction and must never be read as one. A correction says
+ * "this is a different job from the one that was booked", moves the band and
+ * needs the customer to agree before work starts. This names a job nobody ever
+ * classified, after the work, and `freeze_booking_band` pins `band_min` on
+ * every update so it cannot move a rupee — checked, not assumed.
+ *
  * One list written twice with `bookings_band_source_check`; the db suite
  * compares them.
  */
@@ -52,6 +69,7 @@ export const BAND_SOURCES = [
   "matcher",
   "customer",
   "inherited",
+  "professional",
 ] as const;
 
 /**
@@ -69,6 +87,13 @@ export const BAND_SOURCES = [
  * sake would silently have widened what a browser may assert, because the two
  * had been one array. The same shape as the bug its comment already records —
  * a schema nobody widened — with the direction reversed.
+ *
+ * `professional` IS OUT FOR THE SAME REASON AND NOT A WEAKER ONE. The
+ * professional's answer arrives through a server action that re-reads the
+ * session, proves the job is theirs, and writes under the service role — the
+ * `declineJob` shape. A `band_source` arriving on a fresh booking POST claiming
+ * to be a professional's reading is a customer asserting the most trustworthy
+ * provenance we have about their own price.
  */
 export const REQUESTABLE_BAND_SOURCES = [
   "model",
@@ -141,4 +166,36 @@ export function correctionFitsFloor(
   statedLow: number,
 ): boolean {
   return corrected.high >= statedLow;
+}
+
+/**
+ * May this professional name the product on this job?
+ *
+ * AFTER THE WORK, AND ONLY WHEN NOBODY NAMED IT. Both halves matter:
+ *
+ *   * NOBODY NAMED IT. A booking that already carries a product has an answer
+ *     from whoever gave it, and overwriting that would turn a provenance column
+ *     into a record of who answered last. A professional who thinks the product
+ *     is WRONG has `proposeBandCorrection`, which moves the band and asks the
+ *     customer, because that is a question about money.
+ *   * AFTER THE WORK. `in_progress` is the earliest honest moment — before it
+ *     the professional is guessing from the same description the customer wrote,
+ *     which is what the model already did. `completed` stays open because this
+ *     is the one chance: the job is finished, nothing else will ever ask, and a
+ *     classification is not a thing that goes stale.
+ *
+ * A SURVEY TRADE SELLS NO PRODUCTS, so there is nothing to choose between —
+ * the same exclusion `bandCoverage` makes, for the same reason.
+ *
+ * Pure, so the screen and the server cannot disagree about when the panel
+ * exists: a link on a job the server will refuse is worse than no link.
+ */
+export function canNameBand(input: {
+  status: string;
+  bandSlug: string | null;
+  quoteModel?: string | null;
+}): boolean {
+  if (input.quoteModel === "survey") return false;
+  if (input.bandSlug) return false;
+  return input.status === "in_progress" || input.status === "completed";
 }

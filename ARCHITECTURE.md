@@ -779,6 +779,17 @@ Where a change on one side cannot reach the other.
   slug over its own number makes the price wrong rather than merely wide.
   **"I'm not sure" is a real answer**, not a way out: it closes the question
   and leaves the band null, which is what every path does when nothing can tell.
+  **And the professional closes the gap that leaves**, at the other end of the
+  job: `canNameBand` opens a one-tap panel on their own job card from
+  `in_progress` onward, but only on a booking nobody ever classified, recorded
+  as `band_source: professional`. The two windows provably cannot overlap — a
+  correction argues with a stated band before work starts, this needs a null one
+  after — and this one moves no money, since `freeze_booking_band` pins the
+  frozen floor on every update. There is deliberately no "not sure" here: the
+  person who did the work knows, and not tapping stores nothing. The estimate is
+  NOT backfilled onto such a booking (`sync_booking_duration` refuses once
+  `started_at` is stamped), because an estimate made with the answer in hand
+  would flatter every estimate-against-actual reading there will ever be.
   **The labels ride back on the triage response, never in the bundle.** 36
   products in two languages is landing-page JavaScript for a question most
   visitors never see, and they would be frozen to the seed while the table is
