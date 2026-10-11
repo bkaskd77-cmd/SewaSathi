@@ -2055,8 +2055,45 @@ being honoured. **And the monitor was working the whole time**: `db.functions` o
 said `down` every day this lasted. It changed nothing, because `auth.sms` is
 already `down` over the ungotten SMS gateway, so `ok:false` was already explained
 and a new failing check could not move the verdict. **One unresolved `down`
-masks every later one** — which is an argument for closing `auth.sms`, not for
-adding a severity dimension.
+masked every later one.**
+
+**Both halves of that are closed now, and neither was a severity dimension.**
+
+**A failure is acknowledged per CHECK, with a reason and an expiry.**
+`ACKNOWLEDGED_FAILURES` in `lib/config/health.ts` holds one entry — `auth.sms`,
+with the Twilio placeholder named and a date — and `healthVerdict` is what the
+route reads. `ok` now means "nothing unattended is wrong", so an unacknowledged
+check turns it red whatever else is already broken; `clean` is the other half and
+is reported separately, because one boolean carrying both meanings is exactly how
+`ok:false` came to read as "the gateway again". **There is no global mute and no
+wildcard** — a blanket "ignore red" is the state this was already in by accident,
+and the test asserts that an entry for `auth.sms` does not forgive
+`auth.sms.probe`. **The expiry is the mechanism**: past its date an
+acknowledgement forgives nothing and the check goes red on its own, so the choice
+is to fix the fault or to look again and write a new date down. **An
+acknowledgement on a check that is PASSING is reported as stale** — not red,
+because nothing is wrong, but loud, since an ack outliving its fault silently
+forgives that check's next failure, which is the same bug through the other door.
+**And an unusable clock forgives nothing**: the first version compared against
+`now.getTime()` and every comparison with NaN is false, so a bad clock read as
+"well within the window" on every acknowledgement at once. Found by the test that
+passes an unparseable date.
+
+**And drift is a gate rather than a line.** The comparison moved out of the route
+handler into `lib/data/schema-drift.ts` — it had exactly one reader, which is how
+a real finding sat unread — and has three callers now: the health check,
+`/api/bookings/dispatch`, and `scripts/check-drift.mjs`. The nightly sweep
+**fails its own run** on a mismatch: `cron_runs` records `ok: false` with the
+drifted names and the route answers 503, so Vercel's cron log shows a failed
+invocation. The script runs on **every successful production deployment**
+(`.github/workflows/drift.yml`, on `deployment_status`) and needs no secret,
+because it reads the public `/api/health` payload rather than the database.
+**Exit 2 is "could not look"**, the `check:deployed` contract, and a deployment
+that does not report `db.functions` at all **fails** — the check is
+unconditional, so its absence means an older build is serving or somebody removed
+the gate. A workflow of its own rather than a step in `verify`, for the reason
+that file already records: a check that cannot pass must not silence the checks
+that can.
 
 **A policy is redefined by later migrations, so breaking one to test it means
 editing its LAST definition.** `drop policy if exists` + `create policy` is the

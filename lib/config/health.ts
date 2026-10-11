@@ -47,12 +47,190 @@ export type HealthCheck = {
  * lower in the same file, chose `unknown` while its comment claimed the choice
  * avoided exactly that.
  */
+export function isFailing(state: HealthState): boolean {
+  return state !== "ok" && state !== "skipped";
+}
+
 export function servesCustomers(
   checks: readonly Pick<HealthCheck, "state">[],
 ): boolean {
-  return checks.every(
-    (check) => check.state === "ok" || check.state === "skipped",
-  );
+  return !checks.some((check) => isFailing(check.state));
+}
+
+/**
+ * A failure somebody has already looked at, so a NEW one cannot hide behind it.
+ *
+ * THE BUG THIS EXISTS FOR, and it had already cost a real finding. `auth.sms`
+ * has been `down` since the SMS gateway was proved unconfigured, so
+ * `/api/health` answered `ok:false` every day — which meant that when
+ * `db.functions` started reporting live schema drift, with a trigger in
+ * production missing the guards that stop a customer writing `billable` on
+ * their own booking, **the verdict did not move.** One unresolved failure
+ * masked the next one for weeks. A monitor on that URL could only ever have
+ * said "still down".
+ *
+ * So the endpoint's verdict is now about failures NOBODY HAS SEEN, and every
+ * acknowledgement is **named for one check**. There is deliberately no global
+ * mute and no severity dimension: a blanket "ignore red" is the state we were
+ * already in by accident, and a severity scale would be somebody guessing which
+ * future failure matters.
+ *
+ * **THE EXPIRY IS THE WHOLE MECHANISM.** An acknowledgement with no end date is
+ * how a known issue becomes a forgotten one, which is this bug again wearing a
+ * decision. Past `until`, the acknowledgement stops forgiving and the check
+ * turns the endpoint red on its own — so the choice is to fix it, or to look at
+ * it again and say so in this file with a new date and a reason.
+ *
+ * **IT IS NEVER SILENT.** The check still reports its own `down`; nothing here
+ * rewrites a state. The endpoint's `ok` separates from `clean`, and the payload
+ * names every acknowledgement it applied — `/admin/bands`'s rule for a
+ * suppressed proposal, one endpoint over: a hidden failure and no failure must
+ * not look alike.
+ */
+export type Acknowledgement = {
+  /** Exactly one check's name. A prefix or a wildcard would be a global mute. */
+  check: string;
+  /** Why it is known, in a sentence somebody who was not there can act on. */
+  reason: string;
+  /** ISO date. Past this, it forgives nothing and the check goes red again. */
+  until: string;
+  /** The `LAUNCH-BLOCKERS.md` entry this belongs to, where there is one. */
+  blocker?: string;
+};
+
+/**
+ * The acknowledged failures, in full.
+ *
+ * ONE ENTRY, and it is the one that caused the masking. The SMS gateway's
+ * Twilio credentials were never entered — the Account SID in Supabase is `AC`
+ * plus thirty-two zeros — so no real handset can receive a code today, and that
+ * is a known, recorded, deliberately-ordered piece of work rather than a
+ * surprise. It is a genuine customer-facing fault and it stays `down`; what the
+ * acknowledgement buys is that the NEXT fault is visible.
+ *
+ * Adding an entry here is a decision, not a tidy-up: it says a person has read
+ * the failure, decided it waits, and named the date by which that decision gets
+ * re-made.
+ */
+export const ACKNOWLEDGED_FAILURES: readonly Acknowledgement[] = [
+  {
+    check: "auth.sms",
+    reason:
+      "The SMS gateway is contracted last, deliberately — it costs per message " +
+      "and needs a registered Nepali sender ID. Supabase's Twilio Account SID " +
+      "is still AC + thirty-two zeros, so no real handset can sign in. Known, " +
+      "ordered, and the reason every walkthrough runs on test numbers.",
+    until: "2026-12-31",
+    blocker: "sms-gateway",
+  },
+];
+
+export type HealthVerdict = {
+  /**
+   * 200 or 503, and it now means "nothing unattended is wrong".
+   *
+   * A monitor reads this. An acknowledged failure does not page anybody; an
+   * unacknowledged one does, whatever else is already broken.
+   */
+  ok: boolean;
+  /**
+   * Nothing is failing at all — which is a DIFFERENT fact from `ok`.
+   *
+   * One boolean carrying both meanings is what let `ok:false` read as "the
+   * gateway again" for weeks. A person reads this and the lists below; a
+   * machine reads `ok`.
+   */
+  clean: boolean;
+  /** Every check currently failing, acknowledged or not. */
+  failing: string[];
+  /** Failing and forgiven, with an acknowledgement still in date. */
+  acknowledged: string[];
+  /** Failing and not forgiven. Non-empty is what makes `ok` false. */
+  unacknowledged: string[];
+  /**
+   * Failing, with an acknowledgement whose date has passed.
+   *
+   * Counted into `unacknowledged` as well — the expiry is the mechanism, so an
+   * elapsed one has to bite — and listed separately so the payload says which
+   * of the two kinds of attention it needs: a new fault, or an old decision
+   * nobody re-made.
+   */
+  expired: string[];
+  /**
+   * An acknowledgement for a check that is NOT failing.
+   *
+   * Not red, because nothing is wrong right now — and loud, because an
+   * acknowledgement that outlives its fault silently forgives the check's NEXT
+   * failure, which is the masking bug returning by the other door.
+   */
+  stale: string[];
+};
+
+export function healthVerdict(
+  checks: readonly Pick<HealthCheck, "name" | "state">[],
+  now: Date = new Date(),
+): HealthVerdict {
+  const acks = new Map(ACKNOWLEDGED_FAILURES.map((ack) => [ack.check, ack]));
+  /*
+   * AN UNUSABLE CLOCK FORGIVES NOTHING, and the first version forgave
+   * everything — `ends < now.getTime()` is false when `now` is an Invalid Date,
+   * because every comparison with NaN is. So a bad clock read as "well within
+   * the window" on every acknowledgement at once, which is the blanket mute
+   * this whole mechanism exists to refuse. Found by the test that passes an
+   * unparseable date, not by reading it.
+   */
+  const at = now.getTime();
+  const clockUnusable = Number.isNaN(at);
+  const failing: string[] = [];
+  const acknowledged: string[] = [];
+  const unacknowledged: string[] = [];
+  const expired: string[] = [];
+  const seen = new Set<string>();
+
+  for (const check of checks) {
+    seen.add(check.name);
+    if (!isFailing(check.state)) continue;
+    failing.push(check.name);
+
+    const ack = acks.get(check.name);
+    if (!ack) {
+      unacknowledged.push(check.name);
+      continue;
+    }
+
+    /*
+     * END OF THE NAMED DAY, not its first instant. `until` is a date somebody
+     * wrote down, and treating it as midnight would expire the acknowledgement
+     * at the start of the day they chose.
+     */
+    const ends = Date.parse(`${ack.until}T23:59:59Z`);
+    if (clockUnusable || Number.isNaN(ends) || ends < at) {
+      expired.push(check.name);
+      unacknowledged.push(check.name);
+      continue;
+    }
+    acknowledged.push(check.name);
+  }
+
+  /*
+   * An acknowledgement for a check that did not run at all is stale too — a
+   * `deep=1` check is absent from a shallow payload, so this only reports the
+   * ones that ran and passed. Naming an absent check would fire on every
+   * shallow request.
+   */
+  const stale = ACKNOWLEDGED_FAILURES.filter(
+    (ack) => seen.has(ack.check) && !failing.includes(ack.check),
+  ).map((ack) => ack.check);
+
+  return {
+    ok: unacknowledged.length === 0,
+    clean: failing.length === 0,
+    failing,
+    acknowledged,
+    unacknowledged,
+    expired,
+    stale,
+  };
 }
 
 /**

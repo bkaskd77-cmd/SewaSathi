@@ -34,7 +34,8 @@
     "check:duration": "node scripts/check-duration.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:advisories": "node scripts/check-advisories.mjs",
-    "check:bundle": "node scripts/check-bundle-budget.mjs"
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:drift": "node scripts/check-drift.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
@@ -80,7 +81,7 @@
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
   },
-  "description": "SajiloKaam — AI-native home services platform for Nepal",
+  "description": "SajiloKaam \u2014 AI-native home services platform for Nepal",
   "engines": {
     "node": ">=18.18"
   }

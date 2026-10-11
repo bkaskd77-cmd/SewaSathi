@@ -6,7 +6,10 @@ import {
   SEALING_NOT_READY_STATE,
   sealingReadiness,
   SESSION_CONFIG_STATE,
+  ACKNOWLEDGED_FAILURES,
+  healthVerdict,
   servesCustomers,
+  type HealthState,
   SMS_GATEWAY_UNSET_STATE,
   SMS_PROBE_STATE,
   smsProbeReadiness,
@@ -377,5 +380,157 @@ describe("what the sealing key is", () => {
       };
       expect(servesCustomers([check]), status.reason).toBe(true);
     }
+  });
+});
+
+/**
+ * One known failure must never mask another.
+ *
+ * THE INCIDENT. `auth.sms` has been `down` since the gateway was proved
+ * unconfigured — Supabase's Twilio Account SID is still `AC` plus thirty-two
+ * zeros — so `/api/health` answered `ok:false` every single day. When
+ * `db.functions` then began reporting live schema drift, with a trigger in
+ * production missing the guards that stop a signed-in customer writing
+ * `billable` on their own booking, **the verdict did not move**: already red,
+ * still red, for weeks. The endpoint built to catch an unnoticed dependency
+ * failure had become the thing nobody could read.
+ *
+ * `ok` is therefore about failures NOBODY HAS SEEN, and `clean` is the other
+ * half rather than the same boolean doing two jobs.
+ */
+const AT = new Date("2026-10-11T12:00:00Z");
+
+const named = (name: string, state: HealthState) => ({ name, state });
+
+describe("a known failure acknowledged, and the next one still red", () => {
+  it("serves 200 with only the acknowledged failure down", () => {
+    const verdict = healthVerdict(
+      [named("auth.sms", "down"), named("db", "ok")],
+      AT,
+    );
+    expect(verdict.ok).toBe(true);
+    // AND NOT CLEAN. The fault is real, it is still reported, and the payload
+    // says which failure was forgiven — a hidden failure and no failure must
+    // not look alike.
+    expect(verdict.clean).toBe(false);
+    expect(verdict.acknowledged).toEqual(["auth.sms"]);
+    expect(verdict.failing).toContain("auth.sms");
+  });
+
+  /*
+   * THE REGRESSION, AS THE CASE THAT ACTUALLY HAPPENED. Drift arrives beside
+   * the acknowledged gateway and has to move the verdict on its own.
+   */
+  it("goes red the moment an unacknowledged check joins it", () => {
+    const verdict = healthVerdict(
+      [named("auth.sms", "down"), named("db.functions", "down")],
+      AT,
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unacknowledged).toEqual(["db.functions"]);
+    expect(verdict.acknowledged).toEqual(["auth.sms"]);
+  });
+
+  it("names one check and never a prefix, so there is no blanket mute", () => {
+    for (const ack of ACKNOWLEDGED_FAILURES) {
+      expect(ack.check).not.toMatch(/[*]/);
+      expect(ack.reason.length).toBeGreaterThan(40);
+      expect(ack.until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  /*
+   * An acknowledgement for `auth.sms` must not forgive `auth.sms.probe`, which
+   * is a different check with a longer name — the shape a prefix match would
+   * have got wrong, and the probe is `skipped` anyway so the pair is a real one.
+   */
+  it("does not forgive a check whose name merely starts the same", () => {
+    const verdict = healthVerdict([named("auth.sms.probe", "down")], AT);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unacknowledged).toEqual(["auth.sms.probe"]);
+  });
+});
+
+describe("the expiry is the mechanism, so it has to bite", () => {
+  /*
+   * AN ACKNOWLEDGEMENT WITH NO END DATE is how a known issue becomes a
+   * forgotten one, which is the masking bug wearing a decision. Past the date
+   * it forgives nothing: the choice is to fix the fault or to look at it again
+   * and write a new date down.
+   */
+  it("stops forgiving the day after the date it names", () => {
+    const [sms] = ACKNOWLEDGED_FAILURES;
+    // One second past the end of the named day, built from the parsed instant
+    // rather than written as `23:59:60` — that string is a leap second some
+    // engines refuse, and an Invalid Date here would be testing the clock guard
+    // instead of the expiry.
+    const after = new Date(Date.parse(`${sms.until}T23:59:59Z`) + 1_000);
+    const verdict = healthVerdict([named(sms.check, "down")], after);
+
+    expect(verdict.ok).toBe(false);
+    expect(verdict.expired).toEqual([sms.check]);
+    // Counted as unacknowledged too — the lists are two readings of one fact,
+    // and `ok` is computed from the one that pages somebody.
+    expect(verdict.unacknowledged).toEqual([sms.check]);
+  });
+
+  /* The named day is forgiven to its END, not from its first instant. */
+  it("still forgives on the last day it names", () => {
+    const [sms] = ACKNOWLEDGED_FAILURES;
+    const lastMoment = new Date(`${sms.until}T23:59:58Z`);
+    expect(healthVerdict([named(sms.check, "down")], lastMoment).ok).toBe(true);
+  });
+
+  it("treats an unparseable date as expired rather than as forever", () => {
+    // Not reachable through ACKNOWLEDGED_FAILURES while the shape test above
+    // passes, and asserted anyway: the failure direction of a typo in this file
+    // must be "nothing is forgiven", never "everything is".
+    const verdict = healthVerdict([named("auth.sms", "down")], AT);
+    expect(verdict.ok).toBe(true);
+    const broken = healthVerdict([named("auth.sms", "down")], new Date("x"));
+    expect(broken.ok).toBe(false);
+  });
+});
+
+describe("an acknowledgement that outlived its fault is loud", () => {
+  /*
+   * NOT RED — nothing is wrong right now — AND REPORTED, because an
+   * acknowledgement sitting on a healthy check silently forgives that check's
+   * NEXT failure. That is the masking bug coming back through the other door,
+   * and it is the one thing this file cannot catch by itself once the gateway
+   * is fixed and nobody deletes the entry.
+   */
+  it("reports a stale acknowledgement without taking the endpoint down", () => {
+    const verdict = healthVerdict([named("auth.sms", "ok")], AT);
+    expect(verdict.ok).toBe(true);
+    expect(verdict.clean).toBe(true);
+    expect(verdict.stale).toEqual(["auth.sms"]);
+  });
+
+  /* A deep check absent from a shallow payload is not stale — it did not run. */
+  it("says nothing about a check that was not performed", () => {
+    const verdict = healthVerdict([named("db", "ok")], AT);
+    expect(verdict.stale).toEqual([]);
+  });
+});
+
+describe("the verdict agrees with the old rule where there is nothing to forgive", () => {
+  /*
+   * `servesCustomers` is still the primitive — "is any check failing at all" —
+   * and `clean` is exactly it. Asserted as an identity over the live payload
+   * and over every single-state payload, so the acknowledgement layer cannot
+   * quietly change what counts as a failure.
+   */
+  it("matches servesCustomers on clean, for every state", () => {
+    for (const state of ["ok", "skipped", "down", "unknown"] as HealthState[]) {
+      const checks = [named("something.nobody.acknowledged", state)];
+      expect(healthVerdict(checks, AT).clean).toBe(servesCustomers(checks));
+    }
+  });
+
+  it("matches it on the live payload too", () => {
+    const verdict = healthVerdict(LIVE_PAYLOAD_F29583F, AT);
+    expect(verdict.clean).toBe(servesCustomers(LIVE_PAYLOAD_F29583F));
+    expect(verdict.ok).toBe(true);
   });
 });

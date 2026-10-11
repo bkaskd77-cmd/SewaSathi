@@ -8,6 +8,11 @@ import { publishDueReviews } from "@/lib/data/reviews";
 import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
 import { recordCronRun } from "@/lib/data/cron-runs";
+import {
+  describeDrift,
+  matchesTree,
+  readSchemaDrift,
+} from "@/lib/data/schema-drift";
 
 /**
  * The sweep that keeps a promise.
@@ -80,16 +85,52 @@ export async function GET(request: Request) {
       durations,
     };
 
+    /*
+     * AND THE NIGHTLY DRIFT CHECK, WHICH FAILS THE RUN RATHER THAN A LINE.
+     *
+     * `db.functions` on `/api/health` has compared the live function
+     * fingerprints against the build's since the day it shipped, and it caught
+     * real drift — a trigger in production missing the guard that stops a
+     * customer writing `billable` on their own booking — and nothing happened,
+     * because that endpoint was already red over the SMS gateway. A finding
+     * whose only channel is a health line nobody reads is not a finding.
+     *
+     * So the sweep carries it too, and a mismatch makes the run FAIL: the
+     * `cron_runs` row records `ok: false` with the drifted names, and the route
+     * answers 503 so Vercel's cron log shows a failed invocation. A run that
+     * found an unfiled schema change did not have a good night.
+     *
+     * IT RUNS AFTER THE SWEEPS AND THE RECORD CARRIES THEM. Everything above
+     * has already committed and its summary is in the row, so nothing is lost
+     * by the failure — and a retry re-runs only idempotent work.
+     *
+     * A READ THAT FAILED IS NOT A PASS AND IS NOT A FAILURE EITHER. No service
+     * role key means nobody looked, which is the `unknown` the health check
+     * reports; failing the cron for it would page somebody about a missing
+     * variable every night.
+     */
+    const drift = await readSchemaDrift();
+    const drifted = drift.read && !matchesTree(drift);
+
     await recordCronRun({
       job: "/api/bookings/dispatch",
       startedAt,
-      ok: true,
-      summary,
+      ok: !drifted,
+      summary: { ...summary, schema: describeDrift(drift) },
+      error: drifted ? `Schema drift: ${describeDrift(drift)}` : undefined,
     });
 
-    return NextResponse.json(summary, {
-      headers: { "cache-control": "no-store" },
-    });
+    if (drifted) {
+      return NextResponse.json(
+        { ...summary, error: "schemaDrift", schema: describeDrift(drift) },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
+
+    return NextResponse.json(
+      { ...summary, schema: describeDrift(drift) },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (thrown) {
     await recordCronRun({
       job: "/api/bookings/dispatch",

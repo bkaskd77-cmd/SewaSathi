@@ -9,12 +9,13 @@ import {
   runFreshness,
 } from "@/lib/config/cron";
 import {
+  ACKNOWLEDGED_FAILURES,
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   SEALING_NOT_READY_STATE,
   sealingReadiness,
   SESSION_CONFIG_STATE,
-  servesCustomers,
+  healthVerdict,
   SMS_GATEWAY_UNSET_STATE,
   SMS_PROBE_STATE,
   smsProbeReadiness,
@@ -22,13 +23,17 @@ import {
 } from "@/lib/config/health";
 import { lastCronRuns } from "@/lib/data/cron-runs";
 import { hasSupabaseConfig } from "@/lib/env";
+import {
+  describeDrift,
+  matchesTree,
+  readSchemaDrift,
+} from "@/lib/data/schema-drift";
 import { SMS_BUDGET, smsBudgetAlert } from "@/lib/abuse";
 import { rateLimitStore, readGlobalSms } from "@/lib/server/rate-limit";
 import { smsGateway } from "@/lib/sms";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
 import { sealingStatus } from "@/lib/security/secret-box";
-import FINGERPRINTS from "@/supabase/function-fingerprints.json";
 
 /**
  * Can this product actually serve a customer right now?
@@ -194,88 +199,18 @@ async function checkDatabase(): Promise<Check> {
  * broken SMS gateway run for a day.
  */
 async function checkFunctions(): Promise<Check> {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!hasSupabaseConfig() || !key) {
-    return {
-      name: "db.functions",
-      state: "unknown",
-      detail: "No service role key, so the live definitions cannot be read.",
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/function_fingerprints`,
-      {
-        method: "POST",
-        headers: {
-          apikey: key,
-          authorization: `Bearer ${key}`,
-          "content-type": "application/json",
-        },
-        body: "{}",
-        signal: AbortSignal.timeout(8000),
-        cache: "no-store",
-      },
-    );
-
-    if (!response.ok) {
-      return {
-        name: "db.functions",
-        state: "unknown",
-        detail: `function_fingerprints answered ${response.status}.`,
-      };
-    }
-
-    const live = (await response.json()) as Array<{
-      name: string;
-      sha: string;
-    }>;
-    const expected = FINGERPRINTS as Record<
-      string,
-      { sha: string; file: string }
-    >;
-    const liveBy = new Map(live.map((row) => [row.name, row.sha]));
-
-    const drifted: string[] = [];
-    const missing: string[] = [];
-    for (const [name, { sha }] of Object.entries(expected)) {
-      const actual = liveBy.get(name);
-      if (actual === undefined) missing.push(name);
-      else if (actual !== sha) drifted.push(name);
-    }
-
-    if (missing.length || drifted.length) {
-      return {
-        name: "db.functions",
-        state: "down",
-        detail:
-          [
-            drifted.length
-              ? `${drifted.length} differ from this build (${drifted.slice(0, 4).join(", ")})`
-              : null,
-            missing.length
-              ? `${missing.length} missing (${missing.slice(0, 4).join(", ")})`
-              : null,
-          ]
-            .filter(Boolean)
-            .join("; ") +
-          ". Something was applied or edited outside supabase/migrations.",
-      };
-    }
-
-    return {
-      name: "db.functions",
-      state: "ok",
-      detail: `All ${Object.keys(expected).length} match supabase/migrations.`,
-    };
-  } catch (error) {
-    return {
-      name: "db.functions",
-      state: "unknown",
-      detail: `Could not read the live definitions: ${(error as Error).message}`,
-    };
-  }
+  const reading = await readSchemaDrift();
+  return {
+    name: "db.functions",
+    /*
+     * `unknown` when it could not look, never `ok` — that confusion is what let
+     * a broken SMS gateway run for a day. `down` on a real mismatch, which now
+     * moves the verdict on its own: `auth.sms` is acknowledged, so this is no
+     * longer reported into a 503 that was already there for another reason.
+     */
+    state: !reading.read ? "unknown" : matchesTree(reading) ? "ok" : "down",
+    detail: describeDrift(reading),
+  };
 }
 
 /**
@@ -1043,15 +978,47 @@ export async function GET(request: Request) {
     );
   }
 
-  // `unknown` is not healthy. The whole point of this endpoint is that an
-  // unverifiable dependency is what broke sign-in in the first place. The rule
-  // lives in lib/config/health.ts so it can be tested; it had never been.
-  const ok = servesCustomers(checks);
+  /*
+   * `unknown` is not healthy. The whole point of this endpoint is that an
+   * unverifiable dependency is what broke sign-in in the first place. The rule
+   * lives in lib/config/health.ts so it can be tested; it had never been.
+   *
+   * AND `ok` IS NOW ABOUT FAILURES NOBODY HAS SEEN. `auth.sms` has been `down`
+   * since the gateway was proved unconfigured, so this answered `ok:false`
+   * every day — which meant that when `db.functions` began reporting live
+   * schema drift, with a trigger in production missing the guards that stop a
+   * customer writing `billable` on their own booking, the verdict did not move.
+   * One unresolved failure masked the next for weeks.
+   *
+   * `clean` is the other half and the two are reported separately, because one
+   * boolean carrying both meanings is exactly how `ok:false` came to read as
+   * "the gateway again". Every acknowledgement applied is named in the payload:
+   * a hidden failure and no failure must not look alike.
+   */
+  const verdict = healthVerdict(checks);
 
   return NextResponse.json(
-    { ok, commit: BUILD_COMMIT_SHORT, deep: deepAllowed, checks },
     {
-      status: ok ? 200 : 503,
+      ok: verdict.ok,
+      clean: verdict.clean,
+      commit: BUILD_COMMIT_SHORT,
+      deep: deepAllowed,
+      /*
+       * The acknowledgements themselves, not just their names — a reader
+       * meeting `ok:true` beside a `down` check needs the reason and the date on
+       * the same screen, or the suppression is something they have to go and
+       * look up.
+       */
+      acknowledged: ACKNOWLEDGED_FAILURES.filter((ack) =>
+        verdict.acknowledged.includes(ack.check),
+      ),
+      unacknowledged: verdict.unacknowledged,
+      expiredAcknowledgements: verdict.expired,
+      staleAcknowledgements: verdict.stale,
+      checks,
+    },
+    {
+      status: verdict.ok ? 200 : 503,
       headers: { "cache-control": "no-store", "cdn-cache-control": "no-store" },
     },
   );
