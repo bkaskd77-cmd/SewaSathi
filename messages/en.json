@@ -1872,6 +1872,10 @@
         "aiLimits": {
           "name": "AI ceilings",
           "what": "What the AI may cost in a day, and what one person may ask. Today's spend is on it."
+        },
+        "duration": {
+          "name": "Job durations",
+          "what": "What the loop measured, and what it would publish next"
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}."
@@ -2594,6 +2598,58 @@
         "notConfigured": "The database is unreachable, so nothing was changed.",
         "saveFailed": "That did not save. Nothing was changed."
       }
+    },
+    "duration": {
+      "title": "Job durations",
+      "lead": "All 36 product durations were authored as guesses, so no screen prints one and no job holds more than a day. This is the loop that replaces them with what actually happened — and what it would do next, long before it does it.",
+      "floors": {
+        "minutes": "Minutes replace a guess after",
+        "span": "A day span replaces a guess after",
+        "jobs": "{n} completed jobs",
+        "why": "The span asks for more because its wrong answer is the expensive one: a wrong minutes figure reserves 90 where 120 was right, where a wrong span holds four days of a professional's week and four days of a customer's home, invisibly. Both floors are stated here because a threshold you can only find by tripping it is a trap."
+      },
+      "products": {
+        "title": "What has been measured",
+        "none": "Nothing has been measured yet. {count, plural, one {{n} product is} other {{n} products are}} waiting for a first completion — which is a fact about how new the product is, not a failed read.",
+        "rest": "{count, plural, one {{n} more product has} other {{n} more products have}} nothing measured yet."
+      },
+      "kind": {
+        "minutes": "On the tools",
+        "span": "Days in the home"
+      },
+      "unit": {
+        "minutes": "min",
+        "days": "days"
+      },
+      "published": "{n} {unit} · {source}",
+      "source": {
+        "invented": "guessed",
+        "researched": "researched",
+        "observed": "measured"
+      },
+      "observed": {
+        "none": "Nothing measured.",
+        "median": "Median {n} {unit} from {count, plural, one {{sample} job} other {{sample} jobs}}.",
+        "unusual": "{n} outside the usual spread — worth asking whether this is two products."
+      },
+      "next": {
+        "willPublish": "The next run will publish {n} {unit}.",
+        "needsMore": "{n} more to go before it replaces the guess.",
+        "settled": "Already published from this evidence.",
+        "nothing": "Nothing to do."
+      },
+      "log": {
+        "title": "What the loop did",
+        "lead": "Every night it had something to read. A product below its floor still logs what it would have published, so a figure can be watched settling.",
+        "none": "The loop has recorded nothing yet. It writes a row only for a product that has evidence, so silence here means no completed job has named a product.",
+        "unreadable": "We can't read the loop's history right now — this is us, not you.",
+        "outcome": {
+          "applied": "published {observed}, was {published} · {count, plural, one {{n} job} other {{n} jobs}}",
+          "belowFloor": "would publish {observed}, published {published} · {count, plural, one {{n} job} other {{n} jobs}}",
+          "settled": "unchanged at {published} · {count, plural, one {{n} job} other {{n} jobs}}"
+        }
+      },
+      "unreadable": "We can't read the durations right now — this is us, not you."
     }
   }
 }

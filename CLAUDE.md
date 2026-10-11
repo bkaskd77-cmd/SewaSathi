@@ -644,6 +644,66 @@ recording. `tests/db/price-correction.test.ts` compares them now, out of
 `pg_constraint` rather than out of a migration file, because that constraint is
 dropped and re-added by four different migrations as the list grew.
 
+**The duration loop is armed, and it acts without a person.** All 36 sub-band
+durations were authored `invented`, which is why no screen prints a length and
+why `spansDays` holds every job to one day — and the way out, "observe them",
+had no mechanism at all until now: `actual_working_minutes` was recording
+elapsed time, `actual_elapsed_days` did not exist, and nothing read either.
+`proposeDuration` (`lib/booking/duration-promotion.ts`) is the rule,
+`sweepDurationPromotions` (`lib/data/duration-loop.ts`) is its only caller and
+was written in the same phase, and `/admin/duration` is the screen.
+**Acting unattended is a departure from `proposeBand` and the reason is
+stated**: a band proposal may not apply itself because the band sets the quote,
+the quote anchors what gets agreed, and the agreed figures are the rows it reads
+— it would be measuring its own shadow — and because it moves commission through
+`max(final_amount, quoted_min)`. Neither holds for a duration: what we publish
+changes what the scheduler RESERVES and not how long somebody is on the tools,
+so the measurement is independent of the published figure, and no duration
+touches a rupee. **The span is the one place that argument is weaker** —
+`estimated_elapsed_days` generates `booking_days`, which is how much of a
+professional's week is held — which is one of three reasons its floor is higher.
+**Two floors, stated, and tested by the number rather than against the
+constant**: 12 same-day completions for the minutes, 20 for the span. The median
+only moves when a third of the sample is unusual, so 12 is lower than
+`MIN_PROPOSAL_SAMPLE`'s 15-30 on purpose — a wrong minutes figure reserves 90
+where 120 was right, and being slow to improve a reservation has a cost too.
+20 for the span because a wrong one takes real bookable capacity invisibly, it
+is the number a customer plans around, and its observation could be shaped by
+what we scheduled. `ACTIVITY_FLOOR`'s blind tests are the reason the cases are
+written as eleven-then-twelve rather than as `floor - 1`.
+**A span rounds DOWN and minutes round to the nearest five**, and that asymmetry
+is the span's whole safety: an under-reserved span shows up as a job running
+over, which somebody notices, where an over-reserved one silently removes
+capacity nobody can see. A product genuinely split between one day and two
+resolves to one.
+**No movement cap, where `MAX_REVISION_MOVE` holds a band inside a fifth.** That
+cap exists because a person approves and a capped number is still judgeable;
+nothing approves a duration, so capping would publish a figure the data did not
+say with no screen showing the difference. The history is the guard instead.
+**`duration_observations` is append-only (`refuse_rewrite`) and is the shadow
+half as much as the record**: a sub-band below its floor logs what it WOULD
+publish every night, so a figure can be watched converging for months. A row is
+written only where there is evidence — 36 sub-bands times two kinds nightly with
+nothing measured is 72 rows a day asserting nothing happened, and `cron_runs`
+already records that the sweep ran. **The floor is frozen onto each row**, like
+`commission_bps` onto a booking, so changing `MIN_DURATION_SAMPLE` later leaves
+old readings readable rather than retrospectively wrong.
+**`countsAsEvidence` is one filter with two callers**, and it had been written
+twice for the length of one commit — the divergence `lib/provider/measured.ts`
+exists to prevent. It excludes `inherited` (a guarantee visit is the same fault
+revisited, which is what that value is for) **and a null source with it**: rule
+6, since the one such row in production is itself a guarantee visit whose
+provenance was never recorded, and reading null as "fresh" feeds the loop a
+measurement nothing can vouch for.
+**It rides on `/api/bookings/dispatch`** rather than taking a third schedule
+Hobby does not have, on the booking cron rather than the payments one because
+nothing it does touches money and `/api/payments/reconcile` is the route holding
+the service-role key on a money path. **No time window**, where
+`PROPOSAL_WINDOW_DAYS` is 180 for a band: a price is a fact about a market and
+goes stale, how long it takes to clear a blockage is a fact about the work. What
+would invalidate old observations is redefining a product, and that is a new
+`slug`.
+
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
 reasoning next to each number. Rating goes through a Bayesian average

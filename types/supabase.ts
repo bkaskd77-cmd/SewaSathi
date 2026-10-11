@@ -588,6 +588,79 @@ export type Database = {
         >;
         Relationships: [];
       };
+      /*
+       * Written by the duration loop and read by `/admin/duration`.
+       *
+       * APPEND-ONLY IN THE DATABASE for every caller, the service role
+       * included — `refuse_rewrite`, like `cron_runs` and `security_events`.
+       * The whole value is that "the loop decided this on that night" cannot
+       * later be tidied into something else, so `Update` is `never` here too.
+       */
+      duration_observations: {
+        Row: {
+          id: string;
+          observed_at: string;
+          category_slug: string;
+          band_slug: string;
+          kind: string;
+          sample: number;
+          observed: number;
+          published: number;
+          published_source: string;
+          unusual: number;
+          floor_sample: number;
+          outcome: string;
+        };
+        Insert: {
+          observed_at?: string;
+          category_slug: string;
+          band_slug: string;
+          kind: string;
+          sample: number;
+          observed: number;
+          published: number;
+          published_source: string;
+          unusual?: number;
+          floor_sample: number;
+          outcome: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      /*
+       * One product inside a trade. Readable by `anon` — it is the public price
+       * list — and the only writer of its duration columns is the loop, under
+       * the service role.
+       */
+      category_price_bands: {
+        Row: {
+          category_slug: string;
+          slug: string;
+          label_en: string;
+          label_ne: string;
+          low: number;
+          high: number;
+          pricing_source: string;
+          pricing_checked_at: string | null;
+          pricing_confidence: string;
+          pricing_note: string | null;
+          sort_order: number;
+          typical_working_minutes: number;
+          typical_elapsed_days: number;
+          duration_source: string;
+          duration_checked_at: string | null;
+          duration_confidence: string;
+          duration_note: string | null;
+          span_source: string;
+          span_checked_at: string | null;
+          span_note: string | null;
+        };
+        Insert: Database["public"]["Tables"]["category_price_bands"]["Row"];
+        Update: Partial<
+          Database["public"]["Tables"]["category_price_bands"]["Row"]
+        >;
+        Relationships: [];
+      };
       cron_runs: {
         Row: {
           id: string;

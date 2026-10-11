@@ -910,6 +910,15 @@ Where a change on one side cannot reach the other.
   when the span is 1. Under the plausibility floor all three stay null, because
   a span of 1 off a three-second walkthrough is a sample the span loop never
   earned.
+  **And the loop that uses all of it is wired**: `proposeDuration` is the rule,
+  `sweepDurationPromotions` runs nightly off the booking cron, and
+  `/admin/duration` is where its reasoning is read. It acts with no person —
+  defensibly, where `proposeBand` may not, because a published duration changes
+  what the scheduler reserves and not how long the work takes, so it cannot
+  measure its own shadow, and because no duration touches a rupee. Twelve
+  same-day completions promote the minutes, twenty promote the span, and
+  `duration_observations` logs what it WOULD do on every night in between, which
+  is what makes an unattended loop safe to leave running.
   **The TypeScript and the SQL are held together by a check, not a comment.**
   `enforce_slot_capacity` carried `interval '120 minutes'` under a note asking
   the next reader to keep it in step by hand; `npm run check:duration` now fails

@@ -21,6 +21,7 @@ export type AdminTool = {
     | "lookup"
     | "signals"
     | "bands"
+    | "duration"
     | "revenue"
     | "content"
     | "triageAccuracy"
@@ -47,6 +48,14 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * read without its sources beside it.
    */
   { key: "revenue", href: "/admin/revenue" },
+  /*
+   * Beside bands because they are the same shape of question one axis over —
+   * what we publish about a product against what our own finished jobs say.
+   * Not a queue either: the duration loop acts by itself, so there is nothing
+   * waiting for a person and nothing that drains. What it has is a history,
+   * which is a thing to read rather than a count to clear.
+   */
+  { key: "duration", href: "/admin/duration" },
   /*
    * Beside signals rather than in the queues, for the same reason as the rest
    * of this group: it has no list that drains and no number that is a call to

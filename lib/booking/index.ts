@@ -139,6 +139,21 @@ export {
 } from "./band-bounds";
 
 export {
+  DURATION_OUTCOMES,
+  FENCE_IQR_MULTIPLIER,
+  MIN_DURATION_SAMPLE,
+  MINUTES_ROUNDING,
+  countsAsEvidence,
+  durationOutcome,
+  proposeDuration,
+  type DurationDecision,
+  type DurationEvidenceSet,
+  type DurationKind,
+  type DurationOutcome,
+  type DurationProposal,
+} from "./duration-promotion";
+
+export {
   correctionState,
   canProposeCorrection,
   type CorrectionState,

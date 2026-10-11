@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { sweepDispatch } from "@/lib/data/dispatch";
+import { sweepDurationPromotions } from "@/lib/data/duration-loop";
 import { publishDueReviews } from "@/lib/data/reviews";
 import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -53,16 +54,30 @@ export async function GET(request: Request) {
      * that has already run out?" — both are idempotent, and a second scheduled
      * endpoint is a second thing that can silently stop running.
      */
-    const [result, quotes, reviews] = await Promise.all([
+    /*
+     * THE DURATION LOOP RIDES ALONG TOO, for the same reasons and one more.
+     * Hobby allows two schedules and both are taken; it is idempotent, so
+     * running late or twice writes the same answer; and it belongs on the
+     * BOOKING cron rather than the payments one because nothing it does touches
+     * money, and `/api/payments/reconcile` is the route that holds the
+     * service-role key on a money path.
+     *
+     * In the same `Promise.all` because it depends on none of the others: it
+     * reads completed bookings and writes sub-band durations, where the three
+     * above read and write bookings that are still open.
+     */
+    const [result, quotes, reviews, durations] = await Promise.all([
       sweepDispatch(),
       expireStaleQuotes(),
       publishDueReviews(),
+      sweepDurationPromotions(),
     ]);
 
     const summary = {
       ...result,
       quotesExpired: quotes.expired,
       reviewsPublished: reviews.published,
+      durations,
     };
 
     await recordCronRun({

@@ -1,0 +1,165 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { DURATION_OUTCOMES } from "@/lib/booking";
+
+import { startPostgres, type Harness } from "../support/postgres";
+
+/**
+ * The duration loop's own record.
+ *
+ * WHY IT IS APPEND-ONLY. The loop replaces a published figure without anybody
+ * approving it, so the only thing that can later answer "why is this 90
+ * minutes?" is a row saying what the sample was on the night it moved. A log
+ * the application can rewrite answers nothing — the rule `security_events` and
+ * `application_decisions` already follow, through the same trigger.
+ *
+ * AND IT IS THE SHADOW HALF: a product below its floor logs what it WOULD
+ * publish, every night, so a figure can be watched converging for months before
+ * anything uses it.
+ */
+
+const ANITA = "cccccccc-7111-4111-8111-cccccccccccc";
+
+let pg: Harness;
+
+async function reading(
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const row = {
+    category_slug: "painting",
+    band_slug: "room-supplied",
+    kind: "minutes",
+    sample: 12,
+    observed: 960,
+    published: 960,
+    published_source: "invented",
+    unusual: 0,
+    floor_sample: 12,
+    outcome: "below-floor",
+    ...overrides,
+  };
+  const columns = Object.keys(row);
+  const { rows } = await pg.admin.query(
+    `insert into public.duration_observations (${columns.join(", ")})
+     values (${columns.map((_, i) => `$${i + 1}`).join(", ")})
+     returning id`,
+    columns.map((c) => (row as Record<string, unknown>)[c]),
+  );
+  return rows[0].id as string;
+}
+
+beforeAll(async () => {
+  pg = await startPostgres();
+  await pg.admin.query("insert into auth.users (id) values ($1)", [ANITA]);
+  await pg.admin.query(
+    `insert into public.profiles (id, full_name, phone, role)
+     values ($1, 'Anita Shrestha', '+9779815000991', 'customer')
+     on conflict (id) do nothing`,
+    [ANITA],
+  );
+}, 180_000);
+
+afterAll(async () => {
+  await pg?.stop();
+});
+
+describe("the loop's record cannot be rewritten", () => {
+  it("refuses an UPDATE for the service role", async () => {
+    const id = await reading();
+    await expect(
+      pg.admin.query(
+        "update public.duration_observations set observed = 1 where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/append-only/i);
+  });
+
+  it("refuses a DELETE for the service role", async () => {
+    const id = await reading();
+    await expect(
+      pg.admin.query("delete from public.duration_observations where id = $1", [
+        id,
+      ]),
+    ).rejects.toThrow(/append-only/i);
+  });
+});
+
+describe("no browser writes it and only an admin reads it", () => {
+  it("refuses an insert from a signed-in customer", async () => {
+    const anita = await pg.asUser(ANITA);
+    await expect(
+      anita.query(
+        `insert into public.duration_observations
+           (category_slug, band_slug, kind, sample, observed, published,
+            published_source, floor_sample, outcome)
+         values ('painting', 'flat', 'span', 99, 1, 7, 'invented', 20, 'applied')`,
+      ),
+    ).rejects.toThrow(/permission denied|violates row-level security/i);
+    await anita.end();
+  });
+
+  /*
+   * A SELECT GRANT WITHOUT AN ADMIN IS NOT A LEAK, and this is the pair that
+   * proves the grant and the policy are doing different jobs: the grant decides
+   * whether you may ask at all, the policy decides which rows. A new table on
+   * this project grants nothing, so the grant is explicit in the migration and
+   * the policy is what keeps a customer out.
+   */
+  it("returns nothing to a customer who may ask", async () => {
+    await reading();
+    const anita = await pg.asUser(ANITA);
+    const { rows } = await anita.query(
+      "select id from public.duration_observations",
+    );
+    expect(rows).toHaveLength(0);
+    await anita.end();
+  });
+});
+
+describe("the shapes a reading may hold", () => {
+  /*
+   * ONE LIST WRITTEN TWICE — `DURATION_OUTCOMES` and the check constraint.
+   * `LOGGABLE_REASONS` learned this the expensive way: a value the column
+   * refuses loses the row in the same statement that writes it, and on this
+   * table that would lose the only explanation a published figure has.
+   */
+  it("admits exactly the outcomes the loop can produce", async () => {
+    const { rows } = await pg.admin.query(
+      `select pg_get_constraintdef(oid) as def
+         from pg_constraint
+        where conrelid = 'public.duration_observations'::regclass
+          and conname = 'duration_observations_outcome_check'`,
+    );
+    expect(rows).toHaveLength(1);
+    const inSql = [...(rows[0].def as string).matchAll(/'([a-z-]+)'::text/g)].map(
+      (m) => m[1],
+    );
+    expect([...inSql].sort()).toEqual([...DURATION_OUTCOMES].sort());
+  });
+
+  it("admits both kinds and refuses a third", async () => {
+    await expect(reading({ kind: "span", observed: 4 })).resolves.toBeTruthy();
+    await expect(reading({ kind: "hours" })).rejects.toThrow(/kind_check/i);
+  });
+
+  /*
+   * A SAMPLE OF ZERO IS NOT A READING. `durationOutcome` returns null for
+   * no-evidence so the sweep never attempts one, and the column refuses it as
+   * well — because the row would otherwise assert a median computed from
+   * nothing.
+   */
+  it("refuses a reading with no sample behind it", async () => {
+    await expect(reading({ sample: 0 })).rejects.toThrow(/sample_check/i);
+  });
+
+  it("refuses a zero figure, measured or published", async () => {
+    await expect(reading({ observed: 0 })).rejects.toThrow(/shape_check/i);
+    await expect(reading({ published: 0 })).rejects.toThrow(/shape_check/i);
+  });
+
+  it("refuses a provenance that is not one of the three", async () => {
+    await expect(reading({ published_source: "guessed" })).rejects.toThrow(
+      /source_check/i,
+    );
+  });
+});
