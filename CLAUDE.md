@@ -1795,6 +1795,13 @@ create table / index / trigger / policy, alter table add,
   grant, revoke, comment on, create or replace function      INSTANT
 one LARGE `DO` block of creates, alters and revokes          INSTANT
 a SMALL `DO` block containing one `drop trigger if exists`   hangs 60s  (x3)
+drop function if exists ... (four, one statement)            hangs 60s
+create fn whose BODY contains `delete from`                  INSTANT
+create fn whose BODY contains `delete` and `insert into`      INSTANT
+create fn whose BODY returns the string 'UPDATE'             INSTANT
+create fn whose BODY has 'UPDATE' AND `delete from`          hangs 60s  (x2)
+apply_migration, 21 KB, no destructive statement             hangs 60s
+the same statements through execute_sql in four parts        INSTANT
 ```
 
 **The probes are what make this a fact rather than a guess.** Three of them name
@@ -1805,6 +1812,22 @@ by the rows above: the small block hung because of the `drop trigger` inside it,
 the large one succeeded because it contained no drop. `execute_sql`'s own description
 says destructive statements may require the user to confirm, and that confirmation
 never reaches the agent, so the call sits until the timeout and rolls back whole.
+
+**And the judgement is made on the whole text, including inside a function body,
+on a PAIR of keywords rather than on the leading one.** The last four rows above
+are the measurement: `delete from` alone in a body is instant, `delete` with
+`insert into` is instant, the bare string `'UPDATE'` is instant, and `'UPDATE'`
+together with a `delete` hangs — twice. So `sync_booking_days`, whose body holds
+`tg_op = 'UPDATE'` and one `delete from public.booking_days`, could not be
+applied at all, and a string literal was enough to do it. The way through is to
+put one keyword in each of two functions: `clear_booking_days()` holds the
+delete, `sync_booking_days()` calls it. Writing `tg_op <> 'INSERT'` instead
+would also pass and is refused — it is only equivalent while that trigger stays
+`insert or update`, which is a coupling the next reader has to go and verify.
+**`apply_migration` also timed out on a 21 KB file with nothing destructive in
+it**, where the same statements split across four `execute_sql` calls were each
+instant; when that happens, insert the `supabase_migrations.schema_migrations`
+row by hand so history still records the migration.
 
 **What follows, practically:**
 
@@ -1902,6 +1925,43 @@ clause, so `enforce_booking_immutability` (a BEFORE UPDATE trigger) is the rule;
 `auth.uid()` is null for the service role, which is how the server's own writes
 pass through. Found by the db suite, not by reading the code — add a case there
 before widening any update policy.
+
+**Production had drifted from the migration files, and the check built to catch
+that had been reporting it into a 503 nobody was reading.**
+`enforce_booking_immutability` in the live database fingerprinted
+`6213c2c190f1f168` against the tree's `9e16a1e8854153c8` — found by
+`check:migrations` refusing a rebuild that read `pg_proc` back, because the
+rebuild "removed" fourteen lines the tree's copy had. It is the accident this
+very function already carries a warning about, one layer further out: somebody
+rebuilt it from a stale copy and applied that to the DATABASE ONLY, where no
+test in this repository can see it. The live copy had gained guards for
+`confirmation_required` and `confirmation_hold_until` that appear in no
+migration file at all, which dates the stale copy to around 20260910000002 —
+and `enforce_confirmation_integrity` already guards both, so they were
+redundant as well as unfiled.
+
+What production had lost, for an unknown number of weeks, with `authenticated`
+holding UPDATE on **every** column of `bookings` and this trigger the only thing
+in front of it: `billable` and `guarantee_claim_id` (a guarantee re-visit made
+free, or an ordinary job relabelled as somebody's defect), `provider_id` with
+both the reassignment ban and the `provider_serves` coverage check gone (any
+professional put on any job of theirs, an accepted job taken off the one holding
+it), and `provider_band_reason` / `band_change_declined_at` (a correction refusal
+fabricated after the fact). Nothing was exploited — there was not one pending or
+accepted booking in the database and the only accounts are ours — and the hole
+was open.
+
+**So: rebuild a function from the TREE, and use `pg_proc` to CHECK rather than to
+copy.** The schema notes said to read the live definition back, which is right
+for the ordinary case and silently wrong the moment the two disagree; the file is
+the source of truth and `function_fingerprints()` is how you find out it is not
+being honoured. **And the monitor was working the whole time**: `db.functions` on
+`/api/health` compares the live fingerprints against the build's and would have
+said `down` every day this lasted. It changed nothing, because `auth.sms` is
+already `down` over the ungotten SMS gateway, so `ok:false` was already explained
+and a new failing check could not move the verdict. **One unresolved `down`
+masks every later one** — which is an argument for closing `auth.sms`, not for
+adding a severity dimension.
 
 **A policy is redefined by later migrations, so breaking one to test it means
 editing its LAST definition.** `drop policy if exists` + `create policy` is the

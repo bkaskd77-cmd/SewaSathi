@@ -877,9 +877,28 @@ Where a change on one side cannot reach the other.
   the flat window it replaced) and spans are refused (a wrong one takes four
   days of real capacity, invisibly, and nothing distinguishes it from a
   measurement). `spansDays` in `lib/booking/duration.ts` and the matching gate
-  in `sync_booking_days` are the rule; `hasPublishableDuration` keeps every
-  figure off every screen; `multi-day-scheduling` in LAUNCH-BLOCKERS.md is
-  chained to `sub-band-durations` so neither gate can be opened quietly.
+  in `sync_booking_days` are the rule; `hasPublishableMinutes` and
+  `hasPublishableSpan` keep every figure off every screen;
+  `multi-day-scheduling` in LAUNCH-BLOCKERS.md is chained to
+  `sub-band-durations` so neither gate can be opened quietly.
+  **And for a phase both gates read ONE column while that paragraph argued they
+  must not.** `duration_source` decided the minutes and the span alike, so the
+  first promotion of a researched working figure — which is all a same-day
+  completion can ever evidence — would have handed painting its 4- and 7-day
+  holds for free. `span_source` is the second gate; `check:duration` fails if
+  either half reads the other's column, and ignores one named in a comment
+  because the first version of that rule tripped on its own explanation.
+  **What a completion measures is ELAPSED time, and one column was recording it
+  as worked time.** `actual_working_minutes` was `completed_at - started_at`
+  under a comment calling it how long the work took; same-day that is true, and
+  across a day boundary the night is in it — a 7-day repaint researched at 3,600
+  working minutes would have recorded 10,080 into the column the promotion loop
+  reads. Three columns now: `actual_elapsed_minutes` (the stamps, always),
+  `actual_elapsed_days` (the Nepal days it touched, and the only span evidence
+  this product has ever collected), and `actual_working_minutes` written only
+  when the span is 1. Under the plausibility floor all three stay null, because
+  a span of 1 off a three-second walkthrough is a sample the span loop never
+  earned.
   **The TypeScript and the SQL are held together by a check, not a comment.**
   `enforce_slot_capacity` carried `interval '120 minutes'` under a note asking
   the next reader to keep it in step by hand; `npm run check:duration` now fails

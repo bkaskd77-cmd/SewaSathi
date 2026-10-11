@@ -16,7 +16,8 @@ import {
   hasAnsweredRecord,
   hasCompletion,
   hasOverbookRecord,
-  hasPublishableDuration,
+  hasPublishableMinutes,
+  hasPublishableSpan,
   hasRating,
   hasResponse,
   type StatEvidence,
@@ -372,12 +373,12 @@ describe("the fallback carries no authored statistics", () => {
  */
 describe("a duration nobody researched is not a duration anybody is told", () => {
   it("refuses to publish an invented one", () => {
-    expect(hasPublishableDuration({ source: "invented" })).toBe(false);
+    expect(hasPublishableMinutes({ source: "invented" })).toBe(false);
   });
 
   it("publishes a researched or observed one", () => {
-    expect(hasPublishableDuration({ source: "researched" })).toBe(true);
-    expect(hasPublishableDuration({ source: "observed" })).toBe(true);
+    expect(hasPublishableMinutes({ source: "researched" })).toBe(true);
+    expect(hasPublishableMinutes({ source: "observed" })).toBe(true);
   });
 
   /*
@@ -386,12 +387,32 @@ describe("a duration nobody researched is not a duration anybody is told", () =>
    * at the value would let a rounder guess through.
    */
   it("asks where the number came from and never what it is", () => {
-    expect(hasPublishableDuration({ source: "invented" })).toBe(
-      hasPublishableDuration({ source: "invented" }),
-    );
     const sources = ["invented", "researched", "observed"] as const;
     for (const source of sources) {
-      expect(hasPublishableDuration({ source })).toBe(source !== "invented");
+      expect(hasPublishableMinutes({ source })).toBe(source !== "invented");
+      expect(hasPublishableSpan({ source: "invented", spanSource: source })).toBe(
+        source !== "invented",
+      );
+    }
+  });
+
+  /*
+   * THE TWO GATES ARE INDEPENDENT IN BOTH DIRECTIONS, which is the property the
+   * single shared column could not have. Asserted as a cross product rather than
+   * case by case, because the failure that shipped was one combination — minutes
+   * researched, span not — reading as "span researched".
+   */
+  it("never lets one number's provenance answer for the other", () => {
+    const sources = ["invented", "researched", "observed"] as const;
+    for (const source of sources) {
+      for (const spanSource of sources) {
+        expect(hasPublishableMinutes({ source, spanSource })).toBe(
+          source !== "invented",
+        );
+        expect(hasPublishableSpan({ source, spanSource })).toBe(
+          spanSource !== "invented",
+        );
+      }
     }
   });
 });

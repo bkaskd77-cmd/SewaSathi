@@ -71,7 +71,8 @@ async function book(
 async function durationOf(id: string) {
   const { rows } = await pg.admin.query(
     `select band_slug, estimated_working_minutes, estimated_elapsed_days,
-            actual_working_minutes, duration_implausible_at
+            actual_working_minutes, actual_elapsed_minutes, actual_elapsed_days,
+            duration_implausible_at
        from public.bookings where id = $1`,
     [id],
   );
@@ -106,6 +107,43 @@ async function complete(id: string, seconds: number): Promise<void> {
   await pg.admin.query(
     "update public.bookings set started_at = now() - make_interval(secs => $2) where id = $1",
     [id, seconds],
+  );
+  await pg.admin.query(
+    "update public.bookings set status = 'completed' where id = $1",
+    [id],
+  );
+}
+
+/**
+ * Walk to completed with the start stamp a whole number of Nepal days back.
+ *
+ * `days` IS THE INCLUSIVE SPAN, so 1 is a same-day job and 3 means the start
+ * stamp lands two Nepal dates earlier. Fixed at 10:00 NPT on that date rather
+ * than "N × 24 hours ago", because the second one crosses one boundary or two
+ * depending on what time the suite happens to run — and a test whose expected
+ * value moves with the clock either gets loosened until it proves nothing, or
+ * asserts the trigger's own arithmetic back at it.
+ */
+async function completeAcrossDays(id: string, days: number): Promise<void> {
+  await pg.admin.query(
+    "update public.bookings set provider_id = $2, status = 'accepted' where id = $1",
+    [id, krishna],
+  );
+  await pg.admin.query(
+    "update public.bookings set status = 'en_route' where id = $1",
+    [id],
+  );
+  await pg.admin.query(
+    "update public.bookings set status = 'in_progress' where id = $1",
+    [id],
+  );
+  await pg.admin.query(
+    `update public.bookings
+        set started_at =
+              (((now() + interval '5 hours 45 minutes')::date - ($2::integer - 1))
+                + time '10:00') - interval '5 hours 45 minutes'
+      where id = $1`,
+    [id, days],
   );
   await pg.admin.query(
     "update public.bookings set status = 'completed' where id = $1",
@@ -582,10 +620,18 @@ describe("a long job and a short one, in Postgres", () => {
  * minutes but may not take days out of anybody's week.
  */
 describe("the days a job runs", () => {
+  /*
+   * IT IS `span_source` THAT OPENS THIS GATE, NOT `duration_source`.
+   *
+   * These cases set the minutes' provenance when the phase shipped, because one
+   * column answered both questions. Promoting the minutes — which is all a
+   * same-day completion can ever evidence — would then have handed this
+   * sub-band its four-day hold for free.
+   */
   const researched = async (on: boolean) =>
     pg.admin.query(
       `update public.category_price_bands
-          set duration_source = $1, duration_checked_at = $2
+          set span_source = $1, span_checked_at = $2
         where category_slug = 'painting' and slug = 'room-supplied'`,
       on ? ["researched", "2026-09-20"] : ["invented", null],
     );
@@ -744,5 +790,174 @@ describe("the days a job runs", () => {
       "select cmd from pg_policies where tablename = 'booking_days'",
     );
     expect(rows.map((r) => r.cmd)).toEqual(["SELECT"]);
+  });
+});
+
+/**
+ * ELAPSED IS NOT WORKED, AND ONE COLUMN WAS RECORDING BOTH.
+ *
+ * `record_booking_duration` subtracted the stamps and wrote the answer into
+ * `actual_working_minutes` under a comment calling it how long the work took.
+ * Same-day that is true. Across a day boundary the night is inside it — a
+ * whole-flat repaint is researched at 3,600 working minutes over 7 days, and
+ * the stamps would have said 10,080. The promotion loop reads this column, so
+ * the first thing it would have learnt is painting's span dressed as its
+ * hands-on time.
+ */
+describe("a completion records what it measured and not more", () => {
+  it("writes worked minutes only for a job that ran inside one Nepal day", async () => {
+    const id = await book("touch-up");
+    await completeAcrossDays(id, 1);
+
+    const row = await durationOf(id);
+    expect(Number(row.actual_elapsed_days)).toBe(1);
+    expect(Number(row.actual_elapsed_minutes)).toBeGreaterThan(0);
+    // Same measurement, so the two agree exactly rather than approximately.
+    expect(Number(row.actual_working_minutes)).toBe(
+      Number(row.actual_elapsed_minutes),
+    );
+  });
+
+  /*
+   * THE BUG, PINNED. Three Nepal days of elapsed time is upwards of 2,800
+   * minutes; the sub-band's researched figure for a supplied repaint is 960.
+   * The old trigger wrote the former into the column the loop reads.
+   */
+  it("refuses a worked figure on a job that crossed a day boundary", async () => {
+    const id = await book("room-supplied");
+    await completeAcrossDays(id, 3);
+
+    const row = await durationOf(id);
+    expect(Number(row.actual_elapsed_days)).toBe(3);
+    expect(Number(row.actual_elapsed_minutes)).toBeGreaterThan(24 * 60);
+    expect(row.actual_working_minutes).toBeNull();
+    // Null here is "not recorded", never "no work" — and it is not a refusal
+    // of the completion, so nothing is stamped implausible.
+    expect(row.duration_implausible_at).toBeNull();
+  });
+
+  /*
+   * THE FLOOR NULLS ALL THREE. A three-second completion is a walkthrough, and
+   * a span of 1 derived from it is a sample the span loop never earned — so the
+   * refusal has to cover the new columns too or the implausible rows quietly
+   * become the span evidence.
+   */
+  it("records nothing at all below the plausibility floor", async () => {
+    const id = await book("touch-up");
+    await complete(id, 3);
+
+    const row = await durationOf(id);
+    expect(row.actual_working_minutes).toBeNull();
+    expect(row.actual_elapsed_minutes).toBeNull();
+    expect(row.actual_elapsed_days).toBeNull();
+    expect(row.duration_implausible_at).not.toBeNull();
+  });
+
+  it("is not a browser's to write", async () => {
+    const id = await book("touch-up");
+    await expect(
+      (await pg.asUser(ANITA)).query(
+        "update public.bookings set actual_elapsed_days = 4 where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/How long a job takes/i);
+    await expect(
+      (await pg.asUser(ANITA)).query(
+        "update public.bookings set actual_elapsed_minutes = 99 where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/How long a job takes/i);
+  });
+});
+
+/**
+ * THE SPAN HAS ITS OWN PROVENANCE, AND THESE ARE THE CASES THAT PROVE IT.
+ *
+ * `sync_booking_days` read `duration_source` while the comment above it argued
+ * — correctly, at length — that the minutes and the span must be gated
+ * separately because their wrong answers cost wildly different amounts. The
+ * first promotion of a researched MINUTES figure would therefore have handed
+ * painting a 4-day hold on a painter's week and a customer's home, with
+ * nothing observed about spans at all.
+ */
+describe("the span gate reads the span's own provenance", () => {
+  async function setProvenance(
+    slug: string,
+    duration: string,
+    span: string,
+  ): Promise<void> {
+    await pg.admin.query(
+      `update public.category_price_bands
+          set duration_source = $2, span_source = $3
+        where category_slug = 'painting' and slug = $1`,
+      [slug, duration, span],
+    );
+  }
+
+  async function dayCount(id: string): Promise<number> {
+    const { rows } = await pg.admin.query(
+      "select count(*)::int as n from public.booking_days where booking_id = $1",
+      [id],
+    );
+    return rows[0].n as number;
+  }
+
+  /*
+   * CLEARED BETWEEN CASES, because `enforce_site_capacity` is doing its job: a
+   * second painting booking at the same address across overlapping days is
+   * refused, which is the whole point of the site hold and not something to
+   * work around with a second address.
+   */
+  beforeEach(async () => {
+    await pg.admin.query("delete from public.bookings");
+    await setProvenance("room-supplied", "invented", "invented");
+  });
+
+  afterAll(async () => {
+    await setProvenance("room-supplied", "invented", "invented");
+  });
+
+  it("holds one day while the span is invented", async () => {
+    expect(await dayCount(await book("room-supplied"))).toBe(0);
+  });
+
+  /*
+   * THE REGRESSION. Minutes observed, span not — which is exactly the state the
+   * duration loop produces first, because same-day completions are the only
+   * minutes evidence there is.
+   */
+  it("still holds one day when only the MINUTES were promoted", async () => {
+    await setProvenance("room-supplied", "observed", "invented");
+    expect(await dayCount(await book("room-supplied"))).toBe(0);
+  });
+
+  it("spans the days once the SPAN is promoted", async () => {
+    await setProvenance("room-supplied", "invented", "observed");
+    const id = await book("room-supplied");
+
+    const { rows: sub } = await pg.admin.query(
+      `select typical_elapsed_days from public.category_price_bands
+        where category_slug = 'painting' and slug = 'room-supplied'`,
+    );
+    expect(await dayCount(id)).toBe(Number(sub[0].typical_elapsed_days));
+  });
+
+  /*
+   * The delete that clears the old rows now lives in `clear_booking_days`, for
+   * a transport reason recorded in the migration. A helper nobody can prove is
+   * called is a helper that silently stops being called, so the regeneration is
+   * asserted as behaviour: the rows have to follow the span down as well as up.
+   */
+  it("clears the days again when the span is withdrawn", async () => {
+    await setProvenance("room-supplied", "invented", "observed");
+    const id = await book("room-supplied");
+    expect(await dayCount(id)).toBeGreaterThan(1);
+
+    await setProvenance("room-supplied", "invented", "invented");
+    await pg.admin.query(
+      "update public.bookings set scheduled_for = now() + interval '2 days' where id = $1",
+      [id],
+    );
+    expect(await dayCount(id)).toBe(0);
   });
 });

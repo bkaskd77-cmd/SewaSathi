@@ -16,7 +16,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "A look and a verdict. No published figure; the fee itself implies a short visit."
+    "durationNote": "A look and a verdict. No published figure; the fee itself implies a short visit.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -35,7 +38,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "A washer or a joint. Guessed from the job, not from a source."
+    "durationNote": "A washer or a joint. Guessed from the job, not from a source.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -54,7 +60,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Rodding and clearing. Guessed."
+    "durationNote": "Rodding and clearing. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -73,7 +82,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Cutting, fitting and testing one run. Guessed."
+    "durationNote": "Cutting, fitting and testing one run. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -92,7 +104,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Mounting or stripping one unit. Guessed."
+    "durationNote": "Mounting or stripping one unit. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -111,7 +126,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Tracing the fault is most of it. Guessed."
+    "durationNote": "Tracing the fault is most of it. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "plumbing",
@@ -130,7 +148,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Stopping it, then making good. Guessed, and the spread is real."
+    "durationNote": "Stopping it, then making good. Guessed, and the spread is real.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "electrical",
@@ -149,7 +170,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "One point. Guessed."
+    "durationNote": "One point. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "electrical",
@@ -168,7 +192,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "electrical",
@@ -187,7 +214,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Depends entirely on how many points. Guessed."
+    "durationNote": "Depends entirely on how many points. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "electrical",
@@ -206,7 +236,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Finding it is the work. Guessed."
+    "durationNote": "Finding it is the work. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "electrical",
@@ -225,7 +258,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Chasing, running and making good does not finish in a day. Guessed, and the second day is the least certain number here."
+    "durationNote": "Chasing, running and making good does not finish in a day. Guessed, and the second day is the least certain number here.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Guessed. Chasing, running and making good does not finish in a day — the second day is the least certain number on this board."
   },
   {
     "categorySlug": "home-cleaning",
@@ -244,7 +280,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "home-cleaning",
@@ -263,7 +302,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Two people for half a day, or one for a full one. Guessed."
+    "durationNote": "Two people for half a day, or one for a full one. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "home-cleaning",
@@ -282,7 +324,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "A full day. Guessed."
+    "durationNote": "A full day. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "appliance-repair",
@@ -301,7 +346,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "appliance-repair",
@@ -320,7 +368,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed; excludes waiting for a part, which is not our time."
+    "durationNote": "Guessed; excludes waiting for a part, which is not our time.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "appliance-repair",
@@ -339,7 +390,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "carpentry",
@@ -358,7 +412,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "carpentry",
@@ -377,7 +434,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "carpentry",
@@ -396,7 +456,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "carpentry",
@@ -415,7 +478,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Building in place. Guessed, and the second day is a guess on top of a guess."
+    "durationNote": "Building in place. Guessed, and the second day is a guess on top of a guess.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Guessed, and a guess on top of a guess: building in place over two days."
   },
   {
     "categorySlug": "pest-control",
@@ -434,7 +500,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "The spray is quick; the hours the customer must stay out are not our time and are not counted here."
+    "durationNote": "The spray is quick; the hours the customer must stay out are not our time and are not counted here.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "pest-control",
@@ -453,7 +522,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "pest-control",
@@ -472,7 +544,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Drilling and injecting. Guessed."
+    "durationNote": "Drilling and injecting. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "painting",
@@ -491,7 +566,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "One wall, one coat. Guessed."
+    "durationNote": "One wall, one coat. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "painting",
@@ -510,7 +588,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Two coats with drying between them, so it does not fit in one day even though the hands-on time would. THIS IS THE CASE THE WHOLE MODEL EXISTS FOR."
+    "durationNote": "Two coats with drying between them, so it does not fit in one day even though the hands-on time would. THIS IS THE CASE THE WHOLE MODEL EXISTS FOR.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Guessed. Two coats with drying between them, so it does not fit in one day even though the hands-on time would."
   },
   {
     "categorySlug": "painting",
@@ -529,7 +610,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Putty, primer and two coats, each needing the last to cure. Four days of the room being unusable for roughly two days of work."
+    "durationNote": "Putty, primer and two coats, each needing the last to cure. Four days of the room being unusable for roughly two days of work.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Guessed. Putty, primer and two coats, each needing the last to cure — four days of the room being unusable for roughly two days of work."
   },
   {
     "categorySlug": "painting",
@@ -548,7 +632,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Same sequence, more rooms, and they overlap. The span is the number a customer plans around."
+    "durationNote": "Same sequence, more rooms, and they overlap. The span is the number a customer plans around.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Guessed. The same sequence over more rooms, overlapping. This is the number a customer plans around and the one we know least about."
   },
   {
     "categorySlug": "ac-servicing",
@@ -567,7 +654,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "ac-servicing",
@@ -586,7 +676,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "ac-servicing",
@@ -605,7 +698,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "ac-servicing",
@@ -624,7 +720,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Drilling, mounting, bracket and vacuum. Guessed."
+    "durationNote": "Drilling, mounting, bracket and vacuum. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -643,7 +742,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -662,7 +764,10 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Draining is most of it. Guessed."
+    "durationNote": "Draining is most of it. Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   },
   {
     "categorySlug": "water-tank-cleaning",
@@ -681,6 +786,9 @@
     "durationSource": "invented",
     "durationCheckedAt": null,
     "durationConfidence": "low",
-    "durationNote": "Guessed."
+    "durationNote": "Guessed.",
+    "spanSource": "invented",
+    "spanCheckedAt": null,
+    "spanNote": "Unresearched, and it costs nothing: a span of 1 is exactly what the scheduler does when it refuses a span, so this row behaves the same whether anybody ever measures it or not."
   }
 ]

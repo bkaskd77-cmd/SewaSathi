@@ -365,6 +365,8 @@ export type Database = {
           provider_estimated_working_minutes: number | null;
           provider_estimated_elapsed_days: number | null;
           actual_working_minutes: number | null;
+          actual_elapsed_minutes: number | null;
+          actual_elapsed_days: number | null;
           duration_implausible_at: string | null;
           overbook_offered_at: string | null;
           opened_at: string | null;
@@ -479,6 +481,8 @@ export type Database = {
           provider_estimated_working_minutes?: number | null;
           provider_estimated_elapsed_days?: number | null;
           actual_working_minutes?: number | null;
+          actual_elapsed_minutes?: number | null;
+          actual_elapsed_days?: number | null;
           duration_implausible_at?: string | null;
           overbook_offered_at?: string | null;
           opened_at?: string | null;

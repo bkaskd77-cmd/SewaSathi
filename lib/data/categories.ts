@@ -161,7 +161,7 @@ export const getSubBands = cache(async (): Promise<SubBand[]> => {
     const { data, error } = await createPublicClient()
       .from("category_price_bands")
       .select(
-        "category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note",
+        "category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note, span_source, span_checked_at, span_note",
       )
       .order("sort_order");
 
@@ -212,6 +212,18 @@ export const getSubBands = cache(async (): Promise<SubBand[]> => {
           ? row.duration_confidence
           : "low",
       durationNote: (row.duration_note as string | null) ?? null,
+      /*
+       * The same fail-closed, on the column that also decides whether the
+       * scheduler may hold more than one day. Falling back to `invented` here
+       * costs a span and nothing else: the job holds its minutes on the day the
+       * customer picked, which is what every booking did before spans existed.
+       */
+      spanSource:
+        row.span_source === "researched" || row.span_source === "observed"
+          ? row.span_source
+          : "invented",
+      spanCheckedAt: (row.span_checked_at as string | null) ?? null,
+      spanNote: (row.span_note as string | null) ?? null,
     }));
   } catch (thrown) {
     rethrowFrameworkSignal(thrown);

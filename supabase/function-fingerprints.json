@@ -19,6 +19,10 @@
     "sha": "ce0e28224bc0c0d2",
     "file": "20260912000002_guarantee_claims.sql"
   },
+  "clear_booking_days": {
+    "sha": "64c0f3041e0402bf",
+    "file": "20261011000001_duration_evidence.sql"
+  },
   "enforce_application_immutability": {
     "sha": "7c9e3921a253c6fe",
     "file": "20260910000001_provider_applications.sql"
@@ -28,8 +32,8 @@
     "file": "20260906000001_address_ownership.sql"
   },
   "enforce_booking_immutability": {
-    "sha": "9e16a1e8854153c8",
-    "file": "20261004000001_trip_debt_recovery.sql"
+    "sha": "f52528830640d7cc",
+    "file": "20261011000001_duration_evidence.sql"
   },
   "enforce_booking_transition": {
     "sha": "14a4e17195bb7f3f",
@@ -148,8 +152,8 @@
     "file": "20260913000004_claim_reassignment.sql"
   },
   "record_booking_duration": {
-    "sha": "f9c54a87b273e20c",
-    "file": "20260919000002_booking_duration.sql"
+    "sha": "6a909cae11e8c164",
+    "file": "20261011000001_duration_evidence.sql"
   },
   "record_booking_status": {
     "sha": "c736b9cd00e23509",
@@ -204,8 +208,8 @@
     "file": "20260928000001_role_change_audit.sql"
   },
   "sync_booking_days": {
-    "sha": "454d9a3a25b33c8d",
-    "file": "20260920000003_booking_days.sql"
+    "sha": "adf69c4c1a152eda",
+    "file": "20261011000001_duration_evidence.sql"
   },
   "sync_booking_duration": {
     "sha": "8bb1ea51074e6953",

@@ -47,7 +47,7 @@ const CATEGORY_SEED = "lib/data/seed/categories.json";
  *
  * A sub-band's `durationSource` says where "about 4 days" came from. All 36 are
  * `invented` today, and two gates follow from that. Nothing in the product
- * PRINTS a duration (`hasPublishableDuration`), and nothing HOLDS more than a
+ * PRINTS a duration (`hasPublishableMinutes`, `hasPublishableSpan`), and nothing HOLDS more than a
  * day on one (`spansDays`) — a reservation nobody reads is not a claim, but
  * four days of somebody's week is not a reservation, it is capacity taken.
  * `multi-day-scheduling` is the entry for that second gate and it is chained to

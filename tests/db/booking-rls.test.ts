@@ -1710,6 +1710,14 @@ describe("the settlement figures cannot be typed from a browser", () => {
     ["provider_estimated_working_minutes", "20", /not a browser's to set/i],
     ["provider_estimated_elapsed_days", "9", /not a browser's to set/i],
     ["actual_working_minutes", "20", /not a browser's to set/i],
+    /*
+     * The two the measurement split added. `actual_elapsed_days` is the one
+     * worth naming: it is the only evidence a sub-band's published span will
+     * ever have, so a customer able to write it could ask for four days of a
+     * painter's week for every future booking of that product.
+     */
+    ["actual_elapsed_minutes", "20", /not a browser's to set/i],
+    ["actual_elapsed_days", "4", /not a browser's to set/i],
     ["duration_implausible_at", "now()", /not a browser's to set/i],
 
     /*

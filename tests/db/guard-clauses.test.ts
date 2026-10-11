@@ -472,7 +472,14 @@ const GUARDS: Record<string, Guard[]> = {
         "A guessed span never takes days out of a professional's week or a customer's home.",
       ifMissing:
         "Four days of real bookable capacity held on an invented number, invisibly, indistinguishable from a measurement.",
-      clauses: ["duration_source <> 'invented'"],
+      /*
+       * `span_source`, NOT `duration_source`, AND THE DIFFERENCE IS THE BUG.
+       * This clause read the MINUTES' provenance for a phase — so the first
+       * promotion of a researched working figure, which is all a same-day
+       * completion can ever evidence, would have handed painting its four-day
+       * hold with nothing observed about spans at all.
+       */
+      clauses: ["span_source <> 'invented'"],
     },
     {
       protects: "The professional's own span is evidence and passes the gate.",

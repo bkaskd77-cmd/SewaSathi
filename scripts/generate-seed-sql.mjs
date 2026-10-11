@@ -141,6 +141,16 @@ create table if not exists public.category_price_bands (
   duration_confidence text not null default 'low'
     check (duration_confidence in ('high', 'medium', 'low')),
   duration_note text,
+  -- AND THE SPAN HAS ITS OWN PROVENANCE AGAIN, because duration_source gated
+  -- both numbers for a phase and they are not the same risk: a wrong minutes
+  -- figure reserves 90 where 120 was right, a wrong span holds four days of a
+  -- painter's week and four days of a customer's home. Promoting on minutes
+  -- evidence would otherwise have switched on 2-, 4- and 7-day holds with
+  -- nothing observed about spans at all.
+  span_source text not null default 'invented'
+    check (span_source in ('invented', 'researched', 'observed')),
+  span_checked_at date,
+  span_note text,
   primary key (category_slug, slug)
 );
 
@@ -162,8 +172,8 @@ delete from public.category_price_bands;
 
 for (const b of subBands) {
   lines.push(
-    `insert into public.category_price_bands (category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note)
-values (${q(b.categorySlug)}, ${q(b.slug)}, ${q(b.labelEn)}, ${q(b.labelNe)}, ${b.low}, ${b.high}, ${q(b.pricingSource)}, ${b.pricingCheckedAt ? q(b.pricingCheckedAt) : "null"}, ${q(b.pricingConfidence)}, ${b.pricingNote ? q(b.pricingNote) : "null"}, ${b.sortOrder}, ${b.typicalWorkingMinutes}, ${b.typicalElapsedDays}, ${q(b.durationSource)}, ${b.durationCheckedAt ? q(b.durationCheckedAt) : "null"}, ${q(b.durationConfidence)}, ${b.durationNote ? q(b.durationNote) : "null"});\n`,
+    `insert into public.category_price_bands (category_slug, slug, label_en, label_ne, low, high, pricing_source, pricing_checked_at, pricing_confidence, pricing_note, sort_order, typical_working_minutes, typical_elapsed_days, duration_source, duration_checked_at, duration_confidence, duration_note, span_source, span_checked_at, span_note)
+values (${q(b.categorySlug)}, ${q(b.slug)}, ${q(b.labelEn)}, ${q(b.labelNe)}, ${b.low}, ${b.high}, ${q(b.pricingSource)}, ${b.pricingCheckedAt ? q(b.pricingCheckedAt) : "null"}, ${q(b.pricingConfidence)}, ${b.pricingNote ? q(b.pricingNote) : "null"}, ${b.sortOrder}, ${b.typicalWorkingMinutes}, ${b.typicalElapsedDays}, ${q(b.durationSource)}, ${b.durationCheckedAt ? q(b.durationCheckedAt) : "null"}, ${q(b.durationConfidence)}, ${b.durationNote ? q(b.durationNote) : "null"}, ${q(b.spanSource)}, ${b.spanCheckedAt ? q(b.spanCheckedAt) : "null"}, ${b.spanNote ? q(b.spanNote) : "null"});\n`,
   );
 }
 

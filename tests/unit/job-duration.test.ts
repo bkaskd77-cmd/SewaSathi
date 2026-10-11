@@ -11,7 +11,7 @@ import {
   workingMinutes,
   type BookingDuration,
 } from "@/lib/booking";
-import { hasPublishableDuration } from "@/lib/provider";
+import { hasPublishableMinutes, hasPublishableSpan } from "@/lib/provider";
 
 /**
  * How long a job takes, and the three different answers to that question.
@@ -22,9 +22,19 @@ import { hasPublishableDuration } from "@/lib/provider";
  * fact somebody plans around.
  */
 
-const INVENTED = { source: "invented" } as const;
-const RESEARCHED = { source: "researched" } as const;
-const OBSERVED = { source: "observed" } as const;
+/*
+ * TWO PROVENANCES, AND THE PAIRS BELOW ARE WHY THIS FILE EXISTS.
+ *
+ * `source` governs the minutes, `spanSource` governs the span. For one phase
+ * there was a single column and both halves read it — so promoting a sub-band's
+ * MINUTES to researched would silently have switched on painting's 7-day hold
+ * with nothing whatsoever observed about spans. `MINUTES_ONLY` is that case,
+ * pinned as behaviour.
+ */
+const INVENTED = { source: "invented", spanSource: "invented" } as const;
+const MINUTES_ONLY = { source: "researched", spanSource: "invented" } as const;
+const RESEARCHED = { source: "researched", spanSource: "researched" } as const;
+const OBSERVED = { source: "observed", spanSource: "observed" } as const;
 
 const painting: BookingDuration = {
   estimatedWorkingMinutes: 960,
@@ -77,7 +87,7 @@ describe("an invented duration may reserve, but not for days", () => {
    */
   it("uses an invented working figure, because being wrong costs little", () => {
     expect(workingMinutes(painting)).toBe(960);
-    expect(hasPublishableDuration(INVENTED)).toBe(false);
+    expect(hasPublishableMinutes(INVENTED)).toBe(false);
   });
 
   /*
@@ -96,6 +106,34 @@ describe("an invented duration may reserve, but not for days", () => {
     expect(spansDays(painting, RESEARCHED)).toBe(true);
     expect(elapsedDays(painting, RESEARCHED)).toBe(4);
     expect(spansDays(painting, OBSERVED)).toBe(true);
+  });
+
+  /*
+   * THE BUG THIS PHASE FIXED, AS A BEHAVIOUR RATHER THAN A SHAPE.
+   *
+   * The duration loop promotes minutes on minutes evidence — same-day
+   * completions, where elapsed and worked are the same measurement. Nothing
+   * about that says how many DAYS a repaint takes. With one provenance column
+   * the first promotion would have handed painting its 4- and 7-day spans for
+   * free, held them against a painter's week and a customer's home, and nothing
+   * on any screen would have told that apart from a measurement.
+   */
+  it("does not grant a span to a sub-band whose MINUTES were researched", () => {
+    expect(hasPublishableMinutes(MINUTES_ONLY)).toBe(true);
+    expect(hasPublishableSpan(MINUTES_ONLY)).toBe(false);
+    expect(spansDays(painting, MINUTES_ONLY)).toBe(false);
+    expect(elapsedDays(painting, MINUTES_ONLY)).toBe(1);
+    expect(isMultiDay(painting, MINUTES_ONLY)).toBe(false);
+  });
+
+  /*
+   * AND A MISSING span PROVENANCE IS NO EVIDENCE, never the minutes' one. A
+   * `??` in `hasPublishableSpan` would have reintroduced the whole bug quietly,
+   * so the absence is asserted rather than assumed.
+   */
+  it("reads an absent span provenance as no evidence", () => {
+    expect(hasPublishableSpan({ source: "observed" })).toBe(false);
+    expect(spansDays(painting, { source: "observed" })).toBe(false);
   });
 
   /*

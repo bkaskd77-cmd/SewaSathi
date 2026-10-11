@@ -188,28 +188,46 @@ export function displayRating(
 }
 
 /*
- * And the same question about a duration.
+ * And the same question about a duration — WHICH IS TWO QUESTIONS, NOT ONE.
  *
  * Duration arrived with its own provenance — `duration_source` on
  * `category_price_bands` — precisely so this file could ask about it. Every
  * sub-band's duration is `invented` today, because nobody in Nepal publishes
  * how long a tap leak takes.
+ *
+ * AND FOR ONE PHASE THAT ONE COLUMN ANSWERED BOTH. The minutes and the span are
+ * different claims with different costs, argued apart at length in
+ * `lib/booking/duration.ts` and then read off the same column anyway — so
+ * promoting a sub-band on minutes evidence would have switched on 2-, 4- and
+ * 7-day holds with no span evidence at all. `span_source` is the second gate
+ * and these are the two functions that read them.
  */
 
-/** Only the provenance. The number is irrelevant to whether it may be shown. */
+/** Only the provenance. The numbers are irrelevant to whether they may be shown. */
 export type DurationEvidence = {
+  /** Governs `typicalWorkingMinutes`. */
   source: "invented" | "researched" | "observed";
+  /**
+   * Governs `typicalElapsedDays`.
+   *
+   * OPTIONAL, AND THAT IS A DELIBERATE ASYMMETRY RATHER THAN AN OVERSIGHT.
+   * `spansDays()` already takes its whole provenance argument as optional and
+   * reads a missing one as "no evidence", because a caller that has not got the
+   * provenance to hand must not accidentally be granted a span. Leaving this
+   * out means the same thing one level down: no span evidence, hold one day.
+   */
+  spanSource?: "invented" | "researched" | "observed";
 };
 
 /**
- * May a customer be told how long this will take?
+ * May a customer be told how many MINUTES this will take?
  *
  * THE SPLIT THAT MAKES THIS WORK: a scheduler may use an invented duration and
  * a screen may not. The scheduler is reserving time — a reservation nobody
  * reads is not a claim about anything, and the alternative is reserving the
  * same two hours for a tap washer and a whole-flat repaint, which is the
  * workaround this replaced. A sentence on a screen IS a claim, and "about 4
- * days" read off a guess is exactly the shape rule 6 names: a default
+ * hours" read off a guess is exactly the shape rule 6 names: a default
  * presented as a measurement.
  *
  * So there is no `hasDuration`. Every booking has one; the question is only
@@ -220,6 +238,24 @@ export type DurationEvidence = {
  * honest state and is held open by an entry in `check:blockers` rather than
  * being quietly forgotten.
  */
-export function hasPublishableDuration(duration: DurationEvidence): boolean {
+export function hasPublishableMinutes(duration: DurationEvidence): boolean {
   return duration.source !== "invented";
+}
+
+/**
+ * May a customer be told how many DAYS their home is a building site?
+ *
+ * SAME SHAPE, SEPARATE EVIDENCE, AND IT IS THE STRICTER OF THE TWO — because
+ * this one also decides whether the scheduler may hold more than a day, which
+ * `hasPublishableMinutes` never does. A published span and a held span are the
+ * same claim here: "four days" on a screen and four days taken out of a
+ * painter's week are both read as measurements, and only one of them is
+ * visible to the person it costs.
+ *
+ * A MISSING `spanSource` IS NO EVIDENCE, never inherited from `source`. Reading
+ * the minutes' provenance as the span's is precisely the bug this function
+ * exists to undo, and a `??` here would reintroduce it quietly.
+ */
+export function hasPublishableSpan(duration: DurationEvidence): boolean {
+  return duration.spanSource !== undefined && duration.spanSource !== "invented";
 }

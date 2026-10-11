@@ -50,7 +50,7 @@ three siblings beside them.
 
 Right now every price is `researched` (dated 2026-09-15, with named sources) and
 **every duration is `invented`**. That is not an oversight — it is the system
-working. `hasPublishableDuration` in `lib/provider/measured.ts` gates any screen
+working. `hasPublishableMinutes` in `lib/provider/measured.ts` gates any screen
 that would print a duration, and `spansDays()` in `lib/booking/duration.ts`
 returns `false` for invented provenance, which is why `booking_days` has never
 had a row in production. The multi-day scheduler is fully built and switched

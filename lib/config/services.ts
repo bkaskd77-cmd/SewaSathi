@@ -72,13 +72,36 @@ export type SubBand = {
    * provenance covering both would launder a guessed duration under a
    * researched price's confidence. Today every one of these is `invented` —
    * nobody in Nepal publishes how long a tap leak takes — which is why nothing
-   * here reaches a customer. See `hasPublishableDuration` in
+   * here reaches a customer. See `hasPublishableMinutes` in
    * `lib/provider/measured.ts`.
+   *
+   * IT GOVERNS THE MINUTES AND NOTHING ELSE. It used to gate the span as well,
+   * which would have meant promoting a sub-band on minutes evidence switched on
+   * 2-, 4- and 7-day holds with no span evidence of any kind.
    */
   durationSource: "invented" | "researched" | "observed";
   durationCheckedAt: string | null;
   durationConfidence: "high" | "medium" | "low";
   durationNote: string | null;
+  /**
+   * THE SPAN'S OWN PROVENANCE, AND THE REASON IT IS A SECOND COLUMN.
+   *
+   * The two wrong answers cost wildly different amounts, which
+   * `lib/booking/duration.ts` already argued at length while both read one
+   * column. A wrong `typicalWorkingMinutes` reserves 90 minutes where 120 was
+   * right — bounded, invisible, and strictly better than the flat two hours
+   * every booking held before durations existed. A wrong `typicalElapsedDays`
+   * holds four days of a painter's week and four days of a customer's home,
+   * takes real bookable capacity out of the product, and nothing on any screen
+   * tells it apart from a measurement.
+   *
+   * So the minutes may be promoted on minutes evidence and the span may not.
+   * `hasPublishableSpan` is the gate, `spansDays()` is the scheduler's half, and
+   * `span_source` in `sync_booking_days()` is the same gate in SQL.
+   */
+  spanSource: "invented" | "researched" | "observed";
+  spanCheckedAt: string | null;
+  spanNote: string | null;
 };
 
 export type Category = {

@@ -22,9 +22,15 @@
 
 // Through the module's public entry, never into its internals — the boundary
 // `no-restricted-imports` enforces for lib/booking and lib/auth already, and
-// which the rest of the modules are being moved onto. Type-only, so it is
-// erased at compile time and cannot create a runtime cycle.
-import type { DurationEvidence } from "@/lib/provider";
+// which the rest of the modules are being moved onto.
+//
+// NO LONGER TYPE-ONLY, and the comment that said so was worth correcting rather
+// than leaving: `spansDays` now calls `hasPublishableSpan` so that the span gate
+// is one function with two callers instead of a `!== "invented"` written twice.
+// `lib/provider/measured.ts` is pure and imports nothing from `lib/booking`, so
+// there is no cycle — but it is a real runtime import now and a reader deciding
+// whether one exists needs that to be true on the page.
+import { hasPublishableSpan, type DurationEvidence } from "@/lib/provider";
 
 /**
  * What the scheduler reserves when nothing is known.
@@ -33,7 +39,7 @@ import type { DurationEvidence } from "@/lib/provider";
  * whole reason a guessed duration is safe to use at all. A reservation nobody
  * reads makes no claim about anything. The moment this number reaches a screen
  * it becomes "about 2 hours", which is a default presented as a measurement,
- * and `hasPublishableDuration` is what stops that happening.
+ * and `hasPublishableMinutes` is what stops that happening.
  *
  * 120 minutes, which is exactly what every booking held before duration
  * existed (`WORKING_HOURS.slotHours` is 2). So an unestimated booking behaves
@@ -120,14 +126,22 @@ export function elapsedDays(
  * A wrong `elapsed_days` holds FOUR DAYS of a painter's week and four days of
  * a customer's home. That removes real bookable capacity, it is invisible to
  * everybody it affects, and nothing distinguishes it from a measurement. All
- * 36 sub-band durations are `invented` today — nobody in Nepal publishes how
- * long a room takes between coats — so until somebody does the research, a
- * span is refused and the job holds its minutes on one day. Which is exactly
- * what every booking did before this phase.
+ * 36 sub-band spans are `invented` today — nobody in Nepal publishes how long a
+ * room takes between coats — so until somebody does the research, a span is
+ * refused and the job holds its minutes on one day. Which is exactly what every
+ * booking did before this phase.
  *
- * SO THE RULE, AND IT EXTENDS `hasPublishableDuration` RATHER THAN COMPETING
+ * SO THE RULE, AND IT EXTENDS `hasPublishableMinutes` RATHER THAN COMPETING
  * WITH IT: an invented number may reserve, it may not claim, and it may not
  * reserve more than a day.
+ *
+ * AND IT READS `spanSource`, NOT `source`, WHICH IS THE WHOLE OF THIS FIX. The
+ * paragraph above has said since the day it was written that the two numbers
+ * are gated differently because their wrong answers cost differently — and then
+ * both halves read `duration_source`. One promotion on minutes evidence would
+ * therefore have switched on painting's 7-day span with nothing whatsoever
+ * observed about spans. Two columns, two gates, and `hasPublishableSpan` is the
+ * screen's half of the same question.
  *
  * A PROFESSIONAL'S OWN FIGURE IS EVIDENCE. They have been to the site. Their
  * correction spans days whatever the sub-band's provenance says, because the
@@ -140,7 +154,7 @@ export function spansDays(
   if (duration.providerEstimatedElapsedDays != null) {
     return duration.providerEstimatedElapsedDays > 1;
   }
-  if (!provenance || provenance.source === "invented") return false;
+  if (!provenance || !hasPublishableSpan(provenance)) return false;
   return (duration.estimatedElapsedDays ?? 1) > 1;
 }
 
@@ -149,7 +163,7 @@ export function spansDays(
  *
  * False means `workingMinutes` returned the hold. Every screen asks this
  * before saying anything about length — and then asks
- * `hasPublishableDuration` about the sub-band's provenance as well, because
+ * `hasPublishableMinutes` about the sub-band's provenance as well, because
  * "somebody wrote a number down" and "the number is worth telling a customer"
  * are different questions.
  */
