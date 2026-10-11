@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * RLS isolation and the status machine, against a real Postgres running the
@@ -293,11 +294,17 @@ describe("a customer cannot price their own job", () => {
 describe("append-only history", () => {
   it("refuses an update", async () => {
     const alice = await pg.asUser(ALICE);
-    const result = await alice.query(
-      "update public.booking_status_history set to_status = 'completed'",
-    );
-    // No insert/update/delete policy exists, so RLS matches no rows.
-    expect(result.rowCount).toBe(0);
+      // THE SILENCE BECAME A REFUSAL, and that is the stronger answer. This
+      // matched no rows because no policy existed while the PRIVILEGE was
+      // there, granted to every table by Supabase's default; `20261011000004`
+      // revoked it, so the planner refuses outright. Asserted through
+      // `BROWSER_WRITE_REFUSED` because both locks are now shut and which one
+      // answers is Postgres's ordering, not the guarantee.
+    await expect(
+      alice.query(
+        "update public.booking_status_history set to_status = 'completed'",
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("refuses a hand-written row", async () => {
@@ -308,7 +315,7 @@ describe("append-only history", () => {
          values ($1, 'completed')`,
         [aliceBooking],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -368,17 +375,16 @@ describe("payments are readable only by the people involved", () => {
          values ($1, 'cash', 1, 'SKP-FORGED')`,
         [aliceBooking],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("lets nobody change an amount through the client", async () => {
     const alice = await pg.asUser(ALICE);
-    const result = await alice.query(
-      "update public.payments set amount = 1 where id = $1",
-      [alicePayment],
-    );
-    // No update policy exists, so RLS matches no rows.
-    expect(result.rowCount).toBe(0);
+    await expect(
+      alice.query("update public.payments set amount = 1 where id = $1", [
+        alicePayment,
+      ]),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -675,7 +681,7 @@ describe("a professional's number is not public", () => {
         "insert into public.provider_contacts (provider_id, phone) values ($1, '+9779800000009')",
         [providerId],
       ),
-    ).rejects.toThrow(/row-level security|permission denied/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -709,7 +715,7 @@ describe("notifications belong to the person they are about", () => {
         `insert into public.notifications (profile_id, kind) values ($1, 'booking.paid')`,
         [BOB],
       ),
-    ).rejects.toThrow(/row-level security|permission denied/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("lets nobody mark one read from a browser either", async () => {
@@ -729,14 +735,18 @@ describe("notifications belong to the person they are about", () => {
      * asked, with the answer the product actually wants.
      */
     const client = await pg.asUser(ALICE);
-    const { rows } = await client.query(
-      "update public.notifications set read_at = now() where profile_id = $1 returning id",
-      [ALICE],
-    );
-
-    // No policy to match, so zero rows change — a refusal rather than an error,
-    // which is how RLS says "not yours" everywhere else in this file.
-    expect(rows).toHaveLength(0);
+      // THE SILENCE BECAME A REFUSAL, and that is the stronger answer. This
+      // matched no rows because no policy existed while the PRIVILEGE was
+      // there, granted to every table by Supabase's default; `20261011000004`
+      // revoked it, so the planner refuses outright. Asserted through
+      // `BROWSER_WRITE_REFUSED` because both locks are now shut and which one
+      // answers is Postgres's ordering, not the guarantee.
+    await expect(
+      client.query(
+        "update public.notifications set read_at = now() where profile_id = $1",
+        [ALICE],
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("still gets marked read by the path the product uses", async () => {
@@ -844,11 +854,12 @@ describe("a provider's job list is theirs alone", () => {
   it("does not let a customer claim a listing by writing profile_id", async () => {
     // The one write that would turn any signed-in person into a professional.
     const client = await pg.asUser(BOB);
-    const { rows } = await client.query(
-      "update public.providers set profile_id = $1 where id = $2 returning id",
-      [BOB, strangerProviderId],
-    );
-    expect(rows).toHaveLength(0);
+    await expect(
+      client.query(
+        "update public.providers set profile_id = $1 where id = $2",
+        [BOB, strangerProviderId],
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -1063,14 +1074,24 @@ describe("open jobs, and who may take them", () => {
         "update public.bookings set quoted_max = 100 where id = $1",
         [bobBooking],
       ),
-    ).rejects.toThrow(/not editable from a browser/i);
+    ).rejects.toThrow(/permission denied/i);
 
     await expect(
       client.query(
         "update public.bookings set final_amount = 100 where id = $1",
         [bobBooking],
       ),
+    ).rejects.toThrow(/permission denied/i);
+
+    // And the trigger says so as well, past the grant. See the comment on the
+    // guarded-column loop below: both layers or neither.
+    const past = await pg.pastTheGrant(BOB);
+    await expect(
+      past.query("update public.bookings set final_amount = 100 where id = $1", [
+        bobBooking,
+      ]),
     ).rejects.toThrow(/not editable from a browser/i);
+    await past.end();
   });
 
   it("does not let a customer mark their own booking paid", async () => {
@@ -1080,7 +1101,16 @@ describe("open jobs, and who may take them", () => {
         "update public.bookings set payment_status = 'paid' where id = $1",
         [bobBooking],
       ),
+    ).rejects.toThrow(/permission denied/i);
+
+    const past = await pg.pastTheGrant(BOB);
+    await expect(
+      past.query(
+        "update public.bookings set payment_status = 'paid' where id = $1",
+        [bobBooking],
+      ),
     ).rejects.toThrow(/not editable from a browser/i);
+    await past.end();
   });
 
   it("still lets a customer cancel, which is the one thing that policy is for", async () => {
@@ -1129,7 +1159,7 @@ describe("open jobs, and who may take them", () => {
          where id = $2`,
         [stranger[0].id, fresh[0].id],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -1369,7 +1399,7 @@ describe("saying no to a job, and what it costs", () => {
          where id = $1`,
         [job],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("is the professional's own job to give up, and RLS says so", async () => {
@@ -1755,9 +1785,39 @@ describe("the settlement figures cannot be typed from a browser", () => {
   /** Guarded, but on a condition rather than outright. Tested separately. */
   const CONDITIONAL_COLUMNS = ["provider_id"];
 
+  /*
+   * TWO CASES PER COLUMN, BECAUSE THERE ARE TWO LAYERS AND THEY FAIL
+   * DIFFERENTLY.
+   *
+   * `20261011000004` narrowed `authenticated` to the five columns a browser
+   * legitimately updates, so every column below is now refused by the PLANNER:
+   * `42501 permission denied for table bookings`, before a row, a policy or a
+   * trigger is considered. That is the right first line — a column privilege
+   * has no second copy that can go stale, which is exactly what went wrong with
+   * the trigger.
+   *
+   * AND THAT IS WHY THE SECOND CASE EXISTS RATHER THAN THE LIST BEING RELAXED
+   * TO "it throws". Production ran a copy of `enforce_booking_immutability`
+   * missing three of its blocks for weeks, applied to the live database only.
+   * If the arrival of the grant retired these assertions, the guard that has
+   * already been broken once would be the guard nothing tests. So the trigger
+   * is asked the same question past the grant, and has to answer in its own
+   * words.
+   */
   for (const [column, value, message] of GUARDED_COLUMNS) {
-    it(`refuses a customer writing ${column}`, async () => {
+    it(`refuses a customer writing ${column} before any row is considered`, async () => {
       const alice = await pg.asUser(ALICE);
+      await expect(
+        alice.query(
+          `update public.bookings set ${column} = ${value} where id = $1`,
+          [liveBooking],
+        ),
+      ).rejects.toThrow(/permission denied/i);
+      await alice.end();
+    });
+
+    it(`refuses ${column} in the trigger too, and says why`, async () => {
+      const alice = await pg.pastTheGrant(ALICE);
       await expect(
         alice.query(
           `update public.bookings set ${column} = ${value} where id = $1`,
@@ -1878,14 +1938,14 @@ describe("an appeal against the commission floor", () => {
          values ($1, $2, 'let me off')`,
         [booking[0].id, listing[0].id],
       ),
-    ).rejects.toThrow(/row-level security|permission denied/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
 
-    // An update with no policy behind it is not an error — it simply matches
-    // nothing, which is the quieter half of the same guarantee.
-    const updated = await alice.query(
-      "update public.commission_appeals set status = 'upheld'",
-    );
-    expect(updated.rowCount).toBe(0);
+    // The quieter half of the same guarantee, which is not quiet any more:
+    // with the privilege revoked an update with no policy behind it is refused
+    // rather than matching nothing.
+    await expect(
+      alice.query("update public.commission_appeals set status = 'upheld'"),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   it("allows only one per booking, so a queue cannot be flooded", async () => {
@@ -2309,7 +2369,7 @@ describe("the security log is append-only and admin-only", () => {
          values ('auth.signedIn', $1, 'admin')`,
         [BOB],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 
   /*
@@ -2404,12 +2464,11 @@ describe("identity documents are the owner's and the admin's, nobody else's", ()
          values ($1, 'citizenship', $2, 'image/jpeg', 100, 'verified')`,
         [ALICE, `${ALICE}/citizenship/forged.jpg`],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
 
-    const updated = await alice.query(
-      "update public.provider_documents set status = 'verified'",
-    );
-    expect(updated.rowCount).toBe(0);
+    await expect(
+      alice.query("update public.provider_documents set status = 'verified'"),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });
 
@@ -2527,6 +2586,6 @@ describe("booking photos are the customer's, and the professional's only while t
          values ('booking-photos', $1, $2)`,
         [`${ALICE}/planted.jpg`, BOB],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
   });
 });

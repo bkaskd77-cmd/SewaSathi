@@ -84,6 +84,26 @@ export type Harness = {
   admin: Client;
   /** Open a connection that RLS applies to, acting as a given profile id. */
   asUser: (userId: string) => Promise<Client>;
+  /**
+   * A connection that is PAST the column grants and the policies, but still
+   * carries an `auth.uid()` — so the BEFORE triggers that key on it fire and
+   * answer in their own words.
+   *
+   * WHY THIS HAD TO EXIST. `20261011000004` narrowed `authenticated` to the
+   * columns the product writes, which means a browser attempting
+   * `payment_status` is now refused by the PLANNER — before any row, any policy
+   * or any trigger is considered. That is the point of a grant and it is the
+   * right first line. The cost is that every test asserting
+   * `enforce_booking_immutability`'s sentence started passing for the wrong
+   * reason: relaxing them to "it throws" would have retired the coverage of the
+   * exact guard that had already been silently broken in production for weeks.
+   *
+   * So the two layers are proven separately. `asUser` proves the grant refuses;
+   * this proves the trigger refuses anyway. It is the owner role, so RLS and
+   * column privileges do not apply — triggers do, for every caller, and
+   * `auth.uid()` is what tells them a person rather than the server is asking.
+   */
+  pastTheGrant: (userId: string) => Promise<Client>;
   /** A logged-out connection — the join form's caller. */
   asAnon: () => Promise<Client>;
   stop: () => Promise<void>;
@@ -332,6 +352,18 @@ export async function startPostgres(): Promise<Harness> {
     async asUser(userId: string) {
       const client = await connect();
       await client.query("set role authenticated");
+      await client.query("select set_config('request.jwt.claim.sub', $1, false)", [
+        userId,
+      ]);
+      open.push(client);
+      return client;
+    },
+    async pastTheGrant(userId: string) {
+      const client = await connect();
+      // No `set role`: the owner bypasses RLS and holds every column
+      // privilege. The claim is the whole difference — it is what makes
+      // `auth.uid()` non-null, which is how each trigger tells a browser apart
+      // from the service role it must let through.
       await client.query("select set_config('request.jwt.claim.sub', $1, false)", [
         userId,
       ]);

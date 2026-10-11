@@ -309,14 +309,27 @@ describe("the offer is the only way past the cap", () => {
     await setCrew(1);
 
     const id = await book({ provider: null, at: TWO_PM });
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
     const anita = await pg.asUser(ANITA);
     await expect(
       anita.query(
         "update public.bookings set overbook_offered_at = now() where id = $1",
         [id],
       ),
-    ).rejects.toThrow(/professional's to make/);
+    ).rejects.toThrow(/permission denied/i);
     await anita.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set overbook_offered_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/professional's to make/);
+    await past.end();
   });
 });
 
@@ -525,7 +538,16 @@ describe("an offer is counted, and a miss is not a refusal", () => {
         "update public.bookings set overbook_missed_at = now() where id = $1",
         [id],
       ),
-    ).rejects.toThrow(/professional's to make/);
+    ).rejects.toThrow(/permission denied/i);
     await anita.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set overbook_missed_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/professional's to make/);
+    await past.end();
   });
 });

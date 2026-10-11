@@ -1071,13 +1071,33 @@ export async function cancelBooking(
     const verdict = judgeCancellation(current.status, "customer");
     if (!verdict.allowed) return { ok: false };
 
+    /*
+     * THE FEE IS NOT IN THIS WRITE AND IS NOT A COLUMN A BROWSER MAY SET — see
+     * `20261011000004`. `cancellation_fee` defaults to 0, which is exactly what
+     * `judgeCancellation` returns for every window, because cancelling is
+     * always free: our money moves after the work, and a fee on screen that
+     * nothing can collect is worse than no fee.
+     *
+     * THE INVARIANT IS REFUSED RATHER THAN ASSUMED. The columns exist so a fee
+     * is later a constant and not a migration; the day one is non-zero this
+     * path has to move server-side, because the grant will refuse it. Writing
+     * nothing and storing 0 would be a silent under-charge, which is the
+     * failure mode worth a hard stop.
+     */
+    if (verdict.fee !== 0) {
+      console.error(
+        "[bookings] a non-zero cancellation fee cannot be written from a " +
+          "browser — move this path to the service role before setting one",
+      );
+      return { ok: false };
+    }
+
     const { data, error } = await supabase
       .from("bookings")
       .update({
         status: "cancelled",
         cancelled_by: "customer",
         cancelled_by_role: "customer",
-        cancellation_fee: verdict.fee,
         cancellation_reason: reason?.trim().slice(0, 300) || null,
       })
       .eq("id", id)

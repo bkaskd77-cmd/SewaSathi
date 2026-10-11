@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * Customer-side fraud, against real policies.
@@ -77,14 +78,27 @@ describe("a customer cannot lift their own confirmation gate", () => {
      * that lets Anita cancel her own booking also lets her write every column
      * on it, and Postgres has no per-column clause.
      */
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
     const client = await pg.asUser(ANITA);
     await expect(
       client.query(
         "update public.bookings set confirmation_required = false where id = $1",
         [anitaBooking],
       ),
-    ).rejects.toThrow(/not the customer's to set/i);
+    ).rejects.toThrow(/permission denied/i);
     await client.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set confirmation_required = false where id = $1",
+        [anitaBooking],
+      ),
+    ).rejects.toThrow(/not the customer's to set/i);
+    await past.end();
   });
 
   it("refuses moving their own hold window", async () => {
@@ -94,8 +108,17 @@ describe("a customer cannot lift their own confirmation gate", () => {
         "update public.bookings set confirmation_hold_until = now() + interval '10 days' where id = $1",
         [anitaBooking],
       ),
-    ).rejects.toThrow(/set by the server/i);
+    ).rejects.toThrow(/permission denied/i);
     await client.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set confirmation_hold_until = now() + interval '10 days' where id = $1",
+        [anitaBooking],
+      ),
+    ).rejects.toThrow(/set by the server/i);
+    await past.end();
   });
 
   it("lets the server confirm it, which is the whole point", async () => {
@@ -119,8 +142,17 @@ describe("a customer cannot lift their own confirmation gate", () => {
         "update public.bookings set confirmed_at = now() where id = $1",
         [anitaBooking],
       ),
-    ).rejects.toThrow(/cannot be rewritten/i);
+    ).rejects.toThrow(/permission denied/i);
     await client.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set confirmed_at = now() where id = $1",
+        [anitaBooking],
+      ),
+    ).rejects.toThrow(/cannot be rewritten/i);
+    await past.end();
   });
 });
 
@@ -177,7 +209,7 @@ describe("arrival evidence is visible to both sides and nobody else", () => {
          values ($1, $2)`,
         [anitaBooking, manojProvider],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 
@@ -243,11 +275,18 @@ describe("the claim and the customer's record", () => {
 
   it("does not let them edit it", async () => {
     const client = await pg.asUser(ANITA);
-    const result = await client.query(
-      "update public.customer_risk set no_shows = 0 where profile_id = $1",
-      [ANITA],
-    );
-    expect(result.rowCount).toBe(0);
+      // THE SILENCE BECAME A REFUSAL, and that is the stronger answer. This
+      // matched no rows because no policy existed while the PRIVILEGE was
+      // there, granted to every table by Supabase's default; `20261011000004`
+      // revoked it, so the planner refuses outright. Asserted through
+      // `BROWSER_WRITE_REFUSED` because both locks are now shut and which one
+      // answers is Postgres's ordering, not the guarantee.
+    await expect(
+      client.query(
+        "update public.customer_risk set no_shows = 0 where profile_id = $1",
+        [ANITA],
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 
@@ -544,7 +583,7 @@ describe("one incident counts once, however many ways it was recorded", () => {
          values ($1, $2, $3, 'abusive')`,
         [await bookingFor(), manojProvider, RIA],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await manoj.end();
   });
 });
@@ -973,14 +1012,22 @@ describe("a trip debt comes off a later bill, once", () => {
   it("refuses a customer editing the recovery on their own booking", async () => {
     const booking = await billableBooking("SK-DEBT5", "cash", false);
     const client = await pg.asUser(DEBTOR);
-
     await expect(
       client.query(
         "update public.bookings set trip_debt_added_rupees = 0 where id = $1",
         [booking],
       ),
-    ).rejects.toThrow(/not editable from a browser/i);
+    ).rejects.toThrow(/permission denied/i);
     await client.end();
+
+    const past = await pg.pastTheGrant(DEBTOR);
+    await expect(
+      past.query(
+        "update public.bookings set trip_debt_added_rupees = 0 where id = $1",
+        [booking],
+      ),
+    ).rejects.toThrow(/not editable from a browser/i);
+    await past.end();
   });
 });
 

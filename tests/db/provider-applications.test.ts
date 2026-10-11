@@ -6,6 +6,7 @@ import { sealSecret } from "@/lib/security/secret-box";
 import { matchKeysFor } from "@/lib/verification";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * Provider onboarding, against real Postgres with real policies.
@@ -125,65 +126,111 @@ describe("an application belongs to the person who made it", () => {
 
 describe("an applicant cannot approve themselves", () => {
   /*
-   * THE TRAP THIS COVERS. RLS is row-level: the update policy that lets
-   * somebody edit their own draft also lets them write every column on it,
-   * including `status`. Postgres has no per-column clause, so the trigger is
-   * the actual rule and the policy only decides which rows are theirs. This is
-   * the same shape as the bug that let a customer set their own
-   * `final_amount`, which was found here and not by reading the code.
+   * THE TRAP THIS COVERS, AND WHAT CHANGED UNDER IT.
+   *
+   * RLS is row-level: the update policy that lets somebody edit their own draft
+   * also lets them write every column on it, `status` included. Postgres has no
+   * per-column clause, so `enforce_application_immutability` was the actual
+   * rule and the policy only decided which rows were theirs — the same shape as
+   * the bug that let a customer set their own `final_amount`, found here and not
+   * by reading the code.
+   *
+   * THE POLICY IS A DOOR NOBODY USED. `20261011000004` grants the browser no
+   * INSERT or UPDATE privilege on this table at all, because nothing in the
+   * product writes it from a browser: every write — the draft insert, each step
+   * save, the submit, the review decision — goes through `createAdminClient()`
+   * in `lib/data/applications.ts`, `verification.ts` and `review.ts`, and there
+   * is not one `createClient()` call against it. The policies remain and are
+   * inert, the planner refusing before they are consulted. That is
+   * `notifications` one table over.
+   *
+   * SO EACH RULE IS ASSERTED TWICE. The grant refuses first; the trigger
+   * refuses anyway, past the grant, which is what makes the rule still true on
+   * the day somebody hands a privilege back. Asserting only the grant would
+   * retire the coverage of the guard, and this repository has already paid for
+   * a trigger nothing could see.
    */
 
-  it("refuses a status jump straight to approved", async () => {
-    const client = await pg.asUser(SHYAM);
-    await expect(
-      client.query(
-        "update public.provider_applications set status = 'approved' where id = $1",
-        [shyamApplication],
-      ),
-    ).rejects.toThrow(/not the applicant's to set/i);
-    await client.end();
-  });
+  const TRIGGER_RULES: [string, string, unknown[], RegExp][] = [
+    [
+      "a status jump straight to approved",
+      "update public.provider_applications set status = 'approved' where id = $1",
+      [],
+      /not the applicant's to set/i,
+    ],
+    [
+      "an applicant setting their own risk score",
+      "update public.provider_applications set risk_score = 0 where id = $1",
+      [],
+      /set by the server/i,
+    ],
+    [
+      "handing an application to somebody else",
+      "update public.provider_applications set profile_id = $2 where id = $1",
+      [MANOJ],
+      /cannot change hands/i,
+    ],
+  ];
 
-  it("refuses an applicant setting their own risk score", async () => {
-    const client = await pg.asUser(SHYAM);
-    await expect(
-      client.query(
-        "update public.provider_applications set risk_score = 0 where id = $1",
-        [shyamApplication],
-      ),
-    ).rejects.toThrow(/set by the server/i);
-    await client.end();
-  });
+  for (const [what, sql, extra, sentence] of TRIGGER_RULES) {
+    it(`refuses ${what} before any row is considered`, async () => {
+      const client = await pg.asUser(SHYAM);
+      await expect(
+        client.query(sql, [shyamApplication, ...extra]),
+      ).rejects.toThrow(/permission denied/i);
+      await client.end();
+    });
 
-  it("refuses handing an application to somebody else", async () => {
-    const client = await pg.asUser(SHYAM);
-    await expect(
-      client.query(
-        "update public.provider_applications set profile_id = $2 where id = $1",
-        [shyamApplication, MANOJ],
-      ),
-    ).rejects.toThrow(/cannot change hands/i);
-    await client.end();
-  });
+    it(`refuses ${what} in the trigger too, and says why`, async () => {
+      const client = await pg.pastTheGrant(SHYAM);
+      await expect(
+        client.query(sql, [shyamApplication, ...extra]),
+      ).rejects.toThrow(sentence);
+      await client.end();
+    });
+  }
 
-  it("does allow them to submit their own draft", async () => {
+  it("refuses the one write the policy would have allowed", async () => {
     /*
-     * And this is the half that must keep working. The SELECT policy carries
-     * no status condition precisely so this update does not make the row
-     * invisible to its own writer mid-statement — the trap that stopped a
-     * professional releasing their own job in Phase 8.
+     * THIS TEST USED TO ASSERT THE OPPOSITE, and the inversion is the finding
+     * rather than a regression: it read "does allow them to submit their own
+     * draft", which was true of the database and had never been true of the
+     * product. Submitting a draft is `submitApplication` under the service
+     * role.
+     *
+     * It is the strongest single statement about the table, which is why it
+     * replaces that one rather than being deleted: the row is the applicant's
+     * own, the column is the one the policy exists to permit, the status move
+     * is the legal one — and it is still refused, because no privilege backs
+     * the policy.
      */
     const client = await pg.asUser(MANOJ);
-    await client.query(
+    await expect(
+      client.query(
+        "update public.provider_applications set status = 'submitted' where id = $1",
+        [manojApplication],
+      ),
+    ).rejects.toThrow(/permission denied/i);
+    await client.end();
+  });
+
+  it("still lets the server submit it, which is what the product does", async () => {
+    /*
+     * The half that must keep working, now asserted where it actually happens.
+     * The SELECT policy carries no status condition precisely so this update
+     * does not make the row invisible to its own writer mid-statement — the
+     * trap that stopped a professional releasing their own job in Phase 8 — and
+     * that is still the shape the day a browser grant comes back.
+     */
+    await pg.admin.query(
       "update public.provider_applications set status = 'submitted' where id = $1",
       [manojApplication],
     );
-    const { rows } = await client.query(
+    const { rows } = await pg.admin.query(
       "select status from public.provider_applications where id = $1",
       [manojApplication],
     );
     expect(rows[0].status).toBe("submitted");
-    await client.end();
 
     // Put it back so the later tests see a draft.
     await pg.admin.query(
@@ -192,15 +239,22 @@ describe("an applicant cannot approve themselves", () => {
     );
   });
 
-  it("refuses an applicant editing somebody else's draft", async () => {
+  it("tells an applicant nothing about somebody else's draft either", async () => {
+    /*
+     * This asked for `rowCount: 0` and got it from the policy simply not
+     * matching — the correct answer, and the comment noted that an error would
+     * have confirmed the row exists. The refusal is now the planner's, which is
+     * row-independent: `permission denied for table provider_applications` is
+     * the same sentence for a row that exists, a row that does not, and a row
+     * belonging to somebody else. It leaks strictly less than the silence did.
+     */
     const client = await pg.asUser(MANOJ);
-    const result = await client.query(
-      "update public.provider_applications set full_name = 'Hijacked' where id = $1",
-      [shyamApplication],
-    );
-    // No error, no rows: the policy simply does not match it, which is the
-    // correct answer — an error would confirm the row exists.
-    expect(result.rowCount).toBe(0);
+    await expect(
+      client.query(
+        "update public.provider_applications set full_name = 'Hijacked' where id = $1",
+        [shyamApplication],
+      ),
+    ).rejects.toThrow(/permission denied/i);
     await client.end();
   });
 });
@@ -257,7 +311,7 @@ describe("documents belong to one person and nobody else", () => {
          values ($1, 'selfie', $2, 'image/jpeg', 1000)`,
         [SHYAM, `${SHYAM}/selfie/forged`],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 });
@@ -295,7 +349,7 @@ describe("consent cannot be forged from a browser", () => {
          values ($1, $2, '2026-09-10.1', '{citizenship}')`,
         [manojApplication, MANOJ],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 

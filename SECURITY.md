@@ -718,21 +718,19 @@ neither is what somebody reads at 2am with a red panel in front of them, so it
 is written here: **on `profiles`, that hint is wrong. Grant the column, never
 the table.**
 
-**The sweep that followed found no second hole**, and `tests/db/write-grants.test.ts`
-is what stops a seventh arriving unseen. The grant is not the discriminator — every
-table in `public` carries table-wide INSERT and UPDATE for `anon` and
-`authenticated` through a Supabase default privilege, so listing tables that have
-it lists all of them. The POLICY is what decides, and after
-`20260928000001` dropped the unused `notifications` policy, exactly five tables
-grant a browser role a write:
+**The sweep that followed found no second hole in the POLICIES**, and
+`tests/db/write-grants.test.ts` is what stops a sixth table arriving unseen.
+After `20260928000001` dropped the unused `notifications` policy, exactly five
+tables grant a browser role a write — and all five are now column grants as
+well, which is the subsection below:
 
 | table | verbs | what makes it safe |
 | --- | --- | --- |
-| `addresses` | INSERT, UPDATE | `profile_id = auth.uid()` in `using` **and** `with check` |
-| `bookings` | INSERT, UPDATE | `enforce_booking_immutability`; `enforce_booking_transition` pins an INSERT to `pending` and `freeze_booking_band` writes the floor server-side |
-| `profiles` | UPDATE | the column grant above |
-| `provider_applications` | INSERT, UPDATE | `enforce_application_immutability` — `status`, `risk_score`, `submitted_at` and a change of hands |
-| `provider_leads` | INSERT | open on purpose: somebody not signed in must be able to ask to join, and a lead confers nothing until a person acts on it |
+| `addresses` | INSERT, UPDATE | eight form columns on INSERT, `is_default` alone on UPDATE; `profile_id = auth.uid()` in `using` **and** `with check` |
+| `bookings` | INSERT, UPDATE | 20 columns on INSERT, 5 on UPDATE; then `enforce_booking_immutability`, with `enforce_booking_transition` pinning an INSERT to `pending` and `freeze_booking_band` writing the floor server-side |
+| `profiles` | UPDATE | `full_name`, `preferred_language`, `hide_from_activity` |
+| `provider_applications` | INSERT, UPDATE | **nothing is granted at all** — the policies are inert, and `enforce_application_immutability` stays behind them |
+| `provider_leads` | INSERT | seven form columns; open to `anon` on purpose, because somebody not signed in must be able to ask to join |
 
 `notifications` was a sixth and is gone: its policy granted UPDATE on all seven
 columns of a person's own rows and **nothing used it** — `markBookingRead` writes
@@ -747,6 +745,110 @@ a list of names still passes the day a trigger is dropped. The list lives in
 also pins that no browser role holds DELETE anywhere — true across all 37 tables, never explicitly
 decided, and the first one should be an argument somebody makes rather than a line
 that slips in.
+
+### A browser gets the columns it writes, and not the table
+
+`20261011000004_browser_column_grants.sql`. The `profiles` fix above was right
+and it was applied to one table; the question was never asked again on the other
+four, and the reasoning that stopped it being asked is in the paragraph this
+subsection replaced — *"the grant is not the discriminator, because every table
+in `public` carries table-wide INSERT and UPDATE through a default privilege, so
+listing tables that have it lists all of them."* True as an observation, and the
+wrong conclusion: a privilege every table carries is not a reason to look at the
+policy instead, it is 36 locks left open.
+
+**What was live, read out of `information_schema` before the change.** `anon` and
+`authenticated` each held INSERT and UPDATE on 31 tables and DELETE on 36 — 85
+columns of `bookings`, 22 of `provider_applications`, 16 of `addresses`, every
+column of `payments`, `refunds`, `provider_ledger`, `security_events`,
+`guarantee_claims`, `customer_risk`. All of it inert, and **inert is a property
+of the policies rather than of the privilege**: `anon` has one write policy in
+the whole product, and there is no DELETE policy anywhere at all. Every public
+table has RLS enabled — checked, not assumed.
+
+So nothing was reachable, and every one of those tables was one policy away from
+being reachable with no column guard on it. That is not hypothetical: it is the
+`payouts` incident's precondition. A migration timed out after `create table` and
+before its RLS enable, and for as long as that lasted `anon` held SELECT, INSERT,
+UPDATE and DELETE on a money-instruction table through nothing anybody wrote.
+`20261002000001` closed the source for FUTURE tables; the tables that already
+existed kept their grants, because a default privilege applies only at CREATE
+time, and that half had never been done.
+
+**The change.** INSERT, UPDATE and DELETE revoked from `anon` and `authenticated`
+on every table in `public`, then granted back per column on the five tables that
+need them — the lists taken out of `lib/data/` rather than guessed. SELECT is
+untouched. `service_role` is untouched, because it is how every server write in
+`lib/data/` reaches these tables.
+
+**The trigger stays, and this is depth rather than replacement.** A grant is
+refused by the planner before a row is considered and there is no second copy of
+a column privilege anywhere; a trigger is the one kind of guard that can be
+rebuilt wrongly, which is exactly what happened — production ran a copy of
+`enforce_booking_immutability` missing three of its blocks for weeks, applied to
+the live database only, where no test in this repository could see it. With
+`authenticated` holding UPDATE on all 85 columns, that trigger was the whole
+barrier. Now the grant refuses first and the trigger refuses anyway.
+
+**Five findings beyond `bookings`:**
+
+- **`enforce_booking_immutability` is BEFORE UPDATE only**, so nothing had ever
+  guarded an INSERT column. A hand-crafted POST could have inserted a booking
+  already `payment_status = 'paid'` carrying a `platform_fee` — which
+  `/admin/revenue` sums.
+- **`addresses` was guarded by its policy alone**, and its allow-list note
+  ("no column here confers anything") had stopped being true. `lat`/`lng` are the
+  ward centroid and a ranking input, so a customer who could move their own pin
+  could move themselves up every professional's distance sort;
+  `upheld_no_shows` is their own no-show history, and writable means erasable;
+  `first_confirmed_at` is what the trip-confirmation risk rule reads.
+- **`provider_applications`' write policies are a door nobody uses.** Every write
+  — the draft insert, each step save, the submit, the review decision — goes
+  through `createAdminClient()`; there is not one `createClient()` call against
+  the table. It grants the browser nothing now, which is `notifications` one
+  table over. A test that asserted an applicant *could* submit their own draft
+  was asserting a capability of the database that the product had never used.
+- **`provider_leads` granted `status`**, so a stranger could post a lead already
+  marked `contacted` — and `startApplication` moves a lead on with
+  `.eq("status", "new")`, so a forged status means a real applicant silently
+  never enters the queue a person works through. It also granted UPDATE, while
+  `lib/data/provider-leads.ts` carries a comment saying the table grants "INSERT
+  and nothing else" — the load-bearing reason the duplicate lead is handled in
+  TypeScript rather than by an upsert, since `on conflict do update` needs an
+  UPDATE policy and an open form must never have one. That comment is true now.
+- **`profiles` still granted table-wide INSERT**, to both browser roles, which is
+  the second lock on the door `20260927000005` had just fitted a lock to. Inert
+  (no INSERT policy, and rows arrive only from `security definer` functions), and
+  revoked by that migration's own argument: *"the grant and the policy are two
+  locks and this closes the one that was open."*
+
+**What the tests now assert.** Three catalog facts, in `write-grants.test.ts`:
+no table outside the allow-list has a write policy; `authenticated` holds an
+INSERT or UPDATE privilege on exactly the 51 columns the allow-list names and
+nothing else in the schema; `anon` holds seven, all on the join form. The
+`anon` expectation is spelled out rather than derived, because a test that reads
+the same constant the code reads asserts that a thing equals itself.
+`tests/db/browser-column-grants.test.ts` performs every write the product
+actually makes *as the customer* — a grant list that is too narrow does not fail
+safe, it breaks a feature with `42501` — and then forges each refused column.
+
+**And the arrival of the grant nearly retired the trigger's own coverage.**
+Twenty-odd cases across the db suite asserted
+`enforce_booking_immutability`'s sentences, and every one of them started
+passing on `permission denied` instead. Relaxing them to "it throws" would have
+left the guard that has already been broken once as the guard nothing tests, so
+`pg.pastTheGrant(userId)` was added to the harness: the owner role carrying an
+`auth.uid()`, which is past the grants and the policies but still reaches a
+trigger that keys on somebody rather than the server asking. Each rule is
+asserted twice now — the grant refuses first, the trigger refuses anyway and
+says why — and `pastTheGrant`'s own two properties are pinned, because a harness
+primitive that stopped carrying the claim would look exactly like a broken
+guard.
+
+**Proven against production.** Before: `anon` and `authenticated` on 31 tables
+for INSERT and UPDATE, 36 for DELETE. After: 51 column grants in total across
+five tables, no DELETE for either role anywhere, SELECT unchanged.
+`information_schema.column_privileges` read back in full.
 
 ### A role change writes its own audit row, and until now it wrote none
 

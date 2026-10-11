@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * Availability the system maintains, and the trap beside it.
@@ -185,12 +186,18 @@ describe("on a job is the system's fact, not a setting", () => {
 
   it("cannot be written by the professional themselves", async () => {
     const client = await pg.asUser(KRISHNA);
-    const { rowCount } = await client.query(
-      "update public.providers set on_job_since = now() where id = $1",
-      [provider],
-    );
-    // No update policy on `providers` at all, so RLS matches nothing.
-    expect(rowCount).toBe(0);
+      // THE SILENCE BECAME A REFUSAL, and that is the stronger answer. This
+      // matched no rows because no policy existed while the PRIVILEGE was
+      // there, granted to every table by Supabase's default; `20261011000004`
+      // revoked it, so the planner refuses outright. Asserted through
+      // `BROWSER_WRITE_REFUSED` because both locks are now shut and which one
+      // answers is Postgres's ordering, not the guarantee.
+    await expect(
+      client.query(
+        "update public.providers set on_job_since = now() where id = $1",
+        [provider],
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 });

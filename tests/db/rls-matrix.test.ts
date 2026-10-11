@@ -6,6 +6,7 @@ import type { Client as PgClient } from "pg";
 
 import { startPostgres, type Harness } from "../support/postgres";
 import { ALLOWED } from "../support/write-allowlist";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * Every table, every role, every verb — asserted, and written down.
@@ -475,7 +476,7 @@ describe("what each role can write", () => {
          values ($1, 'theirs', 'lalitpur-4', 'Lalitpur', 4, 'Jhamsikhel', 'Gate')`,
         [ANITA],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await bina.query("rollback");
   });
 });

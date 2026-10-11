@@ -282,14 +282,27 @@ describe("the stamps are not the browser's to write", () => {
      * they wrote themselves.
      */
     const id = await book({ survey: true });
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
     const anita = await pg.asUser(ANITA);
     await expect(
       anita.query(
         "update public.bookings set quote_approved_at = now() where id = $1",
         [id],
       ),
-    ).rejects.toThrow(/recorded by the server, not a browser/);
+    ).rejects.toThrow(/permission denied/i);
     await anita.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set quote_approved_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/recorded by the server, not a browser/);
+    await past.end();
   });
 
   it("still refuses the settlement columns it refused before", async () => {
@@ -302,8 +315,17 @@ describe("the stamps are not the browser's to write", () => {
         "update public.bookings set commission_basis = 1 where id = $1",
         [id],
       ),
-    ).rejects.toThrow(/not editable from a browser/);
+    ).rejects.toThrow(/permission denied/i);
     await anita.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set commission_basis = 1 where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/not editable from a browser/);
+    await past.end();
   });
 });
 

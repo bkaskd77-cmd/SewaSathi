@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * `provider_stats`, computed from what happened.
@@ -411,7 +412,7 @@ describe("a sealed review is nobody's to read but its author's", () => {
          values ($1, $2, $3, 'Sita', 5, 'Great')`,
         [provider, id, CUSTOMER],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await sita.end();
   });
 
@@ -423,13 +424,26 @@ describe("a sealed review is nobody's to read but its author's", () => {
      */
     await clear();
     const id = await booking({ provider, status: "completed" });
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
     const pro = await pg.asUser(PRO);
     await expect(
       pro.query(
         "update public.bookings set provider_visit_reviewed_at = now() where id = $1",
         [id],
       ),
-    ).rejects.toThrow(/recorded by the server, not a browser/);
+    ).rejects.toThrow(/permission denied/i);
     await pro.end();
+
+    const past = await pg.pastTheGrant(PRO);
+    await expect(
+      past.query(
+        "update public.bookings set provider_visit_reviewed_at = now() where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/recorded by the server, not a browser/);
+    await past.end();
   });
 });

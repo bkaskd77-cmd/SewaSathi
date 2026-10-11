@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { refundCeiling } from "@/lib/payments/refund";
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * The guarantee, against the real policies and triggers.
@@ -667,17 +668,24 @@ describe("who may read a claim", () => {
          values ($1, $2, 'plumbing', 'Straight from the browser')`,
         [booking, ANITA],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 
   it("lets a customer see the claim but never edit it", async () => {
     const client = await pg.asUser(ANITA);
-    const { rowCount } = await client.query(
-      "update public.guarantee_claims set description = 'rewritten' where customer_id = $1",
-      [ANITA],
-    );
-    expect(rowCount).toBe(0);
+      // THE SILENCE BECAME A REFUSAL, and that is the stronger answer. This
+      // matched no rows because no policy existed while the PRIVILEGE was
+      // there, granted to every table by Supabase's default; `20261011000004`
+      // revoked it, so the planner refuses outright. Asserted through
+      // `BROWSER_WRITE_REFUSED` because both locks are now shut and which one
+      // answers is Postgres's ordering, not the guarantee.
+    await expect(
+      client.query(
+        "update public.guarantee_claims set description = 'rewritten' where customer_id = $1",
+        [ANITA],
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 });
@@ -1068,14 +1076,27 @@ describe("the return visit is a real booking", () => {
       [ANITA, krishnaProvider, anitaAddress, slot()],
     );
 
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
     const anita = await pg.asUser(ANITA);
     await expect(
       anita.query(
         "update public.bookings set billable = false where id = $1",
         [rows[0].id],
       ),
-    ).rejects.toThrow(/Who pays for a return visit/i);
+    ).rejects.toThrow(/permission denied/i);
     await anita.end();
+
+    const past = await pg.pastTheGrant(ANITA);
+    await expect(
+      past.query(
+        "update public.bookings set billable = false where id = $1",
+        [rows[0].id],
+      ),
+    ).rejects.toThrow(/Who pays for a return visit/i);
+    await past.end();
   });
 });
 
@@ -1139,7 +1160,7 @@ describe("the provider ledger", () => {
          values ($1, 'recovery', 99999)`,
         [krishnaProvider],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 });
@@ -1283,7 +1304,7 @@ describe("a refund that has been agreed but not yet sent", () => {
          values ($1, 99999, 'I would like my money back please')`,
         [payment],
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await anita.end();
   });
 });

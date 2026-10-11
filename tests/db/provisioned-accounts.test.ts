@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * A role that is waiting before the person is.
@@ -134,7 +135,7 @@ describe("nobody can grant themselves anything", () => {
       client.query(
         "insert into public.provisioned_accounts (phone, role, label) values ('9779800000093', 'admin', 'mine now')",
       ),
-    ).rejects.toThrow(/row-level security|permission denied/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 
@@ -144,7 +145,7 @@ describe("nobody can grant themselves anything", () => {
       client.query(
         "insert into public.provisioned_accounts (phone, role, label) values ('9779800000094', 'admin', 'mine now')",
       ),
-    ).rejects.toThrow(/row-level security|permission denied/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await client.end();
   });
 

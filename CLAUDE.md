@@ -1805,11 +1805,51 @@ endpoint or stores a new kind of personal data.
   sets Supabase's default privilege before the migrations now, which is what the
   real database does. **So before adding an UPDATE policy, ask which column on
   that table confers power**, and check the grant as well as the policy —
-  `tests/db/write-grants.test.ts` is what fails if you do not. It reads
-  `pg_policy` rather than the grants, because Supabase's default privilege puts a
-  table-wide grant on everything and the policy is what decides; six tables let a
-  browser write, each entry names the guard that makes it safe, and the test goes
-  red when a seventh appears or when a named guard disappears.
+  `tests/db/write-grants.test.ts` is what fails if you do not. Five tables let a
+  browser write, each entry names the guards that make it safe, and the test goes
+  red when a sixth appears or when a named guard disappears.
+- **The reason that stopped the question being asked on the other four tables was
+  an observation with the wrong conclusion drawn from it**, and it sat in this
+  file and in `SECURITY.md` for two weeks: *the grant is not the discriminator,
+  because Supabase's default puts a table-wide grant on everything, so listing
+  tables that have it lists all of them — the POLICY is what decides.* Every
+  clause true. A privilege every table carries is not a reason to look at the
+  policy instead; it is **36 locks left open**. Read live: `anon` and
+  `authenticated` each held INSERT and UPDATE on 31 tables and DELETE on 36 —
+  all 85 columns of `bookings`, every column of `payments`, `refunds`,
+  `provider_ledger`, `security_events`, `customer_risk`. All of it inert, and
+  **inert is a property of the policies rather than of the privilege**: `anon`
+  has one write policy in the product, there is no DELETE policy anywhere at
+  all, and every public table has RLS enabled (checked, not assumed). So every
+  one of those tables was one policy away from being writable with no column
+  guard on it, which is `payouts`' own precondition rather than a hypothetical.
+  `20261011000004` revokes all three verbs schema-wide from both browser roles
+  and grants back 51 columns across the five tables, taken out of `lib/data/`
+  rather than guessed; SELECT and `service_role` are untouched. **The trigger
+  stays as the second layer** — that is the user's ask and the right shape: a
+  grant cannot be rebuilt wrongly and a trigger can, which is the whole lesson of
+  the live drift, so the grant refuses first and the trigger refuses anyway.
+  Four findings came out of it: `enforce_booking_immutability` is BEFORE UPDATE
+  **only**, so no INSERT column had ever been guarded and a hand-crafted POST
+  could insert a booking already `paid` with a `platform_fee`; `addresses` was
+  on its policy alone while `lat`/`lng` (a ranking input), `upheld_no_shows` and
+  `first_confirmed_at` had quietly become the server's; `provider_applications`'
+  write policies are a door nobody uses, every write being `createAdminClient()`,
+  so it grants nothing now; and `provider_leads` granted `status`, which
+  `startApplication` reads as `new` to move a lead on — a forged one means a real
+  applicant never enters the queue.
+  **And the grant nearly retired the trigger's own coverage.** Twenty-odd cases
+  asserting `enforce_booking_immutability`'s sentences began passing on
+  `permission denied`; relaxing them to "it throws" would have left the guard
+  that has already been broken once as the guard nothing tests. `pg.pastTheGrant`
+  is the harness answer — the owner role carrying an `auth.uid()`, past the grants
+  and the policies but still reaching a trigger that keys on somebody rather than
+  the server asking — so each rule is asserted at both layers, and that
+  primitive's own two properties are pinned because one that stopped carrying the
+  claim would look exactly like a broken guard. `tests/support/refusals.ts` is the
+  one `BROWSER_WRITE_REFUSED`, because three spellings of that regex were already
+  in the suite and had begun to drift: a behavioural test asserts the refusal, and
+  **which lock answers is Postgres's ordering rather than the guarantee**.
 - **A role change writes its own audit row, in the same transaction.** Promoting
   an approved applicant was a bare `update({ role })` that logged only on
   failure, so the live log's only two `role.changed` rows both say `customer` —
@@ -1988,9 +2028,13 @@ in `20261002000001`, and the scope is stated narrowly because it has to be:
 CREATE. The connection is `postgres` and `pg_has_role` says it is not a member of
 `supabase_admin`, so what is actually true is **every table this product
 creates**. `tests/db/write-grants.test.ts` is the backstop for the other case.
-No existing table lost anything — default privileges apply only at CREATE time,
-and the grants for both browser roles across all 75 rows fingerprinted
-identically before and after.
+**It changed nothing for a table that already existed**, because a default
+privilege applies only at CREATE time — the grants for both browser roles across
+all 75 rows fingerprinted identically before and after. That was recorded here as
+reassurance and it was the other half of the job going undone: those tables kept
+their table-wide INSERT, UPDATE and DELETE for another two weeks, until
+`20261011000004` revoked all three schema-wide. The two halves meet now — an old
+table has had its privilege taken away, a new one is never given one.
 **The trap this creates is louder than the one it closes**, so it is written
 here: a new table with a perfectly correct RLS policy still answers `permission
 denied`, because the policy decides *which rows* and the grant decides whether

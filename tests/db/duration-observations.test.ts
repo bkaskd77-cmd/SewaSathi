@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DURATION_OUTCOMES } from "@/lib/booking";
 
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * The duration loop's own record.
@@ -94,7 +95,7 @@ describe("no browser writes it and only an admin reads it", () => {
             published_source, floor_sample, outcome)
          values ('painting', 'flat', 'span', 99, 1, 7, 'invented', 20, 'applied')`,
       ),
-    ).rejects.toThrow(/permission denied|violates row-level security/i);
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     await anita.end();
   });
 

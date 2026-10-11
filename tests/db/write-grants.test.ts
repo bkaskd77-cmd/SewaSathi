@@ -109,46 +109,126 @@ describe("no table lets a browser write without being named here", () => {
   });
 });
 
+/**
+ * Reads what `authenticated` may actually write, per column, for one verb.
+ *
+ * `information_schema.column_privileges` lists every column of a table-wide
+ * grant as well as the columns of a column grant, which is what makes it the
+ * right catalog to ask: a revoke that never ran reads as all 40 columns rather
+ * than as silence.
+ */
+async function grantedColumns(
+  table: string,
+  verb: "INSERT" | "UPDATE",
+  grantee = "authenticated",
+) {
+  const { rows } = await pg.admin.query(
+    `select column_name
+       from information_schema.column_privileges
+      where table_schema = 'public'
+        and table_name = $1
+        and grantee = $3
+        and privilege_type = $2
+      order by column_name`,
+    [table, verb, grantee],
+  );
+
+  return rows.map((r: { column_name: string }) => r.column_name);
+}
+
 describe("every declared guard is still there", () => {
   it("has the trigger each trigger-guarded table names", async () => {
     for (const [table, entry] of Object.entries(ALLOWED)) {
-      if (entry.guard.kind !== "trigger") continue;
+      for (const guard of entry.guards) {
+        if (guard.kind !== "trigger") continue;
 
-      const { rows } = await pg.admin.query(
-        `select t.tgname, t.tgenabled
-           from pg_trigger t
-          where t.tgrelid = ('public.' || $1)::regclass
-            and not t.tgisinternal
-            and t.tgname = $2`,
-        [table, entry.guard.name],
-      );
+        const { rows } = await pg.admin.query(
+          `select t.tgname, t.tgenabled
+             from pg_trigger t
+            where t.tgrelid = ('public.' || $1)::regclass
+              and not t.tgisinternal
+              and t.tgname = $2`,
+          [table, guard.name],
+        );
 
-      expect(rows, `${table} lost ${entry.guard.name}`).toHaveLength(1);
-      // 'D' is disabled. A trigger that is present and switched off guards
-      // nothing, and reads in the catalog exactly like one that works.
-      expect(rows[0].tgenabled, `${entry.guard.name} is disabled`).not.toBe("D");
+        expect(rows, `${table} lost ${guard.name}`).toHaveLength(1);
+        // 'D' is disabled. A trigger that is present and switched off guards
+        // nothing, and reads in the catalog exactly like one that works.
+        expect(rows[0].tgenabled, `${guard.name} is disabled`).not.toBe("D");
+      }
     }
   });
 
   it("keeps each column-granted table narrowed to exactly its columns", async () => {
     for (const [table, entry] of Object.entries(ALLOWED)) {
-      if (entry.guard.kind !== "column-grant") continue;
+      for (const guard of entry.guards) {
+        if (guard.kind !== "column-grant") continue;
+
+        for (const verb of ["INSERT", "UPDATE"] as const) {
+          const declared = verb === "INSERT" ? guard.insert : guard.update;
+          if (!declared) continue;
+
+          expect(
+            await grantedColumns(table, verb),
+            `${table}'s ${verb} grant is not the set it declares`,
+          ).toEqual([...declared].sort());
+        }
+      }
+    }
+  });
+
+  it("declares a column set for every verb a column-granted table allows", async () => {
+    /*
+     * THE HOLE THE PLURAL SHAPE WOULD OTHERWISE OPEN. The case above walks the
+     * declarations, so a verb nobody declared is a verb nobody asserts — and
+     * `bookings` had exactly that asymmetry for months: a BEFORE UPDATE trigger
+     * guarding the update path while INSERT was table-wide and unexamined. A
+     * column-granted table must therefore account for every verb it has a
+     * policy for.
+     */
+    for (const [table, entry] of Object.entries(ALLOWED)) {
+      const grant = entry.guards.find((g) => g.kind === "column-grant");
+      if (!grant || grant.kind !== "column-grant") continue;
+
+      const declared = [
+        ...(grant.insert ? ["INSERT"] : []),
+        ...(grant.update ? ["UPDATE"] : []),
+      ].sort();
+
+      expect(
+        declared,
+        `${table} has a write policy for a verb its column grant says nothing about`,
+      ).toEqual([...entry.verbs].sort());
+    }
+  });
+
+  it("leaves a no-grant table with no browser privilege at all", async () => {
+    /*
+     * A policy with no privilege behind it is inert — the planner refuses before
+     * the policy is consulted — and that is the whole guard on
+     * `provider_applications`. It only reads as a guard if the privilege really
+     * is absent, so this asks rather than trusting the migration, for both
+     * browser roles: `anon` holds no policy there, and a grant to it would be a
+     * second lock left open.
+     */
+    for (const [table, entry] of Object.entries(ALLOWED)) {
+      if (!entry.guards.some((g) => g.kind === "no-grant")) continue;
 
       const { rows } = await pg.admin.query(
-        `select column_name
+        `select grantee, privilege_type, column_name
            from information_schema.column_privileges
           where table_schema = 'public'
             and table_name = $1
-            and grantee = 'authenticated'
-            and privilege_type = 'UPDATE'
-          order by column_name`,
+            and grantee in ('anon', 'authenticated')
+            and privilege_type in ('INSERT', 'UPDATE')
+          order by grantee, privilege_type, column_name`,
         [table],
       );
 
       expect(
-        rows.map((r: { column_name: string }) => r.column_name),
-        `${table}'s UPDATE grant is not the set it declares`,
-      ).toEqual(entry.guard.columns);
+        rows,
+        `${table} declares no browser grant and has one`,
+      ).toEqual([]);
     }
   });
 
@@ -161,7 +241,7 @@ describe("every declared guard is still there", () => {
      * somebody writes a row into a shape they can no longer read back.
      */
     for (const [table, entry] of Object.entries(ALLOWED)) {
-      if (entry.guard.kind !== "policy-both-sides") continue;
+      if (!entry.guards.some((g) => g.kind === "policy-both-sides")) continue;
 
       for (const policy of writePolicies.filter((p) => p.tbl === table)) {
         if (policy.cmd === "w") {
@@ -189,6 +269,126 @@ describe("every declared guard is still there", () => {
 
       expect(found, `${table} gained or lost a write verb`).toEqual(
         [...entry.verbs].sort(),
+      );
+    }
+  });
+
+  it("gives a signed-in browser no write privilege the allow-list does not name", async () => {
+    /*
+     * THE MECHANISM `tests/support/refusals.ts` POINTS AT, and the one case
+     * that covers every table at once.
+     *
+     * The behavioural tests across the suite assert that a browser's write to
+     * `payments`, `refunds`, `security_events`, `provider_ledger` and two dozen
+     * others is refused, without pinning which lock answered. This is the lock:
+     * `authenticated` holds an INSERT or UPDATE privilege on exactly the
+     * columns the allow-list names and on nothing else in the schema. Before
+     * `20261011000004` that was false for 31 tables, all of them inert only
+     * because no policy had been written — which is the state `payouts` was in
+     * when it was briefly writable by a stranger through nothing anybody wrote.
+     *
+     * Derived from ALLOWED rather than spelled out, deliberately and unlike the
+     * `anon` case below: there are 51 grants across five tables, the point is
+     * that the schema and the list agree, and the list is itself asserted
+     * column-by-column against the catalog three cases above.
+     */
+    const expected = Object.entries(ALLOWED)
+      .flatMap(([table, entry]) =>
+        entry.guards.flatMap((guard) =>
+          guard.kind !== "column-grant"
+            ? []
+            : [
+                ...(guard.insert ?? []).map((c) => `${table}.${c} INSERT`),
+                ...(guard.update ?? []).map((c) => `${table}.${c} UPDATE`),
+              ],
+        ),
+      )
+      .sort();
+
+    const { rows } = await pg.admin.query(`
+      select table_name, privilege_type, column_name
+        from information_schema.column_privileges
+       where table_schema = 'public'
+         and grantee = 'authenticated'
+         and privilege_type in ('INSERT', 'UPDATE', 'DELETE')
+    `);
+
+    const found = (
+      rows as { table_name: string; privilege_type: string; column_name: string }[]
+    )
+      .map((r) => `${r.table_name}.${r.column_name} ${r.privilege_type}`)
+      .sort();
+
+    expect(found).toEqual(expected);
+  });
+
+  it("gives a stranger seven columns of the join form and nothing else", async () => {
+    /*
+     * THE WHOLE-SCHEMA STATEMENT ABOUT `anon`, which no per-table case makes.
+     *
+     * Supabase's default privilege handed a logged-out visitor INSERT and
+     * UPDATE on every column of every table in `public` — 85 on `bookings`, 22
+     * on `provider_applications`, 16 on `addresses`. All of it was inert,
+     * because `anon` has exactly one write policy in the product, and inert is
+     * a property of the policies rather than of the privilege: one `anon`
+     * INSERT policy added anywhere, for any reason, would have been live and
+     * unguarded on arrival.
+     *
+     * So this is asked of the schema rather than of a list. The expected value
+     * is spelled out rather than derived from ALLOWED, because a test that
+     * reads the same constant the code reads asserts that a thing equals
+     * itself — `ACTIVITY_FLOOR`'s blind tests are the recorded version of that
+     * mistake.
+     */
+    const { rows } = await pg.admin.query(`
+      select table_name, privilege_type, column_name
+        from information_schema.column_privileges
+       where table_schema = 'public'
+         and grantee = 'anon'
+         and privilege_type in ('INSERT', 'UPDATE')
+       order by table_name, privilege_type, column_name
+    `);
+
+    expect(
+      (rows as { table_name: string; privilege_type: string; column_name: string }[]).map(
+        (r) => `${r.table_name}.${r.column_name} ${r.privilege_type}`,
+      ),
+    ).toEqual([
+      "provider_leads.area_key INSERT",
+      "provider_leads.category_slug INSERT",
+      "provider_leads.full_name INSERT",
+      "provider_leads.locale INSERT",
+      "provider_leads.note INSERT",
+      "provider_leads.phone INSERT",
+      "provider_leads.years_experience INSERT",
+    ]);
+  });
+
+  it("gives a stranger the same columns a signed-in visitor has on that form", async () => {
+    // The join form is reachable either way — somebody with an account may
+    // still be applying to work — so the two roles must not drift apart on it.
+    expect(await grantedColumns("provider_leads", "INSERT", "anon")).toEqual(
+      await grantedColumns("provider_leads", "INSERT", "authenticated"),
+    );
+  });
+
+  it("names a grant before a trigger wherever both guard a table", () => {
+    /*
+     * ORDER IS THE LESSON FROM THE DRIFT, so it is pinned rather than left to
+     * whoever edits the list next. A trigger can be rebuilt from a stale copy
+     * and applied to one database — which is what happened, and cost production
+     * three blocks of `enforce_booking_immutability` for weeks. A column
+     * privilege has no second copy to go stale. Where a table has both, the
+     * grant is the first line and the trigger is depth behind it.
+     */
+    for (const [table, entry] of Object.entries(ALLOWED)) {
+      const kinds = entry.guards.map((g) => g.kind);
+      const grant = kinds.indexOf("column-grant");
+      const trigger = kinds.indexOf("trigger");
+      if (grant === -1 || trigger === -1) continue;
+
+      expect(grant, `${table} names its trigger before its grant`).toBeLessThan(
+        trigger,
       );
     }
   });

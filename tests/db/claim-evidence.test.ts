@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { doubtsOnRow, inspectionRequired } from "@/lib/photos/evidence";
 import { startPostgres, type Harness } from "../support/postgres";
+import { BROWSER_WRITE_REFUSED } from "../support/refusals";
 
 /**
  * Claim evidence, against the real constraints.
@@ -244,7 +245,7 @@ describe("who may write, and who may look", () => {
            values ($1, 'x/y.jpg', 0, now(), false, 'unseen', 'fresh')`,
           [claimId],
         ),
-      ).rejects.toThrow(/permission denied|violates row-level security/i);
+      ).rejects.toThrow(BROWSER_WRITE_REFUSED);
     } finally {
       await anita.end();
     }

@@ -855,18 +855,21 @@ describe("a completion records what it measured and not more", () => {
 
   it("is not a browser's to write", async () => {
     const id = await book("touch-up");
-    await expect(
-      (await pg.asUser(ANITA)).query(
-        "update public.bookings set actual_elapsed_days = 4 where id = $1",
-        [id],
-      ),
-    ).rejects.toThrow(/How long a job takes/i);
-    await expect(
-      (await pg.asUser(ANITA)).query(
-        "update public.bookings set actual_elapsed_minutes = 99 where id = $1",
-        [id],
-      ),
-    ).rejects.toThrow(/How long a job takes/i);
+    // Both layers: the column grant refuses before any row is considered
+    // (`20261011000004`), and the trigger refuses anyway and says why. Asserting
+    // only the first would retire the coverage of a guard that has already been
+    // silently broken in production once.
+    for (const sql of [
+      "update public.bookings set actual_elapsed_days = 4 where id = $1",
+      "update public.bookings set actual_elapsed_minutes = 99 where id = $1",
+    ]) {
+      await expect((await pg.asUser(ANITA)).query(sql, [id])).rejects.toThrow(
+        /permission denied/i,
+      );
+      await expect(
+        (await pg.pastTheGrant(ANITA)).query(sql, [id]),
+      ).rejects.toThrow(/How long a job takes/i);
+    }
   });
 });
 
