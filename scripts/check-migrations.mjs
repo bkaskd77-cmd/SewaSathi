@@ -169,6 +169,63 @@ function nestedCommentFailures(file, src) {
   return out;
 }
 
+/**
+ * Every `create or replace function public.x(...) ... as <tag> ... <tag>;`.
+ *
+ * THE TAG IS CAPTURED AND BACK-REFERENCED, and that is not a generalisation for
+ * its own sake — it is the fix for a scanner that had quietly stopped scanning.
+ * This read `as \$\$([\s\S]*?)\$\$;` and nothing else, so two functions
+ * dollar-quoted `$fn$` were invisible to it:
+ *
+ *   `enforce_claim_refund` — the guarantee refund ceiling. Its last definition
+ *   (`20261008000003`) was never seen, so the fingerprint file kept the
+ *   `20260925000003` body, and `/api/health` reported the LIVE database as
+ *   drifted for four days. The database was right and the monitor was wrong,
+ *   which is the inverse of the drift this gate was built for and reads
+ *   identically from outside.
+ *
+ *   `add_ai_spend` — first defined in `20261009000001`, so it never entered the
+ *   fingerprint file at all and the drift gate has never compared it. That is
+ *   the worse half: a false positive is loud, a silent gap is not.
+ *
+ * The named tag is CORRECT in both files and must stay: each migration is
+ * applied inside a `DO $mig$ … $mig$` block over the agent's transport, where a
+ * nested `$$` would close the wrong quote. So the scanner widens; the
+ * migrations do not narrow.
+ */
+function functionPattern() {
+  return /create or replace function public\.([a-z_]+)\s*\([\s\S]*?\)\s*returns[\s\S]*?\bas (\$[a-z_]*\$)([\s\S]*?)\2;/g;
+}
+
+/*
+ * AND IT SELF-TESTS, like `check:secrets` and `check:messages`, for the reason
+ * this very bug demonstrates: a scanner that finds nothing and a scanner that
+ * is broken print the same tick. Both spellings, and the back-reference proven
+ * to hold — a pattern matching `$$ … $fn$;` would be worse than the original.
+ */
+function patternProblems() {
+  const problems = [];
+  const sample = (tag, name) =>
+    `create or replace function public.${name}()\nreturns trigger\nlanguage plpgsql\nas ${tag}\nbegin\n  return new;\nend;\n${tag};\n`;
+
+  const found = (src) => [...src.matchAll(functionPattern())].map((m) => m[1]);
+
+  if (found(sample("$$", "plain")).join() !== "plain") {
+    problems.push("the function scanner no longer sees a plain $$ body");
+  }
+  if (found(sample("$fn$", "tagged")).join() !== "tagged") {
+    problems.push("the function scanner no longer sees a $fn$ body");
+  }
+
+  const mismatched =
+    "create or replace function public.x()\nreturns trigger\nlanguage plpgsql\nas $$\nbegin\n  return new;\nend;\n$fn$;\n";
+  if (found(mismatched).length !== 0) {
+    problems.push("the function scanner accepts a body whose quotes do not match");
+  }
+
+  return problems;
+}
+
 function orderingFailures(file, src) {
   const out = [];
 
@@ -245,6 +302,17 @@ alter table public.t enable row level security;`;
   }
 
   /*
+   * The function scanner, both spellings. It had been blind to `$fn$` for four
+   * days and printed a tick throughout — the failure mode this whole block
+   * exists for.
+   */
+  const patternFaults = patternProblems();
+  if (patternFaults.length) {
+    console.error(`\nMigration check is broken: ${patternFaults.join("; ")}.\n`);
+    process.exit(1);
+  }
+
+  /*
    * The nested-comment rule, in three directions. The real case is a path with a trailing
    * star inside a comment; an ordinary comment must stay unflagged; and the same star
    * inside a STRING must stay unflagged too, which is the false positive the counting
@@ -314,11 +382,10 @@ for (const file of files) {
   failures.push(...nestedCommentFailures(file, src));
 
   // ---- Stale rebuilds -----------------------------------------------------
-  const re =
-    /create or replace function public\.([a-z_]+)\s*\([\s\S]*?\)\s*returns[\s\S]*?\bas \$\$([\s\S]*?)\$\$;/g;
+  const re = functionPattern();
   let m;
   while ((m = re.exec(src))) {
-    const [name, body] = [m[1], m[2]];
+    const [name, body] = [m[1], m[3]];
     const previous = definitions.get(name);
     definitions.set(name, { file, body });
     if (!previous) continue;

@@ -2182,6 +2182,34 @@ forgives that check's next failure, which is the same bug through the other door
 "well within the window" on every acknowledgement at once. Found by the test that
 passes an unparseable date.
 
+**And the first thing that gate caught was itself.** `npm run check:drift` run
+against production reported `enforce_claim_refund` drifted — and the database
+was right. `supabase/function-fingerprints.json` is produced by one regex in
+`check-migrations.mjs` that matched `as $$ … $$;` **and nothing else**, so two
+functions dollar-quoted `$fn$` were invisible to it. That quoting is correct and
+has to stay: both migrations are applied inside a `DO $mig$ … $mig$` block over
+the agent's transport, where a nested `$$` closes the wrong quote. So the
+scanner widens and the migrations do not narrow.
+**Two faults, and the quiet one is worse.** `enforce_claim_refund` kept the body
+of `20260925000003` while `20261008000003` had redefined it, so the live check
+reported production as drifted for four days — the inverse of the fault the gate
+exists for, and identical from outside, which is exactly how a monitor comes to
+be ignored. `add_ai_spend` was first defined in `20261009000001` and so **never
+entered the file at all**: the gate has never compared it, and nothing was red.
+A false positive is loud; a silent gap is not. Both live bodies were hashed in
+SQL with the script's own normalisation and match the regenerated tree exactly
+(`2bed71d48abae0fc`, `1cbe515fe227346b`), so nothing had been applied outside the
+migrations.
+**The scanner self-tests now**, like `check:secrets` and `check:messages`, on
+both spellings and on a mismatched pair — a scanner that finds nothing and a
+scanner that is broken printed the same tick. And
+`tests/unit/function-fingerprints.test.ts` counts the same thing a SECOND way,
+with a pattern that stops at the opening parenthesis and knows nothing about
+quoting: every function the tree defines is fingerprinted, nothing orphaned is,
+and each entry names the LAST file to define it. One regex checking itself is
+the arrangement that failed, so the guard is a different regex that can only
+agree by both being right.
+
 **And drift is a gate rather than a line.** The comparison moved out of the route
 handler into `lib/data/schema-drift.ts` — it had exactly one reader, which is how
 a real finding sat unread — and has three callers now: the health check,

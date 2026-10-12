@@ -1,4 +1,8 @@
 {
+  "add_ai_spend": {
+    "sha": "1cbe515fe227346b",
+    "file": "20261009000001_ai_ceilings.sql"
+  },
   "booking_band_bounds": {
     "sha": "9678fff35189dc0c",
     "file": "20260921000001_band_correction.sql"
@@ -44,8 +48,8 @@
     "file": "20260912000002_guarantee_claims.sql"
   },
   "enforce_claim_refund": {
-    "sha": "78ab3ea72f90f541",
-    "file": "20260925000003_materials.sql"
+    "sha": "2bed71d48abae0fc",
+    "file": "20261008000003_claim_inspection_gate.sql"
   },
   "enforce_claim_transition": {
     "sha": "26d6f94ac8e85c90",
