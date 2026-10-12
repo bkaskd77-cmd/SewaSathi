@@ -1,7 +1,11 @@
 import { Star } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { displayRating, hasRating } from "@/lib/provider";
+import {
+  displayRating,
+  hasRating,
+  type RatingEvidence,
+} from "@/lib/provider";
 
 /**
  * What a professional has built here.
@@ -28,7 +32,7 @@ export function RecordPanel({
   since,
   labels,
 }: {
-  stats: { ratingAvg: number; ratingCount: number; jobsCompleted: number };
+  stats: RatingEvidence & { jobsCompleted: number };
   /** Pre-formatted month they started. Null until there is one. */
   since: string | null;
   labels: {

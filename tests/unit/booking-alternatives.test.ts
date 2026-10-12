@@ -35,6 +35,11 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     stats: {
       ratingAvg: 4.6,
       ratingCount: 40,
+      // Not computed on this fixture, which is what every row written
+      // before `20261012000001` carries. `ratingEvidence` falls back to the
+      // flat pair, so this fixture scores exactly as it did before.
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
       jobsCompleted: 60,
       completionRate: 96,
       avgResponseMinutes: 15,

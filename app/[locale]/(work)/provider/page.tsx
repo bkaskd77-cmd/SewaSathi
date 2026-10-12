@@ -127,6 +127,8 @@ export default async function ProviderDashboardPage() {
           stats={{
             ratingAvg: dashboard.ratingAvg,
             ratingCount: dashboard.ratingCount,
+            ratingRecentAvg: dashboard.ratingRecentAvg,
+            ratingRecentWeight: dashboard.ratingRecentWeight,
             jobsCompleted: dashboard.jobsCompleted,
           }}
           since={

@@ -34,9 +34,27 @@ export {
   hasPublishableSpan,
   hasRating,
   hasResponse,
+  rankedRating,
+  ratingEvidence,
   type DurationEvidence,
+  type RatingEvidence,
   type StatEvidence,
 } from "./measured";
+
+/*
+ * The decay rule itself, which the PRODUCT does not call — `refresh_provider_stats`
+ * is the aggregate half and the columns are what every screen reads. It is
+ * exported because the tests comparing the two halves were reaching into
+ * `./recency` directly, and a module with one public entry does not have two.
+ */
+export {
+  RATING_HALF_LIFE_DAYS,
+  ageInDays,
+  recencyWeight,
+  recencyWeightedRating,
+  type DatedRating,
+  type RecencyWeighted,
+} from "./recency";
 
 export {
   REFUSAL_REASON_CODES,

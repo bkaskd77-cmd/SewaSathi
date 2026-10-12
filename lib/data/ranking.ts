@@ -1,12 +1,12 @@
 import { nearestServedKm, type Point } from "@/lib/geo";
 import type { Provider } from "@/lib/data/providers";
 import {
-  bayesianRating,
   fitRank,
   hasCompletion,
   hasOverbookRecord,
   hasRating,
   hasResponse,
+  rankedRating,
   type Fit,
 } from "@/lib/provider";
 
@@ -14,6 +14,12 @@ import {
  * `bayesianRating` moved to `lib/provider/measured.ts` — it is the archetype
  * every other rule in that file copied, and the cards need it too. Re-exported
  * here so the ranking's own callers and tests keep one import.
+ *
+ * RE-EXPORTED AND NO LONGER CALLED. This file composed the pair itself in two
+ * places until the recency columns made `bayesianRating(ratingAvg, ratingCount)`
+ * quietly the wrong pair; both go through `rankedRating` now, so the primitive
+ * passes through here for callers that want it and the ranking has no opinion
+ * of its own. `tests/unit/rating-one-figure.test.ts` asserts that arrangement.
  */
 export { bayesianRating } from "@/lib/provider";
 
@@ -312,9 +318,20 @@ export function scoreParts(
 ): ScoreParts {
   const { stats } = provider;
 
+  /*
+   * THE SAME FUNCTION THE CARD CALLS, and that is the point of it being a
+   * function. This read `bayesianRating(stats.ratingAvg, stats.ratingCount)`
+   * directly, which was correct until `rating_recent_avg` existed and then
+   * quietly became the wrong pair: the card would have shown the recency figure
+   * while the list ordered on the flat one, which is the card-versus-ranking
+   * split `displayRating` was written to end, re-opened by a new column rather
+   * than by a second implementation.
+   *
+   * `rankedRating` is `displayRating` with the null named — the prior for
+   * somebody nobody has rated, which is what this line already computed.
+   */
   const rating = clamp01(
-    (bayesianRating(stats.ratingAvg, stats.ratingCount) - RATING_FLOOR) /
-      (5 - RATING_FLOOR),
+    (rankedRating(stats) - RATING_FLOOR) / (5 - RATING_FLOOR),
   );
 
   const volume = clamp01(
@@ -537,11 +554,9 @@ export function sortProviders(
 
   switch (sort) {
     case "rating":
-      return byFitThen(
-        (a, b) =>
-          bayesianRating(b.stats.ratingAvg, b.stats.ratingCount) -
-          bayesianRating(a.stats.ratingAvg, a.stats.ratingCount),
-      );
+      // Same figure as the score and the card. A customer who asks for "best
+      // rated" must get the order of the numbers they can see.
+      return byFitThen((a, b) => rankedRating(b.stats) - rankedRating(a.stats));
     case "price":
       return byFitThen((a, b) => a.baseRate - b.baseRate);
     case "jobs":
@@ -651,10 +666,15 @@ export function withNewcomerSlot<T>(input: {
  *
  * WHY THIS IS WORTH A SCREEN. `rating` carries 0.30 — the largest single term
  * in the relevance blend — and `bayesianRating(0, 0)` returns the prior for
- * every listing nobody has rated. On the live data that is 29 of 30, so the
- * biggest weight in the product is currently a constant: it adds the same
- * number to everybody and separates nobody. `completion` and `response` sit at
- * their unmeasured sentinels for 27 of 30.
+ * every listing nobody has rated. On the live data that is all but one of them,
+ * so the biggest weight in the product is currently close to a constant: it
+ * adds the same number to almost everybody and separates almost nobody.
+ * `completion` and `response` sit at their unmeasured sentinels for nearly all.
+ *
+ * NO COUNTS IN THIS COMMENT. It said "29 of 30" and "27 of 30" for three
+ * phases, and both were stale by 24 listings from the day `providers.json` was
+ * emptied — a number written into a comment is a number nobody re-measures.
+ * The screen below carries the figure; the prose says which way it leans.
  *
  * None of that is a bug — it is what an honest degradation looks like, and it
  * is exactly what `UNMEASURED_COMPLETION` and `UNMEASURED_RESPONSE` are for.

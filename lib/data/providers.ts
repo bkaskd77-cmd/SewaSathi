@@ -67,6 +67,18 @@ export type VerificationCheck = "id" | "background" | "skill";
 export type ProviderStats = {
   ratingAvg: number;
   ratingCount: number;
+  /**
+   * The ratings weighted by age, halving every `RATING_HALF_LIFE_DAYS`.
+   *
+   * NULL IS "NOT COMPUTED" AND NEVER "UNRATED" — rule 6, and it bites on day
+   * one: every `provider_stats` row written before `20261012000001` is silent
+   * in both of these, including the one listing that has a review. `ratingCount`
+   * stays the gate and `ratingEvidence` is the one place that decides which
+   * pair a figure comes out of.
+   */
+  ratingRecentAvg: number | null;
+  /** The summed weight behind it — an EFFECTIVE count, not a row count. */
+  ratingRecentWeight: number | null;
   jobsCompleted: number;
   /** Percent of accepted jobs finished. */
   completionRate: number;
@@ -248,6 +260,8 @@ type ProviderRow = {
   provider_stats: {
     rating_avg: number;
     rating_count: number;
+    rating_recent_avg: number | string | null;
+    rating_recent_weight: number | string | null;
     jobs_completed: number;
     completion_rate: number;
     avg_response_minutes: number;
@@ -261,6 +275,17 @@ type ProviderRow = {
     offers_answered: number | null;
   } | null;
 };
+
+/**
+ * A numeric column that may legitimately be null.
+ *
+ * `Number(null)` is 0 and `Number(undefined)` is NaN, and both are worse than
+ * the absence they came from — this is rule 6 at the one line where it is
+ * easiest to lose, because every other field on this row is `?? 0`.
+ */
+function numberOrNull(value: number | string | null | undefined): number | null {
+  return value === null || value === undefined ? null : Number(value);
+}
 
 function fromRow(row: ProviderRow): Provider {
   const stats = row.provider_stats;
@@ -305,6 +330,12 @@ function fromRow(row: ProviderRow): Provider {
     stats: {
       ratingAvg: Number(stats?.rating_avg ?? 0),
       ratingCount: stats?.rating_count ?? 0,
+      // `numberOrNull`, never `Number(… ?? 0)`: a coalesce here would turn
+      // "not computed" into a weight of zero, which `ratingEvidence` reads as
+      // a reason to fall back — the right answer by accident, and the wrong
+      // answer the moment anything else reads the weight.
+      ratingRecentAvg: numberOrNull(stats?.rating_recent_avg),
+      ratingRecentWeight: numberOrNull(stats?.rating_recent_weight),
       jobsCompleted: stats?.jobs_completed ?? 0,
       completionRate: stats?.completion_rate ?? 0,
       avgResponseMinutes: stats?.avg_response_minutes ?? 120,
@@ -321,7 +352,7 @@ function fromRow(row: ProviderRow): Provider {
 }
 
 const SELECT =
-  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals, overbook_offers, overbook_misses, offers_made, offers_answered)";
+  "id, display_name, bio, photo_url, years_experience, is_verified, id_document_status, checks, availability, available_until, busy_until, on_job_since, base_rate, service_areas, provider_categories!inner(category_slug), provider_stats(rating_avg, rating_count, rating_recent_avg, rating_recent_weight, jobs_completed, completion_rate, avg_response_minutes, response_samples, last_active_at, jobs_accepted, withdrawals, overbook_offers, overbook_misses, offers_made, offers_answered)";
 
 /**
  * Providers in one category, filtered but not yet ranked.

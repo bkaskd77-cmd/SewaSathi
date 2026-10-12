@@ -163,6 +163,71 @@ export function bayesianRating(average: number, count: number): number {
 }
 
 /**
+ * Everything the one rating figure is computed from.
+ *
+ * FOUR FIELDS, TWO PAIRS, AND THE SECOND PAIR IS NULLABLE BECAUSE NULL IS "NOT
+ * COMPUTED". `rating_recent_avg` and `rating_recent_weight` are written by
+ * `refresh_provider_stats`; every `provider_stats` row that existed before
+ * `20261012000001` is silent in both, and reading that silence as "unrated"
+ * would be rule 6 upside down for the one listing that does have a review.
+ *
+ * REQUIRED RATHER THAN OPTIONAL, deliberately. An optional pair would let a
+ * caller that HAS the columns forget to pass them and silently get the flat
+ * figure — which is the card-versus-ranking split this file exists to end,
+ * re-opened by a missing property instead of by a second implementation. The
+ * compiler asks every surface the question instead.
+ */
+export type RatingEvidence = Pick<StatEvidence, "ratingCount"> & {
+  ratingAvg: number;
+  /** The age-weighted mean. Null is "not computed", never "unrated". */
+  ratingRecentAvg: number | null;
+  /** The summed weight behind it — an EFFECTIVE count, not a row count. */
+  ratingRecentWeight: number | null;
+};
+
+/**
+ * Which pair the figure is actually computed from, and whether it is the
+ * recency-weighted one.
+ *
+ * SEPARATE FROM `displayRating` SO A SCREEN CAN SAY WHICH IT READ. The two
+ * figures differ, and a professional looking at their own record is entitled to
+ * know whether the number is their whole history or their recent work; a
+ * boolean here is cheaper than a second rule anywhere else.
+ *
+ * THE WEIGHT GOES INTO THE PRIOR, never the row count. Twenty reviews from
+ * three years ago carry about two and a half reviews' worth of confidence, so
+ * the prior pulls them back exactly as it would for somebody with two and a
+ * half — the certainty decays with the figure instead of outliving it. Handing
+ * `bayesianRating` the row count beside the decayed average is the worse half
+ * of the bug and the one that is easy to write by accident.
+ *
+ * `weight > 0` is a guard against a nonsense row rather than a real state: at a
+ * 365-day half-life every weight underflowing to zero would take about a
+ * millennium, and `hasRating` has already said there is a published review. So
+ * the fallback is the flat pair, which is what this product printed before the
+ * columns existed.
+ */
+export function ratingEvidence(stats: RatingEvidence): {
+  avg: number;
+  weight: number;
+  recent: boolean;
+} {
+  if (
+    stats.ratingRecentAvg !== null &&
+    stats.ratingRecentWeight !== null &&
+    stats.ratingRecentWeight > 0
+  ) {
+    return {
+      avg: stats.ratingRecentAvg,
+      weight: stats.ratingRecentWeight,
+      recent: true,
+    };
+  }
+
+  return { avg: stats.ratingAvg, weight: stats.ratingCount, recent: false };
+}
+
+/**
  * The one figure to print, and it is the same one the ranking uses.
  *
  * WHAT WENT WRONG. Every card rendered the RAW `rating_avg` while `scoreParts`
@@ -177,14 +242,37 @@ export function bayesianRating(average: number, count: number): number {
  * the count travels beside the figure so 4.85-from-201 never looks like
  * 4.85-from-3.
  *
+ * AND THE COUNT BESIDE IT IS STILL THE ROW COUNT, which is why `hasRating`
+ * keeps reading `ratingCount` and nothing here touches what a screen prints in
+ * brackets. The weight is confidence and the count is evidence: "4.6 (12)"
+ * means twelve people wrote something, and replacing that twelve with an
+ * effective 7.3 would be a number no customer could check against a page of
+ * reviews.
+ *
  * Null when nobody has rated them: `hasRating` is the gate, and a screen with
  * no evidence says so rather than printing a prior as though it were earned.
  */
-export function displayRating(
-  stats: Pick<StatEvidence, "ratingCount"> & { ratingAvg: number },
-): number | null {
+export function displayRating(stats: RatingEvidence): number | null {
   if (!hasRating(stats)) return null;
-  return bayesianRating(stats.ratingAvg, stats.ratingCount);
+  const { avg, weight } = ratingEvidence(stats);
+  return bayesianRating(avg, weight);
+}
+
+/**
+ * The same figure, for a caller that must have a number for everybody.
+ *
+ * RANKING CANNOT HOLD A NULL — every listing needs a comparable score — and
+ * the honest score for an unrated one is the prior: like an unknown, never like
+ * an extreme. `bayesianRating(anything, 0)` already collapses to exactly
+ * `RATING_PRIOR_MEAN`, so this is not a second rule, it is the same rule with
+ * the null named. It exists so `scoreParts` and the sort read `displayRating`
+ * rather than re-deriving the composition — the divergence this file was
+ * created to end, and the one the recency pair made easy to re-open, since a
+ * `bayesianRating(ratingAvg, ratingCount)` call still compiles and is now
+ * quietly the wrong pair.
+ */
+export function rankedRating(stats: RatingEvidence): number {
+  return displayRating(stats) ?? RATING_PRIOR_MEAN;
 }
 
 /*

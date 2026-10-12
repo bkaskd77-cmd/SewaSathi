@@ -51,6 +51,14 @@ export type ShortlistEntry = {
   busyUntil: string | null;
   ratingAvg: number;
   ratingCount: number;
+  /**
+   * The recency-weighted pair, carried for the same reason `responseSamples`
+   * is: this row calls `displayRating`, and the figure it prints has to be the
+   * one the catalogue card and the ranking printed a screen earlier. Null is
+   * "not computed".
+   */
+  ratingRecentAvg: number | null;
+  ratingRecentWeight: number | null;
   jobsCompleted: number;
   avgResponseMinutes: number;
   /**
@@ -130,6 +138,8 @@ export async function shortlistAction(input: {
     busyUntil: provider.busyUntil,
     ratingAvg: provider.stats.ratingAvg,
     ratingCount: provider.stats.ratingCount,
+    ratingRecentAvg: provider.stats.ratingRecentAvg,
+    ratingRecentWeight: provider.stats.ratingRecentWeight,
     jobsCompleted: provider.stats.jobsCompleted,
     avgResponseMinutes: provider.stats.avgResponseMinutes,
     responseSamples: provider.stats.responseSamples,

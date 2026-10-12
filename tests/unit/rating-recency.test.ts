@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { bayesianRating } from "@/lib/provider";
 import {
   RATING_HALF_LIFE_DAYS,
+  RATING_PRIOR_MEAN,
   ageInDays,
+  bayesianRating,
+  displayRating,
+  rankedRating,
+  ratingEvidence,
   recencyWeight,
   recencyWeightedRating,
-} from "@/lib/provider/recency";
+} from "@/lib/provider";
 
 /**
  * A rating that remembers when it was earned.
@@ -143,5 +147,118 @@ describe("ages come from timestamps without a database", () => {
     // The one case that may read the constant: it asserts the published number
     // is the one in force, which is what a caller elsewhere would rely on.
     expect(recencyWeight(RATING_HALF_LIFE_DAYS)).toBeCloseTo(0.5, 10);
+  });
+});
+
+/**
+ * AND THE COLUMNS HAVE A READER, which is the half that shipped a commit late.
+ *
+ * `20261012000001` added `rating_recent_avg` and `rating_recent_weight`, the
+ * rule was written twice and compared, the tests were green — and nothing in
+ * the product read either column. That is `applyRedoRecovery`'s four-phase
+ * shape, `proposeBand`'s and `booking_refusals.reason_code`'s: every link built
+ * and the chain left open. These cases assert the chain, which is why they live
+ * beside the rule rather than inside the module that composes it.
+ */
+describe("the composed figure is what a reader gets", () => {
+  /** Twelve reviews, all of them two years old: a stale 5.0. */
+  const stale = {
+    ratingAvg: 5,
+    ratingCount: 12,
+    ...(() => {
+      const r = recencyWeightedRating(
+        Array.from({ length: 12 }, () => ({ rating: 5, ageDays: 730 })),
+      );
+      return { ratingRecentAvg: r.avg, ratingRecentWeight: r.weight };
+    })(),
+  };
+
+  it("prefers the recency pair over the flat one", () => {
+    const shown = displayRating(stale)!;
+
+    // Two half-lives: twelve reviews are worth three, so the prior pulls much
+    // harder than it would on twelve. The figure a customer reads drops.
+    expect(shown).toBeCloseTo(bayesianRating(5, 3), 6);
+    expect(shown).toBeLessThan(bayesianRating(5, 12));
+  });
+
+  it("falls back to the flat pair when the columns were never computed", () => {
+    /*
+     * EVERY ROW WRITTEN BEFORE THE MIGRATION IS SILENT, and silence is not a
+     * rating of zero. The listing with the one live review is one of those
+     * rows, so this is today's ordinary case and not an edge.
+     */
+    const unmigrated = {
+      ratingAvg: 4.6,
+      ratingCount: 12,
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
+    };
+
+    expect(displayRating(unmigrated)).toBeCloseTo(bayesianRating(4.6, 12), 10);
+    expect(ratingEvidence(unmigrated).recent).toBe(false);
+  });
+
+  it("falls back on a computed row with no weight left, rather than scoring zero", () => {
+    // `refresh_provider_stats` writes a null average and a weight of 0 when
+    // nothing has any weight. Reading that as a 0-star rating is rule 6 at its
+    // most expensive, so the flat pair answers — and `hasRating` has already
+    // said there is a published review.
+    const underflowed = {
+      ratingAvg: 4.6,
+      ratingCount: 12,
+      ratingRecentAvg: null,
+      ratingRecentWeight: 0,
+    };
+
+    expect(displayRating(underflowed)).toBeCloseTo(bayesianRating(4.6, 12), 10);
+  });
+
+  it("says nothing at all when nobody has rated them, whatever the pair holds", () => {
+    // `hasRating` stays the gate and still reads the ROW count, so a stray
+    // recency figure on an unrated listing cannot put a number on a screen.
+    expect(
+      displayRating({
+        ratingAvg: 0,
+        ratingCount: 0,
+        ratingRecentAvg: 4.9,
+        ratingRecentWeight: 3,
+      }),
+    ).toBeNull();
+  });
+
+  it("gives the ranking the prior for an unrated listing and not a null", () => {
+    /*
+     * The score cannot hold a null — every listing needs a comparable figure —
+     * and the honest one is the prior: like an unknown, never like an extreme.
+     * This is also the proof that pointing `scoreParts` at `displayRating`
+     * changed no unrated listing's score, because `bayesianRating(0, 0)` is
+     * exactly `RATING_PRIOR_MEAN`.
+     */
+    const unrated = {
+      ratingAvg: 0,
+      ratingCount: 0,
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
+    };
+
+    expect(displayRating(unrated)).toBeNull();
+    expect(rankedRating(unrated)).toBe(RATING_PRIOR_MEAN);
+    expect(rankedRating(unrated)).toBeCloseTo(bayesianRating(0, 0), 10);
+  });
+
+  it("keeps the count beside the figure as the ROW count, not the weight", () => {
+    /*
+     * THE TWO NUMBERS ANSWER DIFFERENT QUESTIONS. The weight is confidence and
+     * the count is evidence: "4.6 (12)" means twelve people wrote something,
+     * and printing an effective 3.0 there would be a figure no customer could
+     * check against a page of reviews — and one that would drift downward on a
+     * profile where nothing had happened.
+     */
+    expect(stale.ratingRecentWeight).toBeCloseTo(3, 6);
+    expect(stale.ratingCount).toBe(12);
+    // Nothing in `measured.ts` touches the count, which is what the surfaces
+    // render in brackets. The source guard below is what keeps it that way.
+    expect(ratingEvidence(stale).weight).not.toBe(stale.ratingCount);
   });
 });

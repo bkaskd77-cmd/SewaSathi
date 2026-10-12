@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { recencyWeightedRating } from "@/lib/provider/recency";
+import { recencyWeightedRating } from "@/lib/provider";
 
 import { startPostgres, type Harness } from "../support/postgres";
 

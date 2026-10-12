@@ -80,6 +80,17 @@ export type ProviderDashboard = {
   /** Their own record, so the dashboard can show what they have built. */
   ratingAvg: number;
   ratingCount: number;
+  /**
+   * The recency-weighted pair, carried so the professional's own record panel
+   * prints the figure a CUSTOMER sees.
+   *
+   * It would otherwise show the flat mean while every catalogue surface showed
+   * the decayed one, which is worse than the card-versus-ranking split it comes
+   * from: somebody looking at their own standing would be reading a number that
+   * does not exist anywhere else in the product. Null is "not computed".
+   */
+  ratingRecentAvg: number | null;
+  ratingRecentWeight: number | null;
   /** When they were approved. Null on a listing that predates the flow. */
   approvedAt: string | null;
 };
@@ -111,7 +122,9 @@ export async function getProviderDashboard(
         .eq("provider_id", providerId),
       admin
         .from("provider_stats")
-        .select("jobs_completed, rating_avg, rating_count")
+        .select(
+          "jobs_completed, rating_avg, rating_count, rating_recent_avg, rating_recent_weight",
+        )
         .eq("provider_id", providerId)
         .maybeSingle(),
     ]);
@@ -158,6 +171,14 @@ export async function getProviderDashboard(
       jobsCompleted: Number(stats?.jobs_completed ?? 0),
       ratingAvg: Number(stats?.rating_avg ?? 0),
       ratingCount: Number(stats?.rating_count ?? 0),
+      // Null survives: `Number(null)` is 0, and a weight of zero is a
+      // measurement where null is an absence.
+      ratingRecentAvg:
+        stats?.rating_recent_avg == null ? null : Number(stats.rating_recent_avg),
+      ratingRecentWeight:
+        stats?.rating_recent_weight == null
+          ? null
+          : Number(stats.rating_recent_weight),
       approvedAt: (provider.approved_at as string | null) ?? null,
     };
   } catch (thrown) {

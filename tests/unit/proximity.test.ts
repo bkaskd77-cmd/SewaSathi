@@ -54,6 +54,11 @@ function provider(serviceAreas: string[] = ["lalitpur-4"]): Provider {
     stats: {
       ratingAvg: 0,
       ratingCount: 0,
+      // Not computed on this fixture, which is what every row written
+      // before `20261012000001` carries. `ratingEvidence` falls back to the
+      // flat pair, so this fixture scores exactly as it did before.
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
       jobsCompleted: 0,
       completionRate: 100,
       avgResponseMinutes: 120,

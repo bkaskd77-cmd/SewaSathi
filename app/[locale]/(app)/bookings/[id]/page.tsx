@@ -59,7 +59,7 @@ import { getProvider, listAlternatives } from "@/lib/data/providers";
 import { myReviewState } from "@/lib/data/reviews";
 import { surveyStateOf } from "@/lib/data/survey";
 import { needsReplacement } from "@/lib/data/recommendations";
-import { hasRating } from "@/lib/provider";
+import { displayRating, hasRating } from "@/lib/provider";
 import {
   availableMethods,
   blindCashEntry,
@@ -235,8 +235,13 @@ export default async function BookingDetailPage(props: {
     // "0.0 (0)" on the screen somebody reads after being let down once. The
     // replacement list is the worst place in the product to print a default as
     // if it were a rating.
+    //
+    // AND IT WAS THE RAW AVERAGE, which is the other half of the same rule and
+    // was missed when `displayRating` shipped: a replacement offered after a
+    // withdrawal was being sold on a thin 5.0 the ranking did not believe.
+    // The count beside it stays the ROW count — `displayRating`'s own rule.
     ratingLabel: hasRating(option.provider.stats)
-      ? `${option.provider.stats.ratingAvg.toFixed(1)} (${option.provider.stats.ratingCount})`
+      ? `${displayRating(option.provider.stats)?.toFixed(1)} (${option.provider.stats.ratingCount})`
       : tAlternatives("notRated"),
     jobsLabel: tAlternatives("jobsDone", {
       n: String(option.provider.stats.jobsCompleted),

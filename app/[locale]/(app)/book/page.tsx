@@ -259,6 +259,8 @@ export default async function BookPage(props: {
                     availability: provider.availability,
                     ratingAvg: provider.stats.ratingAvg,
                     ratingCount: provider.stats.ratingCount,
+                    ratingRecentAvg: provider.stats.ratingRecentAvg,
+                    ratingRecentWeight: provider.stats.ratingRecentWeight,
                     jobsCompleted: provider.stats.jobsCompleted,
                     avgResponseMinutes: provider.stats.avgResponseMinutes,
                     responseSamples: provider.stats.responseSamples,

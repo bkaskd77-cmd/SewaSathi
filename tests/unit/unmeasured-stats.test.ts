@@ -58,6 +58,11 @@ function provider(stats: Partial<Provider["stats"]> = {}): Provider {
       // The column defaults, exactly as a brand-new row carries them.
       ratingAvg: 0,
       ratingCount: 0,
+      // Null, which is what the column default is: "not computed". A fresh row
+      // has no recency pair, and rule 6 says that must not read as a weight of
+      // zero — see `ratingEvidence`.
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
       jobsCompleted: 0,
       completionRate: 100,
       avgResponseMinutes: 120,
@@ -269,21 +274,35 @@ describe("the card and the ranking read the same rating", () => {
 
   it("does not destroy a short record with one bad job", () => {
     // Three jobs, one 1-star. Raw 3.67 reads as "avoid this person".
-    const shown = displayRating({ ratingAvg: 11 / 3, ratingCount: 3 })!;
+    const shown = displayRating({
+      ratingAvg: 11 / 3,
+      ratingCount: 3,
+      ratingRecentAvg: null,
+      ratingRecentWeight: null,
+    })!;
     expect(shown).toBeGreaterThan(4.3);
     expect(shown).toBeCloseTo(bayesianRating(11 / 3, 3), 10);
   });
 
   it("does not flatter a short record either", () => {
     // The prior pulls both ways, which is what makes it fair rather than kind.
-    expect(displayRating({ ratingAvg: 5, ratingCount: 3 })!).toBeLessThan(4.7);
+    expect(displayRating({
+        ratingAvg: 5,
+        ratingCount: 3,
+        ratingRecentAvg: null,
+        ratingRecentWeight: null,
+      })!).toBeLessThan(4.7);
   });
 
   it("leaves a long record almost alone", () => {
-    expect(displayRating({ ratingAvg: 4.88, ratingCount: 201 })!).toBeCloseTo(
-      4.84,
-      1,
-    );
+    expect(
+      displayRating({
+        ratingAvg: 4.88,
+        ratingCount: 201,
+        ratingRecentAvg: null,
+        ratingRecentWeight: null,
+      })!,
+    ).toBeCloseTo(4.84, 1);
   });
 
   it("is exactly what scoreParts uses, on the same provider", () => {
@@ -295,10 +314,64 @@ describe("the card and the ranking read the same rating", () => {
     );
   });
 
+  it("moves the SCORE whenever it moves the figure, including on recency", () => {
+    /*
+     * THE CASE THE ONE ABOVE CANNOT MAKE. It compares `displayRating` against
+     * `bayesianRating` over the flat pair, which was the whole rule until
+     * `rating_recent_avg` existed and is now only true for a listing whose
+     * recency pair was never computed — every fixture in this file. So it would
+     * have stayed green through exactly the divergence it was written to catch:
+     * a card showing the decayed figure beside a list ordered on the flat one.
+     *
+     * Two listings with the same flat 5.0 from twelve reviews, one fresh and
+     * one two years stale. The figure differs, so the score must differ in the
+     * same direction — which is only true while both read one function.
+     */
+    const fresh = provider({
+      ratingAvg: 5,
+      ratingCount: 12,
+      ratingRecentAvg: 5,
+      ratingRecentWeight: 11.8,
+    });
+    const stale = provider({
+      ratingAvg: 5,
+      ratingCount: 12,
+      ratingRecentAvg: 5,
+      ratingRecentWeight: 3,
+    });
+
+    expect(displayRating(stale.stats)!).toBeLessThan(
+      displayRating(fresh.stats)!,
+    );
+    expect(scoreParts(stale).rating).toBeLessThan(scoreParts(fresh).rating);
+  });
+
+  it("leaves the count alone — the figure decays and the evidence does not", () => {
+    // "4.6 (12)" means twelve people wrote something. The weight is
+    // confidence; replacing the bracketed count with it would print a number
+    // nobody could check against the reviews underneath it.
+    const stale = provider({
+      ratingAvg: 5,
+      ratingCount: 12,
+      ratingRecentAvg: 5,
+      ratingRecentWeight: 3,
+    });
+
+    expect(stale.stats.ratingCount).toBe(12);
+    expect(hasRating(stale.stats)).toBe(true);
+  });
+
   it("says nothing at all when nobody has rated them", () => {
     // Not a prior printed as though it were earned — `hasRating` is the gate
     // and a screen with no evidence says so.
-    expect(displayRating({ ratingAvg: 0, ratingCount: 0 })).toBeNull();
+    expect(
+      displayRating({
+        ratingAvg: 0,
+        ratingCount: 0,
+        ratingRecentAvg: null,
+        ratingRecentWeight: null,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -357,7 +430,14 @@ describe("the fallback carries no authored statistics", () => {
       expect(hasRating(stats)).toBe(false);
       expect(hasResponse(stats)).toBe(false);
       expect(hasCompletion(stats)).toBe(false);
-      expect(displayRating({ ...stats, ratingAvg: 0 })).toBeNull();
+      expect(
+        displayRating({
+          ...stats,
+          ratingAvg: 0,
+          ratingRecentAvg: null,
+          ratingRecentWeight: null,
+        }),
+      ).toBeNull();
     }
   });
 });

@@ -29,7 +29,12 @@ import { categoryCopy } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories, getCategory } from "@/lib/data/categories";
 import { getProvider, type VerificationCheck } from "@/lib/data/providers";
-import { hasCompletion, hasRating, hasResponse } from "@/lib/provider";
+import {
+  displayRating,
+  hasCompletion,
+  hasRating,
+  hasResponse,
+} from "@/lib/provider";
 import { bookingHref } from "@/lib/routes/booking";
 import { formatNpr } from "@/lib/utils";
 
@@ -209,6 +214,13 @@ export default async function ProviderProfilePage(props: {
             customer reads before letting somebody into their house. The
             catalogue card had been fixed; this page had not, so the two
             disagreed about the same person.
+
+            AND THE RATING WAS STILL THE RAW AVERAGE HERE, two commits after
+            `displayRating` was written to end exactly that. The gate was fixed
+            and the figure was not, so this page printed 5.0 for three perfect
+            jobs while the card beside it printed 4.57 and the list ordered on
+            4.57 — on the profile a customer opens to decide. Found while
+            wiring the recency pair, which would have made it a third number.
           */}
           <div>
             <dt className="text-overline uppercase text-muted-foreground">
@@ -220,7 +232,7 @@ export default async function ProviderProfilePage(props: {
                   aria-hidden="true"
                   className="size-4 fill-gold text-gold"
                 />
-                {stats.ratingAvg.toFixed(1)}
+                {displayRating(stats)?.toFixed(1)}
                 <span className="text-caption font-normal text-muted-foreground">
                   ({stats.ratingCount})
                 </span>
