@@ -1054,3 +1054,155 @@ describe("naming a product after the work records it without inventing an estima
     expect(Number(row.actual_working_minutes)).toBeGreaterThanOrEqual(95);
   });
 });
+
+/**
+ * NAMING THE PRODUCT AFTER THE WORK IS DATA, AND IT MOVES NO MONEY.
+ *
+ * `band_source = 'professional'` exists because the other four answers can all
+ * come out empty: "I'm not sure" writes null on purpose and the category picker
+ * asks nothing, so a job can be booked, worked and finished with no product —
+ * teaching the duration loop and the per-product bands nothing. The person who
+ * just did the work knows, so they get one tap.
+ *
+ * AND THAT TAP MUST NOT BE A PRICE CHANGE, which is a different mechanism with
+ * a different window: `canProposeCorrection` needs a stated band and runs before
+ * work starts, `canNameBand` needs a null one and runs from `in_progress`. The
+ * argument that they cannot overlap is written down in CLAUDE.md; what was NOT
+ * written down anywhere is a test proving the write itself is inert on every
+ * figure a dispute would be argued from. `freeze_booking_band()` pins `band_min`
+ * and `band_revision_id` on every UPDATE and `booking_band_bounds` treats only
+ * `customer` as a stated band — both read out of `pg_proc` before the panel was
+ * built, which is reading the mechanism rather than asserting the outcome.
+ *
+ * This asserts the outcome: every money column byte-identical across the write.
+ */
+describe("the professional naming the product changes no figure", () => {
+  const MONEY = [
+    "band_min",
+    "band_revision_id",
+    "quoted_min",
+    "quoted_max",
+    "quote_model",
+    "final_amount",
+    "platform_fee",
+    "provider_earning",
+    "commission_bps",
+    "commission_basis",
+    "payment_status",
+    "materials_rupees",
+  ] as const;
+
+  async function money(id: string) {
+    const { rows } = await pg.admin.query(
+      `select ${MONEY.join(", ")} from public.bookings where id = $1`,
+      [id],
+    );
+    return rows[0] as Record<string, unknown>;
+  }
+
+  it("leaves every money column exactly as it was", async () => {
+    const id = await book(null);
+    await complete(id, 95 * 60);
+
+    const before = await money(id);
+    // The band floor is the figure commission is charged on, so a test that
+    // started from a null one would prove nothing about the column that
+    // matters. `band_min`'s own bite is in the next case — `touch-up`'s floor
+    // happens to equal painting's, so a re-derivation would not show up here.
+    expect(before.band_min).not.toBeNull();
+
+    await pg.admin.query(
+      `update public.bookings
+          set band_slug = 'touch-up', band_source = 'professional'
+        where id = $1`,
+      [id],
+    );
+
+    expect(await money(id)).toEqual(before);
+  });
+
+  it("holds the floor still where the new product's band is dearer", async () => {
+    /*
+     * THE CASE THAT COSTS SOMEBODY MONEY IF THE FLOOR EVER FOLLOWS THE PRODUCT.
+     * Commission is charged on `max(final_amount, band_min)`, so a floor that
+     * moved when the professional named the job would let the label decide the
+     * fee after the work: here, from painting's 1,000 up to a sub-band at
+     * 25,000.
+     *
+     * AND THE DIRECTION IS DELIBERATE, BECAUSE THE OTHER ONE CANNOT BE TESTED
+     * AGAINST THIS SEED. The intuitive case to write is a professional
+     * relabelling downwards to shrink the fee — and it is blind: every
+     * category's own floor equals its cheapest sub-band (checked across all
+     * ten), which is what `booking_band_bounds` returns for a booking with no
+     * product, so a re-derived floor would produce the identical number and the
+     * assertion could never fail. The first version of this test was written
+     * that way and stayed green through a break test that rewrote
+     * `freeze_booking_band` to re-derive on every product change — the
+     * `ACTIVITY_FLOOR` class, where a case reads as coverage and asserts that a
+     * number equals itself. Upwards is the direction the data can distinguish.
+     */
+    const { rows: bands } = await pg.admin.query(
+      `select slug, low from public.category_price_bands
+        where category_slug = 'painting'
+        order by low desc`,
+    );
+    const dearest = bands[0] as { slug: string; low: number };
+
+    const id = await book(null);
+    await complete(id, 95 * 60);
+    const before = await money(id);
+
+    // The premise, asserted rather than assumed: this sub-band's floor really
+    // is a different number from the one frozen onto the booking.
+    expect(Number(dearest.low)).toBeGreaterThan(Number(before.band_min));
+
+    await pg.admin.query(
+      `update public.bookings
+          set band_slug = $2, band_source = 'professional'
+        where id = $1`,
+      [id, dearest.slug],
+    );
+
+    const after = await money(id);
+    expect(after.band_min).toEqual(before.band_min);
+  });
+
+  it("still moves no figure when a stated product is relabelled", async () => {
+    /*
+     * THE WINDOW IS THE APPLICATION'S RULE, NOT THE DATABASE'S, AND THIS TEST
+     * SAYS SO RATHER THAN IMPLYING OTHERWISE. It was first written as "refused
+     * outright once a band has been stated" — and it passed, which read as
+     * proof, while the update it ran had plainly succeeded: the only thing the
+     * assertion established was that the money had not moved. `canNameBand`
+     * requires a null `band_slug` and the panel is not offered otherwise, so no
+     * real path reaches this; the SQL permits it.
+     *
+     * Which is the useful fact to have pinned, because it is where the safety
+     * actually comes from. Even on the relabel the product's own rule forbids,
+     * nothing a dispute is argued from changes — the floor, the revision and
+     * the split are all `freeze_booking_band`'s, whatever the caller does to
+     * the label.
+     */
+    const id = await book("room-supplied", "model");
+    await complete(id, 95 * 60);
+
+    const before = await money(id);
+    await pg.admin.query(
+      `update public.bookings
+          set band_slug = 'touch-up', band_source = 'professional'
+        where id = $1`,
+      [id],
+    );
+
+    const { rows } = await pg.admin.query(
+      "select band_slug, band_source from public.bookings where id = $1",
+      [id],
+    );
+    // The label did move: this is not a refusal, and calling it one would be a
+    // comment describing behaviour the code does not have.
+    expect(rows[0].band_slug).toBe("touch-up");
+    expect(rows[0].band_source).toBe("professional");
+
+    expect(await money(id)).toEqual(before);
+  });
+});

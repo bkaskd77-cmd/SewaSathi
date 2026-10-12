@@ -8,6 +8,8 @@ import {
   countsAsEvidence,
   durationOutcome,
   proposeDuration,
+  releaseSampleFor,
+  revertSuppressedBy,
   type DurationKind,
 } from "@/lib/booking";
 
@@ -262,5 +264,200 @@ describe("which completions count as evidence about a product", () => {
     expect([...counted].sort()).toEqual(
       ["customer", "matcher", "model", "professional"].sort(),
     );
+  });
+});
+
+/**
+ * A FORGOTTEN-OPEN JOB IS THE CONTAMINATION THIS LOOP WAS BUILT KNOWING ABOUT,
+ * and it comes in two shapes rather than one. Pinned together because only one
+ * of them is the median's doing.
+ */
+describe("a job somebody forgot to close cannot inflate a figure", () => {
+  it("is not in the minutes sample at all when it crossed a night", () => {
+    /*
+     * THE FIRST LAYER IS THE SCHEMA, NOT THE STATISTIC.
+     * `record_booking_duration()` writes `actual_working_minutes` only on a
+     * same-day completion — the nights are inside the elapsed figure and there
+     * is nothing that could take them out, because we hold one start stamp and
+     * one finish stamp rather than one per day. So a job started on Monday and
+     * closed on Thursday contributes nothing here, and this case asserts the
+     * contract the sweep relies on: the minutes sample is same-day completions.
+     * `tests/db/booking-duration.test.ts` is where the trigger's half is run.
+     */
+    const sameDayOnly = repeat(45, 12);
+    expect(minutesAt(sameDayOnly).decision).toEqual({ act: true, to: 45 });
+  });
+
+  it("is outvoted in the span sample, which is where it does land", () => {
+    /*
+     * AND THE SECOND LAYER IS THE MEDIAN, which is the only defence the span
+     * has: `actual_elapsed_days` IS written for a multi-day job, because that
+     * is exactly the measurement the span loop needs, so a forgotten job
+     * arrives as a genuine-looking four-day reading. At the floor of 20 a
+     * handful of them cannot move the answer, and a mean would.
+     */
+    const oneDayJobs = repeat(1, 17);
+    // Thirty days, not four: a job nobody closed is bounded by when somebody
+    // finally notices, not by how long the work takes, so the reading is
+    // arbitrarily large rather than plausibly wrong. That is what makes a mean
+    // the wrong statistic here and not merely a slightly worse one.
+    const forgotten = repeat(30, 3);
+    const values = [...oneDayJobs, ...forgotten];
+    const proposal = spanAt(values);
+
+    expect(proposal.decision).toEqual({ act: true, to: 1 });
+    // Named rather than removed, because three of them is the signal that this
+    // product might really be two.
+    expect(proposal.unusual).toBe(3);
+
+    // The arithmetic a mean would have published, stated so the difference is
+    // not left to be taken on trust: five days of a painter's week held for
+    // every future booking of this product, off three jobs nobody closed.
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    expect(Math.round(mean)).toBe(5);
+  });
+});
+
+describe("a figure a person took down stays down", () => {
+  const twelve = repeat(45, 12);
+
+  it("acts with no revert on record", () => {
+    expect(minutesAt(twelve).decision).toEqual({ act: true, to: 45 });
+  });
+
+  it("is held back by a revert of that exact figure", () => {
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: twelve,
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+
+    expect(proposal.decision).toEqual({
+      act: false,
+      why: "suppressed",
+      reverted: 45,
+      releaseAt: 18,
+    });
+    // THE OBSERVATION IS STILL REPORTED. A suppressed figure is not an
+    // unmeasured one — the screen has to be able to say what the data says and
+    // that somebody refused it, which is the whole point of the shadow view.
+    expect(proposal.observed).toBe(45);
+    expect(proposal.sample).toBe(12);
+  });
+
+  it("is not held back once the evidence has grown by half again", () => {
+    const eighteen = repeat(45, 18);
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: eighteen,
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(proposal.decision).toEqual({ act: true, to: 45 });
+  });
+
+  it("is not held back by a revert of a different figure", () => {
+    /*
+     * THE OTHER HALF OF THE RULE, and the half that stops a single revert
+     * freezing a sub-band for ever. Somebody who refused 45 has said nothing
+     * about 60: the data moved, and the loop is free.
+     */
+    const sixty = repeat(60, 12);
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: sixty,
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(proposal.decision).toEqual({ act: true, to: 60 });
+  });
+
+  it("holds at seventeen jobs and releases at eighteen", () => {
+    /*
+     * WRITTEN AS THE NUMBERS RATHER THAN AS `releaseSampleFor(...) - 1`, which
+     * is `ACTIVITY_FLOOR`'s lesson: a case computed from the constant the code
+     * also reads asserts that the rule equals itself, and would stay green if
+     * the growth clause were removed altogether.
+     */
+    const held = proposeDuration({
+      kind: "minutes",
+      values: repeat(45, 17),
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(held.decision.act).toBe(false);
+
+    const released = proposeDuration({
+      kind: "minutes",
+      values: repeat(45, 18),
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(released.decision).toEqual({ act: true, to: 45 });
+  });
+
+  it("rounds the release sample up, so one more job is never enough", () => {
+    // 13 × 1.5 is 19.5. Rounding down would release at 19, which is a sample
+    // that has grown by less than the rule promises.
+    expect(releaseSampleFor({ fromValue: 45, sample: 13 })).toBe(20);
+    expect(releaseSampleFor({ fromValue: 45, sample: 1 })).toBe(2);
+  });
+
+  it("does not suppress below the floor, because nothing could be published", () => {
+    /*
+     * ORDER, ASSERTED. A sub-band with eleven jobs is `below-floor` and not
+     * `suppressed`: a figure nobody could publish is not being held back by
+     * anybody, and reading it as suppressed would tell the screen a person has
+     * blocked something the loop was never going to do.
+     */
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: repeat(45, 11),
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(proposal.decision).toEqual({ act: false, why: "below-floor", need: 1 });
+  });
+
+  it("reads as settled rather than suppressed when the figure is already published", () => {
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: twelve,
+      published: 45,
+      source: "observed",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(proposal.decision).toEqual({ act: false, why: "settled" });
+  });
+
+  it("logs a suppressed night, because the loop looked and was stopped", () => {
+    const proposal = proposeDuration({
+      kind: "minutes",
+      values: twelve,
+      published: 30,
+      source: "researched",
+      revert: { fromValue: 45, sample: 12 },
+    });
+    expect(durationOutcome(proposal.decision)).toBe("suppressed");
+    expect(DURATION_OUTCOMES).toContain("suppressed");
+  });
+
+  it("answers the rule directly, both ways", () => {
+    expect(
+      revertSuppressedBy({ fromValue: 45, sample: 12 }, { to: 45, sample: 12 }),
+    ).toBe(true);
+    expect(
+      revertSuppressedBy({ fromValue: 45, sample: 12 }, { to: 50, sample: 12 }),
+    ).toBe(false);
+    expect(
+      revertSuppressedBy({ fromValue: 45, sample: 12 }, { to: 45, sample: 18 }),
+    ).toBe(false);
   });
 });

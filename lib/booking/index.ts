@@ -143,14 +143,18 @@ export {
   FENCE_IQR_MULTIPLIER,
   MIN_DURATION_SAMPLE,
   MINUTES_ROUNDING,
+  REVERT_SAMPLE_GROWTH,
   countsAsEvidence,
   durationOutcome,
   proposeDuration,
+  releaseSampleFor,
+  revertSuppressedBy,
   type DurationDecision,
   type DurationEvidenceSet,
   type DurationKind,
   type DurationOutcome,
   type DurationProposal,
+  type RevertedDuration,
 } from "./duration-promotion";
 
 export {

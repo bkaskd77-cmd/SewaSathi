@@ -596,6 +596,36 @@ export type Database = {
        * The whole value is that "the loop decided this on that night" cannot
        * later be tidied into something else, so `Update` is `never` here too.
        */
+      duration_reverts: {
+        Row: {
+          id: string;
+          category_slug: string;
+          band_slug: string;
+          kind: string;
+          from_value: number;
+          to_value: number;
+          to_source: string;
+          sample: number;
+          actor_id: string | null;
+          reason: string;
+          reverted_at: string;
+        };
+        Insert: {
+          category_slug: string;
+          band_slug: string;
+          kind: string;
+          from_value: number;
+          to_value: number;
+          to_source: string;
+          sample: number;
+          actor_id?: string | null;
+          reason: string;
+          reverted_at?: string;
+        };
+        /** Append-only: `duration_reverts_append_only` refuses both. */
+        Update: never;
+        Relationships: [];
+      };
       duration_observations: {
         Row: {
           id: string;

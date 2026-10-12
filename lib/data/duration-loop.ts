@@ -4,8 +4,10 @@ import {
   countsAsEvidence,
   durationOutcome,
   proposeDuration,
+  releaseSampleFor,
   type DurationKind,
   type DurationProposal,
+  type RevertedDuration,
 } from "@/lib/booking";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -60,7 +62,13 @@ export type DurationSweep = {
    * indistinguishable from a quiet night, and `cron_runs` would record a
    * successful run either way.
    */
-  skipped?: "notConfigured" | "bandsUnreadable" | "bookingsUnreadable";
+  skipped?:
+    | "notConfigured"
+    | "bandsUnreadable"
+    | "bookingsUnreadable"
+    | "revertsUnreadable";
+  /** Nights the loop would have acted and a person's revert held it back. */
+  suppressed: number;
 };
 
 const EMPTY: DurationSweep = {
@@ -68,6 +76,7 @@ const EMPTY: DurationSweep = {
   applied: 0,
   belowFloor: 0,
   settled: 0,
+  suppressed: 0,
 };
 
 export async function sweepDurationPromotions(): Promise<DurationSweep> {
@@ -100,6 +109,9 @@ export async function sweepDurationPromotions(): Promise<DurationSweep> {
     );
     return { ...EMPTY, skipped: "bookingsUnreadable" };
   }
+
+  const reverts = await latestReverts(supabase);
+  if (!reverts) return { ...EMPTY, skipped: "revertsUnreadable" };
 
   const published = new Map<string, PublishedBand>();
   for (const row of bandRows as Array<Record<string, unknown>>) {
@@ -145,6 +157,7 @@ export async function sweepDurationPromotions(): Promise<DurationSweep> {
         values: (kind === "minutes" ? minutes.get(id) : spans.get(id)) ?? [],
         published: kind === "minutes" ? band.minutes : band.span,
         source: kind === "minutes" ? band.minutesSource : band.spanSource,
+        revert: reverts.get(revertKey(band.categorySlug, band.slug, kind)) ?? null,
       });
 
       const outcome = durationOutcome(proposal.decision);
@@ -168,6 +181,16 @@ export async function sweepDurationPromotions(): Promise<DurationSweep> {
         result.applied += 1;
       } else if (outcome === "below-floor") {
         result.belowFloor += 1;
+      } else if (outcome === "suppressed") {
+        /*
+         * COUNTED SEPARATELY FROM `settled`, because they are opposite facts
+         * about the same figure: settled means the published number is what the
+         * data says, suppressed means the data says something else and a person
+         * has refused it. Folding them would make a disputed figure read as an
+         * agreed one in `cron_runs`, which is the only place anybody sees the
+         * sweep's shape.
+         */
+        result.suppressed += 1;
       } else {
         result.settled += 1;
       }
@@ -193,6 +216,55 @@ function push(into: Map<string, number[]>, id: string, value: number): void {
 /** Fails closed to `invented`, which for a duration means "do not publish it". */
 function provenance(value: unknown): "invented" | "researched" | "observed" {
   return value === "researched" || value === "observed" ? value : "invented";
+}
+
+/**
+ * The newest revert per sub-band and kind, keyed the way the sweep looks it up.
+ *
+ * ONE READ FOR THE WHOLE SWEEP rather than one per sub-band: 36 sub-bands times
+ * two kinds is 72 round trips to Singapore for a table that will hold single
+ * figures for years, and the latency rule in CLAUDE.md is that a round trip is
+ * the unit of cost.
+ *
+ * NULL IS A FAILED READ AND IT STOPS THE SWEEP. Treating it as "nothing has
+ * been reverted" would have the loop re-publish every figure a person has taken
+ * down, which is the one outcome the suppression exists to prevent — rule 6, in
+ * the shape where reading a failure as an absence does real damage rather than
+ * printing a wrong number.
+ */
+async function latestReverts(
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<Map<string, RevertedDuration> | null> {
+  const { data, error } = await supabase
+    .from("duration_reverts")
+    .select("category_slug, band_slug, kind, from_value, sample, reverted_at")
+    .order("reverted_at", { ascending: false });
+
+  if (error || !data) {
+    console.error(`[duration-loop] reverts unreadable — ${describeError(error)}`);
+    return null;
+  }
+
+  const newest = new Map<string, RevertedDuration>();
+  for (const row of data as Array<Record<string, unknown>>) {
+    // Ordered newest first, so the first row for a key is the one that counts
+    // and every later one is history.
+    const id = revertKey(
+      row.category_slug as string,
+      row.band_slug as string,
+      row.kind as string,
+    );
+    if (newest.has(id)) continue;
+    newest.set(id, {
+      fromValue: Number(row.from_value),
+      sample: Number(row.sample),
+    });
+  }
+  return newest;
+}
+
+function revertKey(categorySlug: string, bandSlug: string, kind: string): string {
+  return `${categorySlug}/${bandSlug}/${kind}`;
 }
 
 /**
@@ -288,11 +360,29 @@ async function record(
  * and how many more jobs it needs, which is the whole reason the rule returns a
  * decision object rather than a boolean.
  */
+/**
+ * One figure as the screen needs it: the proposal, where the published number
+ * came from, and whether a person has taken one down.
+ *
+ * `revertedFrom` and `releaseAt` are what make a suppression readable. A hidden
+ * proposal and no proposal must not look alike — `category_price_revisions`
+ * settled that one decision over, and here it matters more, because the thing
+ * being held back is a machine that would otherwise act tonight.
+ */
+export type DurationFigure = DurationProposal & {
+  source: string;
+  checkedAt: string | null;
+  /** The figure a person took down, or null if none was. */
+  revertedFrom: number | null;
+  /** The sample that would let it be published again. Null with no revert. */
+  releaseAt: number | null;
+};
+
 export type DurationView = {
   categorySlug: string;
   bandSlug: string;
-  minutes: DurationProposal & { source: string; checkedAt: string | null };
-  span: DurationProposal & { source: string; checkedAt: string | null };
+  minutes: DurationFigure;
+  span: DurationFigure;
 };
 
 export type DurationReading = {
@@ -318,7 +408,7 @@ export async function durationEvidence(): Promise<DurationView[] | null> {
 
   const supabase = createAdminClient();
 
-  const [bands, bookings] = await Promise.all([
+  const [bands, bookings, reverts] = await Promise.all([
     supabase
       .from("category_price_bands")
       .select(
@@ -333,9 +423,10 @@ export async function durationEvidence(): Promise<DurationView[] | null> {
       )
       .eq("status", "completed")
       .not("band_slug", "is", null),
+    latestReverts(supabase),
   ]);
 
-  if (bands.error || !bands.data || bookings.error || !bookings.data) {
+  if (bands.error || !bands.data || bookings.error || !bookings.data || !reverts) {
     console.error(
       `[duration-loop] evidence unreadable — ${describeError(bands.error ?? bookings.error)}`,
     );
@@ -362,29 +453,46 @@ export async function durationEvidence(): Promise<DurationView[] | null> {
     const bandSlug = row.slug as string;
     const id = key(categorySlug, bandSlug);
 
+    /*
+     * ONE BUILDER FOR BOTH KINDS. They were two near-identical object literals,
+     * and threading the revert through would have made them two places to
+     * forget it — `countsAsEvidence` was written twice for exactly one commit
+     * and that is the divergence `lib/provider/measured.ts` exists to prevent.
+     */
+    const figure = (
+      kind: DurationKind,
+      values: number[],
+      published: number,
+      source: "invented" | "researched" | "observed",
+      checkedAt: string | null,
+    ): DurationFigure => {
+      const revert = reverts.get(revertKey(categorySlug, bandSlug, kind)) ?? null;
+      return {
+        ...proposeDuration({ kind, values, published, source, revert }),
+        source,
+        checkedAt,
+        revertedFrom: revert?.fromValue ?? null,
+        releaseAt: revert ? releaseSampleFor(revert) : null,
+      };
+    };
+
     return {
       categorySlug,
       bandSlug,
-      minutes: {
-        ...proposeDuration({
-          kind: "minutes",
-          values: minutes.get(id) ?? [],
-          published: Number(row.typical_working_minutes),
-          source: provenance(row.duration_source),
-        }),
-        source: provenance(row.duration_source),
-        checkedAt: (row.duration_checked_at as string | null) ?? null,
-      },
-      span: {
-        ...proposeDuration({
-          kind: "span",
-          values: spans.get(id) ?? [],
-          published: Number(row.typical_elapsed_days),
-          source: provenance(row.span_source),
-        }),
-        source: provenance(row.span_source),
-        checkedAt: (row.span_checked_at as string | null) ?? null,
-      },
+      minutes: figure(
+        "minutes",
+        minutes.get(id) ?? [],
+        Number(row.typical_working_minutes),
+        provenance(row.duration_source),
+        (row.duration_checked_at as string | null) ?? null,
+      ),
+      span: figure(
+        "span",
+        spans.get(id) ?? [],
+        Number(row.typical_elapsed_days),
+        provenance(row.span_source),
+        (row.span_checked_at as string | null) ?? null,
+      ),
     };
   });
 }
@@ -417,5 +525,224 @@ export async function durationReadings(
     observed: Number(row.observed),
     published: Number(row.published),
     outcome: row.outcome as string,
+  }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Taking a published duration back down
+ * ------------------------------------------------------------------ */
+
+/**
+ * One action, and every outcome is named rather than collapsed into a boolean.
+ *
+ * `noPromotion` and `notObserved` are different facts and the screen says
+ * which: the first is a figure the loop has never moved (so there is nothing to
+ * go back to), the second is a figure that is not currently the loop's (so
+ * there is nothing to take down). A single "cannot" would leave somebody
+ * guessing at a screen that is refusing them.
+ */
+export type DurationRevert =
+  | { ok: true; from: number; to: number; source: string; releaseAt: number }
+  | {
+      ok: false;
+      why:
+        | "notConfigured"
+        | "bandUnreadable"
+        | "notObserved"
+        | "noPromotion"
+        | "notRecorded"
+        | "writeFailed";
+    };
+
+/**
+ * Put a published duration back to what it replaced, and record who did it.
+ *
+ * WHAT IT REVERTS TO IS READ, NEVER CHOSEN. `duration_observations` holds the
+ * promotion's own row, carrying `published` and `published_source` — the figure
+ * and provenance in force the moment the loop replaced them — so the target is
+ * evidence rather than somebody's recollection, and `sample` on the same row is
+ * the denominator the suppression rule needs. There is no field for an admin to
+ * type a duration into, deliberately: that would be a second way to publish a
+ * number nobody measured, which is what `duration_source = 'invented'` already
+ * means and what this whole loop exists to get away from.
+ *
+ * THE REVERT ROW IS WRITTEN BEFORE THE FIGURE MOVES, and the order is the
+ * `trip_compensation` lesson. If the record lands and the band write fails, the
+ * suppression is live and the figure is unchanged — visible on the screen,
+ * harmless, and a person can try again. The other order moves the figure with
+ * nothing suppressing it, so that night's sweep silently puts it back and the
+ * decision is undone by a machine.
+ *
+ * Audited twice over, and the two are not redundant. `duration_reverts` answers
+ * "is this figure held back, and what would release it", which the sweep has to
+ * ask on every run; `security_events` is the append-only record of a staff
+ * action that no caller can tidy afterwards.
+ */
+export async function revertDuration(input: {
+  categorySlug: string;
+  bandSlug: string;
+  kind: DurationKind;
+  reason: string;
+  actorId: string;
+}): Promise<DurationRevert> {
+  if (!hasSupabaseConfig()) return { ok: false, why: "notConfigured" };
+
+  const reason = input.reason.trim();
+  // The check constraint refuses a blank, and reaching it would lose the whole
+  // statement rather than telling somebody to write a sentence.
+  if (!reason) return { ok: false, why: "notRecorded" };
+
+  const supabase = createAdminClient();
+  const minutesKind = input.kind === "minutes";
+
+  const { data: band, error: bandError } = await supabase
+    .from("category_price_bands")
+    .select(
+      "typical_working_minutes, typical_elapsed_days, duration_source, span_source",
+    )
+    .eq("category_slug", input.categorySlug)
+    .eq("slug", input.bandSlug)
+    .maybeSingle();
+
+  if (bandError || !band) {
+    console.error(`[duration-loop] band unreadable — ${describeError(bandError)}`);
+    return { ok: false, why: "bandUnreadable" };
+  }
+
+  const row = band as Record<string, unknown>;
+  const source = provenance(minutesKind ? row.duration_source : row.span_source);
+  if (source !== "observed") return { ok: false, why: "notObserved" };
+
+  const from = Number(
+    minutesKind ? row.typical_working_minutes : row.typical_elapsed_days,
+  );
+
+  const { data: promotions, error: promotionError } = await supabase
+    .from("duration_observations")
+    .select("published, published_source, sample")
+    .eq("category_slug", input.categorySlug)
+    .eq("band_slug", input.bandSlug)
+    .eq("kind", input.kind)
+    .eq("outcome", "applied")
+    .order("observed_at", { ascending: false })
+    .limit(1);
+
+  if (promotionError || !promotions) {
+    console.error(
+      `[duration-loop] promotions unreadable — ${describeError(promotionError)}`,
+    );
+    return { ok: false, why: "bandUnreadable" };
+  }
+  /*
+   * NO PROMOTION ROW AND AN `observed` FIGURE IS A REAL STATE, not a
+   * contradiction: `duration_observations` ships after the seed, so a figure
+   * authored `observed` in the JSON has no promotion behind it. Reverting it
+   * would mean inventing both the target and its sample, which is the
+   * manufactured record `profiles_record_role_change` refuses.
+   */
+  if (promotions.length === 0) return { ok: false, why: "noPromotion" };
+
+  const promotion = promotions[0] as Record<string, unknown>;
+  const to = Number(promotion.published);
+  const toSource = provenance(promotion.published_source);
+  const sample = Number(promotion.sample);
+
+  if (to === from) {
+    // The promotion row says the loop replaced this figure with itself, which
+    // `proposeDuration` cannot produce — `settled` is what it returns when the
+    // median already matches. Nothing to move, and
+    // `duration_reverts_moved_check` would refuse the row anyway.
+    return { ok: false, why: "noPromotion" };
+  }
+
+  const { error: recordError } = await supabase.from("duration_reverts").insert({
+    category_slug: input.categorySlug,
+    band_slug: input.bandSlug,
+    kind: input.kind,
+    from_value: from,
+    to_value: to,
+    to_source: toSource,
+    sample,
+    actor_id: input.actorId,
+    reason,
+  });
+
+  if (recordError) {
+    console.error(`[duration-loop] revert not recorded — ${describeError(recordError)}`);
+    return { ok: false, why: "notRecorded" };
+  }
+
+  const note =
+    `Reverted from ${from} by a person, back to the ${toSource} figure it ` +
+    `replaced. The loop will not publish ${from} again until the sample ` +
+    `reaches ${releaseSampleFor({ fromValue: from, sample })}.`;
+
+  const patch = minutesKind
+    ? {
+        typical_working_minutes: to,
+        duration_source: toSource,
+        duration_note: note,
+      }
+    : { typical_elapsed_days: to, span_source: toSource, span_note: note };
+
+  const { error: writeError } = await supabase
+    .from("category_price_bands")
+    .update(patch)
+    .eq("category_slug", input.categorySlug)
+    .eq("slug", input.bandSlug);
+
+  if (writeError) {
+    console.error(`[duration-loop] revert not applied — ${describeError(writeError)}`);
+    return { ok: false, why: "writeFailed" };
+  }
+
+  return {
+    ok: true,
+    from,
+    to,
+    source: toSource,
+    releaseAt: releaseSampleFor({ fromValue: from, sample }),
+  };
+}
+
+/** The revert history, for the screen. Null is a failed read, never an empty log. */
+export type DurationRevertRow = {
+  revertedAt: string;
+  categorySlug: string;
+  bandSlug: string;
+  kind: string;
+  fromValue: number;
+  toValue: number;
+  sample: number;
+  reason: string;
+};
+
+export async function durationReverts(
+  limit = 20,
+): Promise<DurationRevertRow[] | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  const { data, error } = await createAdminClient()
+    .from("duration_reverts")
+    .select(
+      "reverted_at, category_slug, band_slug, kind, from_value, to_value, sample, reason",
+    )
+    .order("reverted_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !data) {
+    console.error(`[duration-loop] reverts unreadable — ${describeError(error)}`);
+    return null;
+  }
+
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    revertedAt: row.reverted_at as string,
+    categorySlug: row.category_slug as string,
+    bandSlug: row.band_slug as string,
+    kind: row.kind as string,
+    fromValue: Number(row.from_value),
+    toValue: Number(row.to_value),
+    sample: Number(row.sample),
+    reason: row.reason as string,
   }));
 }

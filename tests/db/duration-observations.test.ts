@@ -164,3 +164,132 @@ describe("the shapes a reading may hold", () => {
     );
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * The revert — a person overruling a loop that acts unattended
+ * ------------------------------------------------------------------ */
+
+async function revert(
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const row = {
+    category_slug: "painting",
+    band_slug: "room-supplied",
+    kind: "minutes",
+    from_value: 300,
+    to_value: 960,
+    to_source: "invented",
+    sample: 12,
+    actor_id: ANITA,
+    reason: "Three of those jobs were left open overnight.",
+    ...overrides,
+  };
+  const columns = Object.keys(row);
+  const { rows } = await pg.admin.query(
+    `insert into public.duration_reverts (${columns.join(", ")})
+     values (${columns.map((_, i) => `$${i + 1}`).join(", ")})
+     returning id`,
+    columns.map((c) => (row as Record<string, unknown>)[c]),
+  );
+  return rows[0].id as string;
+}
+
+describe("a revert cannot be rewritten either", () => {
+  /*
+   * THE SAME RULE AS THE OBSERVATIONS, AND IT CARRIES MORE WEIGHT HERE. This
+   * table does work rather than only recording: the nightly sweep reads it to
+   * know a figure is held back, so a row the application could edit would be a
+   * suppression the application could lift — and the loop would re-publish a
+   * figure a person took down, which is the one outcome the whole mechanism
+   * exists to prevent.
+   */
+  it("refuses an UPDATE for the service role", async () => {
+    const id = await revert();
+    await expect(
+      pg.admin.query(
+        "update public.duration_reverts set from_value = 1 where id = $1",
+        [id],
+      ),
+    ).rejects.toThrow(/append-only|cannot be/i);
+  });
+
+  it("refuses a DELETE for the service role", async () => {
+    const id = await revert();
+    await expect(
+      pg.admin.query("delete from public.duration_reverts where id = $1", [id]),
+    ).rejects.toThrow(/append-only|cannot be/i);
+  });
+});
+
+describe("no browser writes a revert and only an admin reads one", () => {
+  it("refuses an insert from a signed-in customer", async () => {
+    const client = await pg.asUser(ANITA);
+    await expect(
+      client.query(
+        `insert into public.duration_reverts
+           (category_slug, band_slug, kind, from_value, to_value, to_source,
+            sample, reason)
+         values ('painting', 'room-supplied', 'minutes', 300, 960, 'invented',
+                 12, 'let me publish my own')`,
+      ),
+    ).rejects.toThrow(BROWSER_WRITE_REFUSED);
+    await client.end();
+  });
+
+  it("returns nothing to a customer who may ask", async () => {
+    await revert({ band_slug: "room-own-paint" });
+    const client = await pg.asUser(ANITA);
+    const { rows } = await client.query(
+      "select id from public.duration_reverts",
+    );
+    expect(rows).toHaveLength(0);
+    await client.end();
+  });
+});
+
+describe("the shapes a revert may hold", () => {
+  it("admits all three provenances, because a second promotion reverts to a measurement", async () => {
+    /*
+     * A FIRST DRAFT OF THE MIGRATION REFUSED `observed` HERE, on the reasoning
+     * that reverting to a measured figure would read as `settled` and stop the
+     * loop looking. That is not what `proposeDuration` does — `settled` needs
+     * the median to EQUAL the published figure, which after a revert it does
+     * not — and the rule would have made the second promotion of any sub-band
+     * unrevertable. Asserted as the behaviour rather than left as a comment.
+     */
+    for (const source of ["invented", "researched", "observed"]) {
+      await expect(revert({ to_source: source })).resolves.toBeTruthy();
+    }
+    await expect(revert({ to_source: "guessed" })).rejects.toThrow(
+      /to_source/i,
+    );
+  });
+
+  it("refuses a revert that moves nothing", async () => {
+    // `proposeDuration` cannot produce a promotion to the figure already
+    // published, so a revert whose two ends are equal is a bug upstream rather
+    // than a decision — and recording it would suppress a figure for ever on
+    // evidence of nothing having happened.
+    await expect(revert({ from_value: 960, to_value: 960 })).rejects.toThrow(
+      /moved/i,
+    );
+  });
+
+  it("refuses a revert with no sample behind it", async () => {
+    // The sample is the denominator the suppression rule needs: without it,
+    // "has the evidence moved since" cannot be answered at all.
+    await expect(revert({ sample: 0 })).rejects.toThrow(/sample/i);
+  });
+
+  it("refuses a blank reason", async () => {
+    // A figure with no sentence beside it is indistinguishable from a mistake
+    // six months later, which is why the column insists rather than the form.
+    for (const reason of ["", "   "]) {
+      await expect(revert({ reason })).rejects.toThrow(/reason/i);
+    }
+  });
+
+  it("refuses a kind that is not one of the two", async () => {
+    await expect(revert({ kind: "rupees" })).rejects.toThrow(/kind/i);
+  });
+});

@@ -75,6 +75,36 @@ export const MINUTES_ROUNDING = 5;
 /** Tukey. A quarter of the sample can be arbitrarily large before Q3 moves. */
 export const FENCE_IQR_MULTIPLIER = 1.5;
 
+/**
+ * How much more evidence makes a reverted figure worth publishing again.
+ *
+ * WHY A REVERT NEEDS THIS CLAUSE AT ALL. The loop acts without a person, so a
+ * revert with no suppression is undone by that night's sweep: the sample has not
+ * changed, the median is the same number, and the figure an admin just took down
+ * goes straight back up. A revert that lasts until midnight is not a revert.
+ *
+ * HALF AGAIN, and the reasoning is `REJECTION_SAMPLE_GROWTH`'s for a band
+ * proposal, one decision over: a revert can mean *this figure is wrong because
+ * the sub-band is two different jobs* — which more data producing the same
+ * median does not answer — or *too soon, that was twelve jobs* — which it does.
+ * Suppressing on the figure alone strands the second kind for ever; suppressing
+ * on the sample alone re-publishes the first kind the moment a job completes.
+ *
+ * IT IS A SEPARATE CONSTANT FROM THE BAND'S ON PURPOSE, not a copy left to
+ * drift. A price and a duration are different decisions with different costs —
+ * one moves commission, the other moves a reservation — and there is no reason
+ * they must change together. They happen to agree today.
+ */
+export const REVERT_SAMPLE_GROWTH = 0.5;
+
+/** What a revert recorded, as `revertSuppressedBy` needs to read it. */
+export type RevertedDuration = {
+  /** The figure that was taken down. */
+  fromValue: number;
+  /** The sample the reverted figure had been computed from. */
+  sample: number;
+};
+
 export type DurationEvidenceSet = {
   kind: DurationKind;
   /** Every plausible measurement for one sub-band. Order is irrelevant. */
@@ -83,6 +113,16 @@ export type DurationEvidenceSet = {
   published: number;
   /** The published figure's provenance, for THIS number. */
   source: "invented" | "researched" | "observed";
+  /**
+   * The most recent revert of THIS number, if a person has taken one down.
+   *
+   * Threaded in rather than checked by the caller, so the sweep and
+   * `/admin/duration` cannot disagree about whether a figure is suppressed —
+   * the screen has to be able to say "held back, and here is what would release
+   * it", which is the same reason `DurationDecision` is an object and not a
+   * boolean. Null is "never reverted".
+   */
+  revert?: RevertedDuration | null;
 };
 
 export type DurationDecision =
@@ -92,6 +132,12 @@ export type DurationDecision =
   | { act: false; why: "below-floor"; need: number }
   /** Already published as this, from observation. Nothing left to do. */
   | { act: false; why: "settled" }
+  /**
+   * A person took this exact figure down and the evidence has not moved since.
+   * `releaseAt` is the sample that would let it be published again, so the
+   * screen can say what would change rather than only that nothing will.
+   */
+  | { act: false; why: "suppressed"; reverted: number; releaseAt: number }
   | { act: true; to: number };
 
 export type DurationProposal = {
@@ -146,6 +192,66 @@ function publishable(kind: DurationKind, median: number): number {
   );
 }
 
+/**
+ * Is this the figure somebody already took down?
+ *
+ * THE RULE, STATED RATHER THAN IMPLIED, and it is `proposalSuppressedBy`'s
+ * shape one module over. A revert suppresses a later promotion while BOTH hold:
+ *
+ *   1. the figure the loop wants to publish is IDENTICAL to the reverted one, and
+ *   2. the sample has not grown by `REVERT_SAMPLE_GROWTH`.
+ *
+ * "Identical" needs no tolerance, because `publishable` has already rounded —
+ * minutes to the nearest five, a span down to a whole day — so two proposals are
+ * either the same published figure or at least five minutes, or one whole day,
+ * apart. The sample clause is the escape hatch, and both must break.
+ */
+export function revertSuppressedBy(
+  revert: RevertedDuration,
+  proposal: { to: number; sample: number },
+): boolean {
+  if (proposal.to !== revert.fromValue) return false;
+  return proposal.sample < releaseSampleFor(revert);
+}
+
+/** The sample at which a reverted figure may be published again. */
+export function releaseSampleFor(revert: RevertedDuration): number {
+  return Math.ceil(revert.sample * (1 + REVERT_SAMPLE_GROWTH));
+}
+
+/**
+ * ORDERED, AND THE ORDER IS THE PRODUCT DECISION.
+ *
+ * The floor comes first, because below it there is nothing to suppress — a
+ * figure nobody could publish is not being held back by anybody. `settled`
+ * comes before the revert so that a figure already published as what the data
+ * says reads as settled rather than as suppressed; the two cannot both be true
+ * (a revert moves the source away from `observed`), and stating the order means
+ * the next reader does not have to prove that.
+ */
+function decide(
+  input: DurationEvidenceSet,
+  sample: number,
+  floor: number,
+  observed: number,
+): DurationDecision {
+  if (sample < floor) {
+    return { act: false, why: "below-floor", need: floor - sample };
+  }
+  if (observed === input.published && input.source === "observed") {
+    return { act: false, why: "settled" };
+  }
+  if (input.revert && revertSuppressedBy(input.revert, { to: observed, sample })) {
+    return {
+      act: false,
+      why: "suppressed",
+      reverted: input.revert.fromValue,
+      releaseAt: releaseSampleFor(input.revert),
+    };
+  }
+  return { act: true, to: observed };
+}
+
 export function proposeDuration(input: DurationEvidenceSet): DurationProposal {
   const floor = MIN_DURATION_SAMPLE[input.kind];
   const sorted = [...input.values].sort((a, b) => a - b);
@@ -172,12 +278,7 @@ export function proposeDuration(input: DurationEvidenceSet): DurationProposal {
 
   const observed = publishable(input.kind, quantile(sorted, 0.5));
 
-  const decision: DurationDecision =
-    sample < floor
-      ? { act: false, why: "below-floor", need: floor - sample }
-      : observed === input.published && input.source === "observed"
-        ? { act: false, why: "settled" }
-        : { act: true, to: observed };
+  const decision: DurationDecision = decide(input, sample, floor, observed);
 
   return {
     kind: input.kind,
@@ -202,6 +303,7 @@ export const DURATION_OUTCOMES = [
   "applied",
   "below-floor",
   "settled",
+  "suppressed",
 ] as const;
 
 export type DurationOutcome = (typeof DURATION_OUTCOMES)[number];

@@ -2636,7 +2636,8 @@
         "willPublish": "The next run will publish {n} {unit}.",
         "needsMore": "{n} more to go before it replaces the guess.",
         "settled": "Already published from this evidence.",
-        "nothing": "Nothing to do."
+        "nothing": "Nothing to do.",
+        "suppressed": "Held back: somebody took {n} {unit} down, and the loop will not publish it again until the sample reaches {release}."
       },
       "log": {
         "title": "What the loop did",
@@ -2646,10 +2647,32 @@
         "outcome": {
           "applied": "published {observed}, was {published} · {count, plural, one {{n} job} other {{n} jobs}}",
           "belowFloor": "would publish {observed}, published {published} · {count, plural, one {{n} job} other {{n} jobs}}",
-          "settled": "unchanged at {published} · {count, plural, one {{n} job} other {{n} jobs}}"
+          "settled": "unchanged at {published} · {count, plural, one {{n} job} other {{n} jobs}}",
+          "suppressed": "would publish {observed}, held at {published} · {count, plural, one {{n} job} other {{n} jobs}}"
         }
       },
-      "unreadable": "We can't read the durations right now — this is us, not you."
+      "unreadable": "We can't read the durations right now — this is us, not you.",
+      "revert": {
+        "why": "Why are you taking this down?",
+        "button": "Put it back",
+        "working": "Reverting…",
+        "done": "Back to {to} {unit} from {from}. The loop will not publish {from} again until the sample reaches {n}.",
+        "errors": {
+          "notConfigured": "We can't reach the database right now.",
+          "bandUnreadable": "We can't read this product's figures right now.",
+          "notObserved": "This figure is not the loop's — it is the one we authored, so there is nothing to take down.",
+          "noPromotion": "The loop has no record of publishing this figure, so there is nothing recorded to go back to. Moving it would mean inventing both the number and the sample behind it.",
+          "notRecorded": "Write a sentence saying why, and we'll record it with the change.",
+          "writeFailed": "The reason was recorded but the figure did not move. Nothing is published that was not published before — try again."
+        }
+      },
+      "reverts": {
+        "title": "What a person overruled",
+        "lead": "The loop publishes without anybody approving, so this is the record of every time somebody disagreed — what it was, what it went back to, and why.",
+        "none": "Nobody has taken a published duration down. That is not the same as nothing being wrong: it means no figure has been disputed yet.",
+        "moved": "{from} → {to} {unit} · was measured from {count, plural, one {{n} job} other {{n} jobs}}",
+        "unreadable": "We can't read the revert history right now — this is us, not you."
+      }
     }
   }
 }

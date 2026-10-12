@@ -919,6 +919,17 @@ Where a change on one side cannot reach the other.
   same-day completions promote the minutes, twenty promote the span, and
   `duration_observations` logs what it WOULD do on every night in between, which
   is what makes an unattended loop safe to leave running.
+  **And a person can overrule it in one action**, which is what acting
+  unattended had been missing: `/admin/duration` carries a button per published
+  figure, `revertDuration` is the only writer, and `duration_reverts` is the
+  append-only record — `category_price_revisions`'s shape, one decision over.
+  The figure it reverts to is read off the promotion's own observation row, so
+  nothing is typed, and `revertSuppressedBy` holds that exact number back until
+  the sample grows by half again; without that clause the next sweep would put
+  it straight back, because neither the sample nor the median has changed. The
+  suppression is threaded through `proposeDuration` rather than checked beside
+  it, so the sweep and the screen cannot disagree about whether a figure is
+  held.
   **The TypeScript and the SQL are held together by a check, not a comment.**
   `enforce_slot_capacity` carried `interval '120 minutes'` under a note asking
   the next reader to keep it in step by hand; `npm run check:duration` now fails

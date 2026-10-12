@@ -703,6 +703,65 @@ the service-role key on a money path. **No time window**, where
 goes stale, how long it takes to clear a blockage is a fact about the work. What
 would invalidate old observations is redefining a product, and that is a new
 `slug`.
+**And a person can overrule it in one action now, which is what acting
+unattended was missing.** The argument for the loop publishing without approval
+holds; what it did not give anybody was a way to disagree, so a wrong figure
+could be changed only by editing the seed and running a migration —
+`proposeBand`'s four-phase sin wearing a schedule. `/admin/duration` has a
+button per published figure, `revertDuration` is the writer, and
+`duration_reverts` is the append-only record. **What it reverts TO is read,
+never chosen**: the promotion's own `duration_observations` row carries the
+figure, the provenance and the sample in force the night the loop replaced them,
+so there is no field for an admin to type a duration into — a box there would be
+a second way to publish a number nobody measured, which is what `invented`
+already means. **The revert row is written BEFORE the figure moves**, the
+`trip_compensation` ordering: a record with no move is visible and harmless,
+where a move with no record is undone by that night's sweep.
+**Suppression is the part that does work rather than recording it.** The loop
+acts unattended, so a revert with no suppression lasts until midnight — same
+sample, same median, figure straight back up. `revertSuppressedBy` holds that
+exact figure until the sample grows by half again, `proposalSuppressedBy`'s rule
+one decision over, and `REVERT_SAMPLE_GROWTH` is a **separate constant** from
+the band's rather than a copy: a price and a duration have different costs and
+no reason to move together. It is **threaded into `proposeDuration`** rather
+than checked beside it, so the sweep and the screen cannot disagree about
+whether a figure is held — and the screen names the figure, the reason and the
+sample that would release it, because a hidden proposal and no proposal must not
+look alike. `suppressed` is a fifth `DURATION_OUTCOMES` value and counted
+separately from `settled`: those are opposite facts about one figure, and
+folding them would make a disputed number read as an agreed one in `cron_runs`.
+**A failed read of the reverts stops the sweep** (`revertsUnreadable`) rather
+than reading as "nothing reverted" — rule 6 in the shape where the absence does
+real damage, since it would re-publish every figure a person has taken down.
+**`to_source` admits `observed`, and a first draft refused it**: the reasoning
+written down ("an observed target would read as settled and the loop would stop
+looking") is simply not what `proposeDuration` does — `settled` needs the median
+to EQUAL the published figure — and the rule would have made the second
+promotion of any sub-band unrevertable.
+**The forgotten-open job is two problems and only one is the median's.** A job
+left open across nights contributes NO minutes at all — `record_booking_duration`
+writes `actual_working_minutes` only on a same-day completion, because the nights
+are inside the elapsed figure and we hold one start stamp rather than one per day
+— but it does contribute a span, which is exactly the measurement the span loop
+wants. There the median is the whole defence: three thirty-day readings in twenty
+publish 1 day, where a mean publishes 5. Both halves are pinned, with the mean's
+answer stated in the test so the difference is not taken on trust.
+**And the professional naming the product at completion moves no figure, which
+was argued from `pg_proc` and never asserted.** Every money column is now
+compared across that write — `band_min`, `band_revision_id`, the quote, the
+split, `payment_status`, `materials_rupees` — and the case that bites is the
+relabel UPWARDS. **The intuitive version is blind**: every category's own floor
+equals its cheapest sub-band across all ten, and that is what
+`booking_band_bounds` returns for a booking with no product, so a re-derived
+floor would produce the identical number — written that way first, it stayed
+green through a break test that made `freeze_booking_band` re-derive on every
+product change. `ACTIVITY_FLOOR`'s class, found the same way.
+**The window is the application's rule and not the database's, and a test name
+claimed otherwise.** "Refused outright once a band has been stated" passed while
+the update it ran had plainly succeeded — the label moves, `canNameBand` is what
+forbids it, and the only thing the assertion established was that the money had
+not. Which is the fact worth having: even on the relabel the product forbids,
+nothing a dispute is argued from changes.
 
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the

@@ -12,8 +12,13 @@ import { getCategories, getSubBands } from "@/lib/data/categories";
 import {
   durationEvidence,
   durationReadings,
+  durationReverts,
+  type DurationFigure,
   type DurationView,
 } from "@/lib/data/duration-loop";
+import { DurationRevert } from "@/components/admin/duration-revert";
+
+import { revertDurationAction } from "./actions";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -51,9 +56,10 @@ export default async function DurationPage() {
     redirect({ href: "/account/security?next=/admin/duration", locale });
   }
 
-  const [evidence, readings, categories, subBands] = await Promise.all([
+  const [evidence, readings, reverts, categories, subBands] = await Promise.all([
     durationEvidence(),
     durationReadings(),
+    durationReverts(),
     getCategories(),
     getSubBands(),
   ]);
@@ -139,12 +145,18 @@ export default async function DurationPage() {
                     unit={t("unit.minutes")}
                     view={row.minutes}
                     t={t}
+                    categorySlug={row.categorySlug}
+                    bandSlug={row.bandSlug}
+                    kind="minutes"
                   />
                   <Kind
                     label={t("kind.span")}
                     unit={t("unit.days")}
                     view={row.span}
                     t={t}
+                    categorySlug={row.categorySlug}
+                    bandSlug={row.bandSlug}
+                    kind="span"
                   />
                 </dl>
               </li>
@@ -156,6 +168,60 @@ export default async function DurationPage() {
             </p>
           ) : null}
         </>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise mt-10 font-display text-heading-md">
+        {t("reverts.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("reverts.lead")}
+      </p>
+
+      {reverts === null ? (
+        <Unreadable text={t("reverts.unreadable")} />
+      ) : reverts.length === 0 ? (
+        /* NOT "nothing is wrong" — nobody has disagreed with the loop yet, which
+           is a different sentence and the one worth printing on a screen whose
+           whole job is to make an unattended machine answerable. */
+        <p className="animate-rise mt-4 text-body-sm text-muted-foreground">
+          {t("reverts.none")}
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2 text-body-sm">
+          {reverts.map((row, index) => (
+            <li
+              key={`${row.revertedAt}-${row.categorySlug}-${row.bandSlug}-${row.kind}`}
+              className="animate-rise border-b border-border pb-2"
+              style={{ animationDelay: `${Math.min(index * 0.03, 0.25)}s` }}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+                <span className="text-foreground">
+                  {productName(row.categorySlug, row.bandSlug)} ·{" "}
+                  {row.kind === "span" ? t("kind.span") : t("kind.minutes")}
+                </span>
+                <span className="tabular-nums text-muted-foreground">
+                  {t("reverts.moved", {
+                    from: String(row.fromValue),
+                    to: String(row.toValue),
+                    unit: row.kind === "span" ? t("unit.days") : t("unit.minutes"),
+                    n: String(row.sample),
+                    count: row.sample,
+                  })}
+                </span>
+              </div>
+              {/* THE REASON IS THE POINT OF THE ROW. A revert with a figure and
+                  no sentence is indistinguishable from a mistake six months
+                  later, which is why the column refuses a blank. */}
+              <p className="mt-0.5 text-caption text-muted-foreground">
+                {row.reason}
+              </p>
+              <p className="text-caption text-muted-foreground">
+                {formatInstant(row.revertedAt, locale)}
+              </p>
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* ---------------------------------------------------------------- */}
@@ -217,11 +283,17 @@ function Kind({
   unit,
   view,
   t,
+  categorySlug,
+  bandSlug,
+  kind,
 }: {
   label: string;
   unit: string;
-  view: DurationView["minutes"];
+  view: DurationFigure;
   t: Awaited<ReturnType<typeof getTranslations<"admin.duration">>>;
+  categorySlug: string;
+  bandSlug: string;
+  kind: "minutes" | "span";
 }) {
   const decision = view.decision;
   const next =
@@ -231,7 +303,21 @@ function Kind({
         ? t("next.needsMore", { n: String(decision.need) })
         : decision.why === "settled"
           ? t("next.settled")
-          : t("next.nothing");
+          : decision.why === "suppressed"
+            ? /*
+               * SUPPRESSION IS NEVER SILENT. A proposal held back and no
+               * proposal at all must not read alike — the rule
+               * `category_price_revisions` settled — and here it matters more,
+               * because what is being held is a loop that would otherwise act
+               * tonight. The sentence names the figure, and the sample that
+               * would release it.
+               */
+              t("next.suppressed", {
+                n: String(decision.reverted),
+                unit,
+                release: String(decision.releaseAt),
+              })
+            : t("next.nothing");
 
   return (
     <div>
@@ -262,6 +348,20 @@ function Kind({
           : ""}
         {` ${next}`}
       </p>
+
+      {/* THE CONTROL IS ONLY ON A FIGURE THE LOOP PUBLISHED. Nothing else is
+          revertable: an `invented` or `researched` number is the seed's, and
+          offering a button that could only answer "there is nothing to take
+          down" is a threshold somebody finds by tripping it. */}
+      {view.source === "observed" ? (
+        <DurationRevert
+          categorySlug={categorySlug}
+          bandSlug={bandSlug}
+          kind={kind}
+          unit={unit}
+          revert={revertDurationAction}
+        />
+      ) : null}
     </div>
   );
 }

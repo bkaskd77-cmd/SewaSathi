@@ -128,6 +128,27 @@ export type SecurityEventKind =
    */
   | "pricing.bandApproved"
   | "pricing.bandRejected"
+  /**
+   * A person took a published duration back down.
+   *
+   * THE ONE PLACE A HUMAN OVERRULES A LOOP THAT ACTS UNATTENDED. The duration
+   * sweep publishes without anybody approving — defensibly, because a duration
+   * changes what the scheduler reserves and never what anybody is paid — and
+   * this kind is the record of the only decision that can contradict it.
+   * `duration_reverts` carries the same fact and does work with it (it is what
+   * the sweep reads to know the figure is held back); this is the copy no
+   * caller can tidy.
+   *
+   * There is no `duration.published` twin, deliberately: that is the loop
+   * acting on a schedule, recorded per sub-band in `duration_observations`
+   * where the sample sits beside it, and an audit kind written 72 times a night
+   * by a cron is how a log stops being read.
+   *
+   * `detail` carries the figures, the sample that would release the suppression
+   * and the reason typed. A duration is published copy; no personal data is
+   * involved.
+   */
+  | "duration.reverted"
   | "document.reviewed"
   /* Anything an admin does at all */
   /**
