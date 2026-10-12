@@ -1878,7 +1878,14 @@
           "what": "What the loop measured, and what it would publish next"
         }
       },
-      "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}."
+      "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}.",
+      "readyToTune": "{count, plural, one {{n} loop has} other {{n} loops have}} reached the evidence floor: {loops}.",
+      "readyToTuneLink": "See the numbers",
+      "loop": {
+        "ranking": "ranking weights",
+        "rotation": "rotation among near-ties",
+        "triage": "the triage prompt"
+      }
     },
     "extent": {
       "showing": "Showing {shown} of {total}, oldest first. This screen loads {cap} at a time — clearing these brings the next ones up.",

@@ -29,14 +29,8 @@ import {
   proximityEvidence,
 } from "@/lib/data/concentration";
 import { RELEVANCE_WEIGHTS, weightEvidence } from "@/lib/data/ranking";
-import {
-  ROTATION_MIN_LISTINGS,
-  TUNING_FLOORS,
-  readiness,
-  rotationOfferFloor,
-  type Readiness,
-} from "@/lib/config/tuning-floors";
-import { triageAccuracy } from "@/lib/data/triage-accuracy";
+import { ROTATION_MIN_LISTINGS, TUNING_FLOORS } from "@/lib/config/tuning-floors";
+import { tuningReadiness } from "@/lib/data/tuning-readiness";
 import { formatBand, formatNpr } from "@/lib/utils";
 import { bandCoverage } from "@/lib/data/band-coverage";
 
@@ -107,12 +101,11 @@ export default async function SignalsPage() {
   const stats = await listRankingEvidence();
 
   /*
-   * THE ONLY NUMBER THE TRIAGE LOOP CAN BE TUNED FROM. `coverage.attributed`
-   * is bookings that carry the triage they came from, which is the denominator
-   * of every agreement rate on `/admin/triage-accuracy`. Read here rather than
-   * recounted, so the two screens cannot disagree about how much is known.
+   * ONE COMPUTATION, SHARED WITH THE ADMIN HOME. The front page says "ready to
+   * tune" and this screen says how far off — two surfaces answering one
+   * question, which is exactly how `countsAsEvidence` came to be written twice.
    */
-  const triage = await triageAccuracy();
+  const loops = await tuningReadiness();
 
   /*
    * EVERY LISTING, NOT A CATEGORY'S. The question is how much of the ranking is
@@ -133,90 +126,6 @@ export default async function SignalsPage() {
 
   const overall = mix.ok ? overallMix(mix.rows) : null;
 
-  /*
-   * DISTANCE TO EACH TUNING FLOOR.
-   *
-   * Three loops are deliberately unarmed, and the cost of that correctness was
-   * that "when can we tune this?" lived nowhere — a judgement somebody would
-   * make again from scratch on the day the pressure to move a number is
-   * highest. `lib/config/tuning-floors.ts` holds the numbers and what each is
-   * anchored to; this is the distance.
-   *
-   * RANKING IS THE WEAKEST WEIGHT, not the average and not the best. A blend
-   * is retuned as a whole, so it is ready when its thinnest tunable term is —
-   * averaging would let `availability`, which is a stated fact and measured for
-   * everybody, carry `rating` across a line it is nowhere near.
-   */
-  const tunableTerms = evidence.filter((e) => e.canBeUnmeasured);
-  const rankingHave = stats.ok
-    ? tunableTerms.length === 0
-      ? 0
-      : Math.min(...tunableTerms.map((e) => e.measured))
-    : null;
-
-  /*
-   * ROTATION IS PER CATEGORY and the pool is professionals who have actually
-   * been OFFERED work — which is the right denominator for a question about how
-   * offers are shared, rather than everybody who could serve. The best-placed
-   * category is reported: rotation arrives one trade at a time, so the question
-   * is whether ANY trade is ready, and an average across ten would hide it.
-   */
-  const rotationRows = concentration.ok ? concentration.value : null;
-  const rotationBest = rotationRows
-    ? rotationRows.reduce<{ slug: string; offers: number; pool: number } | null>(
-        (best, row) => {
-          const here = {
-            slug: row.categorySlug,
-            offers: row.offers,
-            pool: row.professionals,
-          };
-          if (!best) return here;
-          // Closest to its own floor, since each pool size has a different one.
-          return here.offers / rotationOfferFloor(here.pool) >
-            best.offers / rotationOfferFloor(best.pool)
-            ? here
-            : best;
-        },
-        null,
-      )
-    : null;
-
-  const loops: Array<{
-    loop: keyof typeof TUNING_FLOORS;
-    state: Readiness | null;
-    detail: string;
-  }> = [
-    {
-      loop: "ranking",
-      state: readiness(rankingHave, TUNING_FLOORS.ranking.floor),
-      detail: t("floors.rankingDetail"),
-    },
-    {
-      loop: "rotation",
-      // The pool gate comes FIRST and is structural: below five there is
-      // nothing to rotate, however many offers there are, so a category with
-      // two listings and a hundred offers is not "nearly ready".
-      state:
-        rotationBest === null
-          ? null
-          : rotationBest.pool < ROTATION_MIN_LISTINGS
-            ? { ready: false, have: rotationBest.pool, floor: ROTATION_MIN_LISTINGS, short: ROTATION_MIN_LISTINGS - rotationBest.pool }
-            : readiness(rotationBest.offers, rotationOfferFloor(rotationBest.pool)),
-      detail:
-        rotationBest && rotationBest.pool < ROTATION_MIN_LISTINGS
-          ? t("floors.rotationPool", { n: String(ROTATION_MIN_LISTINGS) })
-          : t("floors.rotationDetail"),
-    },
-    {
-      loop: "triage",
-      state: readiness(
-        triage.coverage.ok ? triage.coverage.value.attributed : null,
-        TUNING_FLOORS.triage.floor,
-      ),
-      detail: t("floors.triageDetail"),
-    },
-  ];
-
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="animate-rise font-display text-display-sm">
@@ -235,7 +144,7 @@ export default async function SignalsPage() {
       </p>
 
       <ul className="mt-4 space-y-3">
-        {loops.map(({ loop, state, detail }, index) => (
+        {loops.map(({ loop, state, gate, subject }, index) => (
           <li
             key={loop}
             className="animate-rise rounded-lg border border-border p-4"
@@ -261,7 +170,13 @@ export default async function SignalsPage() {
                       })}
               </p>
             </div>
-            <p className="mt-1 text-caption text-muted-foreground">{detail}</p>
+            <p className="mt-1 text-caption text-muted-foreground">
+              {gate === "pool"
+                ? t("floors.rotationPool", { n: String(ROTATION_MIN_LISTINGS) })
+                : subject
+                  ? t("floors.rotationDetail")
+                  : t(`floors.${loop}Detail` as "floors.rankingDetail")}
+            </p>
             {/* THE ANCHOR IS PRINTED, because a floor nobody can argue with is
                 a guess that justifies itself — the thing this whole section
                 exists to avoid becoming. */}

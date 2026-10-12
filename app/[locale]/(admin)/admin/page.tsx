@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ArrowRight, CircleAlert, CircleCheck } from "lucide-react";
+import { ArrowRight, CircleAlert, CircleCheck, Sparkles } from "lucide-react";
 
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
@@ -9,6 +9,7 @@ import { adminGate } from "@/lib/auth/admin-gate";
 import { ADMIN_TOOLS } from "@/lib/data/admin-tools";
 import { adminQueueCounts } from "@/lib/data/admin-queues";
 import { queuesState } from "@/lib/data/queue";
+import { readyLoops, tuningReadiness } from "@/lib/data/tuning-readiness";
 
 export async function generateMetadata(props: {
   params: Promise<{ locale: string }>;
@@ -66,8 +67,33 @@ export default async function AdminIndexPage() {
     redirect({ href: "/account/security?next=/admin", locale });
   }
 
-  const queues = await adminQueueCounts();
+  const [queues, loops] = await Promise.all([
+    adminQueueCounts(),
+    tuningReadiness(),
+  ]);
   const state = queuesState(queues);
+
+  /*
+   * WHICH TUNING LOOPS HAVE REACHED THEIR FLOOR.
+   *
+   * SILENT UNTIL ONE DOES, which is the whole design. A permanent row reading
+   * "0 of 3 ready" is the kind of line that is true every day for a year and
+   * therefore stops being read — the same reason `ACTIVITY_FLOOR` renders
+   * nothing rather than an empty strip, and `recentActivity` says nothing at
+   * all below its floor.
+   *
+   * IT IS A NOTICE, NOT A QUEUE. There is no proposal to approve and no button
+   * that moves a number: the proposal-and-approve screen is built when the
+   * first loop gets CLOSE, not speculatively now, because a screen built
+   * against an imagined shape of evidence is a screen rebuilt the day real
+   * evidence arrives. This says the argument may start, and points at the
+   * numbers it would start from.
+   *
+   * A FAILED READ IS NEVER READY — `readyLoops` requires `ready === true`, so a
+   * broken count cannot put "ready to tune" on the front page, which would be
+   * an invitation to move published copy on no data at all.
+   */
+  const ready = readyLoops(loops);
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -94,6 +120,23 @@ export default async function AdminIndexPage() {
         >
           <CircleAlert aria-hidden="true" className="size-4" />
           {t("noneReadable")}
+        </p>
+      ) : null}
+
+      {ready.length > 0 ? (
+        <p className="animate-rise mt-4 flex flex-wrap items-center gap-2 text-body-sm text-foreground">
+          <Sparkles aria-hidden="true" className="size-4 text-gold-ink" />
+          {t("readyToTune", {
+            n: String(ready.length),
+            count: ready.length,
+            loops: ready.map((loop) => t(`loop.${loop}`)).join(", "),
+          })}
+          <Link
+            href="/admin/signals"
+            className="underline underline-offset-4 hover:no-underline"
+          >
+            {t("readyToTuneLink")}
+          </Link>
         </p>
       ) : null}
 

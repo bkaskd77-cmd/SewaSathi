@@ -591,6 +591,20 @@ time. And the pool gate is structural and comes first: a category with two
 listings and a hundred offers is not nearly ready, it is not a rotation problem.
 **A failed count prints as unreadable and never as zero** — rule 6 at its most
 expensive on the one screen built to say how much is known.
+**And the admin home says when one is ready**, which is why the computation
+lives in `lib/data/tuning-readiness.ts` rather than inside the signals page: two
+surfaces answering one question is how `countsAsEvidence` came to be written
+twice, and a front page claiming ready over a screen reading "four short" is
+worse than neither. **It is silent until a loop reaches its floor** — a
+permanent "0 of 3 ready" is true every day for a year and stops being read,
+which is `ACTIVITY_FLOOR`'s reasoning — and **a failed read is never ready**,
+since a broken count putting that notice on the front page is an invitation to
+move published copy on no data at all.
+**It is a notice and not a queue.** There is no proposal to approve and no
+button that moves a number: the proposal-and-approve screen (the `/admin/bands`
+shape) gets built when the first loop gets CLOSE, not speculatively, because a
+screen built against an imagined shape of evidence is a screen rebuilt the day
+real evidence arrives.
 
 **Concentration is counted before any mechanism.** `lib/data/concentration.ts`
 gives the busiest professional's share of offers and of finished work per
