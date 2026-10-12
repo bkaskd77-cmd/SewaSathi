@@ -816,6 +816,46 @@ forbids it, and the only thing the assertion established was that the money had
 not. Which is the fact worth having: even on the relabel the product forbids,
 nothing a dispute is argued from changes.
 
+**A rating remembers when it was earned now, and the two halves are compared on
+one fixture.** `rating_avg` is `avg(rating)` over every published review ever
+written, so somebody excellent two years ago and mediocre since reads the same
+as somebody who improved — the customer is shown the average of two different
+people. `rating_recent_avg` and `rating_recent_weight` on `provider_stats` are
+the same rows weighted by age, halving every `RATING_HALF_LIFE_DAYS` (365).
+**It composes with `bayesianRating` rather than replacing it**, because the two
+answer different complaints: the prior handles a THIN sample, this handles a
+STALE one, and a 5.0 from three reviews two years ago is both. The composition
+is the part that is easy to get wrong — `rating_recent_weight` is an EFFECTIVE
+count, not a row count, and it is what goes into the prior. Feeding the prior the
+row count would leave twenty ancient reviews at full confidence while their
+average drifted: the figure moves and the certainty behind it does not, which is
+the worse half.
+**A year, and the anchor is the other two windows in this product.** A band is
+re-proposed over `PROPOSAL_WINDOW_DAYS` (180) because a price goes stale; a
+duration has no window at all because how long a blockage takes does not. Quality
+sits between them. **Halving faster is the real risk**, not slower: on a
+catalogue this thin a six-month half-life lets one recent job swing somebody's
+standing, which is the 5.0-from-three-friends problem through the other door,
+and the professional can only answer it by waiting.
+**Decay is continuous, never a cutoff.** A twelve-month cliff makes a review
+worth everything on day 364 and nothing on day 366, so a standing lurches on a
+date nobody can see — the unpublished threshold `/providers/standards` refuses to
+have. And **a future timestamp is clamped to today on both sides**
+(`Math.max(0, …)` and `greatest(0, …)`), because otherwise a wrong stamp buys a
+rating.
+**Both columns are nullable and null is "not computed"** — rule 6, and it bites
+on day one: every row written before the migration is silent, and 0 would render
+as the worst score a professional can have off rows that say the opposite.
+**One rule written twice, deliberately, with the guard this product learned to
+want.** Ranking needs it as an aggregate over a catalogue and the card needs it
+as a rule over one listing, so `refresh_provider_stats` holds the SQL and
+`recencyWeightedRating` the TypeScript. `tests/db/rating-recency.test.ts` runs
+both over one awkward fixture — four years of ages, ratings that disagree — and
+compares them, which is `materialsRead` and `enforce_claim_refund`'s arrangement
+and the one that was missing when those two diverged. **A set of fresh fives
+would agree under any curve including none**, which is why the fixture is not
+one; proven by moving the SQL half-life to 180 and watching two cases go red.
+
 **The ranking weights are a product decision and they live in one place** —
 `RELEVANCE_WEIGHTS` and `EMERGENCY_WEIGHTS` in `lib/data/ranking.ts`, with the
 reasoning next to each number. Rating goes through a Bayesian average

@@ -192,8 +192,8 @@
     "file": "20260918000001_reviews.sql"
   },
   "refresh_provider_stats": {
-    "sha": "d2e475011be1742b",
-    "file": "20260918000002_stats_pipeline.sql"
+    "sha": "ce0e78f07a6cb37d",
+    "file": "20261012000001_rating_recency.sql"
   },
   "refuse_rewrite": {
     "sha": "ca4e197b113452aa",

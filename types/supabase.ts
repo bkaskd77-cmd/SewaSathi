@@ -2059,6 +2059,8 @@ export type Database = {
           provider_id: string;
           rating_avg: number;
           rating_count: number;
+          rating_recent_avg: number | null;
+          rating_recent_weight: number | null;
           jobs_completed: number;
           completion_rate: number;
           avg_response_minutes: number;
@@ -2086,6 +2088,8 @@ export type Database = {
           provider_id: string;
           rating_avg?: number;
           rating_count?: number;
+          rating_recent_avg?: number | null;
+          rating_recent_weight?: number | null;
           jobs_completed?: number;
           completion_rate?: number;
           avg_response_minutes?: number;
