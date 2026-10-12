@@ -29,6 +29,14 @@ import {
   proximityEvidence,
 } from "@/lib/data/concentration";
 import { RELEVANCE_WEIGHTS, weightEvidence } from "@/lib/data/ranking";
+import {
+  ROTATION_MIN_LISTINGS,
+  TUNING_FLOORS,
+  readiness,
+  rotationOfferFloor,
+  type Readiness,
+} from "@/lib/config/tuning-floors";
+import { triageAccuracy } from "@/lib/data/triage-accuracy";
 import { formatBand, formatNpr } from "@/lib/utils";
 import { bandCoverage } from "@/lib/data/band-coverage";
 
@@ -99,6 +107,14 @@ export default async function SignalsPage() {
   const stats = await listRankingEvidence();
 
   /*
+   * THE ONLY NUMBER THE TRIAGE LOOP CAN BE TUNED FROM. `coverage.attributed`
+   * is bookings that carry the triage they came from, which is the denominator
+   * of every agreement rate on `/admin/triage-accuracy`. Read here rather than
+   * recounted, so the two screens cannot disagree about how much is known.
+   */
+  const triage = await triageAccuracy();
+
+  /*
    * EVERY LISTING, NOT A CATEGORY'S. The question is how much of the ranking is
    * resting on a prior across the supply we have, and slicing it per trade would
    * split an already tiny sample into pieces none of which could be read.
@@ -117,6 +133,90 @@ export default async function SignalsPage() {
 
   const overall = mix.ok ? overallMix(mix.rows) : null;
 
+  /*
+   * DISTANCE TO EACH TUNING FLOOR.
+   *
+   * Three loops are deliberately unarmed, and the cost of that correctness was
+   * that "when can we tune this?" lived nowhere — a judgement somebody would
+   * make again from scratch on the day the pressure to move a number is
+   * highest. `lib/config/tuning-floors.ts` holds the numbers and what each is
+   * anchored to; this is the distance.
+   *
+   * RANKING IS THE WEAKEST WEIGHT, not the average and not the best. A blend
+   * is retuned as a whole, so it is ready when its thinnest tunable term is —
+   * averaging would let `availability`, which is a stated fact and measured for
+   * everybody, carry `rating` across a line it is nowhere near.
+   */
+  const tunableTerms = evidence.filter((e) => e.canBeUnmeasured);
+  const rankingHave = stats.ok
+    ? tunableTerms.length === 0
+      ? 0
+      : Math.min(...tunableTerms.map((e) => e.measured))
+    : null;
+
+  /*
+   * ROTATION IS PER CATEGORY and the pool is professionals who have actually
+   * been OFFERED work — which is the right denominator for a question about how
+   * offers are shared, rather than everybody who could serve. The best-placed
+   * category is reported: rotation arrives one trade at a time, so the question
+   * is whether ANY trade is ready, and an average across ten would hide it.
+   */
+  const rotationRows = concentration.ok ? concentration.value : null;
+  const rotationBest = rotationRows
+    ? rotationRows.reduce<{ slug: string; offers: number; pool: number } | null>(
+        (best, row) => {
+          const here = {
+            slug: row.categorySlug,
+            offers: row.offers,
+            pool: row.professionals,
+          };
+          if (!best) return here;
+          // Closest to its own floor, since each pool size has a different one.
+          return here.offers / rotationOfferFloor(here.pool) >
+            best.offers / rotationOfferFloor(best.pool)
+            ? here
+            : best;
+        },
+        null,
+      )
+    : null;
+
+  const loops: Array<{
+    loop: keyof typeof TUNING_FLOORS;
+    state: Readiness | null;
+    detail: string;
+  }> = [
+    {
+      loop: "ranking",
+      state: readiness(rankingHave, TUNING_FLOORS.ranking.floor),
+      detail: t("floors.rankingDetail"),
+    },
+    {
+      loop: "rotation",
+      // The pool gate comes FIRST and is structural: below five there is
+      // nothing to rotate, however many offers there are, so a category with
+      // two listings and a hundred offers is not "nearly ready".
+      state:
+        rotationBest === null
+          ? null
+          : rotationBest.pool < ROTATION_MIN_LISTINGS
+            ? { ready: false, have: rotationBest.pool, floor: ROTATION_MIN_LISTINGS, short: ROTATION_MIN_LISTINGS - rotationBest.pool }
+            : readiness(rotationBest.offers, rotationOfferFloor(rotationBest.pool)),
+      detail:
+        rotationBest && rotationBest.pool < ROTATION_MIN_LISTINGS
+          ? t("floors.rotationPool", { n: String(ROTATION_MIN_LISTINGS) })
+          : t("floors.rotationDetail"),
+    },
+    {
+      loop: "triage",
+      state: readiness(
+        triage.coverage.ok ? triage.coverage.value.attributed : null,
+        TUNING_FLOORS.triage.floor,
+      ),
+      detail: t("floors.triageDetail"),
+    },
+  ];
+
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="animate-rise font-display text-display-sm">
@@ -128,6 +228,58 @@ export default async function SignalsPage() {
 
       {/* ---------------------------------------------------------------- */}
       <h2 className="animate-rise text-heading-md mt-10 font-display">
+        {t("floors.title")}
+      </h2>
+      <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">
+        {t("floors.lead")}
+      </p>
+
+      <ul className="mt-4 space-y-3">
+        {loops.map(({ loop, state, detail }, index) => (
+          <li
+            key={loop}
+            className="animate-rise rounded-lg border border-border p-4"
+            style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+              <p className="text-body-md text-foreground">
+                {t(`floors.loop.${loop}`)}
+              </p>
+              <p className="tabular-nums text-body-sm text-muted-foreground">
+                {/* A FAILED READ IS ITS OWN SENTENCE. "0 of 30" on the screen
+                    built to say how much is known would be rule 6 at its most
+                    expensive — it reads as a measurement of nothing. */}
+                {state === null
+                  ? t("floors.unreadable")
+                  : state.ready
+                    ? t("floors.ready", { n: String(state.have) })
+                    : t("floors.short", {
+                        n: String(state.have),
+                        floor: String(state.floor),
+                        count: state.short,
+                        more: String(state.short),
+                      })}
+              </p>
+            </div>
+            <p className="mt-1 text-caption text-muted-foreground">{detail}</p>
+            {/* THE ANCHOR IS PRINTED, because a floor nobody can argue with is
+                a guess that justifies itself — the thing this whole section
+                exists to avoid becoming. */}
+            <p className="mt-0.5 text-caption text-muted-foreground">
+              {t("floors.unit", {
+                unit: TUNING_FLOORS[loop].unit,
+                anchor: TUNING_FLOORS[loop].anchor,
+              })}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="animate-rise mt-3 max-w-2xl text-caption text-muted-foreground">
+        {t("floors.nothingActs")}
+      </p>
+
+      {/* ---------------------------------------------------------------- */}
+      <h2 className="animate-rise text-heading-md mt-12 font-display">
         {t("bandCoverage.title")}
       </h2>
       <p className="animate-rise mt-1 max-w-2xl text-body-sm text-muted-foreground">

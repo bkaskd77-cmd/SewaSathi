@@ -505,8 +505,16 @@ sort where the newcomer slot does not: "cheapest first" orders the options, it
 does not ask to be shown ones the database refuses.
 
 **Half the relevance blend separates nobody right now, and `/admin/signals` says
-so.** `rating` carries 0.30 and returns the prior for all 29 unrated listings of
-30; `completion` and `response` sit at their sentinels for 27. `weightEvidence`
+so.** `rating` carries 0.30 and returns the prior for all but one listing;
+`completion` and `response` sit at their sentinels for nearly all of them.
+**The counts this paragraph used to carry — "29 unrated of 30" — were stale by
+24 listings** and had been since `providers.json` was emptied: read live on
+2026-10-12 there are **6 listings, 2 of them neither removed nor closed, and 1
+rated**, against 14 bookings and 6 completions. `weightEvidence` reads the
+database and was never wrong; the prose beside it was, which is the class this
+file keeps recording. A number written into standing notes is a number nobody
+re-measures, so the shape to prefer is the one the screen uses: say which way it
+leans and let the screen carry the figure. `weightEvidence`
 reports each weight beside how many listings have evidence, asking
 `lib/provider/measured.ts` rather than re-deriving the test — that divergence
 already happened once between the catalogue card and `scoreParts`. **`volume` at
@@ -552,6 +560,37 @@ redefined in `20260921000001`, and the first draft of `20261002000005` rebuilt f
 the older text, silently dropping the survey branches and the `booking_band_bounds`
 read. The fingerprint check caught it, not a reading. Rebuild from the LAST
 definition.
+
+**And "when may this be tuned?" is a number now rather than a judgement.**
+Three loops are deliberately unarmed — the ranking weights, rotation among
+near-ties, the triage prompt — each for the stated reason that a constant chosen
+today would freeze a guess into the codebase as a standard. The cost of that
+correctness was that the question lived nowhere and would be answered again from
+scratch on the day the pressure to move a number is highest, which is how the
+guess gets frozen in anyway, later and with less thought.
+`lib/config/tuning-floors.ts` holds a floor per loop and `/admin/signals` prints
+the distance. **Nothing there acts**: no floor gates a write, changes an order or
+suppresses anything — `MIN_DURATION_SAMPLE` is a floor that fires and this is
+deliberately not that, so reaching one is permission to start the argument rather
+than its conclusion.
+**Every number is anchored to something that already exists**, because a floor
+invented to justify not tuning is the same frozen guess with the sign reversed.
+Ranking is 20 listings with evidence PER WEIGHT, which is `bayesianRating`'s
+prior one level up — listings rather than ratings, a separate constant because
+they count different things. Rotation is a pool of 5 and offers **derived** as
+`10 × pool`, from the rule that one more offer must move the top share by less
+than a tenth of an even split: a fixed offer count would be right for exactly one
+pool size. Triage is 30 attributed bookings, `MIN_PROPOSAL_SAMPLE`'s upper end,
+because the prompt is published copy.
+**The screen reads the weakest, never the average.** A blend is retuned whole, so
+ranking is ready when its thinnest tunable term is — averaging would let
+`availability`, a stated fact measured for everybody, carry `rating` across a
+line it is nowhere near. Rotation reports the category CLOSEST TO ITS OWN FLOOR,
+since each pool size has a different one and rotation arrives one trade at a
+time. And the pool gate is structural and comes first: a category with two
+listings and a hundred offers is not nearly ready, it is not a rotation problem.
+**A failed count prints as unreadable and never as zero** — rule 6 at its most
+expensive on the one screen built to say how much is known.
 
 **Concentration is counted before any mechanism.** `lib/data/concentration.ts`
 gives the busiest professional's share of offers and of finished work per

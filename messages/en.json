@@ -2201,6 +2201,24 @@
           "unrecorded": "Product recorded, source not",
           "professional": "Named by the professional who did it"
         }
+      },
+      "floors": {
+        "title": "What can be tuned yet",
+        "lead": "Three loops are deliberately unarmed — the ranking weights, rotation among near-ties, and the triage prompt. Each needs a stated amount of evidence before moving a number is anything but fitting to noise. This is the distance.",
+        "loop": {
+          "ranking": "Ranking weights",
+          "rotation": "Rotation among near-ties",
+          "triage": "The triage prompt and bands"
+        },
+        "ready": "ready — {n} and counting",
+        "short": "{n} of {floor} · {count, plural, one {{more} more} other {{more} more}}",
+        "unreadable": "we can't count this right now",
+        "unit": "One unit: {unit}. The floor is anchored to {anchor}.",
+        "rankingDetail": "The thinnest weight that can rest on a prior, not the average — a blend is retuned whole, so it is ready when its weakest term is.",
+        "rotationDetail": "The category closest to its own floor. Offers among professionals who have actually been offered work, which is the denominator the question is about.",
+        "rotationPool": "No category has a pool of {n} receiving offers yet. Below that there is nothing to rotate — with two it is alternation, and the near-tie band is the whole list.",
+        "triageDetail": "Bookings carrying the triage they came from. Zero today is not a broken chain: the join landed after the last booking was taken.",
+        "nothingActs": "No floor here gates a write, changes an order or suppresses anything. Reaching one is permission to start the argument, not its conclusion."
       }
     },
     "audit": {
