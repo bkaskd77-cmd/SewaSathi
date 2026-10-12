@@ -2217,7 +2217,7 @@ a real finding sat unread — and has three callers now: the health check,
 **fails its own run** on a mismatch: `cron_runs` records `ok: false` with the
 drifted names and the route answers 503, so Vercel's cron log shows a failed
 invocation. The script runs on **every successful production deployment**
-(`.github/workflows/drift.yml`, on `deployment_status`) and needs no secret,
+(`.github/workflows/after-deploy.yml`, on `deployment_status`) and needs no secret,
 because it reads the public `/api/health` payload rather than the database.
 **Exit 2 is "could not look"**, the `check:deployed` contract, and a deployment
 that does not report `db.functions` at all **fails** — the check is
@@ -2225,6 +2225,27 @@ unconditional, so its absence means an older build is serving or somebody remove
 the gate. A workflow of its own rather than a step in `verify`, for the reason
 that file already records: a check that cannot pass must not silence the checks
 that can.
+**`check:deployed` runs there too now, as a SIBLING JOB rather than a second
+step** — the same rule turned on the workflow itself: as steps in one job a
+drift failure would stop the deploy check ever running, so "production is
+serving last week's build" would go unnoticed for exactly as long as the drift
+took to fix. Both were manual until this, which is how four commits once sat on
+the branch while production served an older build.
+**Three things differ between the two jobs and each is load-bearing.** The
+checkout is pinned to `github.event.deployment.sha`, not the branch tip: this
+check asks "is the commit I have the commit that is serving", so a push landing
+mid-deploy would make a default checkout report a false "the deploy has not
+landed". The origin is the **production alias and never `target_url`** — Vercel
+reports the per-deployment URL there, which is right for drift (any URL serving
+that build answers `/api/health` the same) and wrong here, because `og:url`
+comes from `NEXT_PUBLIC_SITE_URL` and walking the deployment URL would fail that
+assertion on every run; the alias is also the honest target, since "pushed is not
+deployed" is a statement about what the alias serves. And **exit 2 is retried
+once, exit 1 never**: 2 means the walk did not run, which on a real network is
+the alias not yet flipped, where 1 is a finding — a check that retries its way to
+green is not a check. The file is `after-deploy.yml` rather than `drift.yml`,
+because a file named for one of the two checks inside it is the next reader's
+wrong turn.
 
 **A policy is redefined by later migrations, so breaking one to test it means
 editing its LAST definition.** `drop policy if exists` + `create policy` is the
