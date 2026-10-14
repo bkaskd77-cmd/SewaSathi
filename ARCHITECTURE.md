@@ -2273,6 +2273,14 @@ then the buttons open the customer's real number, inside the window
 `completed`. When the relay arrives it replaces the `href` behind those two
 components and nothing else, which is the reason the link is built in one place.
 
+### The customer wallet — planned, not built
+
+`docs/WALLET-PLAN.md`. The one-line summary: what we owe a **cash** customer
+has no rail, and `tripDebtOnBill` is the same net already running in the
+opposite direction — so the thing to build is closed-loop credit a later bill
+draws down, not a wallet. No top-ups and no cash-out, which is a licensing
+question before it is a schema one. Four decisions in that file are the user's.
+
 ## Deferred, with a date
 
 Two things were found in the Phase 9 audit, judged, and deliberately not done.
