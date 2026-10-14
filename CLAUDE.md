@@ -2366,12 +2366,16 @@ commit CI deployed gets a walk attributed to a run nobody was watching. In CI's
 Vercel for, and fails *that* run. `scripts/await-deploy.mjs` is what makes it
 deterministic.
 
-**The residual gap, stated rather than discovered later:** a production
-deployment CI did not trigger — a redeploy from the Vercel dashboard, or a
-rollback — is not walked by anything now. Drift still has its nightly channel;
-"is the alias serving what we think" does not. Restoring the workflow as a
-backstop would mean two walks and two red ticks per hook deploy, so it is a
-choice between a duplicate and a gap, and the gap is the one written down.
+**The gap that argument left is closed, by the user's call, and the duplicate is
+the accepted cost.** A production deployment CI did not trigger — a redeploy
+from the Vercel dashboard, a rollback, a hook fired by hand — would have been
+walked by nothing, where drift at least keeps its nightly channel.
+`after-deploy.yml` is restored as the **backstop** and says so in its header:
+CI's `deploy` job is the primary path because it runs at a known moment against
+a known commit, and this catches what that cannot see. The price is a duplicate
+walk on an ordinary hook deploy — two green ticks for one fact, two red on a
+real failure — and that is the right side of the trade, because a duplicate is
+noise and a gap is a production nobody looked at.
 
 **And the three red runs before `ba949cd` are still unexplained.** `de0ca15`,
 `21cb41b` and `07fe2f5` each failed twice; the logs are served from a host this

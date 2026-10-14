@@ -161,11 +161,10 @@ jobs:
       # watching. Here they run at a known moment, against the commit this job
       # asked Vercel for, and they fail THIS run.
       #
-      # THE RESIDUAL GAP, SAID OUT LOUD: a production deployment CI did not
-      # trigger — a dashboard redeploy, or a rollback — is walked by nothing
-      # now. Drift keeps its nightly channel; this does not. Keeping the
-      # workflow as a backstop would mean two walks and two red ticks per hook
-      # deploy, so it is a duplicate or a gap, and the gap is written down.
+      # `after-deploy.yml` IS STILL THERE AS THE BACKSTOP, for a production
+      # deployment CI did not trigger: a dashboard redeploy, a rollback, a hook
+      # fired by hand. So an ordinary hook deploy is walked twice — noise, and
+      # cheaper than a production nobody looked at.
       #
       # ONLY FROM THE PRODUCTION BRANCH. A feature branch's CI triggers no
       # production deploy, so there would be nothing to wait for and the wait

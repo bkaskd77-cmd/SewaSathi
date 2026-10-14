@@ -23,6 +23,45 @@ would put this in front of real customers cannot succeed while a false claim is
 still on the page. Resolving an entry means changing its `Status` line to
 `resolved` **in the same commit that removes the mock**, not before.
 
+## Owner actions — done
+
+**Read this before writing "your turn".** Four times a handover has asked the
+owner for something they had already done, and twice I asserted a thing was
+outstanding without checking — which costs them a trip to a dashboard to find
+nothing to do, and makes the rest of the list easier to ignore. The rule is the
+same one the rest of this file runs on: a claim carries the evidence that
+settles it, and anything I cannot verify from here says so rather than being
+asserted in either direction.
+
+| Done | What | Verified, and how |
+| --- | --- | --- |
+| 2026-10-05 | **Ward centroids** — `scripts/fetch-ward-centroids.mjs` run from the owner's clone, since the sandbox cannot reach the Overpass API. | Re-read 2026-10-14: `lib/data/seed/area-centroids.json` carries all **15 of 15** wards with `lat`/`lng`, stamped `fetchedAt: 2026-10-05`. Distance ranking is live, not inert. A comment in `lib/data/concentration.ts` still said the file "ships empty" and was corrected in the same commit as this row. |
+| 2026-10-03 | **The break-glass grant row** deleted from `provisioned_accounts`, by hand in the Supabase SQL editor — a `DELETE` hangs on the agent transport. | Re-read live 2026-10-14: `provisioned_accounts` holds **3** rows, the three walkthrough accounts, and **0** matching the break-glass number. |
+| 2026-09-30 | **The definer-function grants revoked** — `provider_outstanding` and `provider_balance` had `execute` for `authenticated` while being `security definer`, so any signed-in customer could read any professional's money position by naming their id. | Re-read live 2026-10-14: `has_function_privilege` returns **false** for both functions, for `authenticated` and for `anon`. |
+| 2026-09-10 | **The health probe armed and run** — `SMS_HEALTH_NUMBER` and `CRON_SECRET` set in Vercel on Production, and `GET /api/health?deep=1` run against production. | The run's own output is recorded verbatim in CLAUDE.md against `36a11f2`: `auth.sms: down — 422 … auth account AC000…0 does not exist` and `triage.model: ok — claude-sonnet-4-6 answered in 1374ms`. A probe that returns a provider's refusal sentence is a probe that ran. The SMS finding it produced is `sms-gateway-unverified` below and is the owner's to clear with a gateway, not a repeat of this step. |
+| 2026-10-05 | **`VERCEL_DEPLOY_HOOK` set** as a GitHub Actions secret, which is what makes a push deploy at all — the ignore gate correctly skips a commit GitHub has not reported a check for yet. | CI's `deploy` job is green on every commit since, and `scripts/trigger-deploy.mjs` **fails the job loudly** when the secret is absent, so a green job is the evidence. Witnessed end to end on `3196928`: hook posted, alias served that commit, every route walked. |
+| — | **Network settings** — whatever the environment's outbound policy was set to, it now allows everything this work depends on. | Observed 2026-10-14 from this session: GitHub, Supabase and the Vercel API all reachable; **`*.vercel.app` is still refused by policy** (the proxy answers 403), which is why `check:deployed` and `check:drift` live in CI rather than here. I cannot see the policy itself, only what it permits, and that is stated rather than claimed as a completed setting. |
+
+**Still waiting on the owner, read off the entries rather than remembered** —
+and the first draft of this paragraph named three of them and was wrong, which
+is the mistake this whole section exists to stop:
+
+- `sms-gateway-unverified` — a contracted gateway and a registered sender ID.
+- `support-phone-number` — a real number somebody answers.
+- `nepali-native-read` — a native reader for the money, safety and legal strings.
+- `legal-documents-unreviewed` — a Nepali lawyer.
+- `withholding-tax-unconfirmed` — somebody who files returns in Nepal.
+- `test-account-otps` — the four walkthrough numbers come out of the Supabase
+  test list, which is a dashboard only the owner reaches.
+- `payouts-unbuilt` — the code is built; what is missing is one real payout
+  reaching one real professional, which is money leaving an account.
+- `payout-notice-undeliverable` — blocked behind the gateway rather than on its
+  own, so it clears with that one.
+
+**Neither mine nor theirs:** `trust-strip-counts`, `sub-band-durations` and
+`multi-day-scheduling` all wait on volume — finished jobs we have not had yet.
+Nothing anybody does today moves them.
+
 ## Entry format
 
 Parsed, not decorative. Keep the four fields and the heading shape.
@@ -327,7 +366,7 @@ Until then the incentive is the four true things on the payment screen
 - Lives in: `vercel.json` (`ignoreCommand`), `scripts/vercel-ignore-build.mjs`, `scripts/trigger-deploy.mjs`, `scripts/await-deploy.mjs`, `.github/workflows/ci.yml` (the `Bundle budget` step and the four steps of the `deploy` job), `scripts/check-bundle-budget.mjs`, `tests/unit/deploy-gate.test.ts`
 - **Both scripts run where nothing exercises them** — the gate runs once inside a Vercel build, the trigger only on the production branch — so `tests/unit/deploy-gate.test.ts` exercises the rules, the same answer `check-deployed.mjs` got for the same reason. The decision is a pure function of what GitHub reported, so it is testable at all. Two of its cases were blind when first written and are noted in the file: one asserted an exit code where a pattern-matched exemption produced the same code for the opposite reason.
 - **The two post-deploy checks moved into CI's `deploy` job, and the first reason given for moving them was wrong.** `after-deploy.yml` ran `check:deployed` and `check:drift` on `deployment_status` — the event Vercel's **git integration** emits. I read the deployments list ~5 minutes after pushing `a34478a`, found no record for it or for `90b7ca8`, and concluded a hook deployment emits no such event. **It does**, about five or six minutes after the push: `a34478a`'s record appeared at 14:51:55 against a 14:46:03 commit, and its run passed, as `ba949cd`'s had. That workflow was working, and it was deleted on the strength of a gap that was a delay — a conclusion from one reading, stated as a mechanism, which is the shape this file keeps recording.
-- **The move is still right, for the reasons that survive.** The event is late and its timing is Vercel's, so a push-and-walk-away leaves minutes in which nothing has checked; and it is per deployment, so a superseded build (`90b7ca8`, CANCELED) correctly gets nothing while a commit CI deployed gets a walk attributed to a run nobody was watching. As steps in `deploy` they run at a known moment, against the commit that job asked Vercel for, and fail *that* run. `scripts/await-deploy.mjs` polls the alias's `x-build-commit` until it matches, which is what makes that deterministic. **The residual gap:** a production deployment CI did not trigger — a dashboard redeploy, or a rollback — is now walked by nothing. Drift keeps its nightly channel; "is the alias serving what we think" does not. Keeping the workflow as a backstop would mean two walks and two red ticks per hook deploy, so it is a duplicate or a gap, and the gap is the one written down. **And the three red runs before `ba949cd` remain unexplained** — the logs are served from a host this sandbox cannot reach. This entry stays **resolved**: the gate was never the fault.
+- **The move is still right, for the reasons that survive.** The event is late and its timing is Vercel's, so a push-and-walk-away leaves minutes in which nothing has checked; and it is per deployment, so a superseded build (`90b7ca8`, CANCELED) correctly gets nothing while a commit CI deployed gets a walk attributed to a run nobody was watching. As steps in `deploy` they run at a known moment, against the commit that job asked Vercel for, and fail *that* run. `scripts/await-deploy.mjs` polls the alias's `x-build-commit` until it matches, which is what makes that deterministic. **And `after-deploy.yml` is restored as the backstop**, by the owner's call: a production deployment CI did not trigger — a dashboard redeploy, a rollback, a hook fired by hand — would otherwise be walked by nothing, where drift at least keeps its nightly channel. The cost is a duplicate walk on an ordinary hook deploy, which is noise, against a gap, which is a production nobody looked at. **And the three red runs before `ba949cd` remain unexplained** — the logs are served from a host this sandbox cannot reach. This entry stays **resolved**: the gate was never the fault.
 - **Witnessed working on 2026-10-05, and the two halves were visible in one picture.** `VERCEL_DEPLOY_HOOK` was set, `b62347a` was pushed, and the same commit produced two production deployments: the **push-triggered** one at 14:54, `CANCELED` — the gate refusing a commit nothing had verified yet — and the **hook-triggered** one at 14:57, after `verify` went green, `READY`. The deployment it replaced was `582eb54`: **seven commits had piled up behind a frozen production**, which is what the four CANCELED states cost before anybody read them.
 - **What is proven and what is not.** The trigger half is proven, and the refusal half is proven **for an unverified commit**. What is still unwitnessed is narrower than this entry first claimed: a commit whose CI has completed and FAILED, skipped with that reason in the log. The hook only fires from a green `verify`, so reaching that state means pushing a knowingly red commit — worth doing once, deliberately, rather than waiting for it to happen by accident.
 - Replaced by: that one deliberate red push, seen skipped with `CI is not green:` and the failing check named in the Vercel log.

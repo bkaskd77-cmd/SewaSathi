@@ -208,12 +208,15 @@ export async function listRankingEvidence(): Promise<Counted<StatsOnly[]>> {
  * `weightEvidence` reports it as "always a fact", which is true of the ward half and
  * silent about the half that was just added.
  *
- * THE SILENCE IS THE THING WORTH FIXING. `area-centroids.json` ships empty — the
- * sandbox this was built in cannot reach OpenStreetMap — and every address has no pin
- * until customers start using the button. Both are working states: ranking falls back
- * to ward membership. But a refinement that is inert and a refinement that is working
- * look identical from the ranking, which is the `applyRedoRecovery` shape, and the only
- * way to tell them apart would be reading two files and counting rows.
+ * THE SILENCE IS THE THING WORTH FIXING, and half of it is closed now.
+ * `area-centroids.json` shipped EMPTY — the sandbox this was built in cannot reach
+ * OpenStreetMap — and the owner ran `scripts/fetch-ward-centroids.mjs` on 2026-10-05,
+ * so all fifteen wards carry a centre. The other half stands: every address has no pin
+ * until customers start using the button. Both are working states — ranking falls back
+ * to ward membership — but a refinement that is inert and one that is working look
+ * identical from the ranking, which is the `applyRedoRecovery` shape, and the only way
+ * to tell them apart would be reading two files and counting rows. This is what counts
+ * them, which is why the sentence above is a date rather than a claim about the file.
  *
  * MEASURES AND DOES NOT GRADE. No threshold, no colour, no proposal — there is no
  * number yet that says what share of pinned addresses makes distance worth retuning

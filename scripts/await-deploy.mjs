@@ -4,8 +4,9 @@
  *
  * WHY THIS EXISTS. The two post-deploy checks used to run on
  * `deployment_status`, in a workflow of their own
- * (`.github/workflows/after-deploy.yml`, now deleted) — the event Vercel's git
- * integration emits. A push no longer deploys this project, because the ignore
+ * (`.github/workflows/after-deploy.yml`, which is still there as the BACKSTOP
+ * for deployments CI did not trigger) — the event Vercel's git integration
+ * emits. A push no longer deploys this project, because the ignore
  * gate correctly skips a commit GitHub has not reported a check for yet, so the
  * deploy that serves is the one CI asks for through a deploy hook.
  *

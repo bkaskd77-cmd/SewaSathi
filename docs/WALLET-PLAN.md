@@ -1,8 +1,14 @@
 # The customer wallet — plan
 
-**Nothing here is built.** This is the write-up before building, in the shape
+**Nothing here is built, and nothing is built before launch** — the owner's
+call, 2026-10-14. This is the write-up before building, in the shape
 `docs/SLOT-CAPACITY.md` takes: the problem in the product's own facts, the
-design, what it costs, and the decisions that are not mine to take.
+design, what it costs, and the four decisions, which are taken now and recorded
+in §8 so they do not have to be argued again when the first cash refund has to
+be paid.
+
+**The headline decision: a refund keeps the original payment rail by default.**
+Credit is an extra option offered beside it, never the preselected one.
 
 ---
 
@@ -196,19 +202,51 @@ creditToApply({ billRupees, balance, isCash }): {
 
 ---
 
-## 8. Decisions that are yours
+## 8. Decided, and when
 
-1. **Closed-loop only, confirmed?** No top-ups, no cash-out, no transfers. If
-   any of those is wanted, it is a licensing question before it is a schema one.
-2. **Is a cash-job shortfall on our net acceptable?** The alternative is that
-   credit applies to digital jobs only, which is simpler and safer and makes
-   the feature useless to most of the people it is for.
-3. **Does a refund default to credit or to the rail?** My recommendation is the
-   rail stays the default and credit is offered first with "instant" beside it,
-   because defaulting to credit is defaulting to the option that keeps the money.
-4. **Goodwill: who may issue it, and does it need the fifteen-minute re-auth?**
-   `markConfirmed` asks for no code because it moves no money; this moves money
-   out, so the `approvePayout` posture is the closer match.
+**NOT BEFORE LAUNCH.** The owner's call, 2026-10-14, and it is the right one:
+every rupee of credit this would hold arises from an obligation we have already
+agreed, and we have agreed none — there is no settled payment, no refund and no
+guarantee claim in production. A wallet built now would be a schema with a
+screen and nothing in it, which is `proposeBand`'s four-phase sin bought
+deliberately instead of by accident. It gets built when the first cash refund
+has to be paid and the rail is the slow way to do it.
+
+**1. The refund keeps the original payment rail by default.** Decided. A
+digital refund reverses to the wallet it came from and a cash refund goes
+wherever the customer says, exactly as `lib/content/legal/refunds.ts` already
+publishes it; credit is only ever an extra option, offered beside the rail with
+"instant" next to it, never the preselected one. Defaulting to credit would be
+defaulting to the option that keeps the money inside the platform, which is a
+thing to be chosen by the person owed it and not by us.
+
+The other three, in the plainest form, so the argument does not have to be had
+again from scratch:
+
+**2. Closed-loop only.** Credit can only ever arrive from something we already
+owe — a refund we agreed, a trip charge we reversed, goodwill, a
+gateway-funded campaign — and can only ever be spent on our own services, so
+there is no top-up field anywhere and no way to take money back out. That
+matters because the moment customers can put money in and get money out we are
+running something Nepal Rastra Bank licenses, and the distance between those
+two products is exactly the top-up field.
+
+**3. A cash-job shortfall rides our net, and the professional is paid in full.**
+If a customer with Rs 500 credit settles a Rs 1,000 cash job they hand over
+Rs 500, so the professional is short Rs 500 of notes they are owed — and that
+is recovered through a `provider_ledger` row on the same two-way net that
+already carries cash commission, never by paying them less. The alternative is
+restricting credit to digital jobs, which is simpler and safer and useless to
+most of the people the feature is for, since cash is the primary path here.
+
+**4. Goodwill needs the fifteen-minute re-auth, and a cap that starts unarmed.**
+Issuing goodwill moves money out of the company on one person's judgement, so it
+takes the `approvePayout` posture rather than `markConfirmed`'s — a code
+demanded for a write that cannot cost anything is how people learn to tap
+through the ones that can. The cap is a named constant set to `null` with the
+reasoning beside it, the `maxPaidClaimsPerPeriod` shape, because a figure
+guessed before any goodwill has ever been issued would freeze a guess into the
+codebase as a standard.
 
 ## 9. Not in this plan
 

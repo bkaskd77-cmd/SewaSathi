@@ -2145,9 +2145,18 @@ inferred from how it was picked, and the no-camera-data reject exists precisely 
 the attribute cannot be trusted.
 
 Written down because the obvious reading of `capture` is that it closes the hole, and it
-does not. **The mobile app can close it** — a native camera intent returns bytes that
-never touched a file picker — and until then the checks that matter are the ones on the
-bytes, not on the input.
+does not. **"The mobile app can close it" was the line here and it is too generous to
+both options** — see `docs/MOBILE-PLAN.md § 2`, which found the reason while costing the
+app. A native camera intent returns trusted bytes *to the app*, and the server still only
+sees an upload, so "this came from a camera" stays a claim the client makes unless a
+platform attestation backs it. And the web middle path is worse than it looks:
+`getUserMedia` into a canvas gives bytes that genuinely never touched a picker, but a
+canvas JPEG carries **no EXIF at all**, so `lib/photos/evidence.ts` refuses it outright
+with `reason: "noCameraTime"`. Our own gate rejects our own camera.
+
+So the work either column needs is the same work: move capture time off the file and onto
+something we can vouch for. Camera-only is therefore **not** a reason to go native, and
+until that is done the checks that matter are the ones on the bytes, not on the input.
 
 ### Every migration says how it was applied
 
@@ -2277,13 +2286,42 @@ then the buttons open the customer's real number, inside the window
 `completed`. When the relay arrives it replaces the `href` behind those two
 components and nothing else, which is the reason the link is built in one place.
 
-### The customer wallet — planned, not built
+### The customer wallet — planned, decided, deferred past launch
 
 `docs/WALLET-PLAN.md`. The one-line summary: what we owe a **cash** customer
 has no rail, and `tripDebtOnBill` is the same net already running in the
 opposite direction — so the thing to build is closed-loop credit a later bill
 draws down, not a wallet. No top-ups and no cash-out, which is a licensing
-question before it is a schema one. Four decisions in that file are the user's.
+question before it is a schema one.
+
+**All four decisions are taken** (§8) and **it is not built before launch**:
+every rupee of credit would arise from an obligation we have already agreed, and
+there is not one settled payment, refund or guarantee claim in production — so
+building it now would be a schema with a screen and nothing in it. **A refund
+keeps the original payment rail by default**; credit is an extra option beside
+it, never preselected, because defaulting to credit defaults to the option that
+keeps the money inside the platform.
+
+### The mobile app — planned, recommended, not built
+
+`docs/MOBILE-PLAN.md`. The recommendation is **an installable web app (PWA) now,
+native deferred behind three named triggers**, and the two measurements that
+decide it are in this repository rather than in the general argument:
+
+- **There is no API for a native app to talk to.** All 26 writes are Server
+  Actions that re-read `getSessionProfile()`; React Native cannot call one, so
+  native means re-exposing all 26 as authenticated endpoints — a new surface for
+  the actor to arrive from the client, which is the class of hole found three
+  times here.
+- **The rules port and the screens do not.** ~11,000 lines in the isomorphic
+  modules would run unchanged inside Expo; the ~120 Server Components and 145
+  `next-intl` call sites would not. A PWA reuses all 205 files.
+
+Push is native's strongest card and it is weak here: `lib/notify` carries keys
+so a channel is one file, and the channel that reaches every handset in Nepal is
+SMS, which Phase 13 already is. Camera-only is **not** an argument for native —
+see the correction above. The cheapest hedge, worth doing whichever way this
+goes, is keeping new rules in the isomorphic modules and Server Actions thin.
 
 ## Deferred, with a date
 
