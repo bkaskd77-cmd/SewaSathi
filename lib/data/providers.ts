@@ -147,8 +147,27 @@ export type Provider = {
 export type Review = {
   id: string;
   providerId: string;
-  author: string;
+  /**
+   * The customer's FIRST NAME, from `profiles` — never `author_name`.
+   *
+   * WHY THIS CHANGED. `author_name` is the legacy free-text column from before
+   * reviews hung off a booking, and `submitReview` writes it as the EMPTY
+   * STRING on purpose: a review is public and the professional has been to this
+   * person's house, so nothing lets a customer type a name into a box. This
+   * component rendered that column, so every real review on every listing
+   * showed a blank where a name goes — found on the live profile page during
+   * the Phase 11 walkthrough, in a screenshot.
+   *
+   * The homepage read had already decided not to trust that column and says so;
+   * this is the same decision one surface over, and the same privacy boundary:
+   * first name, nothing else.
+   *
+   * **Null is "we could not read it"**, which is not the same as anonymous —
+   * the screen says "A customer" rather than printing an empty line.
+   */
+  author: string | null;
   rating: number;
+  /** As written. May be EMPTY: rating without writing is a real thing to do. */
   comment: string;
   daysAgo: number;
   /** The professional's one answer, once they have given it. */
@@ -468,6 +487,24 @@ export const getProvider = cache(
   },
 );
 
+/**
+ * The first token of the reviewer's name, or null.
+ *
+ * FIRST NAME AND NOTHING ELSE, the boundary `lib/data/activity.ts` holds for
+ * the homepage: a surname plus a trade plus a city is a person somebody can
+ * find. Null when the join came back empty or the name is blank — the screen
+ * says "A customer", because an empty line reads as a broken card and that is
+ * exactly what shipped.
+ */
+function reviewerFirstName(value: unknown): string | null {
+  const row = (Array.isArray(value) ? value[0] : value) as
+    | { full_name?: string | null }
+    | null
+    | undefined;
+  const first = String(row?.full_name ?? "").trim().split(/\s+/)[0];
+  return first ? first : null;
+}
+
 export const getProviderReviews = cache(
   async (providerId: string): Promise<Review[]> => {
     const fallback = SEED_REVIEWS.filter(
@@ -483,7 +520,7 @@ export const getProviderReviews = cache(
       const { data, error } = await createPublicClient()
         .from("provider_reviews")
         .select(
-          "id, provider_id, author_name, rating, comment, created_at, reply_text, published_at",
+          "id, provider_id, rating, comment, created_at, reply_text, published_at, profiles(full_name)",
         )
         .eq("provider_id", providerId)
         /*
@@ -509,7 +546,7 @@ export const getProviderReviews = cache(
       return data.map((row) => ({
         id: row.id as string,
         providerId: row.provider_id as string,
-        author: row.author_name as string,
+        author: reviewerFirstName(row.profiles),
         rating: row.rating as number,
         comment: row.comment as string,
         reply: (row.reply_text as string | null) ?? null,

@@ -46,7 +46,18 @@ export async function ProviderReviews({
             style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="text-body-sm font-semibold">{review.author}</p>
+              {/*
+                  "A customer" rather than a blank. `author_name` is written as
+                  the empty string on every real review — a public review is not
+                  a box somebody types a name into — and this rendered it, so
+                  every listing showed an empty line where a name goes. Found on
+                  the live profile page during the walkthrough. The name is the
+                  customer's FIRST NAME from `profiles` now, the same boundary
+                  the homepage holds.
+               */}
+              <p className="text-body-sm font-semibold">
+                {review.author ?? t("profile.aCustomer")}
+              </p>
               <p
                 className="flex items-center gap-1 text-caption tabular-nums"
                 aria-label={t("profile.ratingOutOf", {
@@ -60,8 +71,22 @@ export async function ProviderReviews({
                 {review.rating}.0
               </p>
             </div>
+            {/*
+                A STAR WITH NO WORDS IS SAID, NEVER LEFT BLANK. `submitReview`
+                accepts an empty comment on purpose — rating without writing is
+                a real thing a customer does — and this printed an empty
+                paragraph for it, which reads as a card that failed to load.
+                The homepage REFUSES such a review (`showsOnHomepage`'s
+                `noWords`); the listing keeps it and names it, because a rating
+                is testimony and the page may not lose any, and because it
+                counts toward the average either way.
+             */}
             <p className="mt-1.5 text-pretty text-body-sm text-muted-foreground">
-              {review.comment}
+              {review.comment.trim() ? (
+                review.comment
+              ) : (
+                <span className="italic">{t("profile.ratedNoComment")}</span>
+              )}
             </p>
 
             {/*

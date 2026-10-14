@@ -366,7 +366,9 @@
       "busyNote": "Not taking work right now. Book a later time, or choose somebody who is free.",
       "notRated": "Not rated yet",
       "notMeasured": "Not measured yet",
-      "reply": "{name} replied"
+      "reply": "{name} replied",
+      "aCustomer": "A customer",
+      "ratedNoComment": "Rated, no comment written."
     },
     "ward": "Ward {n}",
     "searchLabel": "Search services",

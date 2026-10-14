@@ -87,6 +87,19 @@ front-page testimonial about one listing is an exposure lever nobody designed,
 and the newcomer slot is the only place this product hands out exposure on
 purpose.
 
+**And the LISTING keeps what the wall refuses, which is the pair worth reading
+together.** A wordless review is refused by the homepage (`noWords` — the wall
+quotes people) and kept on the professional's own page, because a rating is
+testimony, it counts toward the average either way, and a review page must not
+lose anything. If those two surfaces ever agree about a wordless review, one of
+them is wrong. The listing says "Rated, no comment written" rather than
+rendering an empty paragraph, and it names the customer by **first name from
+`profiles`** — never `provider_reviews.author_name`, which `submitReview` writes
+as the empty string on purpose, so reading it put a blank where a name goes on
+every real review on every listing. Both shipped and were found in a screenshot
+of the live profile page during the Phase 11 walkthrough; neither could fail a
+test, because every fixture gave its reviews an author and a comment.
+
 The wall adds the two things the strip cannot carry — a rating and a sentence
 somebody typed — so it needs rules the strip does not.
 `lib/text/contacts.ts` hides a review whose text contains a phone number, an
