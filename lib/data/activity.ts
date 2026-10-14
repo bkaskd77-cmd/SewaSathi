@@ -9,6 +9,11 @@ import {
   CATEGORY_COUNT_FLOOR,
 } from "@/lib/config/platform";
 import { describeError, rethrowFrameworkSignal } from "@/lib/data/source";
+import {
+  HOMEPAGE_REVIEW_FLOOR,
+  HOMEPAGE_REVIEW_MAX,
+  showsOnHomepage,
+} from "@/lib/reviews";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -257,4 +262,152 @@ function one(value: unknown): unknown {
 const cachedActivity = unstable_cache(readActivity, ["homepage-activity"], {
   revalidate: REVALIDATE_SECONDS,
   tags: ["activity"],
+});
+
+/* ------------------------------------------------------------------ *
+ * The review wall
+ * ------------------------------------------------------------------ */
+
+/**
+ * One published review, stripped to what a stranger may see.
+ *
+ * IN THIS MODULE AND NOT `lib/data/reviews.ts`, deliberately. That file owns
+ * the review lifecycle — submitting, replying, publishing — and this is a
+ * HOMEPAGE read, which is the one place in the product where a select is a
+ * privacy boundary. Both of the selects that boundary covers now live in one
+ * file, so "widening this list is a privacy change, not a refactor" is a rule
+ * about a file somebody can open rather than a sentence in two places.
+ *
+ * THE SAME THREE FACTS AS THE STRIP: first name, city, trade. No surname, no
+ * ward, no amount, no id, and no professional's name either — a testimonial
+ * naming one listing on the front page is an exposure lever nobody designed,
+ * and the newcomer slot is the only place this product hands out exposure on
+ * purpose.
+ *
+ * THE STARS AND THE WORDS ARE THE NEW PART, and they are why the rules in
+ * `lib/reviews/homepage.ts` exist: a sentence somebody typed can contain a
+ * phone number, and the strip's entries cannot.
+ */
+export type ReviewWallEntry = {
+  /** First token of the customer's name. Nothing else from it. */
+  name: string;
+  /** City, and only city. `ward_number` and `tole` are never selected. */
+  city: string;
+  categorySlug: string;
+  /** 1 to 5, as written. Nothing filters on this — see `showsOnHomepage`. */
+  rating: number;
+  comment: string;
+  /** Rounded to the day: a review is not an event, it is a record. */
+  daysAgo: number;
+};
+
+/**
+ * Published reviews eligible for the front page, or an empty list.
+ *
+ * EVERY REFUSAL IS `showsOnHomepage`'s, not this function's. The read fetches
+ * published rows and the rule decides — so the admin screen, the tests and this
+ * can never disagree about why a review is absent, and nothing here can grow a
+ * filter of its own. The one thing applied here is the FLOOR, for the same
+ * reason the strip applies it here: a surface must not be able to render a list
+ * this module decided was not worth printing.
+ *
+ * NO RATING FILTER AND NO RATING SORT. Newest first, and that is the whole
+ * ordering — a wall sorted by stars would be a claim nobody made, and it is the
+ * `0.0` bug through the other door: a surface showing evidence selected to agree
+ * with itself.
+ *
+ * A FAILED READ RETURNS AN EMPTY LIST and the section renders nothing. Rule 6
+ * in the shape it takes for a marketing surface: an absence is honest, and a
+ * failed read must never render as "nobody has said anything".
+ */
+export async function reviewWall(): Promise<ReviewWallEntry[]> {
+  return cachedReviewWall();
+}
+
+async function readReviewWall(): Promise<ReviewWallEntry[]> {
+  if (!hasSupabaseConfig()) return [];
+
+  try {
+    /*
+     * THE SELECT IS THE PRIVACY BOUNDARY, as above. `profiles` gives up
+     * `full_name` and the opt-out; `bookings` gives up the trade and, through
+     * `addresses`, the city alone. `author_name` is deliberately NOT read — it
+     * is the legacy free-text column from before reviews hung off a booking,
+     * and a name typed into a box is not a name we can bound.
+     */
+    const { data, error } = await createAdminClient()
+      .from("provider_reviews")
+      .select(
+        "id, rating, comment, published_at, homepage_hidden_at, profiles(full_name, hide_from_activity), bookings(category_slug, addresses(city))",
+      )
+      .not("published_at", "is", null)
+      .order("published_at", { ascending: false })
+      .limit(60);
+
+    if (error) {
+      console.error(`[activity] review wall failed — ${describeError(error)}`);
+      return [];
+    }
+
+    const now = Date.now();
+    const entries: ReviewWallEntry[] = [];
+
+    for (const row of ((data ?? []) as unknown) as Record<string, unknown>[]) {
+      const profile = one(row.profiles) as
+        | { full_name?: string | null; hide_from_activity?: boolean | null }
+        | null;
+      const booking = one(row.bookings) as
+        | { category_slug?: string | null; addresses?: unknown }
+        | null;
+      const address = one(booking?.addresses) as { city?: string | null } | null;
+
+      const comment = String(row.comment ?? "");
+      const publishedAt = row.published_at ? String(row.published_at) : null;
+
+      // ONE RULE, ASKED HERE. Every refusal — sealed, opted out, a phone number
+      // in the text, a person's decision — is decided in `lib/reviews`.
+      const verdict = showsOnHomepage({
+        publishedAt,
+        comment,
+        authorOptedOut: Boolean(profile?.hide_from_activity),
+        hiddenAt: row.homepage_hidden_at
+          ? String(row.homepage_hidden_at)
+          : null,
+      });
+      if (!verdict.shows) continue;
+
+      const first = String(profile?.full_name ?? "").trim().split(/\s+/)[0];
+      const city = String(address?.city ?? "").trim();
+      const slug = booking?.category_slug ? String(booking.category_slug) : "";
+      const rating = Number(row.rating);
+      const published = publishedAt ? Date.parse(publishedAt) : NaN;
+
+      // A row missing any of these cannot be rendered into a testimonial, and
+      // inventing a substitute is exactly what this wall replaced.
+      if (!first || !city || !slug || Number.isNaN(published)) continue;
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) continue;
+
+      entries.push({
+        name: first,
+        city,
+        categorySlug: slug,
+        rating,
+        comment,
+        daysAgo: Math.max(0, Math.round((now - published) / 86_400_000)),
+      });
+    }
+
+    // All of it, or none of it. One review is never the wall.
+    if (entries.length < HOMEPAGE_REVIEW_FLOOR) return [];
+    return entries.slice(0, HOMEPAGE_REVIEW_MAX);
+  } catch (thrown) {
+    rethrowFrameworkSignal(thrown);
+    console.error(`[activity] review wall threw — ${describeError(thrown)}`);
+    return [];
+  }
+}
+
+const cachedReviewWall = unstable_cache(readReviewWall, ["homepage-reviews"], {
+  revalidate: REVALIDATE_SECONDS,
+  tags: ["reviews"],
 });

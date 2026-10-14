@@ -134,6 +134,11 @@
       "title": "Recently finished",
       "entry": "{trade} for {name} in {city} — {count, plural, one {{n} hour ago} other {{n} hours ago}}"
     },
+    "reviews": {
+      "title": "What customers said",
+      "stars": "{count, plural, one {{n} star} other {{n} stars}}",
+      "attribution": "{name}, {city} · {trade} · {count, plural, =0 {today} one {{n} day ago} other {{n} days ago}}"
+    },
     "promise": {
       "payAfter": "You pay once the work is done, never before.",
       "emergency": "Gas or sparking is treated as urgent, with what to do first.",
@@ -1876,6 +1881,10 @@
         "duration": {
           "name": "Job durations",
           "what": "What the loop measured, and what it would publish next"
+        },
+        "reviews": {
+          "name": "Reviews on the homepage",
+          "what": "Which published reviews are on the front page, and why one is not."
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}.",
@@ -2697,6 +2706,43 @@
         "none": "Nobody has taken a published duration down. That is not the same as nothing being wrong: it means no figure has been disputed yet.",
         "moved": "{from} → {to} {unit} · was measured from {count, plural, one {{n} job} other {{n} jobs}}",
         "unreadable": "We can't read the revert history right now — this is us, not you."
+      }
+    },
+    "reviews": {
+      "title": "Reviews on the homepage",
+      "lead": "Every published review, newest first. The front page shows the most recent few — there is no star filter and no star sort, so a one-star review is as likely to be there as a five-star one.",
+      "neverForBeingNegative": "A review is never taken down for being negative. Hiding it changes no rating, no ranking position and nothing on the professional's own page — it only removes it from the front page, and every use of it is in the audit log.",
+      "unreadable": "We could not read the reviews. This is us, not you — nothing has been hidden or shown as a result.",
+      "none": "No reviews have published yet.",
+      "showing": "{count, plural, one {{n} of {total} on the homepage} other {{n} of {total} on the homepage}} — the wall needs {floor} before it appears at all.",
+      "onHomepage": "On the homepage",
+      "stars": "{count, plural, one {{n} star} other {{n} stars}}",
+      "hide": "Take off the homepage",
+      "restore": "Put back",
+      "codeLabel": "Why",
+      "reasonLabel": "In your own words",
+      "hidePlaceholder": "What is wrong with it",
+      "restorePlaceholder": "Why it should go back",
+      "hiddenDetail": "Hidden as {code} on {when} — “{reason}”",
+      "notOursToHide": "Not on the homepage for a reason that is not ours to change.",
+      "codes": {
+        "abusive": "Abusive, or somebody's private details",
+        "irrelevant": "Not about the work"
+      },
+      "why": {
+        "notPublished": "Not published yet",
+        "authorOptedOut": "The customer opted out",
+        "phone": "Contains a phone number",
+        "email": "Contains an email address",
+        "link": "Contains a link",
+        "hiddenByStaff": "Hidden by us"
+      },
+      "errors": {
+        "notConfigured": "Not configured here.",
+        "notFound": "That review could not be found, or has not published.",
+        "badCode": "Pick a reason from the list.",
+        "noReason": "Say why, in a sentence.",
+        "failed": "That did not save. Nothing changed."
       }
     }
   }

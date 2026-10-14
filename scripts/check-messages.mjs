@@ -52,38 +52,90 @@ const ICU_TYPES = new Set([
   "time",
 ]);
 
+/** The types whose body is a list of `selector { message }` branches. */
+const BRANCHING = new Set(["plural", "select", "selectordinal"]);
+
 /**
  * The named ICU placeholders in a message.
  *
- * WHY THIS IS NOT `\{(\w+)[,}]`, WHICH IS WHAT IT USED TO BE. That reads the
- * first word of every plural branch as a placeholder, so a perfectly ordinary
- * `=0 {None, on {jobs} finished jobs}` was reported as English "using {None}"
- * and Nepali failing to. The message was wrong in both directions: there is no
- * placeholder called `None`, and the real difference between the catalogues —
- * if there had been one — was hidden behind the noise.
+ * WHY THIS IS NOT A REGEX, WHICH IS WHAT IT USED TO BE — TWICE, AND EACH
+ * VERSION FAILED ON THE NEXT BRANCH SOMEBODY WROTE.
  *
- * It bit while writing plural branches for a bug on the refund screen, and the
- * tempting fix was to reword the copy until the regex stopped complaining.
- * That would have left the trap armed for whoever wrote the next branch
- * starting with a word and a comma.
+ * `\{(\w+)[,}]` read the first word of every plural branch as a placeholder,
+ * so an ordinary `=0 {None, on {jobs} finished jobs}` was reported as English
+ * "using {None}" and Nepali failing to — wrong in both directions, and a real
+ * difference between the catalogues would have been hidden behind the noise.
+ * The fix was "a name is an argument only when the brace closes straight after
+ * it, or a real ICU type follows".
  *
- * A name is an argument only when the brace closes straight after it, or when
- * what follows is a comma and a type ICU actually defines. Everything else is
- * text.
+ * AND THAT RULE IS DEFEATED BY A BRANCH WHOSE WHOLE CONTENT IS ONE WORD.
+ * `=0 {today}` is literal text — in ICU those braces DELIMIT the branch, they
+ * do not introduce an argument — but the brace does close straight after the
+ * word, so the rule read it as an argument called `today` and demanded the
+ * Nepali use it. Indistinguishable from `{city}` by anything that does not
+ * know where it is in the message.
+ *
+ * SO IT KNOWS WHERE IT IS. A `{` is an argument when it sits in a message, and
+ * a branch delimiter when it sits in the body of a `plural`, `select` or
+ * `selectordinal` — those are the only two positions ICU has. One walk tracking
+ * which it is in answers both of the cases above and the `{jobs}` nested inside
+ * the first one, and it is not a third regex waiting for a fourth shape.
+ *
+ * The tempting fix both times was to reword copy until the checker went quiet,
+ * which leaves the trap armed for the next person. `{today}` is still in
+ * `en.json`.
  */
 function placeholders(message) {
   if (typeof message !== "string") return new Set();
   const found = new Set();
-  for (const match of message.matchAll(/\{\s*([A-Za-z0-9_]+)\s*(,\s*([A-Za-z]+))?/g)) {
-    const [, name, comma, type] = match;
-    if (!comma) {
-      // `{name}` — an argument only if the brace really does close here.
-      const after = message.slice(match.index + match[0].length);
-      if (/^\s*\}/.test(after)) found.add(name);
-      continue;
+
+  /** The index of the `}` matching the `{` at `from`. */
+  const closes = (from) => {
+    let depth = 0;
+    for (let i = from; i < message.length; i += 1) {
+      if (message[i] === "{") depth += 1;
+      else if (message[i] === "}" && --depth === 0) return i;
     }
-    if (ICU_TYPES.has(type)) found.add(name);
-  }
+    return message.length;
+  };
+
+  const scan = (from, to, inBranchList) => {
+    let i = from;
+    while (i < to) {
+      if (message[i] !== "{") {
+        i += 1;
+        continue;
+      }
+      const end = closes(i);
+
+      if (inBranchList) {
+        // `=0 {…}` / `other {…}`: these braces are the branch's, and its
+        // content is an ordinary message that may hold arguments of its own.
+        scan(i + 1, end, false);
+        i = end + 1;
+        continue;
+      }
+
+      const head = message.slice(i + 1, end);
+      const named = head.match(/^\s*([A-Za-z0-9_]+)\s*(?:,\s*([A-Za-z]+))?/);
+      const bare = /^\s*[A-Za-z0-9_]+\s*$/.test(head);
+
+      if (named && bare) found.add(named[1]);
+      else if (named && ICU_TYPES.has(named[2])) {
+        found.add(named[1]);
+        scan(i + 1 + named[0].length, end, BRANCHING.has(named[2]));
+      } else {
+        // Not a shape ICU defines as an argument. Scanned anyway rather than
+        // skipped, so an argument nested inside it is still counted — losing
+        // one silently is how the first regex hid a real mismatch.
+        scan(i + 1, end, false);
+      }
+
+      i = end + 1;
+    }
+  };
+
+  scan(0, message.length, false);
   return found;
 }
 
@@ -238,6 +290,37 @@ function missingPluralBranch(message) {
   }
 }
 
+/*
+ * AND THE PLACEHOLDER READER PROVES ITSELF TOO, which it did not before — it
+ * has now been wrong twice in opposite directions (a branch's first word read
+ * as an argument, then a one-word branch read as an argument), and both times
+ * the run that was wrong printed the same tick as a run that was right. Each
+ * case below is a shape that actually shipped.
+ */
+{
+  const cases = [
+    ["{amount} paid", ["amount"]],
+    ["{name}, {city} · {trade}", ["name", "city", "trade"]],
+    ["{count, plural, one {{n} job} other {{n} jobs}}", ["count", "n"]],
+    // The one-word branch. `today` is text; nothing may demand a translation.
+    ["{count, plural, =0 {today} other {{n} days ago}}", ["count", "n"]],
+    // The branch starting with a word and a comma, with a real nested argument.
+    ["{count, plural, =0 {None, on {jobs} finished jobs} other {x}}", ["count", "jobs"]],
+  ];
+
+  for (const [message, want] of cases) {
+    const got = [...placeholders(message)].sort();
+    const expected = [...want].sort();
+    if (got.join("|") !== expected.join("|")) {
+      failures.push(
+        `check:messages self-test — placeholders(${JSON.stringify(message)}) read ` +
+          `[${got}] and should read [${expected}]. The reader is wrong, so every ` +
+          `catalogue comparison below it is.`,
+      );
+    }
+  }
+}
+
 for (const key of referenceKeys) {
   if (ALLOWED_INVARIANT.has(key)) continue;
   if (missingPluralBranch(at(reference, key))) {
@@ -268,7 +351,9 @@ if (failures.length > 0) {
 
 console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.`);
 console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.`);
-console.log("  plural rule self-tested; no count reads as \"1 times\".");
+console.log(
+  "  plural rule and placeholder reader self-tested; no count reads as \"1 times\".",
+);
 
 /*
  * THE BACKLOG, PRINTED RATHER THAN REMEMBERED.

@@ -11,6 +11,7 @@ import {
 
 import { ActivityStrip } from "@/components/marketing/activity-strip";
 import { PromiseStrip } from "@/components/marketing/promise-strip";
+import { ReviewWall } from "@/components/marketing/review-wall";
 import { SiteFooter } from "@/components/marketing/footer";
 import { ProblemSearch } from "@/components/marketing/problem-search";
 import { Section, SectionHeading } from "@/components/marketing/section";
@@ -36,7 +37,11 @@ import {
   isSurveyPriced,
   SERVICE_CATEGORIES,
 } from "@/lib/config/services";
-import { categoryBookingCounts, recentActivity } from "@/lib/data/activity";
+import {
+  categoryBookingCounts,
+  recentActivity,
+  reviewWall,
+} from "@/lib/data/activity";
 import { formatNpr } from "@/lib/utils";
 import { site } from "@/lib/config/site";
 
@@ -95,7 +100,7 @@ export async function generateMetadata(props: {
 export default async function Home() {
   // One wave, per the latency rule: these do not depend on each other, and the
   // booking counts are a cached aggregate so most renders pay nothing for them.
-  const [profile, locale, t, tNav, stats, bookingCounts, activity] =
+  const [profile, locale, t, tNav, stats, bookingCounts, activity, reviews] =
     await Promise.all([
       getSessionProfile(),
       getLocale() as Promise<Locale>,
@@ -109,6 +114,7 @@ export default async function Home() {
       // most renders pay nothing for either. One wave, per the latency rule —
       // nothing here depends on anything else here.
       recentActivity(),
+      reviewWall(),
     ]);
 
   /*
@@ -378,6 +384,18 @@ export default async function Home() {
           appearing and disappearing would move the hero.
         */}
         <ActivityStrip entries={activity} />
+
+        {/* ---------------- what customers said ---------------- */}
+        {/*
+          Real published reviews, or nothing. Directly under the strip, because
+          the two answer one question in sequence — work happened, and this is
+          what people thought of it — and because both are silent below their
+          floors, so a page with neither has no gap where a band used to be.
+
+          NO STAR FILTER anywhere behind this: a one-star review is as eligible
+          as a five-star one. See `showsOnHomepage`.
+        */}
+        <ReviewWall entries={reviews} />
 
         {/* ---------------- how it works ---------------- */}
         <Section

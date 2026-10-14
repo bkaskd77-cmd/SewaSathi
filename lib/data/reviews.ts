@@ -5,9 +5,13 @@ import {
   REPLY_MAX_CHARS,
   canReply,
   isCustomerFlag,
+  isHomepageHideCode,
   reviewWindowFrom,
   sealed,
+  showsOnHomepage,
   type CustomerFlag,
+  type HomepageHideCode,
+  type HomepageRefusal,
   type ReviewPair,
 } from "@/lib/reviews";
 import { describeError } from "@/lib/data/source";
@@ -411,5 +415,225 @@ export async function myReviewState(
     // (the unique constraint refuses the second), hiding it loses the review.
     console.error(`[reviews] own review read threw — ${describeError(thrown)}`);
     return { submitted: false, published: false };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * The homepage, and who may be on it
+ * ------------------------------------------------------------------ */
+
+/**
+ * One published review as the admin screen sees it — with the reason it is or
+ * is not on the homepage.
+ *
+ * THE WHOLE POINT IS THE REASON. Four things keep a review off the front page
+ * and only one of them is a decision anybody took; the other three are a
+ * customer's opt-out, a phone number in the text, and the review not having
+ * published yet. Without this view a review absent for any of those reads
+ * exactly like one somebody hid, which is `proposalSuppressedBy`'s rule — a
+ * hidden proposal and no proposal must not look alike — and it matters more
+ * here, because the absence that has no row behind it is the one that would
+ * otherwise be blamed on a person.
+ *
+ * It carries the rating so the screen can show what was hidden, and NOTHING
+ * selects or sorts on it. A screen that is for watching a moderation power
+ * being used has to show the stars, or nobody can see the pattern this design
+ * is built to make visible.
+ */
+export type ReviewModeration = {
+  id: string;
+  providerId: string;
+  providerName: string;
+  authorName: string;
+  rating: number;
+  comment: string;
+  publishedAt: string | null;
+  /** `showsOnHomepage`'s verdict, computed here so one rule answers. */
+  shows: boolean;
+  why: HomepageRefusal | null;
+  hiddenAt: string | null;
+  hiddenCode: HomepageHideCode | null;
+  hiddenReason: string | null;
+};
+
+/**
+ * Every published review, newest first, with its homepage verdict.
+ *
+ * NULL IS A FAILED READ and the screen says so — never an empty list, which
+ * would read as "there are no reviews" on the one screen built to watch a
+ * moderation power being used. Rule 6 where the absence does real damage.
+ */
+export async function reviewsForModeration(
+  limit = 100,
+): Promise<ReviewModeration[] | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("provider_reviews")
+      .select(
+        "id, provider_id, rating, comment, published_at, homepage_hidden_at, homepage_hidden_code, homepage_hidden_reason, providers(display_name), profiles(full_name, hide_from_activity)",
+      )
+      .not("published_at", "is", null)
+      .order("published_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error(`[reviews] moderation read failed — ${describeError(error)}`);
+      return null;
+    }
+
+    return (((data ?? []) as unknown) as Record<string, unknown>[]).map((row) => {
+      const provider = embedded(row.providers) as
+        | { display_name?: string | null }
+        | null;
+      const profile = embedded(row.profiles) as
+        | { full_name?: string | null; hide_from_activity?: boolean | null }
+        | null;
+
+      const comment = String(row.comment ?? "");
+      const publishedAt = row.published_at ? String(row.published_at) : null;
+      const hiddenAt = row.homepage_hidden_at
+        ? String(row.homepage_hidden_at)
+        : null;
+
+      // THE SAME FUNCTION THE HOMEPAGE ASKS. Two implementations of "is this on
+      // the front page" is a screen that can be wrong about what it is showing.
+      const verdict = showsOnHomepage({
+        publishedAt,
+        comment,
+        authorOptedOut: Boolean(profile?.hide_from_activity),
+        hiddenAt,
+      });
+
+      const code = row.homepage_hidden_code
+        ? String(row.homepage_hidden_code)
+        : null;
+
+      return {
+        id: String(row.id),
+        providerId: String(row.provider_id),
+        providerName: String(provider?.display_name ?? ""),
+        // First name only, as every other surface shows it.
+        authorName: String(profile?.full_name ?? "").trim().split(/\s+/)[0] ?? "",
+        rating: Number(row.rating),
+        comment,
+        publishedAt,
+        shows: verdict.shows,
+        why: verdict.shows ? null : verdict.why,
+        hiddenAt,
+        hiddenCode: code && isHomepageHideCode(code) ? code : null,
+        hiddenReason: row.homepage_hidden_reason
+          ? String(row.homepage_hidden_reason)
+          : null,
+      };
+    });
+  } catch (thrown) {
+    console.error(`[reviews] moderation read threw — ${describeError(thrown)}`);
+    return null;
+  }
+}
+
+/** supabase-js gives an embedded row as an object or a one-element array. */
+function embedded(value: unknown): unknown {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+export type HideResult =
+  | { ok: true; hidden: boolean; providerId: string }
+  | { ok: false; why: "notConfigured" | "notFound" | "badCode" | "noReason" | "failed" };
+
+/**
+ * Take a published review off the homepage, or put it back.
+ *
+ * WHAT IT DOES NOT TOUCH, which is most of the design: not `rating`, not
+ * `published_at`, not `excluded_from_average_at`. The review stays on the
+ * provider's listing and keeps counting toward every average, including the
+ * recency-weighted one — `refresh_provider_stats` reads nothing this writes, so
+ * no ranking position moves and `tests/db/review-homepage.test.ts` asserts it
+ * rather than leaving it to be re-read off this comment.
+ *
+ * A REASON IS REQUIRED IN BOTH DIRECTIONS and the code only when hiding.
+ * Un-hiding needs a sentence too, which is not symmetry for its own sake: a
+ * review put back without one leaves a log entry saying somebody reversed a
+ * decision for no stated reason, and that is the pattern worth being able to
+ * read later.
+ *
+ * NOTHING HERE CAN EXPRESS "IT WAS NEGATIVE". The code set has two values and
+ * the database refuses a third; the caller cannot pass a rating; and the
+ * homepage selection does not read one. That is the structural half of the
+ * promise, and a promise is all it would otherwise be.
+ */
+export async function setReviewHomepageVisibility(input: {
+  reviewId: string;
+  hidden: boolean;
+  code: string;
+  reason: string;
+  actorId: string;
+}): Promise<HideResult> {
+  if (!hasSupabaseConfig()) return { ok: false, why: "notConfigured" };
+
+  const reason = input.reason.trim();
+  if (reason.length < 2 || reason.length > 600) {
+    return { ok: false, why: "noReason" };
+  }
+  if (input.hidden && !isHomepageHideCode(input.code)) {
+    return { ok: false, why: "badCode" };
+  }
+
+  try {
+    const admin = createAdminClient();
+
+    /*
+     * RE-READ RATHER THAN BELIEVE THE FORM, the `lib/data/payments.ts` rule.
+     * The only thing that crosses the wire is an id, and a review that is not
+     * published yet may not be moderated at all — it is still sealed, and a
+     * decision about words nobody has read is a decision taken too early.
+     */
+    const { data: review, error: readFailed } = await admin
+      .from("provider_reviews")
+      .select("id, provider_id, published_at")
+      .eq("id", input.reviewId)
+      .maybeSingle();
+
+    if (readFailed || !review || !review.published_at) {
+      return { ok: false, why: "notFound" };
+    }
+
+    const { error } = await admin
+      .from("provider_reviews")
+      .update(
+        input.hidden
+          ? {
+              homepage_hidden_at: new Date().toISOString(),
+              homepage_hidden_by: input.actorId,
+              homepage_hidden_code: input.code,
+              homepage_hidden_reason: reason,
+            }
+          : {
+              // All four together, which the check constraint enforces anyway —
+              // written out rather than relying on it, because a partial clear
+              // refused by the database is an error nobody can act on.
+              homepage_hidden_at: null,
+              homepage_hidden_by: null,
+              homepage_hidden_code: null,
+              homepage_hidden_reason: null,
+            },
+      )
+      .eq("id", input.reviewId);
+
+    if (error) {
+      console.error(`[reviews] homepage visibility failed — ${describeError(error)}`);
+      return { ok: false, why: "failed" };
+    }
+
+    return {
+      ok: true,
+      hidden: input.hidden,
+      providerId: String(review.provider_id),
+    };
+  } catch (thrown) {
+    console.error(`[reviews] homepage visibility threw — ${describeError(thrown)}`);
+    return { ok: false, why: "failed" };
   }
 }

@@ -24,6 +24,7 @@ export type AdminTool = {
     | "duration"
     | "revenue"
     | "content"
+    | "reviews"
     | "triageAccuracy"
     | "aiLimits"
     | "audit";
@@ -61,6 +62,19 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * of this group: it has no list that drains and no number that is a call to
    * action. It answers "is the AI right", which is a standing question.
    */
+  /*
+   * NOT A QUEUE, AND IT IS THE ENTRY WHERE THAT DISTINCTION IS LOAD-BEARING. A
+   * count of hidden reviews on the index would read as work outstanding, so
+   * somebody would clear it — and the way to clear "3 hidden" is to put three
+   * reviews back, which is the opposite of a decision. The screen is for
+   * reading what has been hidden and why, and a moderation power that empties
+   * is a moderation power with a target.
+   *
+   * Beside the queues rather than inside them for that reason, and next to
+   * `content` because they are the same shape of question: what the product
+   * says in public and who decided it.
+   */
+  { key: "reviews", href: "/admin/reviews" },
   { key: "triageAccuracy", href: "/admin/triage-accuracy" },
   /*
    * Beside triage accuracy because they are the two halves of one question — is the AI

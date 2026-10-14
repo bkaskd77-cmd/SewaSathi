@@ -149,6 +149,26 @@ export type SecurityEventKind =
    * involved.
    */
   | "duration.reverted"
+  /**
+   * A person took a published review off the homepage, or put it back.
+   *
+   * THE KIND THAT HAS TO BE COUNTABLE, because the action is the one in this
+   * product most obviously open to abuse: a button that removes a review from
+   * the most-read page. `provider_reviews.homepage_hidden_at` holds the state
+   * and a state column can be cleared; this is the record that cannot, so
+   * "how often, by whom, and for what reason" is answerable afterwards even
+   * for a review that is back on the page.
+   *
+   * ONE KIND FOR BOTH DIRECTIONS, with `hidden: false` in the detail for the
+   * un-hide. They are two halves of one decision about one row, and splitting
+   * them would make a hide-then-restore read as two unrelated events in a log
+   * somebody is scanning for a pattern.
+   *
+   * `detail` carries the review id, the code, the sentence typed and the
+   * provider. NOT the review text or the customer: the text is on the listing
+   * for anybody to read and the author is not what the decision was about.
+   */
+  | "review.homepageHidden"
   | "document.reviewed"
   /* Anything an admin does at all */
   /**
@@ -176,7 +196,12 @@ export type SecurityEvent = {
     | "document"
     | "provider"
     /** A category slug — the subject of a band decision. Not a person. */
-    | "category";
+    | "category"
+    /**
+     * One published review. The subject is the words, not their author — which
+     * is why the detail never carries the customer.
+     */
+    | "review";
   subjectId?: string | null;
   /** Facts, never secrets. See the note above. */
   detail?: Record<string, unknown>;

@@ -8,3 +8,9 @@
  */
 export { foldNepali } from "./nepali";
 export { containsKeyword } from "./match";
+export {
+  containsContactDetails,
+  contactKinds,
+  foldDigits,
+  type ContactKind,
+} from "./contacts";

@@ -29,6 +29,7 @@ that entry and nothing else — enforced by `no-restricted-imports` in
 | **data** | `@/lib/data/*` | Every read of Supabase, plus the seed fallback |
 | **config** | `@/lib/config/*` | Categories, areas, brand strings, the guarantee windows |
 | **content** | `@/lib/content/*` | Legal and information prose, both languages — plus `tiers.ts`, which answers what a message key is worth. That answer is imported from `scripts/ne-review-scope.mjs` rather than restated: the same rule decides which Nepali strings block a launch and which edits keep a revision, and two copies of it would agree until somebody edited one. |
+| **reviews** | `@/lib/reviews` (isomorphic) | Who may say what about whom and when anybody reads it (`rules.ts`), plus which published reviews reach the front page (`homepage.ts`). Isomorphic because the customer's review page and the professional's dashboard both ask, and one is client code. |
 | **geo** | `@/lib/geo` (isomorphic) | Distance, what counts as a coordinate, and the approximate centre of a ward. Isomorphic because the booking form validates a pin in the browser and the ranking measures one on the server. `./tiles` is deliberately **not** re-exported — see the adapter table. |
 
 `auth` has three entries rather than one and the split is forced, not
@@ -67,6 +68,36 @@ ranking weights — a product decision that must exist once — or produce a
 name. It stays shared, and it stays on the shared-code list below.
 
 ---
+
+### The homepage's two selects are one privacy boundary
+
+`lib/data/activity.ts` holds both of them — the finished-jobs strip and the
+review wall — and that is a deliberate placement rather than where they
+happened to land. They are the only selects in the product where **adding a
+column is a publication decision**: everything they return is rendered to
+strangers and indexed. Keeping them in one file makes "widening this list is a
+privacy change, not a refactor" a rule about a file somebody can open.
+
+Both return the same three facts — **first name, city, trade** — and neither
+returns a surname, a ward, an amount, an id or a professional's name. The ward
+is the one people ask for and the one that must not be there: "Anita in
+Baneshwor" narrows somebody to a few hundred households and "Anita in
+Kathmandu" does not. Naming the professional is refused separately: a
+front-page testimonial about one listing is an exposure lever nobody designed,
+and the newcomer slot is the only place this product hands out exposure on
+purpose.
+
+The wall adds the two things the strip cannot carry — a rating and a sentence
+somebody typed — so it needs two rules the strip does not.
+`lib/text/contacts.ts` hides a review whose text contains a phone number, an
+email address or a link, derived on every read and never stored; and
+`showsOnHomepage` is the one place that decides, so the homepage, the admin
+screen and the tests cannot disagree about why a review is absent. **It is
+never given a rating**, which is the structural half of "never hidden for being
+negative" — the mechanism cannot express a star filter, and
+`tests/unit/homepage-reviews.test.ts` asserts that on the module's own source
+after its first version turned out to be asserting the shape of its own
+fixture.
 
 ## Shared surfaces — the higher bar
 

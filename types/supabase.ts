@@ -2136,6 +2136,17 @@ export type Database = {
           excluded_from_average_at: string | null;
           excluded_by: string | null;
           excluded_reason: string | null;
+          /**
+           * Taken off the HOMEPAGE by a person — never off the listing, and
+           * never out of any average. `refresh_provider_stats` reads none of
+           * these four, which is what makes hiding incapable of moving a
+           * rating or a ranking position.
+           */
+          homepage_hidden_at: string | null;
+          homepage_hidden_by: string | null;
+          /** `abusive` or `irrelevant`. There is no code meaning "negative". */
+          homepage_hidden_code: string | null;
+          homepage_hidden_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -2154,6 +2165,10 @@ export type Database = {
           excluded_from_average_at?: string | null;
           excluded_by?: string | null;
           excluded_reason?: string | null;
+          homepage_hidden_at?: string | null;
+          homepage_hidden_by?: string | null;
+          homepage_hidden_code?: string | null;
+          homepage_hidden_reason?: string | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["provider_reviews"]["Insert"]
