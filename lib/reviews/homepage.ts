@@ -19,11 +19,17 @@
  *      finished jobs on your homepage" did not mean "but my words are fine":
  *      the review carries their first name and their city, which is strictly
  *      more than the strip does.
- *   3. **The text carries a phone number, an email address or a link.**
+ *   3. **It has no words.** A star with no sentence is a rating, not testimony,
+ *      and `submitReview` accepts an empty comment on purpose — rating without
+ *      writing is a real thing a customer may do. The wall quotes people, so
+ *      there has to be something to quote. Found by reading the live row: the
+ *      one published review in production is a 5 with an empty comment, and
+ *      every test in the suite had given its fixtures words.
+ *   4. **The text carries a phone number, an email address or a link.**
  *      Derived, never stored — see `lib/text/contacts.ts`.
- *   4. **A person hid it**, with a code and a sentence, audited.
+ *   5. **A person hid it**, with a code and a sentence, audited.
  *
- * THERE IS NO FIFTH, AND IN PARTICULAR THERE IS NO RATING FILTER. Nothing in
+ * THERE IS NO SIXTH, AND IN PARTICULAR THERE IS NO RATING FILTER. Nothing in
  * this module reads `rating`, so a one-star review is exactly as eligible as a
  * five-star one and the wall is whatever the last few customers said. That is
  * the structural half of "never hidden for being negative": the mechanism
@@ -100,6 +106,7 @@ export type HomepageCandidate = {
 export type HomepageRefusal =
   | "notPublished"
   | "authorOptedOut"
+  | "noWords"
   | "hiddenByStaff"
   | ContactKind;
 
@@ -122,6 +129,19 @@ export type HomepageVerdict =
 export function showsOnHomepage(review: HomepageCandidate): HomepageVerdict {
   if (!review.publishedAt) return { shows: false, why: "notPublished" };
   if (review.authorOptedOut) return { shows: false, why: "authorOptedOut" };
+
+  /*
+   * EMPTY AFTER TRIMMING, AND DELIBERATELY NO LENGTH BAR. "Good work" is nine
+   * characters and adds little to a wall, and excluding it would be us
+   * editorialising about whose words are good enough — which is the same
+   * posture as the star filter this module refuses to have. The rule is only
+   * that there is something to quote; a review with nothing in it would render
+   * as an empty pair of quotation marks, which is the invented-content failure
+   * one door along from `lib/mock/`.
+   */
+  if (review.comment.trim().length === 0) {
+    return { shows: false, why: "noWords" };
+  }
 
   const [contact] = contactKinds(review.comment);
   if (contact) return { shows: false, why: contact };

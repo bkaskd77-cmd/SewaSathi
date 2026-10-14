@@ -124,7 +124,7 @@ describe("a one-star review is as eligible as a five-star one", () => {
   });
 });
 
-describe("four reasons a review is not on the homepage", () => {
+describe("five reasons a review is not on the homepage", () => {
   it("shows an ordinary published review", () => {
     expect(showsOnHomepage(review())).toEqual({ shows: true });
   });
@@ -148,6 +148,33 @@ describe("four reasons a review is not on the homepage", () => {
     expect(showsOnHomepage(review({ authorOptedOut: true }))).toEqual({
       shows: false,
       why: "authorOptedOut",
+    });
+  });
+
+  it("refuses a star with no words, because the wall quotes people", () => {
+    /*
+     * FOUND BY READING THE LIVE ROW, not by a test. `submitReview` accepts an
+     * empty comment on purpose — rating without writing is a real thing a
+     * customer does — and the one published review in production is exactly
+     * that: a 5 with nothing in it. Every fixture in this file had words, so
+     * nothing here would have caught the empty quotation marks it would have
+     * rendered.
+     */
+    expect(showsOnHomepage(review({ comment: "" }))).toEqual({
+      shows: false,
+      why: "noWords",
+    });
+    expect(showsOnHomepage(review({ comment: "   \n  " }))).toEqual({
+      shows: false,
+      why: "noWords",
+    });
+  });
+
+  it("keeps a short review, because whose words are good enough is not ours", () => {
+    // No length bar, deliberately. Excluding "Good work" would be the star
+    // filter's posture wearing a different field.
+    expect(showsOnHomepage(review({ comment: "Good work" }))).toEqual({
+      shows: true,
     });
   });
 

@@ -88,11 +88,15 @@ and the newcomer slot is the only place this product hands out exposure on
 purpose.
 
 The wall adds the two things the strip cannot carry — a rating and a sentence
-somebody typed — so it needs two rules the strip does not.
+somebody typed — so it needs rules the strip does not.
 `lib/text/contacts.ts` hides a review whose text contains a phone number, an
-email address or a link, derived on every read and never stored; and
+email address or a link, derived on every read and never stored; a review with
+no words is refused too, because `submitReview` accepts an empty comment on
+purpose and a star with no sentence is a rating rather than testimony; and
 `showsOnHomepage` is the one place that decides, so the homepage, the admin
-screen and the tests cannot disagree about why a review is absent. **It is
+screen and the tests cannot disagree about why a review is absent. **There is
+no length bar on the words**, deliberately: excluding "Good work" would be the
+star filter's posture wearing a different field. **It is
 never given a rating**, which is the structural half of "never hidden for being
 negative" — the mechanism cannot express a star filter, and
 `tests/unit/homepage-reviews.test.ts` asserts that on the module's own source

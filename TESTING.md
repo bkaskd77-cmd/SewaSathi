@@ -54,6 +54,62 @@ account. It is a Supabase test number, so it works while an SMS gateway is dead;
 that is the point of it, and it is why it must never be a real SIM. See
 `SECURITY.md`.
 
+## The automated half, and what is left for a person
+
+**Every route is walked on the live site by CI**, in the `deploy` job, straight
+after the hook that asks Vercel to build: `scripts/await-deploy.mjs` waits until
+the alias is serving the commit CI is deploying, then `check:deployed` asks each
+public route for its `og:url` and each guarded route for a redirect that keeps
+the reader's language. So "did it deploy, is every page there, is every guard
+on" is answered without anybody signing in, and a red `deploy` job is the signal
+that something below needs looking at by hand.
+
+**What it cannot see is a body behind a guard.** There is no way for a script to
+authenticate here — the one door is a phone OTP and that gateway is a launch
+blocker — so the three accounts above are the only way anybody looks at
+`/bookings`, `/provider/jobs` or the twelve admin screens. That is the half this
+section is for.
+
+### Phase 11 — what to look at, and what the live data says you will see
+
+Read off production on 2026-10-14, so these are predictions rather than hopes.
+A difference is a finding.
+
+**One rating figure, everywhere.** There is exactly one rated listing —
+**Bikas Khadka**, a single 5-star review 25 days old. Every surface should read
+**4.5 (1)**: the catalogue card on `/services/plumbing`, the profile page, the
+professional picker in the booking flow, the replacement list on a withdrawn
+booking, and the professional's own record panel on `/provider`. The figure is
+the Bayesian average over the recency-weighted pair and the number in brackets
+is the real row count.
+
+- **The profile page is the one to check first.** It printed the raw `5.0`
+  until this phase while the card beside it printed `4.5` — two numbers for one
+  person, on the page a customer opens to decide.
+- **4.5 rather than 5.0 is correct and is the prior**, not a bug: one review is
+  thin evidence and the figure says so. The recency half changes nothing
+  visible today, because the review is 25 days old and its weight is 0.957 —
+  which is the designed behaviour, not a sign it is not wired.
+
+**The review wall is absent, and that is the pass.** One published review
+against a floor of eight, so `/` should show nothing at all between the
+category grid and "How it works" — no empty heading, no "1 review". Two of the
+five refusals also apply to that row: its author has opted out of the activity
+strip, and it has no words in it.
+
+**`/admin/reviews`** should show one card: five gold stars, Bikas Khadka,
+a **"The customer opted out"** badge, and the sentence "0 of 1 on the homepage
+— the wall needs 8 before it appears at all." There should be **no hide form**
+on it and the line "Not on the homepage for a reason that is not ours to
+change" instead — hiding a review the customer already withheld would write a
+staff decision over somebody else's reason.
+
+**What cannot be walked at all today**, and it is worth knowing before looking
+for it: nobody can hide a review, because the only published review is not
+eligible to be on the homepage in the first place. The hide form appears on a
+review that is on the wall or already hidden. The first real test of it is the
+eighth review.
+
 ## Adding a fourth
 
 Before you do: say which entity it is, and give it its own number. A second
