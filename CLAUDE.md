@@ -2339,20 +2339,45 @@ once, exit 1 never**: 2 means the walk did not run, which on a real network is
 the alias not yet flipped, where 1 is a finding — a check that retries its way to
 green is not a check.
 
-**And both were listening for an event this project does not emit, which is the
-chain-left-open shape at the level of a workflow trigger.** `after-deploy.yml`
-fired on `deployment_status`, which Vercel's GIT INTEGRATION emits — but a push
-does not deploy this project: `scripts/vercel-ignore-build.mjs` correctly skips a
-commit GitHub has not reported a check for yet, so the deploy that actually
-serves is the one CI asks for through a deploy hook, and **a hook deployment
-emits no `deployment_status` at all.** So the two checks only ever ran on behalf
-of the deployments the gate cancels. Read live on 2026-10-14: `90b7ca8` and
-`a34478a` each produced a READY production deployment through the hook and
-neither check ran on either, while the three red runs before them were walking
-the site for deployments being cancelled or superseded — real answers to a
-question nobody wanted asked, which is how a monitor comes to be ignored. Every
-link was built: the scripts, the two sibling jobs, the retry, the exit-2
-contract. The chain was open.
+**And both ran on an event that arrives late and is attributed to nobody, which
+is why they are steps in CI now.** `after-deploy.yml` fired on
+`deployment_status`, which Vercel's git integration emits — and a push does not
+deploy this project, because `scripts/vercel-ignore-build.mjs` correctly skips a
+commit GitHub has not reported a check for yet, so the deploy that serves is the
+one CI asks for through a deploy hook.
+
+**CORRECTION, 2026-10-14, AND THE FIRST CLAIM WAS WRONG.** This said a hook
+deployment "emits no `deployment_status` at all", and it does emit one — about
+five or six minutes after the push, once Vercel has built and reported. I read
+the deployments list inside that window, found nothing for `90b7ca8` or
+`a34478a`, and generalised from a gap that was a delay. `a34478a`'s record
+appeared at 14:51:55 against a 14:46:03 commit and its run passed, as
+`ba949cd`'s had. **`after-deploy.yml` was working.** The exact shape this file
+keeps recording — a conclusion drawn from one reading, stated as a mechanism —
+and it is recorded rather than quietly edited because the workflow was deleted
+on the strength of it.
+
+**What is true, and why the CI placement is still the right one.** The event is
+late and its timing is Vercel's, so a push-and-walk-away leaves minutes in which
+nothing has checked; and it fires per deployment rather than per commit, so a
+superseded build (like `90b7ca8`, CANCELED) correctly gets nothing while a
+commit CI deployed gets a walk attributed to a run nobody was watching. In CI's
+`deploy` job the walk runs at a known moment, against the commit that job asked
+Vercel for, and fails *that* run. `scripts/await-deploy.mjs` is what makes it
+deterministic.
+
+**The residual gap, stated rather than discovered later:** a production
+deployment CI did not trigger — a redeploy from the Vercel dashboard, or a
+rollback — is not walked by anything now. Drift still has its nightly channel;
+"is the alias serving what we think" does not. Restoring the workflow as a
+backstop would mean two walks and two red ticks per hook deploy, so it is a
+choice between a duplicate and a gap, and the gap is the one written down.
+
+**And the three red runs before `ba949cd` are still unexplained.** `de0ca15`,
+`21cb41b` and `07fe2f5` each failed twice; the logs are served from a host this
+sandbox cannot reach, so the reason was never read. It is not "the event does
+not fire", which is what this entry wrongly concluded.
+
 They are steps in CI's `deploy` job now, after the hook, gated on the production
 branch. `scripts/await-deploy.mjs` is the new piece and it is the only reason
 this can work from there: it polls the alias's `x-build-commit` until it matches
@@ -2360,12 +2385,10 @@ the commit CI is deploying, so the checks run against the build they were asked
 about rather than whatever happens to be serving. Its exit codes are
 `check:deployed`'s — **1 is "serving a different commit after eight minutes" and
 2 is "could not look"** — because "production is stale" and "the network is
-blocked" must never be the same red tick. `after-deploy.yml` is deleted rather
-than kept as a backstop: it cannot tell that its deployment was superseded, so
-every tick it produced was noise against a build that never served, and a
-workflow that is red on deployments nobody deployed trains people to ignore the
-red. Drift keeps its second channel — the nightly sweep fails its own run on a
-mismatch.
+blocked" must never be the same red tick. `after-deploy.yml` is deleted rather than kept as a
+backstop, which is a choice between a duplicate and a gap: keeping it would mean
+two walks and two red ticks per hook deploy. Drift keeps its second channel —
+the nightly sweep fails its own run on a mismatch.
 **`check-drift.mjs` took an empty origin as an origin**, found while wiring it:
 GitHub substitutes an unset `vars.*` as the empty string and the script used
 `??`, which only falls through on null, so it fetched `/api/health` against

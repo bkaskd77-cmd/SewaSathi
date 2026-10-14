@@ -146,20 +146,26 @@ jobs:
       # ----------------------------------------------------------------------
       #
       # WHY NOT IN `after-deploy.yml`, WHICH IS WHERE THESE TWO LIVED. That
-      # workflow triggers on `deployment_status`, which is what Vercel's GIT
-      # INTEGRATION emits — and a push no longer deploys this project, because
-      # the ignore gate correctly skips a commit GitHub has not reported a check
-      # for yet. The deploy that actually serves is the one the step above asks
-      # for through a deploy hook, and **a hook deployment emits no
-      # `deployment_status` event at all.**
+      # workflow triggered on `deployment_status`, the event Vercel's git
+      # integration emits — and a push does not deploy this project, because the
+      # ignore gate correctly skips a commit GitHub has not reported a check for
+      # yet, so the deploy that serves is the one the step above asks for.
       #
-      # So both checks were listening for an event that only fires for the
-      # deployments the gate cancels. Read live on 2026-10-14: `90b7ca8` and
-      # `a34478a` each produced a READY production deployment through the hook
-      # and neither check ran on either — while the three runs that did fire,
-      # before the hook existed, were walking the site on behalf of deployments
-      # being cancelled or superseded, so their red ticks were real answers to a
-      # question nobody wanted asked. Every link built, the chain open.
+      # THE FIRST REASON GIVEN FOR MOVING THEM WAS WRONG and is recorded in
+      # `scripts/await-deploy.mjs`: a hook deployment DOES emit that event, five
+      # or six minutes later, and that workflow was working. What survives is
+      # that the event is late and its timing is Vercel's, so a
+      # push-and-walk-away leaves minutes in which nothing has checked; and that
+      # it fires per deployment, so a superseded build correctly gets nothing
+      # while a commit CI deployed gets a walk attributed to a run nobody was
+      # watching. Here they run at a known moment, against the commit this job
+      # asked Vercel for, and they fail THIS run.
+      #
+      # THE RESIDUAL GAP, SAID OUT LOUD: a production deployment CI did not
+      # trigger — a dashboard redeploy, or a rollback — is walked by nothing
+      # now. Drift keeps its nightly channel; this does not. Keeping the
+      # workflow as a backstop would mean two walks and two red ticks per hook
+      # deploy, so it is a duplicate or a gap, and the gap is written down.
       #
       # ONLY FROM THE PRODUCTION BRANCH. A feature branch's CI triggers no
       # production deploy, so there would be nothing to wait for and the wait

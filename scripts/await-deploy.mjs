@@ -2,29 +2,29 @@
 /**
  * Wait until the production alias is serving THIS commit, then let the checks run.
  *
- * WHY THIS HAD TO EXIST, AND IT IS THE CHAIN-LEFT-OPEN SHAPE AGAIN. The two
- * post-deploy checks were wired to `deployment_status` in a workflow of their
- * own (`.github/workflows/after-deploy.yml`, now deleted), which is the event
- * Vercel's GIT INTEGRATION emits. But a push no longer deploys this project — the ignore gate
- * correctly skips it, because GitHub has not reported a check run by the time
- * Vercel starts — so the deploy that actually serves is the one CI asks for
- * through a deploy hook, and **a hook deployment emits no `deployment_status`
- * event at all.**
+ * WHY THIS EXISTS. The two post-deploy checks used to run on
+ * `deployment_status`, in a workflow of their own
+ * (`.github/workflows/after-deploy.yml`, now deleted) — the event Vercel's git
+ * integration emits. A push no longer deploys this project, because the ignore
+ * gate correctly skips a commit GitHub has not reported a check for yet, so the
+ * deploy that serves is the one CI asks for through a deploy hook.
  *
- * So both checks were listening for an event that only ever fires for the
- * deployments the gate cancels. Read live on 2026-10-14: `90b7ca8` and
- * `a34478a` each produced READY production deployments through the hook, and
- * neither ran `check:deployed` or `check:drift`. Every link was built — the
- * scripts, the jobs, the retry, the exit-2 contract — and the chain was open,
- * which is `applyRedoRecovery`-with-no-caller wearing a workflow trigger. It
- * also explains the three red runs before it: the workflow was walking the site
- * on behalf of deployments that were being cancelled or superseded, so the
- * failures were real answers to a question nobody wanted asked.
+ * THE FIRST VERSION OF THIS COMMENT SAID A HOOK DEPLOYMENT EMITS NO SUCH EVENT,
+ * AND THAT WAS WRONG. It emits one about five or six minutes after the push:
+ * `a34478a`'s record appeared at 14:51:55 against a 14:46:03 commit and its run
+ * passed, as `ba949cd`'s had. I read the deployments list inside that window,
+ * found nothing, and generalised from a gap that was a delay. Left here rather
+ * than quietly corrected, because this script was written on the strength of it.
  *
- * THE FIX IS TO WAIT RATHER THAN TO LISTEN. CI has just asked for the deploy and
- * knows the commit; the alias says which commit it serves. So poll that one
- * header until the two agree, then run the checks in the same job. Both read
- * public URLs and need no credential, which is what makes this possible at all.
+ * WHAT SURVIVES, AND IT IS ENOUGH. The event is late and its timing is
+ * Vercel's, so a push-and-walk-away leaves minutes in which nothing has
+ * checked; and it fires per deployment, so a superseded build correctly gets
+ * nothing while a commit CI deployed gets a walk attributed to a run nobody was
+ * watching. CI has just asked for the deploy and knows the commit; the alias
+ * says which commit it serves. So poll that one header until the two agree and
+ * run the checks in the same job, at a known moment, failing the run that
+ * caused the deploy. Both checks read public URLs and need no credential, which
+ * is what makes running them there possible at all.
  *
  * EXIT CODES, matching `check:deployed`'s contract so a caller can tell the three
  * apart:
