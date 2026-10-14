@@ -2309,9 +2309,10 @@ a real finding sat unread — and has three callers now: the health check,
 `/api/bookings/dispatch`, and `scripts/check-drift.mjs`. The nightly sweep
 **fails its own run** on a mismatch: `cron_runs` records `ok: false` with the
 drifted names and the route answers 503, so Vercel's cron log shows a failed
-invocation. The script runs on **every successful production deployment**
-(`.github/workflows/after-deploy.yml`, on `deployment_status`) and needs no secret,
-because it reads the public `/api/health` payload rather than the database.
+invocation. The script runs in **CI's `deploy` job, straight after the hook that asks for
+the deploy**, and needs no secret, because it reads the public `/api/health`
+payload rather than the database. **It was on `deployment_status` and that event
+never fires here** — see below.
 **Exit 2 is "could not look"**, the `check:deployed` contract, and a deployment
 that does not report `db.functions` at all **fails** — the check is
 unconditional, so its absence means an older build is serving or somebody removed
@@ -2336,9 +2337,39 @@ assertion on every run; the alias is also the honest target, since "pushed is no
 deployed" is a statement about what the alias serves. And **exit 2 is retried
 once, exit 1 never**: 2 means the walk did not run, which on a real network is
 the alias not yet flipped, where 1 is a finding — a check that retries its way to
-green is not a check. The file is `after-deploy.yml` rather than `drift.yml`,
-because a file named for one of the two checks inside it is the next reader's
-wrong turn.
+green is not a check.
+
+**And both were listening for an event this project does not emit, which is the
+chain-left-open shape at the level of a workflow trigger.** `after-deploy.yml`
+fired on `deployment_status`, which Vercel's GIT INTEGRATION emits — but a push
+does not deploy this project: `scripts/vercel-ignore-build.mjs` correctly skips a
+commit GitHub has not reported a check for yet, so the deploy that actually
+serves is the one CI asks for through a deploy hook, and **a hook deployment
+emits no `deployment_status` at all.** So the two checks only ever ran on behalf
+of the deployments the gate cancels. Read live on 2026-10-14: `90b7ca8` and
+`a34478a` each produced a READY production deployment through the hook and
+neither check ran on either, while the three red runs before them were walking
+the site for deployments being cancelled or superseded — real answers to a
+question nobody wanted asked, which is how a monitor comes to be ignored. Every
+link was built: the scripts, the two sibling jobs, the retry, the exit-2
+contract. The chain was open.
+They are steps in CI's `deploy` job now, after the hook, gated on the production
+branch. `scripts/await-deploy.mjs` is the new piece and it is the only reason
+this can work from there: it polls the alias's `x-build-commit` until it matches
+the commit CI is deploying, so the checks run against the build they were asked
+about rather than whatever happens to be serving. Its exit codes are
+`check:deployed`'s — **1 is "serving a different commit after eight minutes" and
+2 is "could not look"** — because "production is stale" and "the network is
+blocked" must never be the same red tick. `after-deploy.yml` is deleted rather
+than kept as a backstop: it cannot tell that its deployment was superseded, so
+every tick it produced was noise against a build that never served, and a
+workflow that is red on deployments nobody deployed trains people to ignore the
+red. Drift keeps its second channel — the nightly sweep fails its own run on a
+mismatch.
+**`check-drift.mjs` took an empty origin as an origin**, found while wiring it:
+GitHub substitutes an unset `vars.*` as the empty string and the script used
+`??`, which only falls through on null, so it fetched `/api/health` against
+nothing. `||` on all three scripts now.
 
 **A policy is redefined by later migrations, so breaking one to test it means
 editing its LAST definition.** `drop policy if exists` + `create policy` is the

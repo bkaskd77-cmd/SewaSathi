@@ -50,9 +50,17 @@ async function main() {
     return;
   }
 
+  /*
+   * `||`, NEVER `??`, AND THIS WAS A REAL BUG THE MOMENT A WORKFLOW PASSED AN
+   * UNSET VARIABLE. GitHub substitutes an unset `vars.*` as the EMPTY STRING,
+   * and `??` only falls through on null or undefined — so `node
+   * scripts/check-drift.mjs "${{ vars.DEPLOY_URL }}"` with no variable set left
+   * `base` as `""` and fetched `/api/health` against nothing. Empty is absent
+   * here, which is what `check-deployed.mjs` and `await-deploy.mjs` already do.
+   */
   const base = (
-    process.argv[2] ??
-    process.env.DRIFT_URL ??
+    process.argv[2] ||
+    process.env.DRIFT_URL ||
     "https://sewasathi.vercel.app"
   ).replace(/\/+$/, "");
 

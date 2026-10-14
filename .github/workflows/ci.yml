@@ -141,6 +141,74 @@ jobs:
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
 
+      # ----------------------------------------------------------------------
+      # And then check that it landed, HERE rather than on a deployment event.
+      # ----------------------------------------------------------------------
+      #
+      # WHY NOT IN `after-deploy.yml`, WHICH IS WHERE THESE TWO LIVED. That
+      # workflow triggers on `deployment_status`, which is what Vercel's GIT
+      # INTEGRATION emits — and a push no longer deploys this project, because
+      # the ignore gate correctly skips a commit GitHub has not reported a check
+      # for yet. The deploy that actually serves is the one the step above asks
+      # for through a deploy hook, and **a hook deployment emits no
+      # `deployment_status` event at all.**
+      #
+      # So both checks were listening for an event that only fires for the
+      # deployments the gate cancels. Read live on 2026-10-14: `90b7ca8` and
+      # `a34478a` each produced a READY production deployment through the hook
+      # and neither check ran on either — while the three runs that did fire,
+      # before the hook existed, were walking the site on behalf of deployments
+      # being cancelled or superseded, so their red ticks were real answers to a
+      # question nobody wanted asked. Every link built, the chain open.
+      #
+      # ONLY FROM THE PRODUCTION BRANCH. A feature branch's CI triggers no
+      # production deploy, so there would be nothing to wait for and the wait
+      # would always time out — a check that is red on every branch is a check
+      # people turn off.
+      #
+      # NO SECRET IN ANY OF THE THREE. The wait reads one meta tag off the
+      # alias, `check:deployed` walks public routes, and `check:drift` reads the
+      # public `/api/health` payload. That is what makes running them here
+      # possible at all.
+      - name: Wait for the alias to serve this commit
+        if: github.ref_name == 'claude/sewax-roadmap-foundation-e4byl9'
+        run: node scripts/await-deploy.mjs
+        env:
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+
+      # EXIT 2 IS "COULD NOT LOOK" and is the only code worth retrying: the walk
+      # did not run. A genuine finding is 1 and is never retried — a check that
+      # retries its way to green is not a check. The wait above has already
+      # established the right build is serving, so a 2 here is a network blip.
+      - name: Walk every route on the deployment that just landed
+        if: github.ref_name == 'claude/sewax-roadmap-foundation-e4byl9'
+        env:
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          set +e
+          node scripts/check-deployed.mjs
+          code=$?
+          if [ "$code" -eq 2 ]; then
+            echo "::notice::Could not reach the site. Retrying once in 20s."
+            sleep 20
+            node scripts/check-deployed.mjs
+            code=$?
+          fi
+          exit "$code"
+
+      # Runs even if the walk failed, which is this repository's own rule turned
+      # on itself: a check that cannot pass must not silence the checks that
+      # can. Drift and "the right build is serving" are independent faults and
+      # one unresolved failure masking the next is the incident
+      # `ACKNOWLEDGED_FAILURES` exists because of.
+      - name: Compare live function fingerprints against the tree
+        if: >
+          always() &&
+          github.ref_name == 'claude/sewax-roadmap-foundation-e4byl9'
+        env:
+          DRIFT_URL: ${{ vars.DEPLOY_URL }}
+        run: node scripts/check-drift.mjs
+
   # ---------------------------------------------------------------------------
   # Dependency advisories, in a job of their own
   # ---------------------------------------------------------------------------
