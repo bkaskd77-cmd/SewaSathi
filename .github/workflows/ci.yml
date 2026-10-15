@@ -21,6 +21,20 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # RUNNABLE ON DEMAND, AND THE REASON IS ENVIRONMENT VARIABLES.
+  #
+  # `NEXT_PUBLIC_*` is inlined into the bundle at BUILD time, so setting one in
+  # the Vercel dashboard changes nothing until something rebuilds — and the
+  # symptom is the feature silently staying off, which reads as "the variable
+  # did not work". Until now the only way to rebuild was a commit, so picking
+  # up a key somebody had just set meant either an empty commit (which this
+  # repository refuses) or asking them to press Redeploy (which CLAUDE.md
+  # refuses, because a push is the deploy).
+  #
+  # This closes that: a deploy can now be asked for without inventing a commit,
+  # and it runs the same `verify` and the same post-deploy walk as any other
+  # run, so an on-demand deploy is never a less-checked one.
+  workflow_dispatch:
 
 jobs:
   verify:
