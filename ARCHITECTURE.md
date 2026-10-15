@@ -116,6 +116,42 @@ negative" — the mechanism cannot express a star filter, and
 after its first version turned out to be asserting the shape of its own
 fixture.
 
+### `lib/pwa` — the installable app
+
+`cache-rule.ts` is the only thing that decides what a service worker may keep,
+and it is the file to read before changing anything here. **It is not
+network-first.** Network-first is a promise about ordering that still writes the
+document into a cache, which means a stale copy exists and is one failed request
+away from being served — and every number a customer reads in this product
+lives in an HTML document or a JSON response. So no document for any real route
+is stored at all: `never` is the DEFAULT rather than a deny-list, so a screen
+shipped next phase is uncached without anybody remembering to say so.
+`tests/unit/pwa-cache-rule.test.ts` runs the rule over every route in
+`scripts/deployed-routes.mjs`, as navigations and as plain fetches, because a
+soft navigation pulls the RSC payload with `mode: "cors"` and the prices are in
+it exactly as they are in the document.
+
+`worker-source.ts` generates the worker and pastes `cachePolicy`'s own source
+text into it, so the worker and the test execute the same characters. **The
+paste is bound to a name we choose, never the function's.** `next build`
+minified `cachePolicy` to `function f(a,b){…}` once, so the script defined `f`
+and called `cachePolicy`: a ReferenceError on the first fetch, the browser
+discards the worker, every page keeps working, and the offline shell silently
+never appears. Found by reading the bytes `next start` served, not by a check.
+
+`photo-queue.ts` holds a photograph taken with no signal, in IndexedDB, as the
+camera wrote it. **Never a re-encode** — a canvas destroys EXIF and
+`lib/photos/evidence.ts` refuses a file with no camera clock, so a helpful
+compression would queue something our own gate rejects while the professional
+believed they had sent evidence. `queuedAt` is housekeeping and never evidence;
+the capture time is inside the file.
+
+`twa.ts` is the rule for `/.well-known/assetlinks.json`, which decides whether
+a Play Store build has an address bar. Both halves come from the environment
+because they belong to a keystore that must never be in this repository, and
+the route answers 404 until they are set — a committed placeholder would
+publish a statement matching no app and fail verification silently.
+
 ## Shared surfaces — the higher bar
 
 Changing any of these requires stating, in the phase summary, **what depends on
@@ -157,7 +193,9 @@ interface. Swapping a provider is then one file, not a hunt.
 | Khalti | `lib/payments/khalti.ts` | KPG-2. Server-side initiate returns a `payment_url` and a `pidx`. Amounts are in **paisa**; the ×100 lives here and nowhere else. |
 | Cash | `lib/payments/cash.ts` | Not a degraded path — the common one. `isConfigured()` is always true, so the customer is never left with no way to pay, and `verify()` never self-settles: the customer confirming is the only oracle. |
 | In-app notifications | `lib/notify/in-app.ts` | A row in `notifications`, written under the service role. Always configured — there is no key to be missing, so something is always recorded. |
-| SMS / push notifications | *not built* | Phase 13. One file implementing `NotificationChannel` plus a line in `lib/notify/index.ts`; nothing that decides *what* to notify about changes. |
+| Web push | `lib/notify/push.ts` | VAPID over the `web-push` package. The one file that encrypts to a browser. It renders the sentence at delivery from the recipient's own language, which is the whole reason a notification carries a key and not a sentence — and it is the first channel that had to act on that. |
+| SMS notifications | `lib/notify/sms.ts` | The fallback, and the only channel that bills per message. It reaches a gateway through `lib/sms` and nothing else; whether a message is worth paying for is decided in `lib/notify/index.ts`, never here, so the two halves of that decision cannot disagree. |
+| Push subscriptions | `lib/data/push.ts` | Written under the service role and by no browser at all. A subscription arrives from a browser, so the obvious design is an insert policy for `authenticated` — and that is a row whose `profile_id` the browser chooses. |
 | In-app chat | **dropped** | Replaced by `wa.me` links — see *Chat — dropped, and what replaces it*. A masked relay is the version that keeps the record and is deferred until there is income to pay for it. |
 | Sealed values | `lib/security/secret-box.ts` | AES-256-GCM over `node:crypto`. The key is `PAYOUT_ENCRYPTION_KEY`, outside the database, so a leaked backup exposes no account numbers. A missing key throws rather than writing plaintext. |
 | Payout destination | `lib/payments/destination.ts` | Pure: masking and the 72-hour cooldown. One place decides how much of an account number a screen shows, so two surfaces cannot disagree about it. The table itself is reached by no browser. |

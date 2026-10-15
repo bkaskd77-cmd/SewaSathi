@@ -2,6 +2,8 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
+import { assetLinksDetail, assetLinksReadiness } from "@/lib/pwa/twa";
+
 import { BUILD_COMMIT_SHORT } from "@/lib/build-info";
 import {
   CRON_JOBS,
@@ -13,6 +15,7 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   PUSH_NOT_READY_STATE,
+  TWA_STATE,
   SEALING_NOT_READY_STATE,
   pushKeyStatus,
   pushReadiness,
@@ -265,6 +268,34 @@ function checkPush(): Check {
     name: "notify.push",
     state: status.ok ? "ok" : PUSH_NOT_READY_STATE,
     detail: pushReadiness(status),
+  };
+}
+
+/**
+ * Is an Android app vouched for? Free, public, and it sends nothing.
+ *
+ * `/.well-known/assetlinks.json` IS READ BY ANDROID AND BY NOBODY ELSE. It is
+ * fetched at install by a client that follows no redirect and reports nothing
+ * anywhere, so a wrong fingerprint produces exactly one symptom — an address
+ * bar across the top of the app — observed on somebody else's phone, weeks
+ * later, and read as a packaging bug rather than a wrong constant. This is the
+ * free way to see it.
+ *
+ * ALWAYS `skipped`, NEVER `down` OR `ok`. There is no Android app yet, so the
+ * unset case is correct rather than broken and must not 503 a working product;
+ * and even a well-formed pair is not proof that a store build verifies against
+ * it, which only an install can settle. `TWA_STATE` is a constant for the same
+ * reason `SMS_PROBE_STATE` is.
+ */
+function checkAssetLinks(): Check {
+  const status = assetLinksReadiness({
+    packageName: process.env.ANDROID_PACKAGE_NAME,
+    fingerprint: process.env.ANDROID_CERT_FINGERPRINT,
+  });
+  return {
+    name: "twa.assetlinks",
+    state: TWA_STATE,
+    detail: assetLinksDetail(status),
   };
 }
 
@@ -998,6 +1029,7 @@ export async function GET(request: Request) {
     checkSmsProbe(),
     checkSealing(),
     checkPush(),
+    checkAssetLinks(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];

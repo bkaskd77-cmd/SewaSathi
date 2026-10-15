@@ -346,6 +346,19 @@ export const SEALING_NOT_READY_STATE: HealthState = "skipped";
  */
 export const PUSH_NOT_READY_STATE: HealthState = "skipped";
 
+/**
+ * The state `twa.assetlinks` reports.
+ *
+ * ALWAYS `skipped`, in every case, which is the one check here that is never
+ * `ok` either. There is no Android app yet, so an unset pair is correct rather
+ * than broken; and a well-formed pair is still not evidence that a Play Store
+ * build verifies against it — only an install settles that, and this endpoint
+ * must never report a readable variable as a working integration. That is
+ * `checkTriage`'s months-long mistake, and `payout.sealing` carries the same
+ * caveat in its own detail line.
+ */
+export const TWA_STATE: HealthState = "skipped";
+
 /** What a VAPID pair looks like when it is present but cannot work. */
 export type PushKeyStatus = {
   ok: boolean;

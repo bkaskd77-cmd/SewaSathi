@@ -4,6 +4,7 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   PUSH_NOT_READY_STATE,
+  TWA_STATE,
   pushKeyStatus,
   pushReadiness,
   SEALING_NOT_READY_STATE,
@@ -280,6 +281,7 @@ const LIVE_PAYLOAD_F29583F: HealthCheck[] = [
    */
   { name: "payout.sealing", state: SEALING_NOT_READY_STATE, detail: "" },
   { name: "notify.push", state: PUSH_NOT_READY_STATE, detail: "" },
+  { name: "twa.assetlinks", state: TWA_STATE, detail: "" },
   { name: "rateLimit", state: "ok", detail: "" },
   { name: "sms.budget", state: "ok", detail: "" },
 ];

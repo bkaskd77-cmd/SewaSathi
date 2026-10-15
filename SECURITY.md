@@ -149,6 +149,10 @@ refused without being said.
 | `POST /api/triage` | anybody | nothing — it reads and answers | `triage` rate limit by user or IP; no writes but a log row. The reply now also carries the chosen trade's published sub-bands, for the card's one question — the same rows `category_price_bands` already releases to `anon` under "Price bands are public", so nothing new leaves the database |
 | `GET /api/health` | anybody | nothing; reports state, sends no data | `?deep=1` needs `CRON_SECRET`. `db.functions` reads `function_fingerprints()` under the service role and reports hashes and names only — no function bodies leave the database, and the RPC is revoked from `anon` and `authenticated`. `auth.sms.probe` reports whether `SMS_HEALTH_NUMBER` is set and parseable and **never the number itself** — it is a real handset on a public endpoint, and `PhoneError` is a fixed key set carrying no digits. The `deep=1` 401 now separates a wrong token from an unset `CRON_SECRET`: it admits nobody either way, and the only thing disclosed is that the expensive checks are switched off here |
 | `GET /api/version` | anybody | nothing | commit and build time only |
+| `GET /sw.js` | anybody | nothing — it is a script | Served `no-store` so an update can always land, and `Service-Worker-Allowed: /`. The script it serves can cache only `/_next/static/**` and the app shell; `lib/pwa/cache-rule.ts` is what makes a document for a real route unstorable, which is the security property as much as the correctness one — a cached authenticated page is that page left on a shared phone |
+| `GET /manifest.webmanifest` | anybody | nothing | Brand strings and icon URLs only. No `start_url` behind a guard, so nothing here names a private route |
+| `GET /.well-known/assetlinks.json` | anybody, and Android at install | nothing | Reports `ANDROID_PACKAGE_NAME` and `ANDROID_CERT_FINGERPRINT`, both public by design — a certificate fingerprint is a public identifier, not a secret. **404 while either is unset**, so no statement is published vouching for an app that does not exist |
+| `subscribeToPushAction` / `unsubscribeFromPushAction` | anybody signed in | **their own** push subscription only | The actor comes from `getSessionProfile()` and the row's `profile_id` is never accepted from the browser; the unsubscribe is scoped to the actor as well as the endpoint, so holding somebody else's endpoint does not let you silence them. No browser has any grant on `push_subscriptions` |
 | `GET/POST /api/payments/[gateway]/return` | the gateway, and the customer's browser | settles one payment by reference | the callback is a claim: `verify()` asks the gateway's servers and reconciles the figure |
 | `GET /api/payments/reconcile` | cron | in-flight payments | `CRON_SECRET`; refuses everything if unset |
 | `GET /api/bookings/dispatch` | cron | pending bookings past their window | `CRON_SECRET`; the stage comes from timestamps |
@@ -958,6 +962,7 @@ What we hold, why, who can read it, how long.
 | Triage text and photo | `triage_logs` (text only) | to tell whether the bands are right, and whether the triage was | admins | photo is **never stored**; `/admin/triage-accuracy` reads this table as counts only and never renders a row |
 | Payment records | `payments`, `refunds` | money moved | the two parties, admins | financial retention, not yet set |
 | Provider phone | `provider_contacts` | the customer must be able to call | the customer during a live job; admins | life of the listing |
+| **Push subscription** | `push_subscriptions` | to notify somebody for free, rather than paying per SMS — and because a push cannot be redirected by whoever has just taken an account over | **admins only, and deliberately not the person themselves** | until the browser revokes it or the person turns it off. An endpoint the push service refuses is stamped `gone_at` rather than deleted, so a silence can be explained |
 | Provider lead | `provider_leads` | somebody asked to join | admins | until onboarded or dropped |
 | Why a job was turned down | `booking_refusals.reason`, `.reason_code` | so a refusal can be read and counted | the professional, admins | life of the booking — a **stated preference**, never a judgement, and not a ranking input |
 | **Identity documents** | `provider-documents` bucket (private) | verification | the owner and admins only, every read logged | `delete_after` column exists; policy not yet set |
@@ -987,6 +992,40 @@ What we hold, why, who can read it, how long.
   forgets, and nothing here compares the two. Adding a table means adding a row.
 
 ---
+
+### Push subscriptions — why nobody reads their own
+
+An endpoint and two browser-generated keys identify a device. They are not
+credentials of ours and grant nothing but the ability to send that browser a
+notification, which is why they are not sealed — but they are personal data,
+and there is **no policy letting somebody read their own row**. That looks
+stricter than necessary and is not: the browser already knows its own
+subscription and asks its own push manager, which is faster and is the only
+answer that cannot be stale. A policy to show somebody a row they could already
+produce would put endpoints into responses, caches and screenshots for nothing.
+
+**No browser writes this table at all**, and that is the finding it was one
+policy away from. The obvious design is an insert policy for `authenticated`,
+and that is a row whose `profile_id` the browser chooses: subscribing your own
+phone to somebody else's account delivers their booking progress, their arrival
+notices and the warning that their payout destination has changed, to you.
+Writes go through `app/[locale]/(app)/account/push-actions.ts` under the service
+role, having re-read the session and named the actor itself —
+`enforce_booking_address_ownership`'s posture, and the shape every hole found in
+this product was missing. `tests/db/push-subscriptions.test.ts` asserts the
+refusal as a browser experiences it, including the delete: removing somebody's
+subscription is a quiet way to stop them hearing that their money is being
+redirected.
+
+**`payout.destinationChanged` is push-only and never SMS**, which honours a rule
+`lib/notify/channel.ts` wrote down before any channel existed. Every other kind
+may look a number up at delivery; that one must reach the contact as it stood
+*before* the change, because an account takeover changes the phone number too.
+Nothing in this schema records what the number was before, so there is no honest
+SMS to send — and a push subscription cannot be redirected from inside the
+product, so the warning goes there and nowhere else. Refused twice: by
+`WORTH_AN_SMS`, and again in `lib/data/push.ts` so a future caller reaching the
+data layer directly cannot reintroduce it.
 
 ## 3. The admin model
 
