@@ -330,6 +330,69 @@ export const SMS_GATEWAY_UNSET_STATE: HealthState = "skipped";
 export const SEALING_NOT_READY_STATE: HealthState = "skipped";
 
 /**
+ * The state `notify.push` reports.
+ *
+ * ALWAYS `skipped`, NEVER `down`, and the entry is a constant for the same
+ * reason `FALLBACK_FIRING_STATE` and `SMS_PROBE_STATE` are: the first version
+ * of a test like this builds `state: "skipped"` itself and stays green with the
+ * route reporting something that would 503 a working product.
+ *
+ * NOBODY IS AFFECTED BY PUSH BEING OFF. Every notification still writes its
+ * in-app row — the record `/bookings` reads — and the kinds worth paying for
+ * fall back to SMS. A product with no VAPID key serves customers perfectly
+ * well; it is simply slower and more expensive to reach people. That is a real
+ * fault and it is not the question "can this serve a customer right now", which
+ * is the line `checkTriageFallback` crossed and cost a 503 on a working day.
+ */
+export const PUSH_NOT_READY_STATE: HealthState = "skipped";
+
+/** What a VAPID pair looks like when it is present but cannot work. */
+export type PushKeyStatus = {
+  ok: boolean;
+  publicSet: boolean;
+  privateSet: boolean;
+};
+
+/**
+ * Is there a usable VAPID pair?
+ *
+ * THE HALF-CONFIGURED CASE IS THE ONE WORTH NAMING, and it is easy to reach:
+ * `NEXT_PUBLIC_VAPID_PUBLIC_KEY` has to be set as a public variable and
+ * `VAPID_PRIVATE_KEY` as a secret, in two places in a dashboard, and a
+ * deployment with only the public half looks completely healthy. Browsers
+ * subscribe, rows are written, the opt-in says "on" — and every send throws.
+ * The `SMS_HEALTH_NUMBER` lesson applied before it costs anything.
+ */
+export function pushKeyStatus(env: {
+  publicKey?: string;
+  privateKey?: string;
+}): PushKeyStatus {
+  const publicSet = Boolean(env.publicKey && env.publicKey.trim());
+  const privateSet = Boolean(env.privateKey && env.privateKey.trim());
+  return { ok: publicSet && privateSet, publicSet, privateSet };
+}
+
+/** One sentence somebody can act on. Never prints either key. */
+export function pushReadiness(status: PushKeyStatus): string {
+  if (status.ok) {
+    return "VAPID pair set. Notifications go by push first; SMS is the fallback.";
+  }
+  if (status.publicSet && !status.privateSet) {
+    /*
+     * THE EXPENSIVE ONE, SAID LOUDLY. Browsers will subscribe against the
+     * public key and the screen will say notifications are on, while every
+     * send throws — so nobody is pushed and, because `notConfigured` does not
+     * escalate, nobody is texted either.
+     */
+    return "VAPID_PRIVATE_KEY is not set while the public half is. Browsers will subscribe and nothing can be sent to them.";
+  }
+  if (!status.publicSet && status.privateSet) {
+    return "NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set. No browser can subscribe, so push reaches nobody.";
+  }
+  return "No VAPID keys set. Push is off; notifications are in-app, and SMS where a kind is worth paying for.";
+}
+
+/**
  * What the sealing key is, in a sentence somebody can act on.
  *
  * ONE SENTENCE, THREE CASES, and they are genuinely different advice: nobody

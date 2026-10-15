@@ -6,7 +6,12 @@ import {
   disputeTripDebtAction,
   setActivityOptOutAction,
 } from "@/app/[locale]/(app)/account/actions";
+import {
+  subscribeToPushAction,
+  unsubscribeFromPushAction,
+} from "@/app/[locale]/(app)/account/push-actions";
 import { signOutAction } from "@/app/[locale]/(auth)/actions";
+import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { redirect } from "@/i18n/navigation";
@@ -18,6 +23,7 @@ import { readActivityOptOut } from "@/lib/data/profile-prefs";
 import { formatE164ForDisplay } from "@/lib/auth";
 import { formatNpr } from "@/lib/utils";
 import { site, supportPhoneDisplay } from "@/lib/config/site";
+import { vapidPublicKey } from "@/lib/env";
 
 export async function generateMetadata(props: {
   params: Promise<{ locale: string }>;
@@ -225,6 +231,23 @@ export default async function AccountPage() {
             </Button>
           </form>
         )}
+      </Card>
+
+      {/* ---------------- notifications ---------------- */}
+      {/*
+        A CLIENT COMPONENT BECAUSE ONLY THE BROWSER KNOWS THE ANSWER. Whether
+        this phone is subscribed is held by its own push manager, not by us —
+        asking the server would be reading a row that can be stale the moment a
+        browser revokes a subscription without telling anybody. It renders
+        nothing at all on a browser without push, and nothing when no VAPID key
+        is configured, so a fresh clone shows the page unchanged.
+      */}
+      <Card className="animate-rise mt-8 p-5" style={{ animationDelay: "150ms" }}>
+        <PushOptIn
+          publicKey={vapidPublicKey()}
+          subscribe={subscribeToPushAction}
+          unsubscribe={unsubscribeFromPushAction}
+        />
       </Card>
 
       {/* ---------------- a carried trip charge ---------------- */}

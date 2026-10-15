@@ -80,6 +80,17 @@ const SECRET_NAMES = [
    * `server-only` on whatever reads it matters more here than the bundle scan.
    */
   "PAYOUT_ENCRYPTION_KEY",
+  /*
+   * The VAPID private key, which signs web push.
+   *
+   * ITS PUBLIC HALF IS DELIBERATELY IN THE BUNDLE and is not listed here:
+   * `NEXT_PUBLIC_VAPID_PUBLIC_KEY` is handed to every browser because a
+   * subscription is bound to it. This half is what proves a notification came
+   * from us — anybody holding it can send a message to every one of our
+   * subscribers as us, which on this product means telling a professional
+   * where to go, or telling a customer their price has changed.
+   */
+  "VAPID_PRIVATE_KEY",
 ];
 
 /** Values too short or too common to search for without crying wolf. */

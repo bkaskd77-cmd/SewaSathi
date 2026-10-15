@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  PUSH_NOT_READY_STATE,
+  pushKeyStatus,
+  pushReadiness,
   SEALING_NOT_READY_STATE,
   sealingReadiness,
   SESSION_CONFIG_STATE,
@@ -276,6 +279,7 @@ const LIVE_PAYLOAD_F29583F: HealthCheck[] = [
    * first time the endpoint grew.
    */
   { name: "payout.sealing", state: SEALING_NOT_READY_STATE, detail: "" },
+  { name: "notify.push", state: PUSH_NOT_READY_STATE, detail: "" },
   { name: "rateLimit", state: "ok", detail: "" },
   { name: "sms.budget", state: "ok", detail: "" },
 ];
@@ -532,5 +536,63 @@ describe("the verdict agrees with the old rule where there is nothing to forgive
     const verdict = healthVerdict(LIVE_PAYLOAD_F29583F, AT);
     expect(verdict.clean).toBe(servesCustomers(LIVE_PAYLOAD_F29583F));
     expect(verdict.ok).toBe(true);
+  });
+});
+
+describe("whether push is configured, before it costs anything", () => {
+  /*
+   * THE HALF-CONFIGURED DEPLOYMENT IS THE CASE THIS EXISTS FOR, and it is easy
+   * to reach: the pair is a public variable and a secret, set in two places in
+   * a dashboard. With only the public half everything looks healthy — browsers
+   * subscribe, rows are written, the opt-in panel says notifications are on —
+   * and every send throws. Nobody is pushed, and because `notConfigured`
+   * deliberately does not escalate, nobody is texted either.
+   */
+  it("is ok only when both halves are set", () => {
+    expect(pushKeyStatus({ publicKey: "pub", privateKey: "priv" }).ok).toBe(true);
+    expect(pushKeyStatus({ publicKey: "pub" }).ok).toBe(false);
+    expect(pushKeyStatus({ privateKey: "priv" }).ok).toBe(false);
+    expect(pushKeyStatus({}).ok).toBe(false);
+  });
+
+  it("treats whitespace as unset", () => {
+    // A dashboard variable saved with a stray newline is set and useless.
+    expect(pushKeyStatus({ publicKey: "  ", privateKey: "priv" }).ok).toBe(false);
+  });
+
+  it("says which half is missing, because the advice differs", () => {
+    const publicOnly = pushReadiness(pushKeyStatus({ publicKey: "pub" }));
+    expect(publicOnly).toContain("VAPID_PRIVATE_KEY");
+    expect(publicOnly).toContain("subscribe");
+
+    const privateOnly = pushReadiness(pushKeyStatus({ privateKey: "priv" }));
+    expect(privateOnly).toContain("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+
+    expect(pushReadiness(pushKeyStatus({}))).toContain("No VAPID keys set");
+  });
+
+  it("never prints either key", () => {
+    const secret = "a-very-distinctive-private-key-value";
+    for (const status of [
+      pushKeyStatus({ publicKey: secret, privateKey: secret }),
+      pushKeyStatus({ publicKey: secret }),
+      pushKeyStatus({ privateKey: secret }),
+    ]) {
+      expect(pushReadiness(status)).not.toContain(secret);
+    }
+  });
+
+  it("cannot 503 a working product", () => {
+    /*
+     * A product with no push keys serves customers perfectly well: every
+     * notification still writes its in-app row, and the kinds worth paying for
+     * fall back to SMS. `FALLBACK_FIRING_STATE`'s lesson — `unknown` and `down`
+     * are the same verdict to `servesCustomers`, so a check about a real but
+     * non-customer-facing fault must be `skipped`.
+     */
+    expect(PUSH_NOT_READY_STATE).toBe("skipped");
+    expect(
+      servesCustomers([{ state: PUSH_NOT_READY_STATE }]),
+    ).toBe(true);
   });
 });

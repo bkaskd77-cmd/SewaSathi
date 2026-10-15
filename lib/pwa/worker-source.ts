@@ -59,6 +59,20 @@ import { CACHE_RULE, PRECACHE_PATHS, cachePolicy } from "./cache-rule";
 const CACHE_DECIDER = "decideCache";
 
 /**
+ * What a push with an unreadable payload says.
+ *
+ * IT IS THE PRODUCT NAME AND NOTHING ELSE, deliberately. Chrome revokes a
+ * subscription whose worker resolves a push without showing anything, so there
+ * has to be a fallback — and a fallback that guessed at content ("You have an
+ * update about your booking") would be this worker inventing a sentence about
+ * an event it cannot read. The name is the one true thing available here.
+ *
+ * NOT TRANSLATED, because a payload we could not parse is a payload whose
+ * language field we also could not read, and a brand name is the same in both.
+ */
+const FALLBACK_TITLE = "SajiloKaam";
+
+/**
  * The worker's source, with the shared rule pasted in.
  *
  * `ruleSource` IS A PARAMETER SO THE TEST CAN HAND IT A RENAMED FUNCTION, and
@@ -199,6 +213,101 @@ self.addEventListener("fetch", (event) => {
     caches
       .match(request)
       .then((cached) => cached || fetch(request)),
+  );
+});
+
+/**
+ * A push arrived.
+ *
+ * THE SENTENCE IS IN THE PAYLOAD AND IS NEVER BUILT HERE. The server renders
+ * it in the recipient's own language at send time — that is the whole reason a
+ * notification carries a key rather than a sentence — so this handler is a
+ * renderer and knows nothing about kinds. A worker that mapped kinds to copy
+ * would be the catalogue written twice, in a script that updates on its own
+ * schedule.
+ *
+ * SOMETHING IS ALWAYS SHOWN. Chrome treats a push that resolves without a
+ * notification as abuse and will eventually revoke the subscription, so an
+ * unreadable payload still shows the fallback line rather than returning
+ * quietly.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = {};
+  }
+
+  const title = data.title || ${JSON.stringify(FALLBACK_TITLE)};
+  const options = {
+    body: data.body || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    lang: data.locale || "en",
+    /*
+     * ONE NOTIFICATION PER BOOKING, REPLACED RATHER THAN STACKED. A job that
+     * moves accepted -> en route -> arrived would otherwise leave three
+     * notices on a lock screen, and the one that matters is the latest.
+     * Without a booking id each notice stands alone, which is right for the
+     * payout warning: that one must never be replaced by anything.
+     */
+    tag: data.bookingId ? "booking-" + data.bookingId : undefined,
+    renotify: Boolean(data.bookingId),
+    data: { kind: data.kind || null, bookingId: data.bookingId || null, locale: data.locale || "en" },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/**
+ * Somebody tapped it.
+ *
+ * AN EXISTING TAB IS FOCUSED RATHER THAN A SECOND ONE OPENED, because a
+ * professional with the job already open and a notification about that same job
+ * should land on the screen they were looking at — and because two tabs of a
+ * live booking page is two sockets and two sets of state.
+ */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const prefix = data.locale === "ne" ? "/ne" : "";
+  const path = data.bookingId ? prefix + "/bookings/" + data.bookingId : prefix + "/bookings";
+  const url = new URL(path, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windows) => {
+        for (const client of windows) {
+          if (client.url === url && "focus" in client) return client.focus();
+        }
+        for (const client of windows) {
+          if ("navigate" in client && "focus" in client) {
+            return client.navigate(url).then(() => client.focus());
+          }
+        }
+        return self.clients.openWindow(url);
+      }),
+  );
+});
+
+/**
+ * The push service rotated this browser's keys.
+ *
+ * WITHOUT THIS, A SUBSCRIPTION SILENTLY DIES. The browser issues a new endpoint
+ * and the old one starts refusing; the person stops being notified and nothing
+ * tells them. There is no session in a worker, so it cannot write the row
+ * itself — it posts to every open tab, and the page re-subscribes through the
+ * ordinary signed-in action. A phone with no tab open re-subscribes on the next
+ * visit, which is what the registration in components/pwa/app-shell.tsx does.
+ */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) client.postMessage({ type: "push-resubscribe" });
+    }),
   );
 });
 `;

@@ -54,6 +54,18 @@ export const publicEnv = {
   },
 };
 
+/**
+ * The public half of the VAPID pair, or null when push is not configured.
+ *
+ * NOT `required()`, DELIBERATELY. Every other public variable here throws when
+ * it is missing because the product cannot work without it. Push is an
+ * enhancement — a fresh clone with no keys must still render `/account`, and
+ * the opt-in simply does not appear. Null is the state the UI reads.
+ */
+export function vapidPublicKey(): string | null {
+  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null;
+}
+
 /** True when both public Supabase vars are present — used for graceful UI. */
 export function hasSupabaseConfig(): boolean {
   return Boolean(

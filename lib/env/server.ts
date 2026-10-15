@@ -32,4 +32,16 @@ export const serverEnv = {
   get anthropicApiKey() {
     return required("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
   },
+  /**
+   * The VAPID private key, which is what proves a push came from us.
+   *
+   * IT IS A SECRET AND THE PUBLIC HALF IS NOT. `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+   * is handed to every browser on purpose — a subscription is bound to it, so
+   * the browser needs it to subscribe at all. This half signs; anybody holding
+   * it can send a notification to every one of our subscribers as us, which on
+   * this product means a message to a professional saying where to go.
+   */
+  get vapidPrivateKey() {
+    return required("VAPID_PRIVATE_KEY", process.env.VAPID_PRIVATE_KEY);
+  },
 };

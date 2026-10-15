@@ -2763,5 +2763,94 @@
     "body": "Opens like an app, works on a weak connection, and you will not have to find the website again.",
     "action": "Add to home screen",
     "dismiss": "Not now"
+  },
+  "push": {
+    "booking": {
+      "assigned": {
+        "title": "A job is yours",
+        "body": "A customer has chosen you. Open it to accept or pass."
+      },
+      "widened": {
+        "title": "A job is open nearby",
+        "body": "Nobody has taken it yet. First to accept gets it."
+      },
+      "accepted": {
+        "title": "Your professional is confirmed",
+        "body": "They have accepted the job. You will see them set off."
+      },
+      "en_route": {
+        "title": "On the way",
+        "body": "Your professional has set off."
+      },
+      "providerArrived": {
+        "title": "They are at your door",
+        "body": "Your professional has arrived."
+      },
+      "in_progress": {
+        "title": "Work has started",
+        "body": "Your professional has begun."
+      },
+      "completed": {
+        "title": "Work is done",
+        "body": "Check it over, then settle up in the app."
+      },
+      "declined": {
+        "title": "Your professional withdrew",
+        "body": "The job is open again. Open it to pick somebody else."
+      },
+      "noProviderFound": {
+        "title": "Nobody could take this one",
+        "body": "We could not find anyone free. Open it to try again or call us."
+      },
+      "mayRunLate": {
+        "title": "They have run out of day",
+        "body": "The job is open again so somebody else can take it."
+      },
+      "quoteReady": {
+        "title": "Your price is ready",
+        "body": "Nothing starts until you agree it. Open it to have a look."
+      },
+      "quoteExpired": {
+        "title": "That price has run out",
+        "body": "Nobody can honour it now. Open it to ask for a new one."
+      },
+      "priceCorrected": {
+        "title": "The job is a different one",
+        "body": "Your professional needs you to agree a new price before starting."
+      }
+    },
+    "payment": {
+      "mismatch": {
+        "title": "The two amounts do not match",
+        "body": "Nothing settles until somebody looks. We will come back to you."
+      }
+    },
+    "payout": {
+      "destinationChanged": {
+        "title": "Where you are paid has changed",
+        "body": "If this was not you, ring us now."
+      }
+    },
+    "optIn": {
+      "title": "Get a notification when something happens",
+      "offBody": "Free, and it reaches your phone even when the app is closed. Without it we send a text message instead, which carries less.",
+      "onBody": "On for this phone. You will hear about a job being offered, a professional on the way, and anything waiting on your answer.",
+      "turnOn": "Turn on notifications",
+      "turnOff": "Turn off on this phone",
+      "blocked": "Your browser is blocking notifications for this site. You can allow them again in its site settings. Until then we will send a text message instead."
+    }
+  },
+  "sms": {
+    "booking": {
+      "assigned": "SajiloKaam: a customer has chosen you for job {reference}. Open the app to accept or pass.",
+      "widened": "SajiloKaam: job {reference} is open near you. First to accept gets it.",
+      "quoteReady": "SajiloKaam: the price for job {reference} is ready. Nothing starts until you agree it.",
+      "priceCorrected": "SajiloKaam: job {reference} turned out to be a different one. Your professional needs you to agree a new price.",
+      "noProviderFound": "SajiloKaam: we could not find anyone free for job {reference}. Open the app to try again.",
+      "providerArrived": "SajiloKaam: your professional has arrived for job {reference}."
+    },
+    "payment": {
+      "mismatch": "SajiloKaam: the two amounts for job {reference} do not match. Nothing settles until we look into it."
+    }
   }
 }

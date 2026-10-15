@@ -66,6 +66,7 @@ default as a measurement.
 | `provider_stats` | 1 | all | all | all | all | all | all |
 | `providers` | 2 | all | all | all | all | all | all |
 | `provisioned_accounts` | 0 | no data | no data | no data | no data | no data | no data |
+| `push_subscriptions` | 0 | no data | no data | no data | no data | no data | no data |
 | `refunds` | 0 | no data | no data | no data | no data | no data | no data |
 | `security_events` | 5 | none | none | none | none | none | all |
 | `survey_visit_fees` | 0 | no data | no data | no data | no data | no data | no data |

@@ -4,6 +4,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Route, ShieldAlert } from "lucide-react";
 
 import { AvailabilityControls } from "@/components/provider/availability-toggle";
+import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { ClaimCard } from "@/components/provider/claim-card";
 import { RateField } from "@/components/provider/rate-field";
 import { MoneySummary } from "@/components/provider/money";
@@ -11,7 +12,12 @@ import { RecordPanel } from "@/components/provider/record-panel";
 import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import {
+  subscribeToPushAction,
+  unsubscribeFromPushAction,
+} from "@/app/[locale]/(app)/account/push-actions";
 import { getSessionProfile } from "@/lib/auth/session";
+import { vapidPublicKey } from "@/lib/env";
 import { claimsForProvider, openClaimsForTrade } from "@/lib/data/claims";
 import { providerMoney, waitFor } from "@/lib/data/payouts";
 import { mySurveyFees } from "@/lib/data/survey";
@@ -206,6 +212,24 @@ export default async function ProviderDashboardPage() {
           every paid booking, so cash jobs counted as money we owed, a deferred
           quarter read as due now, and nothing ever came off it when somebody was
           actually paid. `provider_balance` is the number; this renders it. */}
+      {/* NOTIFICATIONS, AND THIS IS THE SURFACE THAT PAYS FOR THEM.
+          `/account` carries the same panel for a customer, where missing a
+          notice means not knowing when somebody is coming. Here it is a job
+          offer: `WORTH_AN_SMS` includes `booking.assigned` and
+          `booking.widened` precisely because a professional who does not see
+          one loses the work — and because the fallback that reaches them
+          instead costs us money per message. A professional with push on is
+          the cheapest and fastest version of this product, which is why the
+          panel is on the screen they open every morning rather than buried in
+          a settings page a tradesperson has no reason to visit. */}
+      <div className="mt-8">
+        <PushOptIn
+          publicKey={vapidPublicKey()}
+          subscribe={subscribeToPushAction}
+          unsubscribe={unsubscribeFromPushAction}
+        />
+      </div>
+
       <MoneySummary money={money} wait={waitFor(money)} locale={locale} />
 
       {/* SURVEY TRIPS, AND WHERE EACH ONE HAS GOT TO.

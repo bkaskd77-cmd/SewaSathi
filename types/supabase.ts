@@ -1634,6 +1634,43 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
         Relationships: [];
       };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          /** The push service's URL for one browser. Unique. */
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          /**
+           * The language this browser asked in.
+           *
+           * NULL IS "NOT RECORDED", never a default language — the sender falls
+           * back to `profiles.preferred_language`, which is the answer the
+           * person actually gave.
+           */
+          locale: "en" | "ne" | null;
+          created_at: string;
+          /** When the push service refused this endpoint for good. Null is "never". */
+          gone_at: string | null;
+          last_sent_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          locale?: "en" | "ne" | null;
+          created_at?: string;
+          gone_at?: string | null;
+          last_sent_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["push_subscriptions"]["Insert"]
+        >;
+        Relationships: [];
+      };
       provider_contacts: {
         Row: {
           provider_id: string;

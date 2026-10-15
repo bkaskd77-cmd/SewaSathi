@@ -2,6 +2,7 @@ import "server-only";
 
 import { describeError, rethrowFrameworkSignal } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -82,5 +83,42 @@ export async function setActivityOptOut(
     rethrowFrameworkSignal(thrown);
     console.error(`[prefs] activity opt-out write threw — ${describeError(thrown)}`);
     return { ok: false, reason: describeError(thrown) };
+  }
+}
+
+/**
+ * The language this person reads in, or null when we could not ask.
+ *
+ * READ AT DELIVERY, WHICH IS THE WHOLE REASON A NOTIFICATION CARRIES A KEY. A
+ * sentence written in English when a booking moved cannot be read back in
+ * Nepali, and the reader's language can change between the event and the
+ * reading. `lib/notify/push.ts` is the first channel that has to act on that.
+ *
+ * NULL IS "WE COULD NOT ASK", and the caller falls back to English rather than
+ * treating it as an answer — a push in the wrong language is a bad
+ * notification, where no push at all is a missed one, and of the two the
+ * missed one costs more.
+ *
+ * SERVICE ROLE, because the sender has no session: it is acting on behalf of
+ * an event, not of the recipient, and `createClient()` here would read the
+ * language of whoever happened to trigger the booking change.
+ */
+export async function readPreferredLanguage(
+  profileId: string,
+): Promise<"en" | "ne" | null> {
+  if (!hasSupabaseConfig()) return null;
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("profiles")
+      .select("preferred_language")
+      .eq("id", profileId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data.preferred_language === "ne" ? "ne" : "en";
+  } catch (thrown) {
+    rethrowFrameworkSignal(thrown);
+    return null;
   }
 }

@@ -12,7 +12,10 @@ import {
   ACKNOWLEDGED_FAILURES,
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
+  PUSH_NOT_READY_STATE,
   SEALING_NOT_READY_STATE,
+  pushKeyStatus,
+  pushReadiness,
   sealingReadiness,
   SESSION_CONFIG_STATE,
   healthVerdict,
@@ -236,6 +239,32 @@ function checkSealing(): Check {
     name: "payout.sealing",
     state: status.ok ? "ok" : SEALING_NOT_READY_STATE,
     detail: sealingReadiness(status),
+  };
+}
+
+/**
+ * Is web push configured? Free, public, and it sends nothing.
+ *
+ * THE HALF-CONFIGURED DEPLOYMENT IS WHY THIS EXISTS. The pair is two variables
+ * in two places — a public one and a secret — and a deployment with only the
+ * public half looks completely healthy: browsers subscribe, rows are written,
+ * the opt-in panel says notifications are on, and every send throws. Nobody is
+ * pushed, and because `notConfigured` deliberately does not escalate, nobody is
+ * texted either. The first signal would be a professional saying they never
+ * hear about jobs.
+ *
+ * NEVER `down` — see `PUSH_NOT_READY_STATE`. A product with no push keys serves
+ * customers perfectly well.
+ */
+function checkPush(): Check {
+  const status = pushKeyStatus({
+    publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+  });
+  return {
+    name: "notify.push",
+    state: status.ok ? "ok" : PUSH_NOT_READY_STATE,
+    detail: pushReadiness(status),
   };
 }
 
@@ -968,6 +997,7 @@ export async function GET(request: Request) {
     checkSmsGateway(),
     checkSmsProbe(),
     checkSealing(),
+    checkPush(),
     checkRateLimiter(),
     await checkSmsBudget(),
   ];
