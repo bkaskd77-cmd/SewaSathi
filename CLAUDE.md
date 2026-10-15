@@ -2479,6 +2479,93 @@ nothing. The harness models that default privilege now, so a revoke that misses
 them fails locally instead of only showing up as warnings that would not go
 away.
 
+## The installable app
+
+It installs from the browser, and `docs/TWA.md` is how it becomes a Play Store
+listing. The whole thing is `lib/pwa/`, and one rule carries the weight.
+
+- **The service worker stores no document for any real route, and that is
+  structural rather than careful.** Every number a customer reads here — a
+  quoted band, a final amount, what a professional is owed — lives in an HTML
+  document or a JSON response, so the usual shape, network-first, is a promise
+  about ORDERING that still writes the stale copy into a cache one failed
+  request away from being served. `lib/pwa/cache-rule.ts` keeps
+  `/_next/static/**`, which is content-hashed so a changed file is a changed
+  URL, plus a shell of the offline page in both languages, the manifest and
+  three icons. **`never` is the DEFAULT and not a deny-list**, so a screen
+  shipped next phase is uncached without anybody remembering — a deny-list of
+  money pages is exactly the artefact that is one phase out of date. The proof
+  runs the rule over every route in `scripts/deployed-routes.mjs`, as
+  navigations AND as plain fetches, because a soft navigation pulls the RSC
+  payload with `mode: "cors"` and the prices are in it exactly as they are in
+  the document.
+- **The offline page is the only HTML stored, so it contains nothing.** No
+  session, no price, no count, and deliberately not `site.supportPhone` —
+  exactly what somebody with no signal would want, read from an environment
+  variable, frozen onto a phone at install. A stale number there is the dead
+  escape hatch `site.ts` already records as reading like contempt.
+- **The rule's own source text is pasted into the worker, and the paste is
+  bound to a name WE choose.** `next build` minified `cachePolicy` to
+  `function f(a,b){…}`, so the generated script defined `f` and called
+  `cachePolicy`: a ReferenceError on the first fetch, the browser discards the
+  worker, every page keeps working, no offline shell, and nothing in any log
+  this product reads. **A PWA failure presents as a working website**, which is
+  the class — found by reading the bytes `next start` served, not by a check.
+  Three tests cover it now, one of them handing the generator a deliberately
+  renamed function. `CacheRule` is passed in rather than closed over for the
+  same reason one level down.
+- **`cache.addAll` is all-or-nothing, so one 404 in the shell means nobody ever
+  gets an offline page** — silently, with the site working. `check:deployed`
+  walks every shell URL against the deployment. The list is one JSON file with
+  three readers (the rule, the generator, the walk) because a `.mjs` copy for
+  the script would be the sin in the one place that decides whether the app
+  installs at all.
+- **A photograph taken with no signal is held as the camera wrote it.**
+  `lib/pwa/photo-queue.ts`, IndexedDB, because the arrival panel's
+  `localStorage` queue correctly refused to carry two megabytes and said so in
+  writing. **Never a re-encode**: a canvas destroys EXIF and
+  `lib/photos/evidence.ts` REFUSES a file with no camera clock, so a helpful
+  compression would queue something our own gate rejects while the professional
+  believed they had sent evidence. `queuedAt` is housekeeping and never
+  evidence — the capture time is inside the file. Held seven days, anchored to
+  `CLAIM_FRESHNESS_WINDOW_DAYS`, because past that the server declines it anyway.
+- **Push first, SMS only on a miss that costs somebody something.** `notify()`
+  is three tiers now: the in-app row always, for every kind, because it is the
+  record; push where a kind is worth interrupting somebody for; SMS only where
+  push could not reach them AND the kind is worth paying for. `WORTH_AN_SMS` is
+  strictly smaller than `WAKES_A_PHONE` — "fall back for everything push
+  covers" is how a free channel's generosity becomes a bill that scales with
+  every booking. **"Not delivered" means what a sender can know**: a push
+  service answers 201 when it has TAKEN a message, never when a phone has shown
+  it, so the fallback fires on "nobody to send to" and "every endpoint refused"
+  and not on a read receipt that does not exist. `notConfigured` does not
+  escalate — that is OUR missing key, and billing somebody's phone for it would
+  send an SMS for every notification in a fresh deployment.
+- **`payout.destinationChanged` is push-only**, honouring the trap
+  `lib/notify/channel.ts` wrote down before any channel existed: an account
+  takeover changes the phone number too, so an SMS read at send time warns the
+  attacker. Nothing in this schema records the previous number, so there is no
+  honest SMS — and a push subscription cannot be redirected from inside the
+  product. Refused by the list and again in the data layer.
+- **No browser writes `push_subscriptions`.** The obvious design is an insert
+  policy for `authenticated`, and that is a row whose `profile_id` the browser
+  chooses — somebody else's notifications delivered to your phone. Writes go
+  through a server action that re-reads the session.
+- **`/sw.js` is served `no-store`**, which is the classic way to get stuck:
+  an intermediary holding it for a day is a day in which no update can reach
+  anybody, and versioning the cache by commit exists precisely so one always
+  can. `middleware.ts` excludes it, the manifest and `.well-known` by name — a
+  browser refuses to register a worker from a redirect, the catch swallows it,
+  and the product works with no offline support.
+- **`/.well-known/assetlinks.json` answers 404 until a keystore exists.** A
+  committed placeholder fingerprint would publish a statement matching no app,
+  fail verification silently, and show up as an address bar on somebody else's
+  phone weeks later. `twa.assetlinks` and `notify.push` on `/api/health` are
+  both the `SMS_HEALTH_NUMBER` lesson applied before it costs anything, and
+  both are **always `skipped`** — a product with no push keys and no Android app
+  serves customers perfectly well, and `servesCustomers` turns anything else
+  into a 503.
+
 ## Motion — the standing rule
 
 Every screen ships with considered motion. Not decoration: motion whose job is
