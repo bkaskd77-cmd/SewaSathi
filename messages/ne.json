@@ -2728,6 +2728,7 @@
       "restorePlaceholder": "किन फेरि राख्ने",
       "hiddenDetail": "{when} मा {code} भनेर लुकाइएको — “{reason}”",
       "notOursToHide": "गृहपृष्ठमा नदेखिने कारण हाम्रो हातमा छैन।",
+      "ratedNoComment": "रेटिङ मात्र, केही लेखिएको छैन।",
       "codes": {
         "abusive": "गाली, धम्की वा कसैको व्यक्तिगत विवरण",
         "irrelevant": "कामबारे होइन"

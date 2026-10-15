@@ -12,6 +12,7 @@ export {
   canEdit,
   canReply,
   countsTowardAverage,
+  hasWords,
   isCustomerFlag,
   published,
   reviewWindowFrom,

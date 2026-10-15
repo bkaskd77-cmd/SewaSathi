@@ -22,14 +22,26 @@ import { describe, expect, it } from "vitest";
 
 import { readFileSync } from "node:fs";
 
+import { hasWords } from "@/lib/reviews";
+
 /** The card's rule: a name, or the words that stand in for one. */
 function shownAuthor(author: string | null, fallback: string): string {
   return author ?? fallback;
 }
 
-/** The card's rule: the words, or the sentence that says there were none. */
+/**
+ * The card's rule: the words, or the sentence that says there were none.
+ *
+ * IT CALLS `hasWords` RATHER THAN RE-TRIMMING, and the reason is that the first
+ * version of this file carried its own `comment.trim()` — so the test asserted
+ * a copy of the rule and the surfaces were free to disagree with it, which they
+ * did: `/admin/reviews` wrapped the comment in quotation marks unconditionally
+ * and printed `“”` for every wordless rating, and this file was green
+ * throughout. A test written against its own copy of the thing it is checking
+ * is the class this repository keeps recording.
+ */
 function shownComment(comment: string, fallback: string): string {
-  return comment.trim() ? comment : fallback;
+  return hasWords(comment) ? comment : fallback;
 }
 
 describe("a review card never renders a blank", () => {
@@ -113,5 +125,52 @@ describe("the reviews read does not go back to the legacy name column", () => {
     // The scanner self-tests: one that has stopped matching reads exactly like
     // a file with nothing wrong in it.
     expect(/author_name/.test('"id, author_name, rating"')).toBe(true);
+  });
+});
+
+describe("no surface asks the wordless question on its own", () => {
+  /*
+   * THE SOURCE GUARD, because the failure is silent on every screen that gets
+   * it wrong: an empty comment is a perfectly valid string, nothing throws, and
+   * the only symptom is a pair of quotation marks with nothing between them on
+   * the staff screen where somebody decides whether a review is abusive. Three
+   * surfaces ask whether a customer wrote anything — the homepage wall refuses
+   * such a review, the public listing keeps it and names it, and the admin
+   * ledger has to tell those two facts apart — and they were each asking
+   * separately.
+   */
+  const surfaces = [
+    "lib/reviews/homepage.ts",
+    "components/services/provider-reviews.tsx",
+    "app/[locale]/(admin)/admin/reviews/page.tsx",
+  ] as const;
+
+  for (const file of surfaces) {
+    it(`${file} asks hasWords rather than trimming its own copy`, () => {
+      const source = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+
+      expect(
+        source.includes("hasWords("),
+        `${file} no longer calls hasWords. Three surfaces must not re-derive it.`,
+      ).toBe(true);
+      expect(
+        /comment\.trim\(\)/.test(source),
+        `${file} trims the comment itself. Call hasWords.`,
+      ).toBe(false);
+    });
+  }
+
+  it("has a rule that still catches a surface going back to trim()", () => {
+    // The scanner self-tests: one that has stopped matching reads exactly like
+    // a file with nothing wrong in it.
+    expect(/comment\.trim\(\)/.test("if (review.comment.trim()) {")).toBe(true);
+  });
+
+  it("treats whitespace as nothing written", () => {
+    expect(hasWords("")).toBe(false);
+    expect(hasWords("   \n\t ")).toBe(false);
+    expect(hasWords("ok")).toBe(true);
   });
 });

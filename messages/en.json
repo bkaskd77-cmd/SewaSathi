@@ -2728,6 +2728,7 @@
       "restorePlaceholder": "Why it should go back",
       "hiddenDetail": "Hidden as {code} on {when} — “{reason}”",
       "notOursToHide": "Not on the homepage for a reason that is not ours to change.",
+      "ratedNoComment": "Rated, nothing written.",
       "codes": {
         "abusive": "Abusive, or somebody's private details",
         "irrelevant": "Not about the work"

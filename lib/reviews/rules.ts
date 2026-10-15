@@ -175,3 +175,25 @@ export function countsTowardAverage(review: {
 }): boolean {
   return review.excludedFromAverageAt === null;
 }
+
+/**
+ * Did the customer write anything?
+ *
+ * ONE PREDICATE, BECAUSE THREE SURFACES ASK IT AND THEY MUST NOT DISAGREE.
+ * `showsOnHomepage` refuses a wordless review (the wall quotes people), the
+ * public listing keeps it and names it (a rating is testimony and the page may
+ * not lose any), and `/admin/reviews` has to know which of those two facts it
+ * is looking at. All three were asking separately, and the admin screen was
+ * the one that got it wrong: it wrapped the comment in quotation marks
+ * unconditionally and rendered `“”` — two quote marks with nothing between
+ * them — for every rating somebody left without writing. Found in a
+ * walkthrough screenshot, on the screen where staff decide whether a review is
+ * abusive.
+ *
+ * WHITESPACE IS NOT WORDS. `submitReview` accepts whatever was typed, so a
+ * comment of three spaces and a newline is an empty one that `length` reports
+ * as four characters long.
+ */
+export function hasWords(comment: string): boolean {
+  return comment.trim().length > 0;
+}

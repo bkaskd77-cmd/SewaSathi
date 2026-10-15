@@ -43,6 +43,8 @@
 
 import { contactKinds, type ContactKind } from "@/lib/text";
 
+import { hasWords } from "./rules";
+
 /**
  * How many eligible reviews before the wall appears at all.
  *
@@ -138,8 +140,14 @@ export function showsOnHomepage(review: HomepageCandidate): HomepageVerdict {
    * that there is something to quote; a review with nothing in it would render
    * as an empty pair of quotation marks, which is the invented-content failure
    * one door along from `lib/mock/`.
+   *
+   * AND THAT LAST SENTENCE WAS A PREDICTION THAT CAME TRUE ONE SCREEN OVER:
+   * `/admin/reviews` quoted the comment unconditionally and printed `“”` for
+   * exactly these reviews. `hasWords` is why all three surfaces now ask one
+   * question — this one, the public listing, and the staff screen that has to
+   * tell the first two apart.
    */
-  if (review.comment.trim().length === 0) {
+  if (!hasWords(review.comment)) {
     return { shows: false, why: "noWords" };
   }
 

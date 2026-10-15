@@ -11,7 +11,7 @@ import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
 import { reviewsForModeration } from "@/lib/data/reviews";
-import { HOMEPAGE_REVIEW_FLOOR } from "@/lib/reviews";
+import { HOMEPAGE_REVIEW_FLOOR, hasWords } from "@/lib/reviews";
 
 import { setReviewVisibilityAction } from "./actions";
 
@@ -149,8 +149,24 @@ export default async function AdminReviewsPage() {
                     )}
                   </div>
 
+                  {/*
+                    THE QUOTATION MARKS BELONG TO THE WORDS, NOT TO THE SLOT.
+                    This printed `“”` — two quote marks with nothing between
+                    them — for every rating left without a comment, which is
+                    exactly what `showsOnHomepage`'s `noWords` comment had
+                    predicted one module over. The badge does not cover it: the
+                    refusals are ordered, so a wordless review from somebody who
+                    also opted out is badged `authorOptedOut` and says nothing
+                    about the empty quotes. Found in a walkthrough screenshot.
+                   */}
                   <p className="mt-3 text-pretty text-body-sm">
-                    {`“${review.comment}”`}
+                    {hasWords(review.comment) ? (
+                      `“${review.comment}”`
+                    ) : (
+                      <span className="italic text-muted-foreground">
+                        {t("ratedNoComment")}
+                      </span>
+                    )}
                   </p>
 
                   {review.hiddenAt ? (

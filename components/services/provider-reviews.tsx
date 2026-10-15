@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { getProviderReviews } from "@/lib/data/providers";
+import { hasWords } from "@/lib/reviews";
 
 /**
  * A professional's written reviews.
@@ -96,7 +97,7 @@ export async function ProviderReviews({
                 counts toward the average either way.
              */}
             <p className="mt-1.5 text-pretty text-body-sm text-muted-foreground">
-              {review.comment.trim() ? (
+              {hasWords(review.comment) ? (
                 review.comment
               ) : (
                 <span className="italic">{t("profile.ratedNoComment")}</span>
