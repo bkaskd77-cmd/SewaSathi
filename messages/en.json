@@ -2750,5 +2750,17 @@
         "failed": "That did not save. Nothing changed."
       }
     }
+  },
+  "offline": {
+    "title": "You are offline",
+    "body": "Your phone has lost its connection, so we cannot show you anything that might have changed — a price, a booking or where your professional is. Nothing here is out of date because nothing here is being guessed at.",
+    "retry": "Try again",
+    "kept": "Anything you had already sent is safe. A photo taken without signal is held on your phone and sent on its own when the connection comes back."
+  },
+  "install": {
+    "title": "Add SajiloKaam to your home screen",
+    "body": "Opens like an app, works on a weak connection, and you will not have to find the website again.",
+    "action": "Add to home screen",
+    "dismiss": "Not now"
   }
 }

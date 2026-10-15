@@ -138,6 +138,50 @@ export const GUARDED_ROUTES = [
   "/admin/triage-accuracy",
 ];
 
+/**
+ * Every URL the service worker stores at install, plus the worker itself.
+ *
+ * WHY A WALK AND NOT A UNIT TEST. `cache.addAll` is ALL-OR-NOTHING: one 404 in
+ * this list and the install step rejects, the worker never activates, and the
+ * product carries on working perfectly with no offline support and nothing in
+ * any log this project reads. That is the same shape as the minified-rename bug
+ * the worker already shipped once — a PWA failure presents as a working
+ * website — and it is only observable against a real deployment, because the
+ * failure is a missing URL rather than wrong code.
+ *
+ * DERIVED FROM `PRECACHE_PATHS`, never copied. `lib/pwa/cache-rule.ts` is the
+ * one list; `check-deployed.mjs` reads it so a path added to the shell is
+ * walked the same day. `/sw.js` is appended because a worker that 404s is the
+ * same failure one level up, and it is not in the shell's own list — nothing
+ * caches the worker.
+ */
+export const PWA_EXTRA_PATHS = ["/sw.js"];
+
+/** A shell URL either exists or the app cannot install. */
+export function judgePwa({ path, status, contentType }) {
+  if (status !== 200) {
+    return {
+      ok: false,
+      detail: String(status),
+      failure: `${path} answered ${status}, expected 200 — the service worker precaches it, and cache.addAll fails whole on one missing URL, so nobody would get an offline shell.`,
+    };
+  }
+  /*
+   * THE WORKER MUST NOT BE CACHEABLE BY AN INTERMEDIARY. A `/sw.js` held for a
+   * day is a day in which no update reaches anybody, which defeats the whole
+   * point of versioning the cache by commit — and it is invisible from here
+   * unless the header is read.
+   */
+  if (path === "/sw.js" && contentType && !/javascript/i.test(contentType)) {
+    return {
+      ok: false,
+      detail: contentType,
+      failure: `/sw.js is served as ${contentType}. A browser refuses to register a worker that is not JavaScript.`,
+    };
+  }
+  return { ok: true, detail: String(status), failure: null };
+}
+
 /** Routes that must NOT exist — links removed rather than shipped. */
 export const GONE_ROUTES = ["/careers", "/ne/careers"];
 
@@ -408,11 +452,20 @@ export function routeForPageFile(file) {
  * `pageFiles` are repository-relative paths; kept as an argument so this is
  * pure and the test can hand it a synthetic tree.
  */
-export function coverageGaps(pageFiles) {
+export function coverageGaps(pageFiles, shellPaths = []) {
   const unprefixed = (route) => route.replace(/^\/ne(?=\/|$)/, "") || "/";
   const covered = new Set([
     ...OPEN_ROUTES.map(unprefixed),
     ...GUARDED_ROUTES,
+    /*
+     * THE APP SHELL COUNTS AS WALKED, because it is. `/offline` is fetched in
+     * the "App shell" section rather than with the open routes, and without
+     * this the coverage rule reported it as a page nobody checks — which is
+     * the rule doing its job over a fact it had not been told. The default is
+     * `[]` so a caller that passes nothing gets the old, stricter answer
+     * rather than a quietly widened one.
+     */
+    ...shellPaths.map(unprefixed),
   ]);
 
   const gaps = [];

@@ -8,6 +8,7 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 
+import { AppShell } from "@/components/pwa/app-shell";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { routing, type Locale } from "@/i18n/routing";
 import { BUILD_COMMIT, BUILD_TIME } from "@/lib/build-info";
@@ -271,6 +272,13 @@ export default async function LocaleLayout(
             disableTransitionOnChange
           >
             {children}
+            {/*
+              THE INSTALL OFFER AND THE SERVICE-WORKER REGISTRATION, inside the
+              intl provider because the offer is written in the reader's own
+              language, and last in the tree because it renders nothing at all
+              until the browser says the app can be installed.
+            */}
+            <AppShell />
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

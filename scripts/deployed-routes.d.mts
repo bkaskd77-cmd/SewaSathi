@@ -1,6 +1,13 @@
 /**
  * Types for the route module, which is `.mjs` so the check script can import it
  * without a build step. The unit test is TypeScript, so it needs these.
+ *
+ * IT IS THE SIGNATURES WRITTEN TWICE AND IT HAS DRIFTED ONCE. `coverageGaps`
+ * gained a second parameter and this file did not, so `npm run typecheck` went
+ * red — which is the drift being caught rather than surviving, and is the whole
+ * reason the test imports through here instead of calling the `.mjs` untyped.
+ * Change a signature in `deployed-routes.mjs` and change it here in the same
+ * commit; a missing export fails at import, a wrong one fails at typecheck.
  */
 export type Verdict = {
   ok: boolean;
@@ -43,4 +50,13 @@ export declare function judgeCron(input: {
   status: number | string;
 }): Verdict;
 export declare function routeForPageFile(file: string): string | null;
-export declare function coverageGaps(pageFiles: readonly string[]): CoverageGap[];
+export declare function coverageGaps(
+  pageFiles: readonly string[],
+  shellPaths?: readonly string[],
+): CoverageGap[];
+export declare const PWA_EXTRA_PATHS: readonly string[];
+export declare function judgePwa(input: {
+  path: string;
+  status: number | string;
+  contentType?: string | null;
+}): Verdict;

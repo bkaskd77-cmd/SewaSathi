@@ -115,7 +115,21 @@ export const config = {
      * cookies must not be attached to those, running the refresh for every
      * icon request would be pure overhead, and /api/triage must never be
      * rewritten to /ne/api/triage.
+     *
+     * `sw.js`, `manifest.webmanifest` AND `.well-known` ARE EXCLUDED BY NAME,
+     * and leaving any of them in is how a PWA silently fails to install.
+     * next-intl would answer `/sw.js` with a redirect to `/en/sw.js`: the
+     * browser refuses to register a worker from a redirect, so registration
+     * throws, the catch swallows it, and the product keeps working with no
+     * offline support and nothing in any log we read. A manifest behind a
+     * redirect takes the install prompt with it. `.well-known/assetlinks.json`
+     * is read by Android itself at install, by a client that follows no
+     * redirect and reports nothing — the Play Store listing simply opens in a
+     * browser chrome instead of as an app.
+     *
+     * The extensions gained `js`, `json` and `webmanifest` for the same
+     * reason. No page route in this product ends in any of them.
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|icon.svg|sw.js|manifest.webmanifest|robots.txt|sitemap.xml|\\.well-known|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|js|json|webmanifest)$).*)",
   ],
 };

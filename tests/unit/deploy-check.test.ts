@@ -252,7 +252,24 @@ describe("nothing ships unchecked", () => {
   it("covers every page in the repository right now", () => {
     const files = globPageFiles("app/[locale]");
     expect(files.length).toBeGreaterThan(30);
-    expect(coverageGaps(files)).toEqual([]);
+    /*
+     * THE APP SHELL IS PASSED IN, because `/offline` is walked in its own
+     * section rather than with the open routes — `cache.addAll` fails whole on
+     * one 404, so every shell URL is fetched against the deployment. The list
+     * is read from the same JSON the cache rule imports; a literal here would
+     * be the fourth copy of it.
+     */
+    const shell = JSON.parse(
+      readFileSync("lib/pwa/precache-paths.json", "utf8"),
+    ) as string[];
+    expect(coverageGaps(files, shell)).toEqual([]);
+  });
+
+  it("does not count the shell as covering an ordinary page", () => {
+    // The default is `[]` and the parameter only ever widens by exactly what
+    // it is given, so passing the shell cannot quietly excuse a real route.
+    const files = ["app/[locale]/(app)/wallet/page.tsx"];
+    expect(coverageGaps(files, ["/offline", "/ne/offline"])).toHaveLength(1);
   });
 });
 

@@ -49,10 +49,12 @@ import {
   LOCALE_PREFIXES,
   NOT_WALKABLE,
   OPEN_ROUTES,
+  PWA_EXTRA_PATHS,
   coverageGaps,
   cronPaths,
   judgeCron,
   judgeGone,
+  judgePwa,
   judgeGuarded,
   judgeOpen,
 } from "./deployed-routes.mjs";
@@ -192,6 +194,23 @@ function selfTest() {
     ],
     ["an open route answering 200", () => judgeOpen({ route: "/", status: 200 }), true],
     ["an open route answering 404", () => judgeOpen({ route: "/", status: 404 }), false],
+    /*
+     * THE APP SHELL. `cache.addAll` rejects whole on one 404, so a missing
+     * shell URL means nobody gets an offline page at all — and the product
+     * keeps working, which is why this needs a walk rather than a reading.
+     */
+    ["a shell URL that exists", () => judgePwa({ path: "/offline", status: 200 }), true],
+    ["a shell URL that 404s", () => judgePwa({ path: "/offline", status: 404 }), false],
+    [
+      "the worker served as JavaScript",
+      () => judgePwa({ path: "/sw.js", status: 200, contentType: "text/javascript; charset=utf-8" }),
+      true,
+    ],
+    [
+      "the worker served as HTML",
+      () => judgePwa({ path: "/sw.js", status: 200, contentType: "text/html" }),
+      false,
+    ],
     ["a removed route staying removed", () => judgeGone({ route: "/careers", status: 404 }), true],
     ["a removed route still served", () => judgeGone({ route: "/careers", status: 200 }), false],
     [
@@ -275,10 +294,21 @@ function selfTest() {
   );
 }
 
+/**
+ * The app-shell paths, read from the one list the cache rule itself imports.
+ *
+ * One reader, two callers inside this script — the walk and the coverage rule —
+ * so a shell path is both fetched and counted as covered without the list being
+ * written anywhere a second time.
+ */
+function precachePaths() {
+  return JSON.parse(readFileSync("lib/pwa/precache-paths.json", "utf8"));
+}
+
 /** Nothing here needs a network, so it runs even when the walk cannot. */
 function coverage() {
   const files = pageFiles();
-  const gaps = coverageGaps(files);
+  const gaps = coverageGaps(files, precachePaths());
   line(
     gaps.length === 0,
     "every page is on a list",
@@ -421,6 +451,25 @@ async function main() {
     const verdict = judgeOpen({ route, status: answer.status });
     line(verdict.ok, route, verdict.detail);
     if (verdict.failure) failures.push(verdict.failure);
+  }
+
+  // 3b. Every URL the app shell is made of.
+  console.log("\nApp shell");
+  {
+    const PRECACHE_PATHS = precachePaths();
+    for (const path of [...PRECACHE_PATHS, ...PWA_EXTRA_PATHS]) {
+      let answer;
+      try {
+        answer = await get(`${origin}${path}`, "GET");
+      } catch (error) {
+        answer = { status: `error: ${error.message}`, headers: new Map() };
+      }
+      const contentType =
+        answer.headers?.get?.("content-type") ?? answer.contentType ?? null;
+      const verdict = judgePwa({ path, status: answer.status, contentType });
+      line(verdict.ok, path, verdict.detail);
+      if (verdict.failure) failures.push(verdict.failure);
+    }
   }
 
   /*
