@@ -27,10 +27,24 @@ export async function ProviderReviews({
     getTranslations("services"),
   ]);
 
+  /*
+   * A FAILED READ IS ITS OWN SENTENCE, never "no reviews yet". This branch
+   * took both and printed the empty state over a listing that has a review —
+   * on the live page, under a rating of 4.5 (1), which is the contradiction
+   * that gives it away and which nobody reads as a fault.
+   */
+  if (reviews === null) {
+    return (
+      <p className="animate-rise mt-2 text-body-sm text-muted-foreground">
+        {t("profile.reviewsUnreadable")}
+      </p>
+    );
+  }
+
   if (reviews.length === 0) {
     return (
       <p className="animate-rise mt-2 text-body-sm text-muted-foreground">
-        {t("profile.noReviews", { n: String(ratingCount) })}
+        {t("profile.noReviews", { count: ratingCount, n: String(ratingCount) })}
       </p>
     );
   }

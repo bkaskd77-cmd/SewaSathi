@@ -250,18 +250,66 @@ for (const locale of LOCALES) {
  * same shape there is correct and a branch would invent a distinction the
  * language does not make.
  */
-const PLURAL_SHAPE = /\{n\}\s+[a-z]+s\b/;
+/**
+ * `{n}` and then a plural noun, with up to two words in between.
+ *
+ * IT REQUIRED THE NOUN IMMEDIATELY AFTER `{n}` and an adjective defeated it.
+ * "Their rating comes from {n} completed jobs" shipped to the live profile
+ * page and read "1 completed jobs" — the exact defect this rule exists for,
+ * one word out of reach. Two words of slack covers "{n} settled jobs" and
+ * "{n} completed jobs" without reaching across a clause.
+ *
+ * THE STOP-LIST IS WHAT KEEPS IT FROM CRYING WOLF, and it is closed and short
+ * on purpose: these are the only words in this catalogue that end in `s`,
+ * follow a number and are not nouns being counted. Widening without it flagged
+ * "{n} booked this week", which is correct English at every n — and a checker
+ * that flags correct copy is one whose real entries get skimmed past, which is
+ * the lesson `check:keys` already paid for.
+ */
+const NOT_A_COUNTED_NOUN = new Set([
+  "this",
+  "is",
+  "was",
+  "has",
+  "its",
+  "as",
+]);
+
+/**
+ * ONE PATTERN PER WIDTH, because a single greedy one reads past the answer.
+ * `/\{n\}((?:\s+[a-z]+){0,2})\s+([a-z]+s)\b/` on "{n} settled jobs is not a
+ * baseline" takes "settled jobs" as the filler and lands on "is", which the
+ * stop-list then forgives — so the widened rule silently missed a string the
+ * NARROW one would have caught. Each width is asked separately and any hit
+ * counts.
+ */
+const PLURAL_SHAPES = [
+  /\{n\}\s+([a-z]+s)\b/,
+  /\{n\}\s+[a-z]+\s+([a-z]+s)\b/,
+  /\{n\}\s+[a-z]+\s+[a-z]+\s+([a-z]+s)\b/,
+];
 
 /** Strings where `{n}` before an s-word is genuinely invariant. */
 const ALLOWED_INVARIANT = new Set([
-  // Empty on purpose. An entry here is a claim that a count reads correctly
-  // at one, so it needs the sentence written out beside it.
+  /*
+   * "No category has a pool of {n} receiving offers yet."
+   *
+   * `{n}` counts the POOL, and `offers` is the object of "receiving" rather
+   * than the thing being counted — so it is plural at every n, including one.
+   * The first entry this set has ever carried, and it is here rather than in
+   * the rule because `offers` is a perfectly ordinary counted noun elsewhere;
+   * teaching the regex to forgive it everywhere would blind a real one.
+   */
+  "admin.signals.floors.rotationPool",
 ]);
 
 function missingPluralBranch(message) {
   if (typeof message !== "string") return false;
   if (message.includes("plural")) return false;
-  return PLURAL_SHAPE.test(message);
+  return PLURAL_SHAPES.some((shape) => {
+    const match = shape.exec(message);
+    return Boolean(match) && !NOT_A_COUNTED_NOUN.has(match[1]);
+  });
 }
 
 /*
@@ -275,7 +323,24 @@ function missingPluralBranch(message) {
     "{count, plural, one {{n} job} other {{n} jobs}}",
     "{n} वटा काम",
     "{amount} paid",
+    // Ends in `s`, follows a number, and is not a noun being counted. Flagging
+    // this is what made the first widened version unusable.
+    "{n} booked this week",
   ];
+  // The greedy-match case: a single pattern read past "jobs" onto "is".
+  if (!missingPluralBranch("{n} settled jobs is not a baseline yet")) {
+    failures.push(
+      "check:messages self-test — the plural rule reads past the counted noun " +
+        "onto a stop-list word. Each width has to be asked separately.",
+    );
+  }
+  // The adjective case, which shipped "1 completed jobs" to a live page.
+  if (!missingPluralBranch("rating comes from {n} completed jobs")) {
+    failures.push(
+      "check:messages self-test — the plural rule no longer reaches past an " +
+        "adjective. \"{n} completed jobs\" is what it missed in production.",
+    );
+  }
   if (!missingPluralBranch(mustFlag)) {
     failures.push(
       "check:messages self-test — the plural rule no longer flags \"{n} jobs done\". It is not checking anything.",

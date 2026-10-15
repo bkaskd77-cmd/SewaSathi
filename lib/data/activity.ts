@@ -338,7 +338,7 @@ async function readReviewWall(): Promise<ReviewWallEntry[]> {
     const { data, error } = await createAdminClient()
       .from("provider_reviews")
       .select(
-        "id, rating, comment, published_at, homepage_hidden_at, profiles(full_name, hide_from_activity), bookings(category_slug, addresses(city))",
+        "id, rating, comment, published_at, homepage_hidden_at, profiles!provider_reviews_customer_id_fkey(full_name, hide_from_activity), bookings(category_slug, addresses(city))",
       )
       .not("published_at", "is", null)
       .order("published_at", { ascending: false })

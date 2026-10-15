@@ -505,8 +505,26 @@ function reviewerFirstName(value: unknown): string | null {
   return first ? first : null;
 }
 
+/**
+ * A professional's published reviews, or NULL when the read failed.
+ *
+ * NULL IS NOT AN EMPTY LIST, and the difference is what made a real bug
+ * invisible for a day. This returned `Review[]` and collapsed a failed query
+ * into the empty seed, so the profile page printed "No written reviews yet"
+ * over a listing that has one — a failed read rendering as a measured zero,
+ * which is the rule `/services` already follows one screen over.
+ *
+ * IT IS ALSO THE SIGNATURE WORTH KNOWING. On a healthy read 0 reviews means
+ * `rating_count` is 0 too, because both count the same published rows — so
+ * "no reviews" printed beside a non-zero count can ONLY mean the query failed.
+ * That sentence was on the live page, with the number 1 in it, and read as
+ * ordinary copy.
+ *
+ * The seed fallback stays for an unconfigured clone, where there is genuinely
+ * no database to ask.
+ */
 export const getProviderReviews = cache(
-  async (providerId: string): Promise<Review[]> => {
+  async (providerId: string): Promise<Review[] | null> => {
     const fallback = SEED_REVIEWS.filter(
       (review) => review.providerId === providerId,
     ).sort((a, b) => a.daysAgo - b.daysAgo);
@@ -520,7 +538,7 @@ export const getProviderReviews = cache(
       const { data, error } = await createPublicClient()
         .from("provider_reviews")
         .select(
-          "id, provider_id, rating, comment, created_at, reply_text, published_at, profiles(full_name)",
+          "id, provider_id, rating, comment, created_at, reply_text, published_at, profiles!provider_reviews_customer_id_fkey(full_name)",
         )
         .eq("provider_id", providerId)
         /*
@@ -533,13 +551,22 @@ export const getProviderReviews = cache(
         .order("published_at", { ascending: false })
         .limit(10);
 
-      if (error || !data || data.length === 0) {
-        markDataSource(
-          "reviews",
-          "seed",
-          error ? describeError(error) : "query returned 0 rows",
-        );
-        return fallback;
+      /*
+       * A FAILURE AND AN EMPTY CATALOGUE ARE DIFFERENT ANSWERS NOW. They were
+       * one branch, which is how a PostgREST error — `profiles` is reachable
+       * from `provider_reviews` by THREE foreign keys, so an unqualified
+       * `profiles(…)` embed is refused as ambiguous — came out the other side
+       * as "this professional has no reviews".
+       */
+      if (error) {
+        markDataSource("reviews", "seed", describeError(error));
+        console.error(`[providers] reviews read failed — ${describeError(error)}`);
+        return null;
+      }
+
+      if (!data || data.length === 0) {
+        markDataSource("reviews", "database");
+        return [];
       }
 
       markDataSource("reviews", "database");
@@ -561,7 +588,7 @@ export const getProviderReviews = cache(
     } catch (thrown) {
       rethrowFrameworkSignal(thrown);
       markDataSource("reviews", "seed", describeError(thrown));
-      return fallback;
+      return null;
     }
   },
 );

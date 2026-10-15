@@ -480,6 +480,32 @@ zero.
 `lib/data/` is the boundary: `categories.ts`, `providers.ts` (list, one, counts,
 reviews) and `ranking.ts`. Pages never touch Supabase directly.
 
+**An embed names its foreign key, and an ambiguous one fails the WHOLE read.**
+PostgREST refuses `profiles(full_name)` from `provider_reviews` because three
+constraints join those tables — `customer_id`, `excluded_by`,
+`homepage_hidden_by` — and the refusal arrives as a failed query, not as a
+missing field. Three reads were written that way in one day and a fourth was
+already live: the profile page's reviews list (which printed "No written reviews
+yet" under a rating of 4.5 (1) on the public site), the homepage review wall and
+`/admin/reviews` (both silent because a floor and an empty state render the same
+nothing), and `openAmountMismatches`, where `bookings` reaches `providers` three
+ways and the disputed-cash queue had been answering "we could not read it" since
+the second of those columns was added. **Nothing in the suite could see it**: the
+db tests speak to Postgres directly, where the ambiguity does not exist, and
+`column-manifest.mjs` skips embeds by design. `tests/db/embed-ambiguity.test.ts`
+derives every multi-FK pair from `pg_constraint` and fails on an unqualified
+embed of one — it found the fourth on its first run. The correct form was
+already in the tree, in the select directly above one that broke:
+`profiles!bookings_customer_id_fkey(…)`.
+
+**And a failed read must not render as an empty catalogue, which is what hid
+it.** `getProviderReviews` collapsed an error into the empty seed and returned
+`Review[]`; it returns `Review[] | null` now, and the page says "we can't load
+the reviews right now — this is us, not you". The signature is worth knowing:
+0 reviews beside a non-zero `rating_count` can ONLY mean the query failed,
+because both count the same published rows — and that contradiction was on the
+live page, in a sentence that read like ordinary copy.
+
 **The fallback is a blind spot, so it announces itself.** The seed and the
 tables hold the same rows, which means a broken query renders a page that looks
 perfect. Every read records which path it took (`lib/data/source.ts`) and
@@ -2632,6 +2658,18 @@ Numbers in a summary are not a guard. Two things run automatically:
   is the escape hatch and is empty on purpose.
   `tests/unit/plural-counts.test.ts` renders the strings through next-intl as
   well, because a branch that exists but selects wrongly passes the lint.
+- **The plural rule needed the noun IMMEDIATELY after `{n}`, and one adjective
+  defeated it.** "Their rating comes from {n} completed jobs" shipped to the live
+  profile page reading "1 completed jobs" — the exact defect the rule exists for,
+  one word out of reach. It asks three widths now, **each separately**: a single
+  greedy pattern took "settled jobs" as filler and landed on "is", so the widened
+  version silently missed a string the narrow one would have caught. `NOT_A_COUNTED_NOUN`
+  is a short closed list of words that end in `s`, follow a number and are not
+  nouns being counted — without it the wider rule flagged "{n} booked this week",
+  and a checker that flags correct copy is one whose real entries get skimmed.
+  It caught two more live strings; `ALLOWED_INVARIANT` carries its first entry,
+  `rotationPool`, where `{n}` counts the pool and `offers` is the object of
+  "receiving" rather than the thing counted.
 - **That same fix exposed a false positive in the placeholder check itself.**
   It read `{X}` or `{X,` as an argument, so `=0 {None, on {jobs} finished
   jobs}` was reported as English "using {None}" and Nepali failing to — wrong

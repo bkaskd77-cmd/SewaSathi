@@ -344,7 +344,7 @@
       "documentsPending": "Their documents are with our verification team now.",
       "whereTheyWork": "Where they work",
       "reviews": "Reviews",
-      "noReviews": "No written reviews yet — this professional is new to the platform. Their rating comes from {n} completed jobs.",
+      "noReviews": "Nobody has written a review yet. {count, plural, =0 {The rating above has no reviews behind it yet.} one {The rating above comes from {n} rating with no comment.} other {The rating above comes from {n} ratings with no comments.}}",
       "ratingOutOf": "{rating} out of 5",
       "daysAgo": "{count, plural, one {{n} day ago} other {{n} days ago}}",
       "monthsAgo": "{count, plural, one {{n} month ago} other {{n} months ago}}",
@@ -368,7 +368,8 @@
       "notMeasured": "Not measured yet",
       "reply": "{name} replied",
       "aCustomer": "A customer",
-      "ratedNoComment": "Rated, no comment written."
+      "ratedNoComment": "Rated, no comment written.",
+      "reviewsUnreadable": "We can't load the reviews right now — this is us, not you."
     },
     "ward": "Ward {n}",
     "searchLabel": "Search services",
@@ -2156,7 +2157,7 @@
         "title": "How much is paid in cash",
         "lead": "By value first, because cash tends to be the big jobs and the job count alone would show half the real exposure. Never broken down by professional: the customer picks the method.",
         "empty": "No settled jobs yet, so there is nothing to read.",
-        "tooEarly": "{n} settled jobs is not a baseline yet — {min} is the minimum before these percentages mean anything.",
+        "tooEarly": "{count, plural, one {{n} settled job is not a baseline yet} other {{n} settled jobs are not a baseline yet}} — {min} is the minimum before these percentages mean anything.",
         "everything": "Everything",
         "byTrade": "By trade",
         "byWard": "By ward",
@@ -2641,7 +2642,7 @@
       "floors": {
         "minutes": "Minutes replace a guess after",
         "span": "A day span replaces a guess after",
-        "jobs": "{n} completed jobs",
+        "jobs": "{count, plural, one {{n} completed job} other {{n} completed jobs}}",
         "why": "The span asks for more because its wrong answer is the expensive one: a wrong minutes figure reserves 90 where 120 was right, where a wrong span holds four days of a professional's week and four days of a customer's home, invisibly. Both floors are stated here because a threshold you can only find by tripping it is a trap."
       },
       "products": {

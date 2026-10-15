@@ -97,11 +97,17 @@ export default async function DurationPage() {
       <dl className="animate-rise mt-6 space-y-1 rounded-lg border border-border p-4 text-body-sm text-muted-foreground">
         <Row
           label={t("floors.minutes")}
-          value={t("floors.jobs", { n: String(MIN_DURATION_SAMPLE.minutes) })}
+          value={t("floors.jobs", {
+            n: String(MIN_DURATION_SAMPLE.minutes),
+            count: MIN_DURATION_SAMPLE.minutes,
+          })}
         />
         <Row
           label={t("floors.span")}
-          value={t("floors.jobs", { n: String(MIN_DURATION_SAMPLE.span) })}
+          value={t("floors.jobs", {
+            n: String(MIN_DURATION_SAMPLE.span),
+            count: MIN_DURATION_SAMPLE.span,
+          })}
         />
       </dl>
       <p className="animate-rise mt-2 max-w-2xl text-caption text-muted-foreground">

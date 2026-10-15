@@ -472,7 +472,7 @@ export async function reviewsForModeration(
     const { data, error } = await createAdminClient()
       .from("provider_reviews")
       .select(
-        "id, provider_id, rating, comment, published_at, homepage_hidden_at, homepage_hidden_code, homepage_hidden_reason, providers(display_name), profiles(full_name, hide_from_activity)",
+        "id, provider_id, rating, comment, published_at, homepage_hidden_at, homepage_hidden_code, homepage_hidden_reason, providers(display_name), profiles!provider_reviews_customer_id_fkey(full_name, hide_from_activity)",
       )
       .not("published_at", "is", null)
       .order("published_at", { ascending: false })

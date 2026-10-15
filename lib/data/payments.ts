@@ -1495,8 +1495,22 @@ export async function openAmountMismatches(): Promise<QueuePage<OpenMismatch>> {
   try {
     const { data, error, count } = await createAdminClient()
       .from("bookings")
+      /*
+       * THE CONSTRAINT IS NAMED, because `bookings` reaches `providers` by
+       * THREE foreign keys — `provider_id`, `first_choice_provider_id` and
+       * `overbook_offered_by` — and PostgREST refuses an ambiguous embed by
+       * failing the whole read. This queue has been answering "we could not
+       * read it" ever since the second of those was added. The one wanted here
+       * is who actually did the job.
+       *
+       * THE COMMENT IS OUTSIDE THE CALL, and the first version of it was not:
+       * `scripts/column-manifest.mjs` reads the literal that follows
+       * `.select(`, so a comment in there is read AS the column list. The
+       * activity strip's select already carries that warning and I made the
+       * mistake anyway — caught by `tests/db/column-manifest.test.ts`.
+       */
       .select(
-        "id, reference, category_slug, final_amount, customer_reported_amount, quoted_min, quoted_max, amount_mismatch_at, providers (display_name)",
+        "id, reference, category_slug, final_amount, customer_reported_amount, quoted_min, quoted_max, amount_mismatch_at, providers!bookings_provider_id_fkey (display_name)",
         { count: "exact" },
       )
       .not("amount_mismatch_at", "is", null)

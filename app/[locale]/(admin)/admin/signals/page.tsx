@@ -537,6 +537,7 @@ export default async function SignalsPage() {
               <CircleAlert aria-hidden="true" className="size-4" />
               {t("mix.tooEarly", {
                 n: String(overall.settledJobs),
+                count: overall.settledJobs,
                 min: String(MIX_BASELINE_MINIMUM_JOBS),
               })}
             </p>

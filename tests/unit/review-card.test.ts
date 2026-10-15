@@ -96,7 +96,17 @@ describe("the reviews read does not go back to the legacy name column", () => {
       /author_name/.test(source),
       "lib/data/providers.ts reads author_name again. It is empty on every real review.",
     ).toBe(false);
-    expect(source).toContain("profiles(full_name)");
+    /*
+     * THE QUALIFIED FORM, not the bare one this first pinned. `profiles` is
+     * reachable from `provider_reviews` by three foreign keys, so an embed
+     * without a constraint name is refused by PostgREST and the read fails —
+     * which is how this fix's first version made the review disappear from the
+     * live page entirely. `tests/db/embed-ambiguity.test.ts` derives that rule
+     * from the schema for every table; this pins the one call site.
+     */
+    expect(source).toContain(
+      "profiles!provider_reviews_customer_id_fkey(full_name)",
+    );
   });
 
   it("has a rule that still catches the column coming back", () => {
