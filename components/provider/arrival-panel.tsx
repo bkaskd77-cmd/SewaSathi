@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { MIN_WAIT_MINUTES } from "@/lib/abuse";
 import { cn } from "@/lib/utils";
 import { readOriginalPhoto } from "@/lib/photos/original";
+import {
+  discardPhoto,
+  queuePhoto,
+  takeQueuedPhoto,
+} from "@/lib/pwa/photo-queue";
 
 /**
  * "I've arrived", and then "nobody is here".
@@ -52,13 +57,28 @@ import { readOriginalPhoto } from "@/lib/photos/original";
 const QUEUE_KEY = "sk:arrival-queue";
 
 /**
- * THE PHOTOGRAPH IS NOT QUEUED, and that is a size decision rather than an oversight.
- * A queued action goes into `localStorage`, which is a handful of megabytes shared
- * with everything else this origin stores — and an uncompressed phone photo is two of
- * them. Queueing one would risk a quota error that loses the CLAIM as well, which is
- * the failure this queue exists to prevent. So an arrival that could not reach the
- * server is retried without its picture, and a claim with no photograph is an ordinary
- * claim.
+ * THE PHOTOGRAPH IS QUEUED NOW, AND IT IS QUEUED SOMEWHERE ELSE.
+ *
+ * This used to say the picture was dropped on a failed arrival, and the reason was
+ * sound: a queued action goes into `localStorage`, which is a handful of megabytes
+ * shared with everything else this origin stores, and an uncompressed phone photo is
+ * two of them — so queueing one risked a quota error that lost the CLAIM as well,
+ * which is the failure this queue exists to prevent. The limitation was written down
+ * rather than hidden, and it was the right trade against the only store available.
+ *
+ * `lib/pwa/photo-queue.ts` is the store that was missing. IndexedDB holds hundreds of
+ * megabytes and keeps a `Blob` as a `Blob` rather than as a base64 string a third
+ * larger than the bytes, so the picture no longer competes with the claim for room.
+ * The two queues stay SEPARATE on purpose: this one is small, synchronous and must
+ * never fail, and a photograph that cannot be stored must not take an arrival down
+ * with it. `QueuedAction` is therefore unchanged, and the photograph is looked up
+ * beside it by booking id.
+ *
+ * WHAT IS STORED IS THE FILE AS THE CAMERA WROTE IT. Compressing on the way in would
+ * destroy the EXIF, and `lib/photos/evidence.ts` REFUSES a photograph with no camera
+ * clock — so a helpful re-encode would queue something our own gate then rejects,
+ * which is worse than dropping it: the professional would believe they had sent
+ * evidence.
  */
 type QueuedAction =
   | { kind: "arrived"; bookingId: string; lat?: number; lng?: number }
@@ -159,6 +179,18 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
   const [busy, setBusy] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
   const [queued, setQueued] = React.useState(false);
+  /*
+   * WHETHER THE PICTURE IS HELD TOO, SAID SEPARATELY.
+   *
+   * `queued` already produced "Saved on your phone. It will send itself when
+   * you have signal" — and until this phase that sentence was false about the
+   * photograph, which was dropped. The copy promised more than the code did,
+   * on the screen where the thing being promised is evidence in an argument
+   * about Rs 350. Now that both are held, the two cases are still different
+   * facts and a professional who attached a picture should be told it is one
+   * of the things waiting, not left to infer it.
+   */
+  const [photoQueued, setPhotoQueued] = React.useState(false);
   const [claimed, setClaimed] = React.useState(props.claimed);
   /*
    * The photograph is held in state until the arrival tap rather than uploaded on
@@ -166,6 +198,13 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
    * two-step upload is a second chance to lose their connection.
    */
   const [photo, setPhoto] = React.useState<string | null>(null);
+  /*
+   * THE FILE ITSELF, KEPT BESIDE THE ENCODED COPY. The base64 is what a server
+   * action takes; the blob is what IndexedDB stores without inflating it by a
+   * third. Encoding once on selection and keeping both is cheaper than encoding
+   * again on a phone that has just failed to reach the network.
+   */
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [photoTooBig, setPhotoTooBig] = React.useState(false);
   const [now, setNow] = React.useState(() => Date.now());
 
@@ -189,16 +228,44 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
     );
     if (pending.length === 0) {
       setQueued(false);
+      setPhotoQueued(false);
       return;
     }
+    // Said from the store rather than from this render's memory: a reload
+    // between the tap and the reconnect must not forget the picture is there.
+    setPhotoQueued((await takeQueuedPhoto(props.bookingId)) !== null);
     for (const action of pending) {
       try {
+        /*
+         * THE HELD PHOTOGRAPH RIDES THE RETRY, which is the whole point of
+         * storing it. It is read as the original blob and encoded here rather
+         * than at capture, so the EXIF the server reads is the camera's own —
+         * `lib/photos/evidence.ts` refuses a file with no camera clock, and a
+         * re-encode anywhere in this path would produce exactly that.
+         *
+         * A FAILED READ SENDS THE ARRIVAL ANYWAY. An arrival with no
+         * photograph is an ordinary arrival; an arrival that never lands
+         * because its picture could not be read is the failure this queue
+         * exists to prevent.
+         */
+        let queuedPhoto: string | undefined;
+        if (action.kind === "arrived") {
+          const blob = await takeQueuedPhoto(action.bookingId);
+          if (blob) {
+            queuedPhoto =
+              (await readOriginalPhoto(
+                new File([blob], "arrival.jpg", { type: blob.type || "image/jpeg" }),
+              )) ?? undefined;
+          }
+        }
+
         const result =
           action.kind === "arrived"
             ? await props.recordArrival({
                 bookingId: action.bookingId,
                 lat: action.lat,
                 lng: action.lng,
+                photoBase64: queuedPhoto,
               })
             : await props.claimNoShow({
                 bookingId: action.bookingId,
@@ -206,6 +273,12 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
               });
         if (result.ok) {
           queue.remove(action);
+          /*
+           * DISCARDED ONLY ON A CONFIRMED SUCCESS, and only for an arrival.
+           * Clearing it beside the action would drop the picture on a retry
+           * that then failed — the one case it was stored for.
+           */
+          if (action.kind === "arrived") void discardPhoto(action.bookingId);
           if (action.kind === "noShow") setClaimed(true);
         }
       } catch {
@@ -213,7 +286,11 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
         return;
       }
     }
-    setQueued(queue.read().some((item) => item.bookingId === props.bookingId));
+    const stillQueued = queue
+      .read()
+      .some((item) => item.bookingId === props.bookingId);
+    setQueued(stillQueued);
+    if (!stillQueued) setPhotoQueued(false);
   }, [props]);
 
   React.useEffect(() => {
@@ -246,8 +323,22 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
         photoBase64: photo ?? undefined,
       });
       if (!result.ok) throw new Error("refused");
+      /*
+       * IT REACHED THE SERVER, so nothing stale is left behind — including a
+       * picture queued on an earlier attempt that this successful one carried.
+       */
+      void discardPhoto(props.bookingId);
     } catch {
       queue.add(action);
+      /*
+       * THE PICTURE IS STORED SEPARATELY AND AFTERWARDS, never as part of the
+       * action. If IndexedDB is blocked or full this resolves false and the
+       * arrival is still queued — which is the old behaviour, reached as a
+       * fallback rather than as the design.
+       */
+      if (photoFile) {
+        void queuePhoto(props.bookingId, photoFile).then(setPhotoQueued);
+      }
       setQueued(true);
     } finally {
       setBusy(false);
@@ -287,7 +378,9 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
     return (
       <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4">
         <p className="text-body-md">{t("claimed")}</p>
-        {queued ? <Queued label={t("queued")} /> : null}
+        {queued ? (
+          <Queued label={photoQueued ? t("queuedWithPhoto") : t("queued")} />
+        ) : null}
       </div>
     );
   }
@@ -353,6 +446,7 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
               if (!file) return;
               const encoded = await readOriginalPhoto(file);
               setPhoto(encoded);
+              setPhotoFile(encoded === null ? null : file);
               // Said plainly rather than silently dropped: somebody who thinks they
               // attached a photograph and did not has weaker evidence and no idea.
               setPhotoTooBig(encoded === null);
@@ -373,7 +467,9 @@ export function ArrivalPanel(props: ArrivalPanelProps) {
         {t("waiting", { minutes: String(Math.max(0, waitedMinutes)) })}
       </p>
 
-      {queued ? <Queued label={t("queued")} /> : null}
+      {queued ? (
+          <Queued label={photoQueued ? t("queuedWithPhoto") : t("queued")} />
+        ) : null}
 
       <ContactButtons
         phone={props.customerPhone}

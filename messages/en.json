@@ -1513,6 +1513,7 @@
       "stillWaiting": "I'll keep waiting",
       "claimed": "Reported. We will pay you for the trip and let you know.",
       "queued": "Saved on your phone. It will send itself when you have signal — you do not need to do anything.",
+      "queuedWithPhoto": "Saved on your phone, photo and all. It will send itself when you have signal — you do not need to do anything, and do not take the photo again.",
       "whatsapp": "WhatsApp",
       "addPhoto": "Add a photo of the door",
       "photoAttached": "Photo added",
