@@ -1,0 +1,168 @@
+# Nightly encrypted database backup.
+#
+# WHAT THIS IS AND, MORE IMPORTANTLY, WHAT IT IS NOT. Supabase's own backups are
+# the primary copy and this does not replace them: on the free plan those are
+# daily, retained briefly, and live inside the account that would be lost in the
+# one scenario an off-site copy exists for — a billing lapse, a deleted project,
+# a compromised dashboard login. This is the second copy, in a different
+# provider's storage, readable with a key that provider does not have.
+#
+# IT IS NOT AN ARCHIVE EITHER. GitHub deletes artifacts after their retention
+# window and deletes all of them with the repository, so the longest this holds
+# anything is 90 days. Anything that must outlive that gets downloaded and kept
+# somewhere a person chooses; `docs/BACKUPS.md` says so in the same breath as
+# the restore steps, because a backup policy nobody can state is one nobody has.
+#
+# THE RESTORE IS PROVEN BY A TEST, NOT BY THIS FILE RUNNING GREEN.
+# `tests/db/backup-restore.test.ts` takes a dump of a real schema, seals it,
+# refuses the wrong key, opens it and restores it into a scratch database — and
+# reads this file to check the flags that decide whether a dump is restorable
+# appear in both. A backup nobody has restored is a belief.
+
+name: Nightly backup
+
+on:
+  schedule:
+    # 19:15 UTC — 01:00 in Kathmandu, which is the quietest hour for this
+    # product and well clear of the 03:00–04:00 UTC window the Vercel crons use.
+    # Not on the hour: GitHub delays scheduled runs under load, and :00 is when
+    # every repository on the platform asks at once.
+    - cron: "15 19 * * *"
+  # Runnable on demand, because the first thing anybody wants after changing
+  # the key or the connection string is to know whether it still works.
+  workflow_dispatch:
+
+concurrency:
+  # Two dumps of the same database at once is wasted load on a small instance
+  # and two artifacts nobody can tell apart.
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # A dump of a database this size is minutes, not hours. The cap is here so
+    # a hung connection fails loudly tonight instead of burning the free
+    # minutes allowance until somebody notices the bill.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # THE RUNNER SHIPS postgresql-client-16 AND SUPABASE RUNS 17.
+      #
+      # `pg_dump` refuses a server newer than itself — "server version
+      # mismatch", every night, with no partial file to misread as success. The
+      # tempting fix is `--no-version-check`, which does not exist; the other
+      # tempting fix is an older client with `--ignore-version`, which produces
+      # a dump silently missing object types the newer server has. So the
+      # client comes from PGDG and the major version is pinned to the server's.
+      - name: Install a client that matches the server
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Refuse to run with no key
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          # CHECKED BEFORE THE DUMP, NOT AFTER. With no key the sealing step
+          # fails having already written a plaintext dump to the runner's disk,
+          # and a later step with a loose glob is how that gets uploaded. The
+          # job that cannot encrypt must not produce anything to encrypt.
+          missing=""
+          [ -n "${BACKUP_ENCRYPTION_KEY:-}" ] || missing="$missing BACKUP_ENCRYPTION_KEY"
+          [ -n "${SUPABASE_DB_URL:-}" ] || missing="$missing SUPABASE_DB_URL"
+          if [ -n "$missing" ]; then
+            echo "::error::Not configured:$missing — see docs/BACKUPS.md"
+            exit 1
+          fi
+
+      - name: Dump and seal
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          # THE WORKSPACE IS NOT A SAFE PLACE FOR EITHER FILE. It is a git
+          # checkout, so a plaintext dump there is one `git add -A` away from a
+          # commit, and the key is one `actions/upload-artifact` glob away from
+          # publication. RUNNER_TEMP is outside the checkout and is destroyed
+          # with the runner.
+          out="$RUNNER_TEMP/sajilokaam-$stamp.dump"
+          key="$RUNNER_TEMP/backup.key"
+          printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$key"
+          chmod 600 "$key"
+
+          # -Fc: a custom-format archive. A plain .sql file is one long
+          # transaction that stops at the first error and leaves a half-built
+          # database with no way to resume; this one restores selectively and
+          # reorders itself to satisfy dependencies.
+          #
+          # --no-owner --no-privileges: the roles on a restore target are not
+          # the roles here, and a dump that insists on them fails on every
+          # GRANT. The migrations are what re-establish grants; this is the
+          # data and the shape.
+          /usr/lib/postgresql/17/bin/pg_dump \
+            --dbname="$SUPABASE_DB_URL" \
+            --format=custom \
+            -Fc \
+            --no-owner \
+            --no-privileges \
+            --file="$out"
+
+          ls -l "$out"
+
+          gpg --batch --yes --quiet \
+            --symmetric --cipher-algo AES256 \
+            --passphrase-file "$key" \
+            -o "$out.gpg" "$out"
+
+          # THE PLAINTEXT IS REMOVED BEFORE ANY UPLOAD STEP EXISTS, rather than
+          # trusting the glob below to exclude it.
+          shred -u "$out" "$key" 2>/dev/null || rm -f "$out" "$key"
+
+          echo "artifact=$out.gpg" >> "$GITHUB_ENV"
+          echo "name=sajilokaam-db-$stamp" >> "$GITHUB_ENV"
+
+      - name: Prove it is sealed
+        run: |
+          set -euo pipefail
+          # THE DRILL'S OWN ASSERTION, against the real artifact. gpg reads the
+          # header without the key: an encrypted file names its cipher and says
+          # it is "encrypted with 1 passphrase", a plaintext one answers "no
+          # valid OpenPGP data found".
+          #
+          # THE OUTPUT IS CAPTURED RATHER THAN PIPED, because `--list-packets`
+          # on a symmetric file EXITS NON-ZERO — it prints the header, then
+          # tries to decrypt, fails for want of a passphrase and returns 1.
+          # Piped under `set -euo pipefail` that failed the job after writing a
+          # perfectly good backup. Caught by tests/db/backup-restore.test.ts
+          # before this ever ran.
+          packets="$(gpg --batch --list-packets "$artifact" 2>&1 || true)"
+          echo "$packets" | head -3
+          echo "$packets" | grep -qi "encrypted data"
+          echo "$packets" | grep -qi "passphrase"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.name }}
+          path: ${{ env.artifact }}
+          # 90 is GitHub's maximum. It is a ceiling, not a policy — see the
+          # header and docs/BACKUPS.md.
+          retention-days: 90
+          # A missing file must fail the job. The default warns and goes green,
+          # which is a nightly tick for a backup that does not exist.
+          if-no-files-found: error
+          compression-level: 0 # Already compressed by pg_dump and then sealed.

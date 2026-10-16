@@ -106,6 +106,15 @@ export type Harness = {
   pastTheGrant: (userId: string) => Promise<Client>;
   /** A logged-out connection — the join form's caller. */
   asAnon: () => Promise<Client>;
+  /**
+   * The unix socket directory this cluster listens on.
+   *
+   * EXPOSED FOR `pg_dump`, which takes a connection rather than a client.
+   * `tests/db/backup-restore.test.ts` runs the real backup commands against a
+   * real schema, and a drill that could not reach the cluster the way the tool
+   * does would be a drill of something else.
+   */
+  socketDir: string;
   stop: () => Promise<void>;
 };
 
@@ -349,6 +358,7 @@ export async function startPostgres(): Promise<Harness> {
 
   return {
     admin,
+    socketDir,
     async asUser(userId: string) {
       const client = await connect();
       await client.query("set role authenticated");
