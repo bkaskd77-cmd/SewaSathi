@@ -3,6 +3,7 @@ import "server-only";
 import { recordDestinationAccess } from "@/lib/audit";
 import { REAUTH_WINDOW_MINUTES } from "@/lib/config/payout-policy";
 import { unreadable, type Readable } from "@/lib/data/readable";
+import { pushTargetsFor } from "@/lib/data/push";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
@@ -46,6 +47,17 @@ export type MaskedDestination = {
   createdAt: Date;
   usableFrom: Date;
   firstPayoutConfirmedAt: Date | null;
+  /**
+   * Live push subscriptions when this row was recorded.
+   *
+   * NULL IS "NOT RECORDED", never "no devices". The admin screen prints it,
+   * because the difference between confirming a change somebody was warned
+   * about and confirming one nobody could be told about is the difference
+   * between a formality and the only control there is.
+   */
+  noticeDevices: number | null;
+  /** Did it replace another? A first destination redirects nobody. */
+  replacedAnother: boolean;
   /** Asked once here so no surface forms a second opinion about it. */
   readiness: DestinationReadiness;
 };
@@ -68,6 +80,20 @@ export type DestinationRead =
   | { ok: true; destination: MaskedDestination | null }
   | { ok: false; destination: null };
 
+/**
+ * `replacedAnother` IS DERIVED FROM `usable_from`, AND THAT IS WORTH STATING
+ * RATHER THAN LEAVING AS A TRICK.
+ *
+ * `destinationUsableFrom` returns `createdAt` unchanged for a first
+ * destination and `createdAt + DESTINATION_COOLDOWN_HOURS` for a replacement —
+ * so the two stamps being equal IS the record that nobody was redirected. The
+ * alternative is a second read counting the provider's retired rows on every
+ * mapping, which is a round trip per row on a screen that lists them.
+ *
+ * It is derived rather than stored because a stored copy could disagree with
+ * the window actually applied, and the window is what the professional was
+ * promised.
+ */
 function toMasked(row: {
   id: string;
   kind: "bank" | "esewa" | "khalti";
@@ -78,8 +104,11 @@ function toMasked(row: {
   usable_from: string;
   first_payout_confirmed_at: string | null;
   retired_at: string | null;
+  notice_devices?: number | null;
 }): MaskedDestination {
   const usableFrom = new Date(row.usable_from);
+  const createdAt = new Date(row.created_at);
+  const replacedAnother = usableFrom.getTime() > createdAt.getTime();
   const retiredAt = row.retired_at ? new Date(row.retired_at) : null;
   const firstPayoutConfirmedAt = row.first_payout_confirmed_at
     ? new Date(row.first_payout_confirmed_at)
@@ -99,19 +128,23 @@ function toMasked(row: {
     accountMasked: maskAccountRef(openSecret(row.account_ref)),
     accountName: row.account_name,
     bankName: row.bank_name,
-    createdAt: new Date(row.created_at),
+    createdAt,
     usableFrom,
     firstPayoutConfirmedAt,
+    noticeDevices: row.notice_devices ?? null,
+    replacedAnother,
     readiness: destinationReadiness({
       retiredAt,
       usableFrom,
       firstPayoutConfirmedAt,
+      replacedAnother,
+      noticeDevices: row.notice_devices ?? null,
     }),
   };
 }
 
 const LIVE_COLUMNS =
-  "id, kind, account_ref, account_name, bank_name, created_at, usable_from, first_payout_confirmed_at, retired_at";
+  "id, kind, account_ref, account_name, bank_name, created_at, usable_from, first_payout_confirmed_at, retired_at, notice_devices";
 
 /** The live destination for one listing, masked, with its readiness. */
 export async function currentDestination(
@@ -498,6 +531,23 @@ export async function changeDestination(input: {
       return { ok: false, reason: "generic" };
     }
 
+    /*
+     * HOW MANY DEVICES COULD BE TOLD, READ BEFORE THE ROW IS WRITTEN.
+     *
+     * AFTERWARDS WOULD BE A DIFFERENT NUMBER. The point of the count is the
+     * state of the account at the moment somebody redirected it, and an
+     * attacker who subscribes their own phone a second later must not turn an
+     * unwitnessed change into a witnessed one. Reading first makes that
+     * ordering structural rather than remembered.
+     *
+     * A FAILED READ RECORDS NULL AND NULL BEHAVES AS "NOBODY WAS REACHED" —
+     * rule 6 in the direction that costs a phone call rather than somebody's
+     * earnings. `pushTargetsFor` already returns null for a failed read and
+     * `[]` for a real zero, so the two are not collapsed here either.
+     */
+    const noticeTargets = await pushTargetsFor(input.profileId);
+    const noticeDevices = noticeTargets === null ? null : noticeTargets.length;
+
     const { data: inserted, error: insertError } = await admin
       .from("payout_destinations")
       .insert({
@@ -507,6 +557,7 @@ export async function changeDestination(input: {
         account_name: input.accountName.trim(),
         bank_name: input.bankName?.trim() || null,
         usable_from: destinationUsableFrom(now, { isFirst }).toISOString(),
+        notice_devices: noticeDevices,
       })
       .select(LIVE_COLUMNS)
       .single();

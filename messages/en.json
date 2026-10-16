@@ -1692,6 +1692,7 @@
         "approval": "This week's payout is worked out and waiting for somebody here to release it. {count, plural, =0 {Since today} one {Waiting {n} day} other {Waiting {n} days}}.",
         "onItsWay": "This week's payout has been released and is on its way.",
         "cooling": "This week's payout is waiting because your account was changed recently. Money goes to a new account three days after the change — that wait is there so nobody can move your earnings quietly.",
+        "unwitnessed": "This week's payout is waiting while somebody here speaks to you. Where you are paid was changed and we had no way to reach your phone at the time, so we check with you before any money follows it.",
         "unconfirmed": "This week's payout is waiting for somebody here to check your account before the first payment goes to it.",
         "no_destination": "This week's payout is waiting because we do not know where to send it. Add an account below.",
         "negative": "Nothing is going out this week: our fee on your cash jobs comes to more than you are owed. It comes off what you earn next — we will not ask you for cash."
@@ -2479,6 +2480,7 @@
       },
       "held": {
         "cooling": "Held: the account was changed recently and the three days have not passed. Nothing goes to the old address or the new one until they have.",
+        "unwitnessed": "Held: the account was changed and NO device could be told. The 72-hour objection window protected nobody here — ring the professional on the number we hold and confirm it was them before this goes out.",
         "unconfirmed": "Held: nobody has checked this account yet. Confirm it on the payout accounts screen and it goes out next week.",
         "no_destination": "Held: they have not told us where to send it.",
         "negative": "Held: they owe us for this week rather than the other way round. It carries forward and comes off what they earn next — we never ask for it back."

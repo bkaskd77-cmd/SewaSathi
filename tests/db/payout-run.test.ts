@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { PAYOUT_HELD_REASONS } from "@/lib/payments/destination";
 import { payoutPeriod } from "@/lib/config/payout-policy";
 import {
   heldReasonFor,
@@ -894,5 +895,50 @@ describe("what the staleness cursor depends on", () => {
         [provider],
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe("the hold reasons are one list", () => {
+  /*
+   * `PAYOUT_HELD_REASONS` and `payouts_held_reason_check` are the same set
+   * written in two languages, and a reason the constraint does not know is
+   * refused at the INSERT — so a payout that should have been HELD fails to
+   * draft at all. The run counts that as an error and the week goes unpaid,
+   * which is the one failure mode on this path where silence means somebody is
+   * not paid.
+   *
+   * READ OUT OF `pg_constraint` rather than out of a migration file, because
+   * this constraint is dropped and re-added as the set grows — the rule
+   * `tests/db/price-correction.test.ts` already follows for `band_source`.
+   */
+  it("matches the constraint the database enforces", async () => {
+    const { rows } = await pg.admin.query(
+      `select pg_get_constraintdef(oid) as def
+         from pg_constraint
+        where conrelid = 'public.payouts'::regclass
+          and conname = 'payouts_held_reason_check'`,
+    );
+    expect(rows).toHaveLength(1);
+    const def = rows[0].def as string;
+
+    for (const reason of PAYOUT_HELD_REASONS) {
+      expect(def, reason).toContain(`'${reason}'`);
+    }
+
+    // The other direction: a value SQL allows and TypeScript has never heard of
+    // would be a hold nothing can render, so the screen would print a blank.
+    const inSql = Array.from(def.matchAll(/'([a-z_]+)'::text/g)).map((m) => m[1]);
+    expect(inSql.sort()).toEqual([...PAYOUT_HELD_REASONS].sort());
+  });
+
+  it("refuses a hold reason nobody declared", async () => {
+    const provider = await freshProvider("Held Reason");
+    await expect(
+      pg.admin.query(
+        `insert into public.payouts (provider_id, period_start, period_end, status, held_reason, net_rupees)
+         values ($1, now() - interval '7 days', now(), 'draft', 'because_i_said_so', 0)`,
+        [provider],
+      ),
+    ).rejects.toThrow(/payouts_held_reason_check/i);
   });
 });

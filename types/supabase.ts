@@ -1524,6 +1524,14 @@ export type Database = {
           /** Null means nobody has confirmed it yet, not that no payout went. */
           first_payout_confirmed_at: string | null;
           first_payout_confirmed_by: string | null;
+          /**
+           * Live push subscriptions when the change was recorded.
+           *
+           * NULL IS "NOT RECORDED", never "no devices" — rule 6. A count rather
+           * than a boolean, and deliberately not named `delivered`: a push
+           * service accepting a message is not a person reading it.
+           */
+          notice_devices: number | null;
           retired_at: string | null;
         };
         Insert: {
@@ -1537,11 +1545,13 @@ export type Database = {
           usable_from: string;
           first_payout_confirmed_at?: string | null;
           first_payout_confirmed_by?: string | null;
+          notice_devices?: number | null;
           retired_at?: string | null;
         };
         Update: {
           first_payout_confirmed_at?: string | null;
           first_payout_confirmed_by?: string | null;
+          notice_devices?: number | null;
           retired_at?: string | null;
         };
         Relationships: [];
@@ -1927,7 +1937,7 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees: number;
           destination_id: string | null;
-          held_reason: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
           external_reference: string | null;
           failure_reason: string | null;
           /**
@@ -1956,7 +1966,7 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees?: number;
           destination_id?: string | null;
-          held_reason?: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason?: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
           external_reference?: string | null;
           failure_reason?: string | null;
           ledger_rows_at_draft?: number;
@@ -1973,7 +1983,7 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees: number;
           destination_id: string | null;
-          held_reason: "cooling" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
           external_reference: string | null;
           failure_reason: string | null;
           ledger_rows_at_draft: number;

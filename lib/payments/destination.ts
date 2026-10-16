@@ -73,7 +73,32 @@ export function destinationUsableFrom(
 
 export type DestinationReadiness =
   | { ok: true }
-  | { ok: false; reason: "retired" | "cooling" | "unconfirmed"; usableFrom?: Date };
+  | {
+      ok: false;
+      reason: "retired" | "cooling" | "unwitnessed" | "unconfirmed";
+      usableFrom?: Date;
+    };
+
+/**
+ * Could the change notice reach a device this professional holds?
+ *
+ * PURE, AND SEPARATE, BECAUSE IT IS THE ONE JUDGEMENT THAT DECIDES WHETHER A
+ * PERSON MUST BE RUNG. `notice_devices` is a count taken at the instant the
+ * destination was recorded; this reduces it to the only question anybody asks
+ * of it.
+ *
+ * NULL IS NOT ZERO AND NOT "YES" — rule 6. A row written before the column
+ * existed cannot say, and "cannot say" has to behave like "nobody was reached",
+ * because the alternative is a payout released on the strength of a notice we
+ * have no evidence anybody could read. Being wrong this way costs a phone call.
+ *
+ * A PUSH SERVICE ACCEPTING A MESSAGE IS NOT A PERSON READING IT, which is why
+ * nothing here is named `delivered`. What this establishes is weaker and is the
+ * most that can be established: there was a device to address.
+ */
+export function noticeCouldReachSomebody(noticeDevices: number | null): boolean {
+  return noticeDevices !== null && noticeDevices > 0;
+}
 
 /**
  * May this destination receive the payout being prepared?
@@ -94,10 +119,39 @@ export function destinationReadiness(
     retiredAt: Date | null;
     usableFrom: Date;
     firstPayoutConfirmedAt: Date | null;
+    /**
+     * Did this row REPLACE another? A first destination redirects nobody, so
+     * there was no warning anybody needed to read and `unwitnessed` cannot
+     * apply to it — it is gated by `unconfirmed` like any other new address.
+     */
+    replacedAnother?: boolean;
+    /** Live push subscriptions when it was recorded. Null is "not recorded". */
+    noticeDevices?: number | null;
   },
   now: Date = new Date(),
 ): DestinationReadiness {
   if (destination.retiredAt !== null) return { ok: false, reason: "retired" };
+
+  /*
+   * UNWITNESSED OUTRANKS COOLING, AND THAT ORDER IS THE WHOLE POINT. The
+   * 72-hour window is not a delay for its own sake — it is time to OBJECT, and
+   * an account with no device was told nothing to object to. Reporting
+   * "cooling until Thursday" there would name a date as though a protection
+   * were running, which is the `server.region` mistake in a place where it
+   * costs somebody their earnings rather than a 503.
+   *
+   * IT CLEARS ON CONFIRMATION, which is what makes this a gate rather than a
+   * wall: a person speaks to the professional, confirms, and the money moves.
+   * Holding it past that would be refusing the only control we have while
+   * demanding it be exercised.
+   */
+  if (
+    destination.replacedAnother === true &&
+    destination.firstPayoutConfirmedAt === null &&
+    !noticeCouldReachSomebody(destination.noticeDevices ?? null)
+  ) {
+    return { ok: false, reason: "unwitnessed" };
+  }
 
   if (destination.usableFrom.getTime() > now.getTime()) {
     return { ok: false, reason: "cooling", usableFrom: destination.usableFrom };
@@ -113,9 +167,28 @@ export function destinationReadiness(
 /** What a payout may be held for. The closed set `payouts.held_reason` allows. */
 export type PayoutHeldReason =
   | "cooling"
+  /** Changed, and no device could be told. A person must speak to them. */
+  | "unwitnessed"
   | "unconfirmed"
   | "no_destination"
   | "negative";
+
+/**
+ * The closed set, as one list.
+ *
+ * IT IS WRITTEN TWICE — here and in `payouts_held_reason_check` — and a db test
+ * compares them out of `pg_constraint`. A reason the constraint does not know
+ * is refused at the insert, so a payout that should have been held would fail
+ * to draft at all: the run counts it as an error and the week goes unpaid, on
+ * the one path where a silent failure means somebody is not paid.
+ */
+export const PAYOUT_HELD_REASONS: readonly PayoutHeldReason[] = [
+  "cooling",
+  "unwitnessed",
+  "unconfirmed",
+  "no_destination",
+  "negative",
+];
 
 /** The hold reasons, in precedence order. Pure so the test can read it directly. */
 export function heldReasonFor(
@@ -143,6 +216,8 @@ export function heldReasonFor(
   switch (destination.readiness.reason) {
     case "cooling":
       return "cooling";
+    case "unwitnessed":
+      return "unwitnessed";
     case "unconfirmed":
       return "unconfirmed";
     default:
