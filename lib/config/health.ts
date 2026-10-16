@@ -359,6 +359,35 @@ export const PUSH_NOT_READY_STATE: HealthState = "skipped";
  */
 export const TWA_STATE: HealthState = "skipped";
 
+/**
+ * The state `server.region` reports when the region is RIGHT and the
+ * measurement is slow.
+ *
+ * `ok`, AND THIS WAS `down` UNTIL IT 503'd PRODUCTION OVER ONE MILLISECOND.
+ * The bar is 80ms, a live reading came back 81, and `servesCustomers` turns
+ * anything but `ok` and `skipped` into a 503 — so the endpoint answered "this
+ * cannot serve a customer right now" with every customer-facing dependency
+ * green, a working catalogue, and a product nobody was being kept out of. That
+ * is `checkTriageFallback`'s mistake and `session.config`'s before it, for the
+ * third time: the reasoning in the comment was right and the STATE delivered
+ * none of it.
+ *
+ * THE NUMBER IS NOT WHAT MOVED, AND THAT IS DELIBERATE. Raising the bar until
+ * the check stops complaining is how a guard quietly stops guarding, and this
+ * file already refuses that shape — "the fix must not read as make the checks
+ * stop complaining". 80ms is still what we expect of a function sitting in the
+ * same region as its database, the median is still measured over three samples
+ * and still printed. What changed is only the consequence: a slow reading is
+ * now a number on a page instead of an outage.
+ *
+ * THE WRONG-REGION CASE KEEPS ITS `down` and that is the whole point of the
+ * split. `iad1` against a Singapore database is 250ms on every one of a dozen
+ * queries per page — the single largest performance fault this product has
+ * had — it is binary so it cannot flap, and it is worth waking somebody for.
+ * A borderline millisecond is not.
+ */
+export const REGION_SLOW_STATE: HealthState = "ok";
+
 /** What a VAPID pair looks like when it is present but cannot work. */
 export type PushKeyStatus = {
   ok: boolean;

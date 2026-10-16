@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   PUSH_NOT_READY_STATE,
+  REGION_SLOW_STATE,
   TWA_STATE,
   pushKeyStatus,
   pushReadiness,
@@ -596,5 +599,63 @@ describe("whether push is configured, before it costs anything", () => {
     expect(
       servesCustomers([{ state: PUSH_NOT_READY_STATE }]),
     ).toBe(true);
+  });
+});
+
+describe("a slow database reading cannot 503 a working product", () => {
+  /*
+   * THE LIVE FAULT THIS WAS WRITTEN FOR. Production answered 503 with every
+   * customer-facing dependency green, because `server.region` measured 81ms
+   * against an 80ms bar and `servesCustomers` turns anything but `ok` and
+   * `skipped` into a 503. The catalogue worked, sign-in worked, nobody was
+   * kept out of anything — and the one URL built to answer "can this serve a
+   * customer right now" said no, over one millisecond.
+   *
+   * It is the third time this shape has been found: `session.config` 503'd
+   * every request ever made to this endpoint, `checkTriageFallback` 503'd a
+   * working product while the fallback did exactly its job, and both had the
+   * reasoning written correctly in a comment above a state that delivered none
+   * of it.
+   */
+  it("reports a slow reading as ok rather than down", () => {
+    expect(REGION_SLOW_STATE).toBe("ok");
+    expect(servesCustomers([{ state: REGION_SLOW_STATE }])).toBe(true);
+  });
+
+  it("still goes down when the region itself is wrong", () => {
+    /*
+     * THE FIX MUST NOT READ AS "MAKE THE CHECK STOP COMPLAINING". A function
+     * in `iad1` against a Singapore database is ~250ms on every one of a dozen
+     * queries per page, it is invisible to every local check, and it is worth
+     * waking somebody for. That case is binary, so it cannot flap on a
+     * millisecond the way the measurement does.
+     */
+    expect(servesCustomers([{ state: "down" }])).toBe(false);
+  });
+
+  it("did not move the bar to get there", () => {
+    /*
+     * Raising the threshold until the complaint stops is how a guard quietly
+     * stops guarding. 80ms is still what we expect of a function in the same
+     * region as its database; only the CONSEQUENCE of exceeding it changed.
+     */
+    const source = readFileSync("app/api/health/route.ts", "utf8");
+    expect(source).toContain("const CLOSE_ENOUGH_MS = 80");
+  });
+
+  it("does not tell somebody to fix a file that is already right", () => {
+    /*
+     * The old sentence was "Check \"regions\" in vercel.json and redeploy",
+     * printed whenever the measurement was high — INCLUDING when the region was
+     * already `sin1`. Somebody following it opens the file, finds the setting
+     * correct, and has nowhere to go. The remedy belongs to the wrong-region
+     * branch and nowhere else.
+     */
+    const source = readFileSync("app/api/health/route.ts", "utf8");
+    const slowBranch = source.slice(source.indexOf("RIGHT REGION, SLOW READING"));
+    expect(slowBranch).toContain("vercel.json is not the answer");
+    // The one sentence that is false at 81ms must not appear in this branch.
+    const slowDetail = slowBranch.slice(0, slowBranch.indexOf("\n}"));
+    expect(slowDetail).not.toContain("a continent away");
   });
 });

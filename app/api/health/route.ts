@@ -15,6 +15,7 @@ import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
   PUSH_NOT_READY_STATE,
+  REGION_SLOW_STATE,
   TWA_STATE,
   SEALING_NOT_READY_STATE,
   pushKeyStatus,
@@ -958,26 +959,58 @@ async function checkRegion(): Promise<Check> {
   }
 
   const median = Math.round(samples.sort((a, b) => a - b)[1]);
-  const where =
-    region === EXPECTED_REGION
-      ? region
-      : `${region} (expected ${EXPECTED_REGION})`;
+  const rightRegion = region === EXPECTED_REGION;
+
+  /*
+   * THE WRONG REGION IS THE FAULT THIS CHECK EXISTS FOR, and it is the only
+   * one here worth a 503. `iad1` against a Singapore database is ~250ms on
+   * every one of a dozen queries a signed-in page makes — the single largest
+   * performance fault this product has had, invisible to `npm run verify`
+   * because it lives in somebody else's dashboard. It is binary, so it cannot
+   * flap, and the remedy named below is the right one for exactly this case.
+   */
+  if (!rightRegion) {
+    return {
+      name: "server.region",
+      state: "down",
+      detail:
+        `${region} (expected ${EXPECTED_REGION}) — database round trip ${median}ms, ` +
+        `which is a continent away. Every page makes several of these. Check ` +
+        `"regions" in vercel.json and redeploy; a region change needs a new ` +
+        `deployment to take effect.`,
+    };
+  }
 
   if (median <= CLOSE_ENOUGH_MS) {
     return {
       name: "server.region",
       state: "ok",
-      detail: `${where} — database round trip ${median}ms.`,
+      detail: `${region} — database round trip ${median}ms.`,
     };
   }
 
+  /*
+   * RIGHT REGION, SLOW READING. This used to be `down`, with the sentence above
+   * it — and that sentence names a remedy that is already done: somebody
+   * reading "check vercel.json and redeploy" opens the file, finds `sin1`
+   * sitting there correctly, and has nowhere to go. A check that reports a real
+   * number beside the wrong instruction is worse than one that reports nothing,
+   * because it spends the reader's trust before it spends their time.
+   *
+   * So it says what is actually true: the region is right, the round trip is
+   * above what we expect of it, and the causes worth looking at are the ones
+   * that can produce this WITHOUT a misconfiguration. It does not 503 — see
+   * `REGION_SLOW_STATE`.
+   */
   return {
     name: "server.region",
-    state: "down",
+    state: REGION_SLOW_STATE,
     detail:
-      `${where} — database round trip ${median}ms, which is a continent away. ` +
-      `Every page makes several of these. Check "regions" in vercel.json and ` +
-      `redeploy; a region change needs a new deployment to take effect.`,
+      `${region} — database round trip ${median}ms, above the ${CLOSE_ENOUGH_MS}ms ` +
+      `we expect in the same region as the database. The region is right, so ` +
+      `vercel.json is not the answer: this is a cold function, PostgREST warming ` +
+      `up, or something that moved on Supabase's side. Worth watching rather ` +
+      `than waking somebody for — nobody is kept out of the product by it.`,
   };
 }
 

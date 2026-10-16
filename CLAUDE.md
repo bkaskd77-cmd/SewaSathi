@@ -2657,7 +2657,16 @@ gone wrong. `vercel.json` now pins `"regions": ["sin1"]`, which is also far
 closer to Nepal than Virginia is.
 
 **Speed is a standing task, not a phase.** The region move was the big step and
-it is done — `sin1`, 28ms to the database, measured. What remains is smaller
+it is done — `sin1`, confirmed by `server.region` on `/api/health`, which
+measures the round trip rather than trusting the region name. **The "28ms"
+this line used to carry was stale**: a live reading on 2026-10-15 was 81ms, and
+the figure here had not been re-measured since the move. That is this file's own
+recorded shape — a number written into standing notes is a number nobody
+re-measures — so it is not replaced with 81, which would be stale by next week
+too. The screen carries the figure; this line says only which way it leans.
+**81ms also 503'd production**, because the bar is 80 and `servesCustomers`
+turns `down` into a 503: see `REGION_SLOW_STATE`. The bar did not move; what
+it costs did. What remains is smaller
 and gets taken a step at a time as the product grows, because each one costs
 something in complexity and none is worth paying for before it is needed. In
 the order they are likely to matter: caching the catalogue reads so a filtered
@@ -2693,6 +2702,18 @@ trip is the unit of cost, and the job is to make fewer of them.
   silently failed to apply is exactly this endpoint's kind of fault: it lives
   in somebody else's dashboard and no local check can see it. It is a URL, so
   it needs no checkout to read.
+  **Three verdicts, not two, and the split cost a 503 to learn.** A wrong
+  region stays `down` — `iad1` against a Singapore database is ~250ms on every
+  one of a dozen queries per page, it is binary so it cannot flap, and it is
+  worth waking somebody for. The RIGHT region measuring slow is `ok` with the
+  number printed, because nobody is kept out of the product by it. Those were
+  one branch, so a reading of 81 against a bar of 80 answered "this cannot
+  serve a customer right now" with every dependency green — the third time this
+  endpoint has done that, after `session.config` and `checkTriageFallback`.
+  **And the message named the wrong remedy**: "check `regions` in vercel.json
+  and redeploy" printed on a deployment where `vercel.json` already said `sin1`,
+  so anybody following it opens the file, finds it correct and has nowhere to
+  go. The bar is still 80; only what exceeding it costs has changed.
 - **`npm run check:timing`** measures time to first byte per route, median and
   worst of N. It refuses to report a blocked request as fast: Vercel stamps
   `x-vercel-id`, and without that header the request never arrived. Same
