@@ -1733,6 +1733,9 @@
     }
   },
   "admin": {
+    "reauth": {
+      "needed": "This moves money, so your authenticator code is needed again — proof from the last fifteen minutes. <link>Open your security page</link> in a new tab, enter a code, then come back and try again."
+    },
     "bands": {
       "title": "Price bands",
       "lead": "What we publish for each trade, where the number came from, and what our own settled jobs say instead.",
@@ -1952,6 +1955,9 @@
       "openFailed": "That did not open. Try again."
     },
     "claims": {
+      "errors": {
+        "saveFailed": "That did not save. Nothing has been changed."
+      },
       "title": "Wasted trips",
       "lead": "A professional turned up and nobody was there. They are paid either way; this decides who carries it.",
       "empty": "Nothing waiting.",
@@ -2504,7 +2510,6 @@
       "working": "Working…",
       "destinationsLink": "Accounts waiting to be checked are on the <link>payout accounts</link> screen.",
       "errors": {
-        "notFresh": "Prove who you are again before moving money — it has been more than fifteen minutes.",
         "needsReason": "Say why, in a few words. It goes on the record.",
         "needsReference": "The transaction number is required.",
         "held": "This one is held, so it cannot be approved. The reason is on the card.",
@@ -2634,7 +2639,6 @@
       "ratePerHour": "An hour",
       "errors": {
         "notAdmin": "You cannot change these.",
-        "reauthNeeded": "Enter a code from your authenticator first — proof from the last fifteen minutes is needed to change what the AI may spend.",
         "notConfigured": "The database is unreachable, so nothing was changed.",
         "saveFailed": "That did not save. Nothing was changed."
       }

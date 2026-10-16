@@ -255,8 +255,24 @@ alter default privileges in schema public
 -- \`postgres\` (see \`initdb -U postgres\` below) and the migration says
 -- \`for role postgres\` explicitly. Connect as anything else and the revoke
 -- silently misses, leaving the harness permissive where production is not.
+--
+-- AND IT IS \`all\`, NOT THREE VERBS. This read \`select, insert, update\` and so
+-- modelled a database more locked-down than the real one in the other
+-- direction: Supabase's default ACL for tables in \`public\` is
+-- \`arwdDxtm\` — insert, select, update, DELETE, TRUNCATE, REFERENCES, TRIGGER
+-- and, on 17, MAINTAIN — read out of \`pg_default_acl\` on the live project
+-- rather than assumed. Every verb this line left out was a verb no test here
+-- could see: \`20261011000004\`'s schema-wide \`revoke delete\` proved nothing
+-- locally, and \`20261016000002\` removed TRUNCATE from 36 production tables
+-- while its break-test stayed green, because the harness had never granted it.
+-- TRUNCATE is the one that matters, since it is not subject to RLS at all.
+--
+-- MAINTAIN IS THE EXCEPTION AND CANNOT BE MODELLED. The cluster here is
+-- PostgreSQL 16, where the privilege does not exist, so \`all\` is eight verbs
+-- in production and seven here. That half is verified against production
+-- directly; it is written down rather than papered over.
 alter default privileges in schema public
-  grant select, insert, update on tables to anon, authenticated;
+  grant all on tables to anon, authenticated;
 `;
 
 /** Migrations that need Supabase-only schemas we cannot stand up here. */

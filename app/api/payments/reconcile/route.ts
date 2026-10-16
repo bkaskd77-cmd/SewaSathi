@@ -6,6 +6,7 @@ import { reconcileStuckPayments } from "@/lib/data/payments";
 import { recordCronRun } from "@/lib/data/cron-runs";
 import { runPayouts } from "@/lib/data/payouts";
 import { sweepRedoRecovery, sweepWriteOffs } from "@/lib/data/recovery";
+import { cronTokenAccepted } from "@/lib/security/cron-token";
 
 /**
  * FOUR SWEEPS, AND THREE OF THEM ARE NOT ABOUT PAYMENTS.
@@ -58,11 +59,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const offered =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-
-  if (!secret || offered !== secret) {
+  if (
+    !cronTokenAccepted(
+      process.env.CRON_SECRET,
+      request.headers.get("authorization"),
+    )
+  ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

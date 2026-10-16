@@ -27,13 +27,22 @@ const UNGATED_PAGES: Record<string, string> = {
 };
 
 describe("every admin action re-reads the session", () => {
-  it("calls adminActor, in every actions file under (admin)", async () => {
+  it("calls adminActor or freshAdminActor, in every actions file under (admin)", async () => {
     const files = await adminFiles("actions.ts");
     expect(files.length, "no admin action files found — the glob is wrong").toBeGreaterThan(5);
 
+    /* TWO SPELLINGS, AND `freshAdminActor` DOES NOT CONTAIN THE OTHER — the capital
+       makes `includes("adminActor")` false for it, which is how this check first went
+       red on nine correctly-gated files. `freshAdminActor` is the same role check plus
+       the fifteen-minute proof the money actions need (`lib/config/admin-money.ts`), so
+       either satisfies the claim this test makes: the session was re-read. Which of the
+       two a given action must use is `admin-money-reauth.test.ts`'s question. */
     const missing: string[] = [];
     for (const file of files) {
-      if (!(await read(file)).includes("adminActor")) missing.push(file);
+      const source = await read(file);
+      if (!source.includes("adminActor") && !source.includes("freshAdminActor")) {
+        missing.push(file);
+      }
     }
     expect(
       missing,

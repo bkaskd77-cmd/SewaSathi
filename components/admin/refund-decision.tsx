@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
 import { Loader2 } from "lucide-react";
 
 import type { Locale } from "@/i18n/routing";
@@ -228,12 +229,16 @@ export function RefundDecision({
       ) : null}
 
       {result && !result.ok ? (
-        <p
-          role="alert"
-          className="animate-pop-in text-body-sm text-destructive-ink"
-        >
-          {t(`errors.${errorKey(result.reason)}`)}
-        </p>
+        isReauthReason(result.reason) ? (
+          <ReauthNotice />
+        ) : (
+          <p
+            role="alert"
+            className="animate-pop-in text-body-sm text-destructive-ink"
+          >
+            {t(`errors.${errorKey(result.reason)}`)}
+          </p>
+        )
       ) : null}
 
       <Approve label={t("approve")} />

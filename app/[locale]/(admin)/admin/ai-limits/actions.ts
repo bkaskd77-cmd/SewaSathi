@@ -2,10 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { adminActor } from "@/lib/auth/admin-gate";
-import { sessionAuthenticatedAt } from "@/lib/auth/session";
+import { freshAdminActor } from "@/lib/auth/admin-gate";
 import { AI_LIMIT_KEYS, type AiLimits } from "@/lib/config/ai-limits";
-import { REAUTH_WINDOW_MINUTES } from "@/lib/config/payout-policy";
 import { saveAiLimits } from "@/lib/data/ai-ceilings";
 
 /**
@@ -16,26 +14,25 @@ import { saveAiLimits } from "@/lib/data/ai-ceilings";
  * hundred is a hundred-dollar decision taken in one box, and the eight-hour admin
  * step-up is for batched work rather than for an act with a price on it.
  *
- * `reauthenticatedAt` IS READ FROM THE SESSION AND NEVER FROM THE FORM —
- * `sessionAuthenticatedAt()` takes it off the `amr` claim, which carries the moment
- * somebody actually proved who they were. Deliberately not `iat`, which resets on every
- * silent refresh, so a gate reading it would mean "recently active" — which is exactly
- * what a stolen session is.
+ * THE PROOF IS READ FROM THE SESSION AND NEVER FROM THE FORM. `freshAdminActor()`
+ * takes it off the `amr` claim, which carries the moment somebody actually proved who
+ * they were — deliberately not `iat`, which resets on every silent refresh, so a gate
+ * reading it would mean "recently active", which is exactly what a stolen session is.
  *
- * NOTHING HERE TRUSTS THE FORM FOR WHO IS ASKING. `adminActor()` re-reads the session,
- * because a server action is a public POST reachable by anybody who can reach the page.
+ * IT USED TO DO THAT SUBTRACTION ITSELF, which was one rule written twice: the window
+ * was enforced here and in `lib/data/payouts.ts` by two pieces of arithmetic with no
+ * way to disagree loudly. `lib/config/admin-money.ts` is the list now and a test reads
+ * this source.
+ *
+ * NOTHING HERE TRUSTS THE FORM FOR WHO IS ASKING either, because a server action is a
+ * public POST reachable by anybody who can reach the page.
  */
 export async function saveAiLimitsAction(
   data: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const actor = await adminActor();
-  if (!actor) return { ok: false, error: "notAdmin" };
-
-  const provedAt = await sessionAuthenticatedAt();
-  const fresh =
-    provedAt !== null &&
-    Date.now() - provedAt.getTime() <= REAUTH_WINDOW_MINUTES * 60_000;
-  if (!fresh) return { ok: false, error: "reauthNeeded" };
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, error: gate.reason };
+  const actor = gate.profile;
 
   const next: Partial<AiLimits> = {};
   for (const key of AI_LIMIT_KEYS) {

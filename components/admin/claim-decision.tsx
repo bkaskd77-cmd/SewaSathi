@@ -8,7 +8,11 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
+
 import { useSecondsOnEvidence } from "./use-seconds-on-evidence";
+
+type Result = { ok: boolean; reason?: string } | null;
 
 /**
  * Uphold or refuse one wasted-trip claim.
@@ -26,7 +30,7 @@ import { useSecondsOnEvidence } from "./use-seconds-on-evidence";
 export function ClaimDecision({ bookingId }: { bookingId: string }) {
   const t = useTranslations("admin.claims");
   const seconds = useSecondsOnEvidence();
-  const [, action] = useFormState(decide, null);
+  const [result, action] = useFormState(decide, null);
 
   return (
     <form action={action} className="mt-4 space-y-3">
@@ -44,6 +48,19 @@ export function ClaimDecision({ bookingId }: { bookingId: string }) {
           className="w-full rounded-md border border-input bg-background p-3 text-body-md"
         />
       </div>
+
+      {result && !result.ok ? (
+        isReauthReason(result.reason) ? (
+          <ReauthNotice />
+        ) : (
+          <p
+            role="alert"
+            className="animate-pop-in text-body-sm text-destructive-ink"
+          >
+            {t("errors.saveFailed")}
+          </p>
+        )
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Send label={t("uphold")} value="uphold" primary />
@@ -80,9 +97,9 @@ function Send({
 
 /** Bound at call time so the component stays a plain client component. */
 async function decide(
-  _previous: { ok: boolean } | null,
+  _previous: Result,
   formData: FormData,
-): Promise<{ ok: boolean }> {
+): Promise<Result> {
   const { decideClaimAction } = await import(
     "@/app/[locale]/(admin)/admin/claims/actions"
   );

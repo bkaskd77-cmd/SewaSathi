@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { adminActor } from "@/lib/auth/admin-gate";
+import { freshAdminActor } from "@/lib/auth/admin-gate";
 import {
   issueRefund,
   markRefundPaid,
@@ -23,6 +23,13 @@ import {
  * out, so on two of our three rails a person leaves this product, sends the
  * money, and comes back to record that they did. Folding them into one button
  * would have this product assert a payment nobody made.
+ *
+ * A FRESH SECOND FACTOR, NOT THE EIGHT-HOUR ADMIN WINDOW. `freshAdminActor()`
+ * is `adminActor()` plus the fifteen minutes a payout has always needed: these
+ * move real rupees in one tap, and `STEP_UP_HOURS` is the window for batched
+ * work rather than for an act with a price on it. The rule and the reason for
+ * each of these is in `lib/config/admin-money.ts`, and a test reads these
+ * sources so a new one cannot be written without it.
  */
 
 const QUEUE = "/[locale]/(admin)/admin/guarantee-claims";
@@ -31,10 +38,9 @@ const QUEUE = "/[locale]/(admin)/admin/guarantee-claims";
 export async function issueRefundAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await adminActor();
-  if (!profile) {
-    return { ok: false, reason: "notAdmin" };
-  }
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+  const profile = gate.profile;
 
   const amount = Number(formData.get("amount"));
   if (!Number.isFinite(amount)) return { ok: false, reason: "invalid" };
@@ -54,10 +60,9 @@ export async function issueRefundAction(
 export async function markRefundPaidAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await adminActor();
-  if (!profile) {
-    return { ok: false, reason: "notAdmin" };
-  }
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+  const profile = gate.profile;
 
   const result = await markRefundPaid({
     refundId: String(formData.get("refundId") ?? ""),
@@ -74,10 +79,9 @@ export async function markRefundPaidAction(
 export async function sendRefundAction(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const profile = await adminActor();
-  if (!profile) {
-    return { ok: false, reason: "notAdmin" };
-  }
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+  const profile = gate.profile;
 
   const result = await sendRefundToGateway({
     refundId: String(formData.get("refundId") ?? ""),

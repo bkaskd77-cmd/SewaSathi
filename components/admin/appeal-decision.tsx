@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,18 +54,22 @@ export function AppealDecision({ appealId }: { appealId: string }) {
       </div>
 
       {result && !result.ok ? (
-        <p
-          role="alert"
-          className="animate-pop-in text-body-sm text-destructive-ink"
-        >
-          {t(
-            `errors.${
-              (KNOWN as readonly string[]).includes(result.reason ?? "")
-                ? result.reason
-                : "saveFailed"
-            }`,
-          )}
-        </p>
+        isReauthReason(result.reason) ? (
+          <ReauthNotice />
+        ) : (
+          <p
+            role="alert"
+            className="animate-pop-in text-body-sm text-destructive-ink"
+          >
+            {t(
+              `errors.${
+                (KNOWN as readonly string[]).includes(result.reason ?? "")
+                  ? result.reason
+                  : "saveFailed"
+              }`,
+            )}
+          </p>
+        )
       ) : null}
 
       <div className="flex flex-wrap gap-2">

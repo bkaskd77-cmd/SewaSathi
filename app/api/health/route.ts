@@ -41,6 +41,7 @@ import { smsGateway } from "@/lib/sms";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
 import { sealingStatus } from "@/lib/security/secret-box";
+import { cronTokenAccepted } from "@/lib/security/cron-token";
 
 /**
  * Can this product actually serve a customer right now?
@@ -1019,9 +1020,9 @@ export async function GET(request: Request) {
   const wantsDeep = url.searchParams.get("deep") === "1";
 
   const secret = process.env.CRON_SECRET;
-  const offered =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const deepAllowed = wantsDeep && Boolean(secret) && offered === secret;
+  const deepAllowed =
+    wantsDeep &&
+    cronTokenAccepted(secret, request.headers.get("authorization"));
 
   if (wantsDeep && !deepAllowed) {
     /*

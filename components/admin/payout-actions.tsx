@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
+
 type ActionResult = {
   ok: boolean;
   recomputed?: true;
@@ -141,9 +143,16 @@ export function PayoutActions({
             />
           )}
           {revealed && !revealed.ok ? (
-            <p role="alert" className="animate-rise text-body-sm text-destructive-ink">
-              {t(`errors.${revealed.reason}` as "errors.generic")}
-            </p>
+            isReauthReason(revealed.reason) ? (
+              <ReauthNotice />
+            ) : (
+              <p
+                role="alert"
+                className="animate-rise text-body-sm text-destructive-ink"
+              >
+                {t(`errors.${revealed.reason}` as "errors.generic")}
+              </p>
+            )
           ) : null}
         </form>
       ) : null}
@@ -157,6 +166,8 @@ export function PayoutActions({
           <Check className="size-4" aria-hidden />
           {t("done")}
         </p>
+      ) : result && isReauthReason(result.reason) ? (
+        <ReauthNotice />
       ) : result ? (
         <p role="alert" className="animate-rise text-body-sm text-destructive-ink">
           {t(`errors.${result.reason}` as "errors.generic")}

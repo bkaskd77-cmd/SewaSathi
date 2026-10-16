@@ -80,6 +80,20 @@ same commit as the change, never afterwards.
    restyled is worse than no test. The critical paths always have one: triage
    safety escalation, price clamping, the booking status machine, RLS isolation
    between customers, redirect safety.
+   **And a fixture anchored to `now()` is a test that is red at some hour of the
+   day.** Three `booking-duration` cases were, for ten hours out of every
+   twenty-four, and had been since they were written: `completed_at` is stamped
+   `now()` by the status machine and cannot be chosen, so "started 95 minutes
+   ago" crosses the Nepal day boundary just after midnight and the trigger
+   correctly records nothing — while the across-days helper, whose comment
+   explicitly rejected clock-dependence, placed a same-day start at "today at
+   10:00 NPT", a time that has not happened yet for most of the Nepal morning.
+   Nobody had run the suite at those hours. The fixture now clamps into the
+   current Nepal day and **returns the gap it actually got**, and the assertion
+   is the trigger's whole rule against that gap rather than a number that is
+   only true in the afternoon — which is stronger than the `>= 95` it replaced,
+   not a loosening. Checked by evaluating the clamp against 144 simulated times
+   of day rather than by running it once and believing it.
 2. **Feature modules have one public entry and the linter enforces it.**
    `no-restricted-imports` forbids reaching into another module's internals.
    `lib/booking` and `lib/auth` are done; the rest is mechanical and must be
@@ -2028,6 +2042,80 @@ endpoint or stores a new kind of personal data.
   one `BROWSER_WRITE_REFUSED`, because three spellings of that regex were already
   in the suite and had begun to drift: a behavioural test asserts the refusal, and
   **which lock answers is Postgres's ordering rather than the guarantee**.
+- **There are two admin gates and which one an action uses is a money
+  decision.** `adminActor()` carries `STEP_UP_HOURS` — eight hours, because
+  admin work is batched and a code every half hour teaches somebody to tap
+  through approvals, which is the failure `lib/payments/pricing.ts` names. That
+  is the right window for reading a queue. `/admin/payouts` has needed
+  `REAUTH_WINDOW_MINUTES` since it shipped, threaded into `lib/data/payouts.ts`
+  as `reauthenticatedAt`. **Eight other actions moved real money behind the
+  batched-work window** — the three refund actions (one of which initiates a
+  transfer), the no-show payment, the trip-debt write-off, the commission
+  waiver, the survey fee and the disputed cash amount — plus `revealDestination`,
+  which returns a bank account number, and `confirmFirstPayout`, the human
+  witness in the account-takeover control. There was no reason for the split
+  beyond their having been written on different days, and nothing in the
+  repository could see it, because "this one moves money" lived only in
+  somebody's head.
+  `freshAdminActor()` is the one gate; `lib/config/admin-money.ts` declares each
+  writer with how its proof arrives (`fresh-actor`, `threaded`, or `none` with
+  the reason — `markPayoutConfirmed` records an answer that came from outside
+  and moves nothing). `tests/unit/admin-money-reauth.test.ts` reads every admin
+  action through the TypeScript AST and fails **both** on a declared writer
+  called without the gate **and** on any money-module function nobody has
+  declared — the coverage half is the point, because a list alone goes stale on
+  the first new action. `isFresh` moved to `lib/config/payout-policy.ts` beside
+  the window it reads: it was in a `server-only` data module, which is the
+  mistake this file records four times, and it had already produced a second
+  copy of the arithmetic in the AI-ceilings action.
+  **The refusal says what to do.** `components/admin/reauth-notice.tsx` is one
+  sentence with the link, for nine screens, because the two that existed were
+  already drifting — `/admin/payouts` said "prove who you are again" and
+  `/admin/ai-limits` said "enter a code from your authenticator" about the same
+  window and the same remedy. It opens in a new tab, since these forms carry a
+  typed reason and navigating away for a code would throw it away.
+- **The schema-wide revoke was three verbs of eight, and `information_schema`
+  cannot see the eighth.** `20261011000004` took INSERT, UPDATE and DELETE back
+  from `anon` and `authenticated` — the verbs anybody had thought about.
+  Supabase's default grants `all`, so both roles still held TRUNCATE and TRIGGER
+  on 36 tables, REFERENCES on 36 and 37, and MAINTAIN on 36 and 37.
+  **TRUNCATE is the one worth the migration and not because it was reachable**:
+  PostgREST has no truncate verb, but TRUNCATE **is not subject to RLS at all**,
+  so unlike every other write in this schema it never meets a policy — the
+  privilege was the only thing in front of it, on `security_events` and
+  `provider_ledger`, which exist to be append-only. That is the DELETE
+  argument on the stronger case.
+  **MAINTAIN nearly got away**: PostgreSQL 17 added it and
+  `information_schema.role_table_grants` does not list it, because that view is
+  the SQL standard's and the privilege is newer than the standard. The first
+  draft of the test read that view and would have printed a tick over a
+  privilege both roles held on 36 tables. It reads `aclexplode` now and asserts
+  **what is left** rather than that three named verbs are gone. The revoke is
+  guarded on `server_version_num`, because the harness cluster is 16 and
+  `revoke maintain` is a syntax error there — so that one clause is verified
+  against production with `has_table_privilege` and the limit is written down.
+- **The harness modelled a database stricter than the real one, which is how
+  the break-test came back green.** `tests/support/postgres.ts` granted
+  `select, insert, update` as Supabase's table default; the live
+  `pg_default_acl` says `arwdDxtm`. Every verb it left out was a verb no test
+  here could see — `20261011000004`'s `revoke delete` had never been proven
+  locally either. It grants `all` now. **A fix whose break-test stays green is
+  not a fix that was unnecessary; it is a harness that cannot see the thing.**
+- **A new FUNCTION granted a browser everything too, and that is where
+  `provider_balance` came from.** Nobody granted `execute` on those definer
+  functions: the same Supabase default that hands out tables hands out
+  functions, and `20261002000001` closed the table half only — so the fix
+  revoked two grants while the mechanism went on minting them, and every
+  `security definer` function written since started life callable by any
+  browser. `20261016000003` closes the source. Nothing breaks, because a
+  default privilege applies only at CREATE time and the seven helpers a POLICY
+  needs each already carry an explicit `grant execute … to authenticated` —
+  a policy expression runs with the caller's privileges, which is why
+  `is_admin` must keep it. **The trap is the table one again**: after this, a
+  new function a policy calls answers `42501` until its migration grants
+  EXECUTE. The test asserts the callable set **is** those seven, each with the
+  policy that needs it beside it, which is the only version that catches the
+  eighth.
 - **A role change writes its own audit row, in the same transaction.** Promoting
   an approved applicant was a bare `update({ role })` that logged only on
   failure, so the live log's only two `role.changed` rows both say `customer` —
@@ -2104,6 +2192,8 @@ drop table if exists public.zz_nonexistent_probe             hangs 60s
 drop trigger if exists zz_probe on public.provider_ledger    hangs 60s
 drop policy if exists "zz probe" on public.provider_ledger   hangs 60s
 alter table ... drop constraint if exists zz_probe           INSTANT
+revoke truncate, trigger, references on all tables ...       INSTANT
+alter default privileges ... revoke all on functions         INSTANT
 create table / index / trigger / policy, alter table add,
   grant, revoke, comment on, create or replace function      INSTANT
 one LARGE `DO` block of creates, alters and revokes          INSTANT

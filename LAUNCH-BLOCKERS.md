@@ -76,6 +76,14 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ---
 
+### BLOCKER: health-unwatched
+- Status: unresolved
+- Claims: nothing a visitor reads — this one is about what WE would know. `/api/health` returns 200 or 503, `healthVerdict` makes `ok` mean "nothing unattended is wrong", and `ACKNOWLEDGED_FAILURES` stops one known failure masking the next. All of that was built because sign-in broke in production for a day and the thing that noticed was a person trying to log in.
+- Lives in: nowhere in this repository. It is a monitor pointed at `https://sewasathi.vercel.app/api/health`, in somebody's account, checking on a schedule and telling a human when the answer stops being 200.
+- Replaced by: any uptime checker on that URL with an alert that reaches a phone. The endpoint is public, cheap and sends nothing, so this needs no credential and no code — a free tier is enough. `?deep=1` must NOT be the monitored URL: it sends a real SMS per run.
+- **Found in the pre-launch security audit, 2026-10-16, and it is the gap the whole health endpoint was built to close.** Every piece of the mechanism is finished and nothing is reading it, which is this product's recorded sin — a tested, documented thing with no caller — at the scale of an operational control. The day `auth.sms` goes from `down` to `ok` and something else breaks, the 503 will be correct, honest, and seen by nobody.
+- **It does not block a deploy and it blocks a launch**, which is the right side of that line: serving customers with no monitor is how a day-long outage happens, and `LAUNCH=true` is the moment that stops being hypothetical.
+
 ### BLOCKER: sms-gateway-unverified
 - Status: unresolved
 - Claims: "We text you a 6-digit code and you're in." Phone OTP is the ONLY way into this product — there is no email or password path anywhere — so if the gateway is not real, nobody signs in, nobody books, and the failure is total rather than partial.
@@ -414,12 +422,14 @@ Until then the incentive is the four true things on the payment screen
 - **Not publishing costs nothing today**, which is why this is sequenced after launch rather than before it: the PWA is installable from the browser now, from the same manifest, with the same service worker, the same offline shell and the same push. A Play Store listing is discovery, not capability.
 
 ### BLOCKER: push-keys-unset
-- Status: unresolved
+- Status: resolved
 - Claims: `/account` and `/provider` offer "Get a notification when something happens", and the sentence under it says a text message is sent instead if you decline. Both halves are true only where a VAPID pair is configured. With no keys the panel never appears at all — `vapidPublicKey()` returns null and the component renders nothing — so no visitor is lied to; what is claimed is in this repository's own notes, which describe push as the first channel.
 - Lives in: Vercel environment variables (an external dashboard, not this repository), read by `lib/env/server.ts` and `lib/env/index.ts`
 - Replaced by: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` set on Production, proved by `GET /api/health` reporting `notify.push: ok`. One command generates the pair — `npx web-push generate-vapid-keys` — and the private half must never be committed or pasted anywhere it is stored.
 - **The half-configured case is the one worth naming.** The pair is two variables in two places, and a deployment with only the public half looks completely healthy: browsers subscribe, rows are written, the opt-in panel says notifications are on, and every send throws. Nobody is pushed — and because `notConfigured` deliberately does not escalate, nobody is texted either. `pushReadiness` says which half is missing for exactly this reason, and `notify.push` prints it on a public URL.
 - **Nothing is broken until it is set.** Every notification still writes its in-app row, which is the record `/bookings` reads; the kinds worth paying for would fall back to SMS if a gateway were contracted, which it is not (see `sms-gateway-unverified`). So today notifications are in-app only, and that is a slower product rather than a broken one.
+- **2026-10-16 — resolved, by the proof this entry asked for.** The owner generated the pair on their own machine, set both halves on Production, and the live `/api/health` payload reported `notify.push: ok`. Both halves, which is what `pushReadiness` exists to distinguish: a deployment with only the public key looks entirely healthy and throws on every send. **This entry stayed `unresolved` for the commit after it was true**, which is the same shape as `guarantee-unclaimable` describing an absence that had been filled — a note outliving the code. Caught in the pre-launch audit rather than by anybody reading the file.
+- **It does not make anybody reachable who was not.** `push_subscriptions` is empty until people opt in, so `payout-notice-undeliverable` narrows and does not close; what changed here is that the channel exists at all.
 
 ### BLOCKER: next-14-advisories
 - Status: resolved

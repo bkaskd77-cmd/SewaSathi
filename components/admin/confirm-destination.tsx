@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
 import { Check, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -48,12 +49,16 @@ export function ConfirmDestination({
         <>
           <ConfirmButton />
           {result && !result.ok ? (
-            <p
-              role="alert"
-              className="animate-rise mt-2 text-body-sm text-destructive-ink"
-            >
-              {t(`errors.${result.reason}` as "errors.generic")}
-            </p>
+            isReauthReason(result.reason) ? (
+              <ReauthNotice />
+            ) : (
+              <p
+                role="alert"
+                className="animate-rise mt-2 text-body-sm text-destructive-ink"
+              >
+                {t(`errors.${result.reason}` as "errors.generic")}
+              </p>
+            )
           ) : null}
         </>
       )}

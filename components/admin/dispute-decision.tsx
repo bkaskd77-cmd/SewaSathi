@@ -7,6 +7,10 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
+
+type Result = { ok: boolean; reason?: string } | null;
+
 /**
  * Decide one customer's objection to a carried trip charge.
  *
@@ -27,7 +31,7 @@ import { Label } from "@/components/ui/label";
  */
 export function DisputeDecision({ customerId }: { customerId: string }) {
   const t = useTranslations("admin.claims");
-  const [, action] = useFormState(resolve, null);
+  const [result, action] = useFormState(resolve, null);
 
   return (
     <form action={action} className="mt-4 space-y-3">
@@ -44,6 +48,19 @@ export function DisputeDecision({ customerId }: { customerId: string }) {
           className="w-full rounded-md border border-input bg-background p-3 text-body-md"
         />
       </div>
+
+      {result && !result.ok ? (
+        isReauthReason(result.reason) ? (
+          <ReauthNotice />
+        ) : (
+          <p
+            role="alert"
+            className="animate-pop-in text-body-sm text-destructive-ink"
+          >
+            {t("errors.saveFailed")}
+          </p>
+        )
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Send label={t("disputeCancel")} value="cancel" primary />
@@ -80,9 +97,9 @@ function Send({
 
 /** Bound at call time so the component stays a plain client component. */
 async function resolve(
-  _previous: { ok: boolean } | null,
+  _previous: Result,
   formData: FormData,
-): Promise<{ ok: boolean }> {
+): Promise<Result> {
   const { resolveDisputeAction } = await import(
     "@/app/[locale]/(admin)/admin/claims/actions"
   );

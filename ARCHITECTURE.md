@@ -173,6 +173,7 @@ it and what you checked**. Feature code is cheap to change; these are not.
 | Every table's UPDATE policy on a table with a privileged column | `profiles`, `bookings` | RLS is ROW-level and Supabase grants `authenticated` table-wide UPDATE, so an owner-update policy lets that owner write EVERY column on their own row. `profiles` had one and no trigger, so any signed-in customer could `PATCH {"role":"admin"}` and open the six `is_admin()` policies behind it. Closed with a column grant in `20260927000005`; `bookings` uses `enforce_booking_immutability` because the service role writes the columns it guards. Before widening any update policy, ask which column on that table confers power — `tests/db/profile-escalation.test.ts` executes the attempt rather than reading the catalog |
 | `lib/photos/store.ts` | Arrival photographs, booking photographs, claim evidence | One rule for what counts as a reuse, because it was written inside `arrival-photos.ts` first and the booking set needed the same three steps. Split into `comparePhoto` / `rememberIfNew` for claim evidence, which refuses some photographs — remembering a hash we refused would later read as a near match against an honest one. `checkAndRemember` is the unchanged composition the other two use |
 | `lib/auth/routes.ts` | Middleware and every auth page | `safeRedirect` accepted `/\evil.example`, which a browser reads as a jump to another origin |
+| `lib/auth/admin-gate.ts` | Twenty-one admin pages and fifteen admin action files | Two gates, and which one an action uses is a money decision. `adminActor()` is the eight-hour `STEP_UP_HOURS` window and is right for reading a queue; `freshAdminActor()` adds the fifteen minutes a payout has always needed. Six actions that move real money — refunds, the no-show payment, a trip-debt write-off, a commission waiver, a survey fee, a disputed cash amount — sat behind the batched-work window because they were written on different days. `lib/config/admin-money.ts` declares which writer needs which, and `tests/unit/admin-money-reauth.test.ts` reads every action through the TypeScript AST so the seventh cannot be written without one |
 | `i18n/routing.ts`, `i18n/navigation.ts` | Every link and redirect | — |
 | Design tokens in `styles/globals.css` | Every component | — |
 
@@ -2216,6 +2217,12 @@ hangs for 60 seconds and rolls back whole, and multi-statement DDL hangs too —
 atomic path is a single `DO $$ … END $$;` block: one statement to the transport, one
 implicit transaction, with the `schema_migrations` insert **inside** it so history records
 the migration only if its DDL committed.
+
+**`TRUNCATE` is not one of the words it objects to**, measured rather than assumed:
+`20261016000002` is `revoke truncate, trigger, references on all tables …` and
+`apply_migration` took it instantly. The judgement is about `drop` and `delete`, which is
+what the schema notes already said and what the word "destructive" invites a reader to
+over-generalise from.
 
 **Every migration now states which path it used in its header, and names any deviation.**
 Not because the rule is hard to remember, but because a migration applied some other way

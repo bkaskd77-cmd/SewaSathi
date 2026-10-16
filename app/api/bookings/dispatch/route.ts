@@ -7,6 +7,7 @@ import { sweepDurationPromotions } from "@/lib/data/duration-loop";
 import { publishDueReviews } from "@/lib/data/reviews";
 import { expireStaleQuotes } from "@/lib/data/survey";
 import { hasSupabaseConfig } from "@/lib/env";
+import { cronTokenAccepted } from "@/lib/security/cron-token";
 import { recordCronRun } from "@/lib/data/cron-runs";
 import {
   describeDrift,
@@ -38,10 +39,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const offered =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!secret || offered !== secret) {
+  if (
+    !cronTokenAccepted(
+      process.env.CRON_SECRET,
+      request.headers.get("authorization"),
+    )
+  ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!hasSupabaseConfig()) {

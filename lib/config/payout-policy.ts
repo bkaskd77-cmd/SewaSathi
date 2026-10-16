@@ -164,3 +164,34 @@ export function dispatchPauseFor(arrearsRupees: number): number | null {
   if (cap === null) return null;
   return arrearsRupees >= cap ? cap : null;
 }
+
+/**
+ * Is this session's proof of identity recent enough to move somebody's money?
+ *
+ * PURE AND HERE RATHER THAN IN THE DATA LAYER, which is where it was first
+ * written — inside `server-only`, where the screen that decides whether to ask
+ * for a code cannot reach it. That is the mistake this repository has recorded
+ * four times (`heldReasonFor`, `whyWaiting`, `destinationReadiness`,
+ * `claimRateWorthReading`), and it had already produced one copy of this
+ * arithmetic: the AI-ceilings action did the subtraction itself, so the window
+ * was enforced in two places that had no way to disagree loudly.
+ *
+ * Beside `REAUTH_WINDOW_MINUTES` because the rule and the number it reads are
+ * one decision. A gate the form and the write each judge separately is a gate
+ * with two answers.
+ *
+ * AN ABSENT STAMP IS EXPIRED and a FUTURE one is too. Null is "we were never
+ * told when they proved it", which is rule 6 where guessing wrong hands
+ * somebody's earnings to a stranger; a stamp ahead of now is a clock nobody can
+ * trust, and reading it as "very fresh indeed" would make a wrong clock a way
+ * in.
+ */
+export function isFresh(
+  reauthenticatedAt: Date | null,
+  now: Date = new Date(),
+): boolean {
+  if (!reauthenticatedAt) return false;
+  const age = now.getTime() - reauthenticatedAt.getTime();
+  if (!Number.isFinite(age) || age < 0) return false;
+  return age <= REAUTH_WINDOW_MINUTES * 60 * 1000;
+}

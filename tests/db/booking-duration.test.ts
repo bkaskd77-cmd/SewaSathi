@@ -79,6 +79,66 @@ async function durationOf(id: string) {
   return rows[0];
 }
 
+/** Ten minutes — `record_booking_duration`'s plausibility floor. */
+const PLAUSIBLE_FLOOR_MINUTES = 10;
+
+/** Nepal Time, fixed year-round, as the trigger spells it. */
+const NPT = "interval '5 hours 45 minutes'";
+
+/** The instant the current Nepal day began, in SQL. */
+const NEPAL_DAY_START = `(date_trunc('day', now() + ${NPT}) - ${NPT})`;
+
+/**
+ * What the stamps on a finished booking say, which is the trigger's INPUT.
+ *
+ * Read back rather than assumed, so the expectation is computed from the two
+ * timestamps the row actually holds and never from the columns the trigger
+ * wrote — asserting those against each other would be asking a function
+ * whether it equals itself.
+ */
+async function measuredMinutes(id: string): Promise<number> {
+  const { rows } = await pg.admin.query(
+    `select ceil(extract(epoch from (completed_at - started_at)) / 60.0) as minutes
+       from public.bookings where id = $1`,
+    [id],
+  );
+  return Number(rows[0].minutes);
+}
+
+/**
+ * The trigger's same-day rule in full, against the gap the fixture produced.
+ *
+ * WHY THIS IS A FUNCTION AND NOT THREE LITERALS. `complete(id, 95 * 60)` used
+ * to be asserted as "at least 95 minutes", which is true for twenty-two and a
+ * half hours a day: `completed_at` is stamped `now()` by the status machine and
+ * cannot be chosen, so between Nepal midnight and 01:35 a ninety-five-minute
+ * job necessarily crosses the day boundary, the trigger correctly writes null,
+ * and three cases went red. They had been red for ten hours a day — see
+ * `completeAcrossDays` — and nobody had run the suite at that hour.
+ *
+ * Both branches are the behaviour, not a loosening: under the floor the trigger
+ * refuses and says so, over it the measurement is exact. Pinning the equality
+ * is stronger than the old "at least", and the floor's own case is pinned
+ * separately below with a gap nobody's clock can move.
+ */
+function expectSameDayMeasurement(
+  row: { [key: string]: unknown },
+  minutes: number,
+) {
+  if (minutes >= PLAUSIBLE_FLOOR_MINUTES) {
+    expect(Number(row.actual_elapsed_minutes)).toBe(minutes);
+    expect(Number(row.actual_working_minutes)).toBe(minutes);
+    expect(Number(row.actual_elapsed_days)).toBe(1);
+    expect(row.duration_implausible_at).toBeNull();
+    return;
+  }
+
+  expect(row.actual_elapsed_minutes).toBeNull();
+  expect(row.actual_working_minutes).toBeNull();
+  expect(row.actual_elapsed_days).toBeNull();
+  expect(row.duration_implausible_at).not.toBeNull();
+}
+
 /**
  * Walk the status machine to completed with a chosen amount of work done.
  *
@@ -89,8 +149,14 @@ async function durationOf(id: string) {
  * overwritten before this trigger ever sees it. That is correct product
  * behaviour — the stamp is ours, not the caller's — and it means a test
  * pretending time passed has to say so afterwards.
+ *
+ * IT IS CLAMPED INTO THE CURRENT NEPAL DAY and returns the gap it actually
+ * got. The completion stamp is `now()` and cannot be chosen, so a fixture that
+ * simply subtracts an hour and a half produces a same-day job for most of the
+ * day and a two-day job just after Nepal midnight — the caller is told which
+ * it got rather than asserting a number that is only true in the afternoon.
  */
-async function complete(id: string, seconds: number): Promise<void> {
+async function complete(id: string, seconds: number): Promise<number> {
   await pg.admin.query(
     "update public.bookings set provider_id = $2, status = 'accepted' where id = $1",
     [id, krishna],
@@ -105,13 +171,19 @@ async function complete(id: string, seconds: number): Promise<void> {
   );
   // Status unchanged, so `record_booking_duration` early-returns here.
   await pg.admin.query(
-    "update public.bookings set started_at = now() - make_interval(secs => $2) where id = $1",
+    `update public.bookings
+        set started_at = greatest(
+              now() - make_interval(secs => $2),
+              ${NEPAL_DAY_START} + interval '1 minute'
+            )
+      where id = $1`,
     [id, seconds],
   );
   await pg.admin.query(
     "update public.bookings set status = 'completed' where id = $1",
     [id],
   );
+  return measuredMinutes(id);
 }
 
 /**
@@ -123,8 +195,16 @@ async function complete(id: string, seconds: number): Promise<void> {
  * depending on what time the suite happens to run — and a test whose expected
  * value moves with the clock either gets loosened until it proves nothing, or
  * asserts the trigger's own arithmetic back at it.
+ *
+ * AND 10:00 NPT HAS NOT HAPPENED YET FOR TEN HOURS OF EVERY DAY, which the
+ * comment above did not notice. For `days = 1` the stamp was "today at 10:00",
+ * so a suite run at any Nepal hour before that set `started_at` AFTER
+ * `completed_at` — a negative gap, which the trigger refuses as implausible —
+ * and the case asserting a one-day span failed every night. Same-day is
+ * therefore clamped to the past and into today's Nepal date; a longer span
+ * lands on an earlier date and is in the past by construction.
  */
-async function completeAcrossDays(id: string, days: number): Promise<void> {
+async function completeAcrossDays(id: string, days: number): Promise<number> {
   await pg.admin.query(
     "update public.bookings set provider_id = $2, status = 'accepted' where id = $1",
     [id, krishna],
@@ -139,9 +219,16 @@ async function completeAcrossDays(id: string, days: number): Promise<void> {
   );
   await pg.admin.query(
     `update public.bookings
-        set started_at =
-              (((now() + interval '5 hours 45 minutes')::date - ($2::integer - 1))
-                + time '10:00') - interval '5 hours 45 minutes'
+        set started_at = case
+              when $2::integer = 1 then greatest(
+                least(
+                  ((now() + ${NPT})::date + time '10:00') - ${NPT},
+                  now() - interval '1 minute'
+                ),
+                ${NEPAL_DAY_START} + interval '1 minute'
+              )
+              else (((now() + ${NPT})::date - ($2::integer - 1)) + time '10:00') - ${NPT}
+            end
       where id = $1`,
     [id, days],
   );
@@ -149,6 +236,7 @@ async function completeAcrossDays(id: string, days: number): Promise<void> {
     "update public.bookings set status = 'completed' where id = $1",
     [id],
   );
+  return measuredMinutes(id);
 }
 
 beforeAll(async () => {
@@ -303,13 +391,11 @@ describe("the estimate follows the product", () => {
 });
 
 describe("what actually happened, and what is refused as evidence", () => {
-  it("records the worked minutes on a real job", async () => {
+  it("records exactly the minutes it measured on a real job", async () => {
     const id = await book("touch-up");
-    await complete(id, 95 * 60);
+    const minutes = await complete(id, 95 * 60);
 
-    const row = await durationOf(id);
-    expect(Number(row.actual_working_minutes)).toBeGreaterThanOrEqual(95);
-    expect(row.duration_implausible_at).toBeNull();
+    expectSameDayMeasurement(await durationOf(id), minutes);
   });
 
   /*
@@ -807,15 +893,10 @@ describe("the days a job runs", () => {
 describe("a completion records what it measured and not more", () => {
   it("writes worked minutes only for a job that ran inside one Nepal day", async () => {
     const id = await book("touch-up");
-    await completeAcrossDays(id, 1);
+    const minutes = await completeAcrossDays(id, 1);
 
-    const row = await durationOf(id);
-    expect(Number(row.actual_elapsed_days)).toBe(1);
-    expect(Number(row.actual_elapsed_minutes)).toBeGreaterThan(0);
     // Same measurement, so the two agree exactly rather than approximately.
-    expect(Number(row.actual_working_minutes)).toBe(
-      Number(row.actual_elapsed_minutes),
-    );
+    expectSameDayMeasurement(await durationOf(id), minutes);
   });
 
   /*
@@ -1039,7 +1120,7 @@ describe("naming a product after the work records it without inventing an estima
    */
   it("records it on a job that is already over", async () => {
     const id = await book(null);
-    await complete(id, 95 * 60);
+    const minutes = await complete(id, 95 * 60);
     await pg.admin.query(
       `update public.bookings
           set band_slug = 'touch-up', band_source = 'professional'
@@ -1051,7 +1132,7 @@ describe("naming a product after the work records it without inventing an estima
     expect(row.band_slug).toBe("touch-up");
     expect(row.estimated_working_minutes).toBeNull();
     // The measurement is untouched — naming the product does not re-run it.
-    expect(Number(row.actual_working_minutes)).toBeGreaterThanOrEqual(95);
+    expectSameDayMeasurement(row, minutes);
   });
 });
 

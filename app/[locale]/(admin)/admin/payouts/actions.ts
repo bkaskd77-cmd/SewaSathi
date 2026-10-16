@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { adminActor } from "@/lib/auth/admin-gate";
+import { adminActor, freshAdminActor } from "@/lib/auth/admin-gate";
 import { sessionAuthenticatedAt } from "@/lib/auth/session";
 import {
   approvePayout,
@@ -118,6 +118,13 @@ export async function markFailedAction(
  * the action's return value to the component that asked, which keeps it out of the
  * server-rendered HTML, out of the router cache and out of anything a later
  * visitor to this screen would receive.
+ *
+ * THE FIFTEEN-MINUTE PROOF APPLIES TO A DISCLOSURE AND NOT ONLY TO A TRANSFER,
+ * which is why this one is gated at the action rather than threaded like the
+ * four above. An eight-hour window on an unlocked phone is every professional's
+ * bank account, read one at a time; the audit row records who asked and does
+ * not stop them. The reason field is still required, and is still refused here
+ * as well as in the data layer.
  */
 export async function revealDestinationAction(
   data: FormData,
@@ -127,8 +134,14 @@ export async function revealDestinationAction(
   accountName?: string;
   reason?: string;
 }> {
-  const profile = await adminActor();
-  if (!profile) return { ok: false, reason: "generic" };
+  const gate = await freshAdminActor();
+  if (!gate.ok) {
+    return {
+      ok: false,
+      reason: gate.reason === "reauthNeeded" ? "notFresh" : "generic",
+    };
+  }
+  const profile = gate.profile;
 
   const reason = field(data, "reason");
   // A reason is required by the data layer too; refusing here as well is what

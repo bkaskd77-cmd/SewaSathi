@@ -616,6 +616,37 @@ policy right" but **"who may call it, and with whose id"**.
 `tests/db/guard-clauses.test.ts` fails on a new definer function signed-in users
 can reach with nothing naming the policy that needs it.
 
+**And the mechanism that produced that grant went on producing it for two
+weeks.** Nobody granted `execute` to `authenticated` on those two functions:
+Supabase's default privilege on `public` hands EXECUTE on every new function to
+`anon` and `authenticated`, exactly as it handed every new table to them until
+`20261002000001` — and that migration closed the TABLE half only. So the fix
+revoked the grant from two functions while every `security definer` function
+written afterwards went on starting life callable by any browser. Found in the
+pre-launch audit, by asking the catalog rather than re-reading the fix.
+
+`20261016000003` closes the source: `alter default privileges … revoke all on
+functions`. Nothing breaks, because a default privilege applies only at CREATE
+time and the seven helpers a policy legitimately needs — `is_admin`,
+`open_job_ids`, `provider_can_serve`, `provider_refused`, `provider_serves`,
+`provider_works_trade`, `session_is_verified` — each already carry an explicit
+`grant execute … to authenticated` in the migration that created them. A policy
+expression is evaluated with the CALLER's privileges, which is why those seven
+must keep it and why Supabase's Security Advisor is wrong to keep asking for
+`is_admin`'s to be taken away.
+
+Seven trigger functions written after `20260903000001` had inherited the grant
+too and lose it in the same migration. None was reachable — Postgres answers
+*trigger functions can only be called as triggers* — and that is a property of
+the return type rather than of the privilege, which is the reasoning this file
+refuses to accept one object type over. Firing a trigger does not re-check
+EXECUTE against the caller.
+
+`tests/db/write-grants.test.ts` holds three cases: no function default privilege
+for either browser role, a function created in the test gets no EXECUTE, and —
+the one that catches the eighth — the set a browser may call **is** those seven,
+each with the policy that needs it written beside it.
+
 ### RLS is a floor, not a filter
 
 **A read for a screen that belongs to one person names that person in the
@@ -855,6 +886,49 @@ for INSERT and UPDATE, 36 for DELETE. After: 51 column grants in total across
 five tables, no DELETE for either role anywhere, SELECT unchanged.
 `information_schema.column_privileges` read back in full.
 
+### The other three verbs, and the one `information_schema` cannot see
+
+`20261016000002`. The sweep above revoked INSERT, UPDATE and DELETE schema-wide
+— the three verbs anybody had thought about. Supabase's default grants `all`,
+which on PostgreSQL 17 is eight. Read live in the pre-launch audit, `anon` and
+`authenticated` each still held **TRUNCATE and TRIGGER on 36 tables**,
+REFERENCES on 36 and 37, and **MAINTAIN on 36 and 37**.
+
+**TRUNCATE is the one worth the migration, and not because it was reachable.**
+PostgREST has no truncate verb, so nothing in the product's surface can issue
+one. It is that **TRUNCATE is not subject to row-level security at all** — every
+other write in this schema meets a policy before it meets a row, and this one
+empties the table with the policies looking on. So the privilege was the only
+thing in front of it, and it sat on `security_events` and `provider_ledger`,
+both of which exist to be append-only. That is the same argument the DELETE
+revoke already made, on the weaker case.
+
+TRIGGER and REFERENCES need DDL a browser role cannot issue; they go for
+hygiene, in the same statement.
+
+**MAINTAIN is the one that nearly got away.** PostgreSQL 17 added it — VACUUM,
+ANALYZE, REINDEX, CLUSTER, REFRESH MATERIALIZED VIEW, LOCK TABLE — and
+`information_schema.role_table_grants` does not list it, because that view is
+the SQL standard's and the privilege is newer than the standard. The first
+version of this migration missed it and the first version of its test could not
+have caught it: the test read the same blind view and would have printed a tick
+over a privilege both roles still held on 36 tables. The test reads `aclexplode`
+now, and asserts **what is left** rather than that three named verbs are gone,
+so a ninth privilege cannot arrive the way the second three did.
+
+**The harness had never granted any of them**, which is why the break-test for
+this fix came back green the first time. `tests/support/postgres.ts` modelled
+Supabase's default as `select, insert, update`; it grants `all` now, read out of
+`pg_default_acl` on the live project rather than assumed. Every verb it left out
+was a verb no test here could see — `20261011000004`'s schema-wide
+`revoke delete` had proved nothing locally either. MAINTAIN stays unmodellable,
+because the harness cluster is PostgreSQL 16; that clause is verified against
+production with `has_table_privilege` and the limit is written down rather than
+papered over.
+
+After both sweeps, the only table privilege either browser role holds anywhere
+in `public` is SELECT, plus the 51 column grants named above.
+
 ### A role change writes its own audit row, and until now it wrote none
 
 `lib/data/review.ts` promoted an approved applicant with a bare
@@ -1054,6 +1128,27 @@ of them and every one of them holds today:
    The friction that prompted both was neither: it was `stepUpFor` returning
    `enrol` for an admin who had not yet set up an authenticator, which bounces
    every visit to `/account/security` until they do.
+2b. **A money decision needs a fresh code, not the eight-hour window.**
+   `STEP_UP_HOURS` is eight because admin work is batched and a code every half
+   hour teaches somebody to tap through approvals. `/admin/payouts` has needed
+   `REAUTH_WINDOW_MINUTES` — fifteen minutes, read off the session's `amr`
+   claim — since it shipped. **Six other actions moved real money behind the
+   eight-hour window**, found in the pre-launch audit: `issueRefund`,
+   `markRefundPaid`, `sendRefundToGateway` (which initiates a transfer),
+   `settleNoShowClaim`, `resolveTripDebtDispute`, `resolveCommissionAppeal`,
+   `decideSurveyVisitFee` and `resolveAmountMismatch`, plus `revealDestination`
+   — a disclosure rather than a transfer, and the only path in the product that
+   returns a bank account number — and `confirmFirstPayout`, the human witness
+   in the account-takeover control. There was no reason for the split beyond
+   their having been written on different days.
+   `freshAdminActor()` is the one gate, `lib/config/admin-money.ts` is the
+   declaration of which writers need it and why, and
+   `tests/unit/admin-money-reauth.test.ts` reads every admin action through the
+   TypeScript AST and fails both on a declared writer called without the gate
+   and on a money-module function nobody has declared. `markPayoutConfirmed` is
+   declared as needing none, with the reason: it records an answer that came
+   from outside and moves no money, and a code demanded for a write that cannot
+   cost anybody anything is how people learn to tap through the ones that can.
 3. **Every action logged and attributable.** `security_events` with
    `actor_role = 'admin'` and the subject. There is no "system did it" for a
    thing a person did.
@@ -1206,10 +1301,15 @@ Listed rather than implied.
   `RETENTION_ENABLED` is unset, so it deletes nothing — deliberately, until the
   numbers are approved. `security_events` is excluded by design: it is
   append-only and expiring it is a deliberate migration.
-- **The shared rate-limit store is unconfigured.** Without
-  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` the counters are
-  per-instance. `/api/health` reports which is in force rather than leaving it
-  to be assumed.
+- ~~The shared rate-limit store is unconfigured.~~ **Configured in
+  production.** `/api/health` reports which store is in force rather than
+  leaving it to be assumed, and the deployment read during the pre-launch audit
+  answered `rateLimit: Shared store — the ceilings hold across instances`. So
+  the per-instance weakness the code warns about is not the live state; the
+  warning stays because a preview or a fresh deployment without
+  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` still falls back to
+  in-process counters, and the endpoint is how you tell which you have rather
+  than this sentence.
 - **`script-src` keeps `'unsafe-inline'`.** Three inline scripts need it and
   the fix is a per-request nonce from middleware; see the note in
   `next.config.mjs` for why that is not a five-minute change here.
@@ -1221,3 +1321,36 @@ Listed rather than implied.
 - **Server actions are not individually rate-limited.** Only booking creation,
   triage and the join form are. Next's own protections cover origin, not
   volume.
+
+**And what the pre-launch audit found and deliberately did not fix**, so that
+each reads as a decision rather than an omission. Every route, server action,
+RLS policy, table and function grant, storage bucket, cron and secret was read;
+the two highest findings and three mediums were fixed in the same commit and are
+written up above.
+
+- **The admin step-up has no per-action record.** `freshAdminActor()` refuses
+  without a fifteen-minute `amr` proof, and `security_events` records the
+  decision rather than the proof that preceded it. A reviewer reconstructing an
+  incident can see who decided and when, not whether they were challenged.
+  Adding it means a column on the audit row and is worth doing the first time
+  anybody asks "was that session actually re-authenticated".
+- **An account number still crosses the wire to a browser.**
+  `revealDestination` returns the digits as a server action's return value, so
+  they stay out of the server-rendered HTML and out of the router cache, the
+  audit row is written before the envelope is opened, and the call now needs a
+  fifteen-minute proof. What it is not is a remittance adapter: until one
+  exists, somebody has to read the number and type it into a bank, and no
+  arrangement of this code removes that.
+- **`/api/health` is public and names every dependency.** That is deliberate —
+  it is how an outage is found without a credential — and it does disclose which
+  providers this product uses and which are currently failing. The expensive
+  half is behind `CRON_SECRET`; the cheap half stays open.
+- **The cron endpoints are guarded by a shared bearer token, not per-job.** One
+  `CRON_SECRET` opens the dispatch sweep, the payment reconciliation, the
+  retention sweep and `?deep=1`. Rotating it rotates all four. Per-job secrets
+  are a real improvement and a four-variable one; the comparison is constant
+  time now (`lib/security/cron-token.ts`), which was the part that was wrong.
+- **No alerting reads `/api/health`.** The endpoint exists, the verdict is
+  honest, `ACKNOWLEDGED_FAILURES` keeps one failure from masking the next — and
+  nothing is watching it. That is a monitor to buy rather than code to write,
+  and it is in `LAUNCH-BLOCKERS.md`.

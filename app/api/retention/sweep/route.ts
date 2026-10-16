@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { sweepRetention, retentionPolicy } from "@/lib/data/retention";
+import { cronTokenAccepted } from "@/lib/security/cron-token";
 
 /**
  * Apply the retention policy, or report what it would apply.
@@ -23,11 +24,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const offered =
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-
-  if (!secret || offered !== secret) {
+  if (
+    !cronTokenAccepted(
+      process.env.CRON_SECRET,
+      request.headers.get("authorization"),
+    )
+  ) {
     return NextResponse.json(
       { error: "unauthorized" },
       { status: 401, headers: { "cache-control": "no-store" } },

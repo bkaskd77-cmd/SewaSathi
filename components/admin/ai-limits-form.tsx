@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AiLimits } from "@/lib/config/ai-limits";
 
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
+
 /**
  * Twelve numbers, each with the bounds it is held to.
  *
@@ -86,7 +88,11 @@ export function AiLimitsForm({
         ))}
       </div>
 
-      {error ? (
+      {error && isReauthReason(error) ? (
+        <div className="mt-3">
+          <ReauthNotice />
+        </div>
+      ) : error ? (
         <p role="alert" className="text-caption mt-3 text-destructive-ink">
           {t(`errors.${error}`)}
         </p>

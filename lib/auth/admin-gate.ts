@@ -1,7 +1,9 @@
 import "server-only";
 
+import { isFresh } from "@/lib/config/payout-policy";
+
 import { getSessionProfile, type SessionProfile } from "./session";
-import { mfaState } from "./mfa";
+import { mfaState, sessionAuthenticatedAt } from "./mfa";
 import {
   stepUpBlocks,
   stepUpFor,
@@ -31,7 +33,12 @@ export type AdminGate =
   /** Signed in, not an admin. The caller answers 404, as it always has. */
   | { ok: false; reason: "notAdmin" }
   /** An admin who must set up or use a second factor first. */
-  | { ok: false; reason: "stepUp"; step: StepUpVerdict; profile: SessionProfile };
+  | {
+      ok: false;
+      reason: "stepUp";
+      step: StepUpVerdict;
+      profile: SessionProfile;
+    };
 
 /**
  * Role, then second factor, in that order.
@@ -75,6 +82,63 @@ export async function adminActor(): Promise<SessionProfile | null> {
 }
 
 /**
+ * The same decision again, for an action that moves money.
+ *
+ * TWO WINDOWS, AND THE SPLIT IS THE WHOLE POINT. `adminActor()` carries
+ * `STEP_UP_HOURS` — eight hours, because admin work is batched and a code every
+ * half hour teaches somebody to tap through approvals, which is the failure
+ * `lib/payments/pricing.ts` names. That is the right window for reading a queue,
+ * answering a review or publishing a page. It is the wrong one for releasing
+ * somebody's money: an unlocked phone left on a desk is inside an eight-hour
+ * window all afternoon, and these actions each move real rupees in one tap.
+ *
+ * THIS WAS A HOLE AND IT WAS FOUND BY AUDIT RATHER THAN BY A FAILURE. Payouts
+ * had the fifteen-minute proof from the day they shipped, threaded as
+ * `reauthenticatedAt` into `lib/data/payouts.ts`; the refund, no-show,
+ * trip-debt, appeal and survey-fee decisions did not, although
+ * `sendRefundToGateway` initiates a real transfer and `issueRefund` decides how
+ * much of a customer's money goes back. Six money-moving actions behind the
+ * batched-work window, for no reason beyond their having been written on
+ * different days.
+ *
+ * ONE HELPER RATHER THAN SIX CHECKS, for the reason `adminGate` already states:
+ * adding a second condition to six actions by hand is how one of them ends up
+ * without it, and the one without it is the hole. The alternative shape —
+ * threading `reauthenticatedAt` into every data-layer writer, as payouts does —
+ * is better where the data layer must refuse on its own (a cron, a second
+ * caller), and worse here: five of these writers have exactly one caller, and
+ * five more parameters is five more places to pass null.
+ * `tests/unit/admin-money-reauth.test.ts` is what makes the rule hold, by
+ * reading the sources rather than trusting this comment.
+ *
+ * THE TWO REFUSALS STAY SEPARATE, unlike `adminActor`'s. There the collapse is
+ * deliberate — an action must not tell a caller which half of the gate they
+ * failed. Here `reauthNeeded` is only ever returned to somebody who has already
+ * passed the role check and the eight-hour step-up, so it discloses nothing
+ * they did not already know, and a screen that cannot tell the two apart is a
+ * screen that says "that did not save" to an admin who needs to type six
+ * digits.
+ */
+export type FreshAdminActor =
+  | { ok: true; profile: SessionProfile }
+  | { ok: false; reason: "notAdmin" | "reauthNeeded" };
+
+export async function freshAdminActor(): Promise<FreshAdminActor> {
+  const profile = await adminActor();
+  if (!profile) return { ok: false, reason: "notAdmin" };
+
+  /* Read from the session's `amr` claim, never from the form: a field, a
+     parameter or a cookie would all be the browser's to set. Deliberately not
+     `iat`, which resets on every silent refresh — a gate reading that would
+     mean "recently active", which is exactly what a stolen session is. */
+  if (!isFresh(await sessionAuthenticatedAt())) {
+    return { ok: false, reason: "reauthNeeded" };
+  }
+
+  return { ok: true, profile };
+}
+
+/**
  * What the security screen needs, in one answer.
  *
  * THE PAGE ASKS THIS RATHER THAN COMPOSING IT. `mfa.ts` and `step-up.ts` are
@@ -95,7 +159,12 @@ export async function securityState(): Promise<{
 }> {
   const profile = await getSessionProfile();
   if (!profile) {
-    return { hasFactor: false, needsCode: false, stepUpHours: STEP_UP_HOURS, role: null };
+    return {
+      hasFactor: false,
+      needsCode: false,
+      stepUpHours: STEP_UP_HOURS,
+      role: null,
+    };
   }
 
   const state = await mfaState();

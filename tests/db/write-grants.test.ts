@@ -13,12 +13,20 @@ import { ALLOWED } from "../support/write-allowlist";
  * This is the other half: the guard against a SEVENTH writable table arriving the
  * same way — silently, because nothing in the suite asserted the set.
  *
- * THE GRANT IS NOT THE DISCRIMINATOR AND THAT IS THE THING TO UNDERSTAND.
- * Supabase hands `anon` and `authenticated` INSERT and UPDATE on every table in
- * `public` through a default privilege, so the privilege is always there and
- * listing tables that have it would list all of them. What decides whether a
- * browser can actually write is the POLICY. So the sweep starts at `pg_policy`,
- * and the allow-list below is the set of tables where a write policy exists.
+ * THE SWEEP STARTS AT `pg_policy`, AND THE REASON IT USED TO GIVE WAS WRONG.
+ * It read: "the grant is not the discriminator — Supabase hands `anon` and
+ * `authenticated` INSERT and UPDATE on every table through a default privilege,
+ * so listing tables that have it would list all of them; the POLICY is what
+ * decides." Every clause was true and the conclusion was not. A privilege every
+ * table carries is not a reason to look past it; it is thirty-six locks left
+ * open, each one policy away from mattering. `20261011000004` took insert,
+ * update and delete back schema-wide and `20261016000002` took truncate,
+ * trigger and references — TRUNCATE being the one that is not subject to RLS at
+ * all, so no policy was ever going to stand in front of it.
+ *
+ * So the policy sweep stays, because it answers "which tables can a browser
+ * write" and that is still the allow-list's question, and the privilege is
+ * asserted on its own below rather than waved past.
  *
  * EACH ENTRY NAMES ITS GUARD RATHER THAN JUST PERMITTING THE TABLE. A list of
  * table names would still pass the day somebody dropped a trigger or widened a
@@ -106,6 +114,42 @@ describe("no table lets a browser write without being named here", () => {
       .map((p) => `${p.tbl}: ${p.polname}`);
 
     expect(deletes).toEqual([]);
+  });
+
+  it("leaves a browser role no table privilege but SELECT", async () => {
+    /* THE WHOLE SET, NOT THREE VERBS OF IT. The previous sweep revoked insert,
+       update and delete — the three anybody had thought about — and left
+       TRUNCATE, TRIGGER and REFERENCES standing on 36 tables, because the
+       question had been asked verb by verb rather than about the privilege.
+       TRUNCATE is the one that matters: it is NOT subject to row-level security,
+       so unlike every other write in this schema it never meets a policy, and
+       the grant is the only thing in front of it. It sat on `security_events`,
+       which exists to be append-only.
+
+       Asked as "what is left" rather than "are these three gone", so a seventh
+       verb cannot arrive the way the second three did.
+
+       READ THROUGH `aclexplode` AND NOT `information_schema.role_table_grants`,
+       which is the SQL standard's view and does not list PostgreSQL 17's
+       MAINTAIN at all. Written against that view first, this case would have
+       printed a tick over a privilege both browser roles still held on 36
+       tables — the shape of a checker that has quietly stopped checking. The
+       harness is 16 and has no MAINTAIN to find; the catalog is still the right
+       one to ask, because the next privilege Postgres adds will be invisible to
+       the standard view too. */
+    const { rows } = await pg.admin.query(
+      `select distinct a.privilege_type
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+         cross join lateral aclexplode(c.relacl) a
+         join pg_roles r on r.oid = a.grantee
+        where n.nspname = 'public'
+          and c.relkind in ('r', 'p', 'v', 'm', 'f')
+          and r.rolname in ('anon', 'authenticated')
+        order by a.privilege_type`,
+    );
+
+    expect(rows.map((r: { privilege_type: string }) => r.privilege_type)).toEqual(["SELECT"]);
   });
 });
 
@@ -458,6 +502,133 @@ describe("a new table grants a browser nothing", () => {
       // Dropped either way: a probe table left behind would be a table with no
       // policies, which is the first case this file sweeps for.
       await pg.admin.query("drop table if exists public.zz_grant_probe");
+    }
+  });
+});
+
+/*
+ * THE SAME QUESTION ONE OBJECT TYPE OVER, AND IT HAD ALREADY COST SOMETHING.
+ *
+ * `provider_outstanding` and `provider_balance` are `security definer`, so they
+ * stand on top of RLS and answer to their own grant alone — and both carried
+ * EXECUTE for `authenticated`, which let any signed-in customer name any
+ * professional's id and read their debt and money position. Nobody granted it:
+ * Supabase's default privilege on `public` hands every new FUNCTION to `anon`
+ * and `authenticated` exactly as it did every new table, and
+ * `20261002000001_default_privileges_closed.sql` closed the table half only.
+ *
+ * So `20260930000001` revoked the grant from those two while the mechanism that
+ * produced it went on producing it. `20261016000003` closes the source, and
+ * these three cases are what stop it reopening — the second for the reason the
+ * table probe exists, and the third because a list of what MAY be called is the
+ * only version of this that catches the eighth function.
+ */
+describe("a new function gives a browser nothing", () => {
+  /** The helpers a POLICY calls, which must keep EXECUTE, each with why. */
+  const POLICY_HELPERS: Record<string, string> = {
+    is_admin:
+      "Six policies call it. A policy expression runs with the CALLER's privileges, so revoking this breaks every admin read in the product — the Security Advisor asks for it anyway and the answer is no.",
+    open_job_ids:
+      "The open-job policy on bookings. Written once in SQL so the policy and lib/data cannot disagree about which jobs are open.",
+    provider_can_serve:
+      "The bookings policy reads addresses, which would re-enter bookings through its own policy; definer breaks that recursion.",
+    provider_refused:
+      "Keeps a refused job from being offered back to the professional who refused it, inside the open-job policy.",
+    provider_serves:
+      "The coverage check behind the claim policy and enforce_booking_immutability.",
+    provider_works_trade:
+      "The reassignment check on a claim, called from the policy.",
+    session_is_verified:
+      "The unverified-session clause added to the customer read policies in 20260911000001.",
+  };
+
+  it("has no function default privilege for anon or authenticated", async () => {
+    const { rows } = await pg.admin.query(`
+      select unnest(d.defaclacl)::text as item
+        from pg_default_acl d
+        join pg_namespace n on n.oid = d.defaclnamespace
+       where n.nspname = 'public'
+         and d.defaclobjtype = 'f'
+    `);
+
+    const browser = (rows as { item: string }[])
+      .map((r) => r.item)
+      .filter((item) => /^(anon|authenticated)=/.test(item));
+
+    expect(
+      browser,
+      "Every new function in public is callable from a browser. That is how " +
+        "provider_balance came to be — a security definer function standing " +
+        "on top of RLS with a grant nobody wrote.",
+    ).toEqual([]);
+  });
+
+  it("gives a browser no EXECUTE on a function created now", async () => {
+    /* The catalog case above is satisfied by a default that never existed, so
+       it would have been green throughout. This asks what a function is
+       actually asked. */
+    await pg.admin.query(
+      "create function public.zz_execute_probe() returns int language sql as $probe$ select 1 $probe$",
+    );
+    try {
+      const { rows } = await pg.admin.query(`
+        select r.rolname
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          cross join lateral aclexplode(p.proacl) a
+          join pg_roles r on r.oid = a.grantee
+         where n.nspname = 'public'
+           and p.proname = 'zz_execute_probe'
+           and a.privilege_type = 'EXECUTE'
+           and r.rolname in ('anon', 'authenticated')
+      `);
+
+      expect(rows, "a brand-new function is callable from a browser").toEqual([]);
+    } finally {
+      await pg.admin.query("drop function if exists public.zz_execute_probe()");
+    }
+  });
+
+  it("lets a browser call only the helpers a policy needs", async () => {
+    /* THE INVERSE, which is the one that catches the eighth. The two cases
+       above are about functions created from now on; this is about the set as
+       it stands, and it goes red when a function gains EXECUTE however it got
+       it — a dashboard click, a Supabase upgrade, or somebody clearing a
+       `42501` the quick way. A trigger function is included deliberately: it
+       cannot be called directly, but "inert" is a property of the return type
+       rather than of the privilege, which is the reasoning this file refuses
+       to accept one object type over. */
+    const { rows } = await pg.admin.query(`
+      select distinct p.proname
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) a
+        join pg_roles r on r.oid = a.grantee
+       where n.nspname = 'public'
+         and a.privilege_type = 'EXECUTE'
+         and r.rolname in ('anon', 'authenticated')
+       order by p.proname
+    `);
+
+    const callable = (rows as { proname: string }[]).map((r) => r.proname);
+    const expected = Object.keys(POLICY_HELPERS).sort();
+
+    expect(
+      callable,
+      "A function a browser may call that no policy needs. If it is " +
+        "`security definer` it stands on top of RLS and answers to this grant " +
+        "alone — ask who may call it and with whose id.",
+    ).toEqual(expected);
+  });
+
+  it("names a reason for each helper, and names one that still exists", async () => {
+    for (const [name, why] of Object.entries(POLICY_HELPERS)) {
+      expect(why.length, `${name} has no reason recorded`).toBeGreaterThan(40);
+      const { rows } = await pg.admin.query(
+        "select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = $1",
+        [name],
+      );
+      expect(rows.length, `${name} is listed and does not exist`).toBeGreaterThan(0);
     }
   });
 });

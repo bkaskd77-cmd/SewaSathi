@@ -151,12 +151,12 @@ describe("how recent a proof of identity has to be", () => {
      * wrong hands somebody's earnings to a stranger. An absent claim is not
      * evidence the window is open.
      */
-    const { isFresh } = await import("@/lib/data/payout-destinations");
+    const { isFresh } = await import("@/lib/config/payout-policy");
     expect(isFresh(null)).toBe(false);
   });
 
   it("accepts inside the window and refuses outside it", async () => {
-    const { isFresh } = await import("@/lib/data/payout-destinations");
+    const { isFresh } = await import("@/lib/config/payout-policy");
     const { REAUTH_WINDOW_MINUTES } = await import("@/lib/config/payout-policy");
     const now = new Date("2026-09-30T12:00:00Z");
     const minutesAgo = (n: number) =>
@@ -168,7 +168,7 @@ describe("how recent a proof of identity has to be", () => {
 
   it("refuses a stamp from the future", async () => {
     // A clock skew or a forged value must not read as "just verified".
-    const { isFresh } = await import("@/lib/data/payout-destinations");
+    const { isFresh } = await import("@/lib/config/payout-policy");
     const now = new Date("2026-09-30T12:00:00Z");
     expect(isFresh(new Date(now.getTime() + 60_000), now)).toBe(false);
   });

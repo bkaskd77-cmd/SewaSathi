@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { isReauthReason, ReauthNotice } from "@/components/admin/reauth-notice";
 import { Loader2, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -84,12 +85,16 @@ export function RefundPayment({
               A second copy here would be the same words from two keys, which
               drift apart the first time either is edited. */}
           {sendResult && !sendResult.ok ? (
-            <p
-              role="alert"
-              className="animate-pop-in text-body-sm text-destructive-ink"
-            >
-              {t(`errors.${errorKey(sendResult.reason)}`)}
-            </p>
+            isReauthReason(sendResult.reason) ? (
+              <ReauthNotice />
+            ) : (
+              <p
+                role="alert"
+                className="animate-pop-in text-body-sm text-destructive-ink"
+              >
+                {t(`errors.${errorKey(sendResult.reason)}`)}
+              </p>
+            )
           ) : null}
           <Submit label={t("sendNow")} primary icon />
         </form>
@@ -124,12 +129,16 @@ export function RefundPayment({
         </div>
 
         {result && !result.ok ? (
-          <p
-            role="alert"
-            className="animate-pop-in text-body-sm text-destructive-ink"
-          >
-            {t(`errors.${errorKey(result.reason)}`)}
-          </p>
+          isReauthReason(result.reason) ? (
+            <ReauthNotice />
+          ) : (
+            <p
+              role="alert"
+              className="animate-pop-in text-body-sm text-destructive-ink"
+            >
+              {t(`errors.${errorKey(result.reason)}`)}
+            </p>
+          )
         ) : null}
 
         <Submit label={t("markPaid")} primary={!automatic} />

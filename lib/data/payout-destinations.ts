@@ -1,7 +1,7 @@
 import "server-only";
 
 import { recordDestinationAccess } from "@/lib/audit";
-import { REAUTH_WINDOW_MINUTES } from "@/lib/config/payout-policy";
+import { isFresh } from "@/lib/config/payout-policy";
 import { unreadable, type Readable } from "@/lib/data/readable";
 import { pushTargetsFor } from "@/lib/data/push";
 import { describeError } from "@/lib/data/source";
@@ -605,23 +605,6 @@ export async function changeDestination(input: {
     );
     return { ok: false, reason: "generic" };
   }
-}
-
-/**
- * Is this session's proof of identity recent enough to move somebody's money?
- *
- * Exported so the screen that decides whether to ask for a code reads the same
- * rule the write enforces. A gate that the form and the data layer each judge
- * separately is a gate with two answers.
- */
-export function isFresh(
-  reauthenticatedAt: Date | null,
-  now: Date = new Date(),
-): boolean {
-  if (!reauthenticatedAt) return false;
-  const age = now.getTime() - reauthenticatedAt.getTime();
-  if (!Number.isFinite(age) || age < 0) return false;
-  return age <= REAUTH_WINDOW_MINUTES * 60 * 1000;
 }
 
 export type RevealResult =
