@@ -261,6 +261,52 @@ describe("the workflow runs these same commands", () => {
   const workflow = readFileSync(".github/workflows/backup.yml", "utf8");
 
   /*
+   * THE BLOCK SCALARS, EXTRACTED BY INDENTATION AND WITHOUT A PARSER.
+   *
+   * The fault this models was invisible to every textual check in this file AND
+   * to a YAML parse that returned the right step names. A `run: |` body absorbs
+   * every following line indented at or beyond its own indentation — so when a
+   * step was inserted into the middle of the upload step's `with:` block,
+   * `compression-level: 0` became the last LINE OF SHELL in the drill, ran as a
+   * command, and the job died 127 AFTER every assertion had already passed. The
+   * document stayed valid and the step list stayed correct; only the input was
+   * no longer where it belonged.
+   *
+   * NO YAML LIBRARY, deliberately. `js-yaml` is in this tree transitively and is
+   * not a declared dependency, so a test resting on it breaks on a lockfile
+   * change for reasons having nothing to do with backups. Block-scalar
+   * absorption is an indentation rule, which is a dozen lines to model exactly.
+   */
+  function scriptBlocks(text: string): { step: string; body: string[] }[] {
+    const lines = text.split("\n");
+    const blocks: { step: string; body: string[] }[] = [];
+    let step = "(before any step)";
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const named = /^\s*- (?:name|uses): (.+)$/.exec(lines[i]);
+      if (named) step = named[1].trim();
+
+      const opens = /^(\s*)run: \|\s*$/.exec(lines[i]);
+      if (!opens) continue;
+
+      const indent = opens[1].length;
+      const body: string[] = [];
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const line = lines[j];
+        if (line.trim() === "") {
+          body.push(line);
+          continue;
+        }
+        if (line.length - line.trimStart().length <= indent) break;
+        body.push(line);
+      }
+      blocks.push({ step, body });
+    }
+
+    return blocks;
+  }
+
+  /*
    * COMMENTS STRIPPED, BECAUSE NAMING A FLAG IN ORDER TO WARN ABOUT IT IS NOT USING
    * IT. The first version of the `--no-privileges` case below went red against a
    * correct workflow: the paragraph explaining why that flag is gone contains the
@@ -399,6 +445,36 @@ describe("the workflow runs these same commands", () => {
    * it sits on a storage host this sandbox cannot reach. So a failure that writes
    * only to the log has, from here, said nothing at all.
    */
+  /*
+   * NO SHELL BLOCK HOLDS A YAML KEY. The general form of the fault: a bare
+   * `key: value` line inside a script is almost certainly an input the block
+   * scalar above it swallowed. Shell assignments are `key=value`, so this catches
+   * the mistake without flagging real code, and quoted echoes are not bare keys.
+   */
+  it("leaves no YAML key stranded inside a shell script", () => {
+    const blocks = scriptBlocks(workflow);
+    // An extractor finding nothing would make the loop below vacuous.
+    expect(blocks.length).toBeGreaterThanOrEqual(3);
+
+    for (const { step, body } of blocks) {
+      const stray = body.filter((line) => /^\s*[a-z][a-z0-9-]*:\s/.test(line));
+      expect(stray, `${step} holds a stranded YAML key`).toEqual([]);
+    }
+  });
+
+  /*
+   * AND THE UPLOAD'S OWN INPUT IS STILL IN THE UPLOAD STEP. `compression-level`
+   * was present in the file throughout the break, which is why its absence from
+   * the right place needs naming separately from its presence somewhere wrong.
+   */
+  it("keeps the upload's compression input with the upload", () => {
+    const upload = workflow.indexOf("upload-artifact@v4");
+    const drill = workflow.indexOf("Restore it into a scratch database");
+    const input = workflow.indexOf("compression-level");
+    expect(input).toBeGreaterThan(upload);
+    expect(input).toBeLessThan(drill);
+  });
+
   it("turns any failing command into a readable annotation", () => {
     expect(command).toContain("trap ");
     expect(command).toContain("$BASH_COMMAND");

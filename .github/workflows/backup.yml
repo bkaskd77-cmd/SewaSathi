@@ -202,6 +202,8 @@ jobs:
           # A missing file must fail the job. The default warns and goes green,
           # which is a nightly tick for a backup that does not exist.
           if-no-files-found: error
+          # Already compressed by pg_dump and then sealed by gpg.
+          compression-level: 0
 
       # RESTORED AFTER THE UPLOAD, NEVER BEFORE IT, and the order is this step's
       # whole safety. A drill that fails must not cost us the artifact it was
@@ -345,4 +347,3 @@ jobs:
           [ "$role_col"  = "f" ] || { echo "::error::profiles.role came back writable by authenticated"; exit 1; }
 
           echo "Restore drill passed against the artifact this run produced."
-          compression-level: 0 # Already compressed by pg_dump and then sealed.
