@@ -47,7 +47,7 @@ export type HealthCheck = {
  * lower in the same file, chose `unknown` while its comment claimed the choice
  * avoided exactly that.
  */
-export function isFailing(state: HealthState): boolean {
+function isFailing(state: HealthState): boolean {
   return state !== "ok" && state !== "skipped";
 }
 

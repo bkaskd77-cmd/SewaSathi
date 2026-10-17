@@ -36,7 +36,7 @@ import type { DeliveryResult, Notification, NotificationChannel } from "./channe
  */
 
 /** Is there a key pair to sign with? */
-export function pushIsConfigured(): boolean {
+function pushIsConfigured(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY,
   );

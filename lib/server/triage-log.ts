@@ -90,7 +90,7 @@ export type TriageLogEntry = {
   photoRelevanceReason: string | null;
 };
 
-export function canLogTriage(): boolean {
+function canLogTriage(): boolean {
   return Boolean(
     process.env.SUPABASE_SERVICE_ROLE_KEY &&
     process.env.NEXT_PUBLIC_SUPABASE_URL,

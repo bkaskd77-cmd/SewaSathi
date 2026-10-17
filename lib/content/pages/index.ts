@@ -24,10 +24,6 @@ const PAGES: Record<string, LocalisedDocument> = {
   "providers/standards": standards,
 };
 
-export function isInfoPage(slug: string): boolean {
-  return slug in PAGES;
-}
-
 export const INFO_PAGE_SLUGS = Object.keys(PAGES);
 
 export function infoPage(slug: string, locale: Locale): ProseDocument | null {

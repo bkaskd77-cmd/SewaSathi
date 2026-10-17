@@ -1855,8 +1855,17 @@ gated on something we would have turned away at the door.
 `arrearsPauseRupees` shape. Two claims exist in the history of this product and no
 photograph has ever been refused, so a number here would freeze a guess into the codebase
 as a standard, and guessing low means somebody whose phone clock is wrong is treated as a
-fraudster. What IS counted is `claimPhotoDoubtRate`, with its denominator, because one
-doubt out of one and one out of forty are different facts.
+fraudster. The columns themselves carry the evidence, each doubt beside the row that
+produced it, because one doubt out of one and one out of forty are different facts.
+
+**There was a `claimPhotoDoubtRate` here and it is deleted**, which this sentence used to
+cite as the thing that counted them. It had no caller anywhere: a rate with no screen, no
+test and no reader, documented in this file as though it were in service. That is the sin
+this repository keeps recording — `applyRedoRecovery`, `proposeBand`, `trip_rupees_paid` —
+at the small end, and the honest options were to wire it to a screen or to remove it.
+Nobody has asked for the screen, so it is removed; the rule it would have had to honour
+(every rate prints its denominator, `claimRateWorthReading`'s posture) is written down
+here for whoever builds one.
 
 **Null is "not checked" in every one of those columns**, never "clean". Every row written
 before a column existed is silent in it, a failed comparison stores `not-compared` rather

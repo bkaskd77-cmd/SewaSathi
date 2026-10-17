@@ -222,7 +222,7 @@ export async function liveTermsVersion(): Promise<number | null> {
  * date means serving text not yet in force while `createBooking` stamps bookings with its
  * version, and amending terms with notice needs a way to give the notice.
  */
-export async function publishDocument(input: {
+async function publishDocument(input: {
   slug: DocumentSlug;
   bodyEn: ProseDocument;
   bodyNe: ProseDocument;

@@ -75,7 +75,7 @@ const schema = z.object({
   lng: z.number().nullable().optional(),
 });
 
-export function validateAddress(input: AddressInput): {
+function validateAddress(input: AddressInput): {
   ok: boolean;
   errors: AddressErrors;
 } {

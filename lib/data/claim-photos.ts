@@ -324,53 +324,6 @@ export async function claimPhotosFor(
 }
 
 /**
- * How many photographs this account has had refused, and out of how many sent.
- *
- * COUNTED, PRINTED, AND ACTED ON BY NOTHING. `maxFailedChecksPerPeriod` is null, so this
- * is the number somebody would set it from rather than a rule being applied. It carries
- * its denominator for the same reason `claimRateWorthReading` does: one refusal out of
- * one and one out of forty are different facts, and a bare count invites a conclusion
- * neither supports.
- *
- * THE REFUSALS ARE NOT IN A TABLE AND THAT IS WHY THIS IS A FLOOR. A refused photograph
- * is never stored, deliberately — so what can be counted is what was ACCEPTED and what
- * carried a doubt. The honest reading is "doubts on record", and the field is named for
- * that rather than for the refusals it cannot see.
- */
-export async function claimPhotoDoubtRate(input: {
-  customerId: string | null;
-}): Promise<{ withDoubt: number; total: number } | null> {
-  if (!input.customerId || !hasSupabaseConfig()) return null;
-
-  try {
-    const admin = createAdminClient();
-    const { data: claims, error: claimError } = await admin
-      .from("guarantee_claims")
-      .select("id")
-      .eq("customer_id", input.customerId);
-
-    if (claimError) return null;
-    const ids = ((claims ?? []) as { id: string }[]).map((c) => c.id);
-    if (ids.length === 0) return { withDoubt: 0, total: 0 };
-
-    const { byClaim, read } = await claimPhotosFor(ids);
-    if (!read) return null;
-
-    let withDoubt = 0;
-    let total = 0;
-    for (const photos of byClaim.values()) {
-      for (const photo of photos) {
-        total += 1;
-        if (photo.doubts.length > 0) withDoubt += 1;
-      }
-    }
-    return { withDoubt, total };
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Signed URLs for a reviewer, and the log row that says they looked.
  *
  * ITS OWN FUNCTION SO THE SIGNING AND THE LOGGING CANNOT COME APART —

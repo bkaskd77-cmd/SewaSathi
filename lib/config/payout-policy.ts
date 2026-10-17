@@ -99,8 +99,14 @@ export const PAYOUT_RUN = {
    *
    * This is rule 6 at the top of the file applied to a lever rather than a
    * measurement: unset and set-to-zero are different facts and must not collapse.
-   * `dispatchPauseFor` returns `null` while this is null, and the test asserts
-   * that a professional owing a fortune is still dispatched.
+   * NOTHING READS THIS, AND THAT IS WHAT MAKES IT UNARMED. There was a
+   * `dispatchPauseFor` beside it, with no caller anywhere and a comment claiming
+   * "the test asserts that a professional owing a fortune is still dispatched" —
+   * no such test existed, so the safety the sentence described was never
+   * exercised. The function is gone; the constant stays, because it is the
+   * written record of a decision and two other comments cite it as the shape an
+   * unarmed lever takes. Arming it means writing the rule, its caller and its
+   * test in one commit, with the figure in the professional's terms first.
    */
   arrearsPauseRupees: null as number | null,
 
@@ -150,19 +156,6 @@ export function payoutPeriod(now: Date): { start: Date; end: Date } {
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - 7);
   return { start, end };
-}
-
-/**
- * How much arrears pause dispatch for this professional, or null.
- *
- * Null means the lever is unarmed, which is NOT the same as "they owe nothing" —
- * a caller that treated the two alike would pause nobody today and everybody the
- * moment a number was set, with no way to tell which it had done.
- */
-export function dispatchPauseFor(arrearsRupees: number): number | null {
-  const cap = PAYOUT_RUN.arrearsPauseRupees;
-  if (cap === null) return null;
-  return arrearsRupees >= cap ? cap : null;
 }
 
 /**

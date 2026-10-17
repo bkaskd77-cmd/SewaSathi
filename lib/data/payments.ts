@@ -1343,38 +1343,6 @@ export async function abandonPayment(input: {
  * mispriced, and every one of those jobs was overcharged in fee by us.
  * ------------------------------------------------------------------------- */
 
-export type Appeal = {
-  id: string;
-  status: string;
-  reason: string;
-  resolutionNote: string | null;
-  createdAt: string;
-};
-
-/** The appeal on one booking, if the professional has raised one. */
-export async function getCommissionAppeal(
-  bookingId: string,
-): Promise<Appeal | null> {
-  if (!hasSupabaseConfig()) return null;
-  try {
-    const { data } = await createAdminClient()
-      .from("commission_appeals")
-      .select("id, status, reason, resolution_note, created_at")
-      .eq("booking_id", bookingId)
-      .maybeSingle();
-    if (!data) return null;
-    return {
-      id: data.id as string,
-      status: data.status as string,
-      reason: data.reason as string,
-      resolutionNote: (data.resolution_note as string | null) ?? null,
-      createdAt: data.created_at as string,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export type OpenAppeal = {
   id: string;
   bookingId: string;

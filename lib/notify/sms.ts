@@ -32,7 +32,7 @@ import type { DeliveryResult, Notification, NotificationChannel } from "./channe
  */
 
 /** Is a real gateway armed? */
-export function smsNotifyIsConfigured(): boolean {
+function smsNotifyIsConfigured(): boolean {
   return smsIsLive();
 }
 

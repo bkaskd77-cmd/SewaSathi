@@ -121,7 +121,7 @@ export async function customerHistory(
  * Address trust and the confirmation gate
  * ------------------------------------------------------------------ */
 
-export async function trustForAddress(input: {
+async function trustForAddress(input: {
   addressId: string;
   confirmedForThisBooking: boolean;
 }): Promise<AddressTrust> {
