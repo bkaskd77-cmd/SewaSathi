@@ -17,8 +17,12 @@ import { getCategory, getSubBands } from "@/lib/data/categories";
 import { liveTermsVersion } from "@/lib/content/documents";
 import { armConfirmation } from "@/lib/data/customer-risk";
 import { getProvider } from "@/lib/data/providers";
-import { customerIsSuspended } from "@/lib/data/enforcement";
+import {
+  customerIsSuspended,
+  providerEnforcement,
+} from "@/lib/data/enforcement";
 import { describeError } from "@/lib/data/source";
+import { forcesDigitalSettlement } from "@/lib/provider";
 import { hasSupabaseConfig } from "@/lib/env";
 import { PAYOUT_RULES } from "@/lib/payments";
 import { notify } from "@/lib/notify";
@@ -525,6 +529,36 @@ export async function createBooking(
     const provider = await getProvider(parsed.data.provider);
     if (!provider || !provider.categories.includes(category.slug)) {
       return { ok: false, errors: { provider: "providerUnavailable" } };
+    }
+
+    /*
+     * STEP 3: "New jobs settle by eSewa or Khalti only."
+     *
+     * ASKED AT BOOKING AND NEVER AT SETTLEMENT, which is the word NEW doing the
+     * work. A job agreed as cash before the step was raised settles as cash —
+     * changing how an existing booking pays would be changing the deal after it
+     * was struck, and every other money rule in this product is forward-only for
+     * the same reason.
+     *
+     * ONLY STEP 3 CAN REACH HERE. `getProvider` already refuses a listing at
+     * step 4 or 5, so the branch above has returned. That is why the rule is
+     * asked through `forcesDigitalSettlement` rather than written as a
+     * comparison: the ladder is ordered, and a second place deciding what step 3
+     * costs is a second place that can disagree with the page.
+     *
+     * A FAILED READ REFUSES THE BOOKING. "We could not check whether they are
+     * under a step" must not resolve to "they are not" — the gate that opens
+     * when it cannot see is the fault this whole phase exists to close.
+     */
+    const standing = await providerEnforcement(provider.id);
+    if (standing === null) {
+      return { ok: false, errors: { provider: "providerUnavailable" } };
+    }
+    if (
+      forcesDigitalSettlement(standing.step) &&
+      parsed.data.paymentMethod === "cash"
+    ) {
+      return { ok: false, errors: { payment: "digitalOnlyForNow" } };
     }
 
     /*

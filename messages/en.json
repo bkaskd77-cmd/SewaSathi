@@ -711,6 +711,7 @@
         "addressInvalid": "Something in the address is not right. Check it over.",
         "pickPayment": "Choose how you will pay.",
         "accountSuspended": "This account cannot make new bookings. Please ring support — they can tell you why and what happens next.",
+        "digitalOnlyForNow": "This professional is on digital settlement right now — please choose eSewa or Khalti for this booking.",
         "categoryUnavailable": "We are not taking bookings for that service right now.",
         "providerUnavailable": "That professional is no longer available. Choose another, or let us pick.",
         "photoFailed": "That photo would not upload. You can book without it.",

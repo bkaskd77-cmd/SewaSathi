@@ -414,3 +414,31 @@ export async function enforcementBoard(): Promise<EnforcementBoard> {
         })),
   };
 }
+
+/**
+ * The step in force for one professional, for the booking path.
+ *
+ * NULL IS "WE COULD NOT ASK", and the caller must treat it as such. Returning
+ * "no step" for a failed read is the `banned_at` mistake from the other
+ * direction: a gate that opens when it cannot see.
+ *
+ * SEPARATE FROM THE CATALOGUE READ ON PURPOSE. `getProvider` already refuses a
+ * listing at step 4 or 5, so by the time this is asked the only step that can
+ * still come back is 3 — the one the page says keeps by-name customers. Folding
+ * the column into the public `Provider` type would put an enforcement state on
+ * an object the seed fallback also builds, where it would have to be invented.
+ */
+export async function providerEnforcement(
+  providerId: string,
+): Promise<{ step: EnforcementStep | null } | null> {
+  if (!hasSupabaseConfig()) return { step: null };
+
+  const { data, error } = await createAdminClient()
+    .from("providers")
+    .select("enforcement_step")
+    .eq("id", providerId)
+    .maybeSingle();
+
+  if (error) return null;
+  return { step: (data?.enforcement_step as EnforcementStep | null) ?? null };
+}
