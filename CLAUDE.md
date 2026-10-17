@@ -1246,9 +1246,51 @@ verify`, and any can be changed by somebody not looking at this code.
   failed check: **the failing check was preventing the deployment that would
   have fixed it.** Both behaviours are correct on their own and the loop
   between them is not obvious from either.
-  **So a new environment variable needs a NEW COMMIT, never a re-run.** A
+  **So a new environment variable needs a NEW BUILD, never a re-run.** A
   dispatch re-deploys nothing when the alias is already on that commit, and a
-  red commit cannot deploy at all.
+  red commit cannot deploy at all. That sentence first read "a NEW COMMIT", which is
+  what the escape actually was: `d6899c4` stayed locked and `7d9861c` deployed
+  because it was a different sha the red check had never been reported against.
+  **That it carried real work is luck, not design** — with nothing to commit it
+  would have had to be a commit whose whole content is "let the gate open", and
+  nothing in the history would say so.
+- **The deadlock is closed twice over, and only one half is an escape hatch.**
+  Reading the check runs rather than guessing named it: `fingerprints` — 
+  `after-deploy.yml`'s drift check — was red from 09:47:20, and
+  `NON_BLOCKING` held `advisories` and `deploy` only, so the gate counted it and
+  skipped every build of `d6899c4`.
+  **The structural half is the real fix.** `ABOUT_A_DEPLOYMENT` is `deploy`,
+  `fingerprints` and `deployed`: all three are answers about **what the alias is
+  serving**, never about whether this commit is good, so counting them asks
+  whether a commit has deployed before letting it deploy — `deploy`'s own
+  exemption, which nobody extended to the two checks that arrived later. It is
+  not a convenience either: a deploy is the REMEDY for both, so blocking on
+  "production is serving an older build" refuses the only thing that could change
+  the answer, and blocking on drift freezes production *with* the drift still
+  there. Neither is silenced — `after-deploy.yml` fails its own run, the nightly
+  sweep fails on drift, CI's `deploy` job runs both against the commit it just
+  deployed. What is given up is a veto they never had business holding.
+  **`CANNOT_PASS` and `ABOUT_A_DEPLOYMENT` are two sets rather than one list**,
+  because the reasons are not interchangeable and a single list lets the next
+  reader move a name between them without noticing the argument moved too.
+  **The other half is `DEPLOY_GATE_OVERRIDE`, for the next deadlock rather than
+  this one** — a check nobody exempted going red for a reason only a deploy can
+  clear. A Vercel environment variable, so it takes effect on the next build with
+  no commit: the ignore command reads the environment at build time, which is the
+  same property that makes a config fix need a build at all. **Four refusals keep
+  it fail-closed and none is configurable**: it names ONE commit (a prefix under
+  7 characters, or one that is not this commit's, forgives nothing — so it expires
+  structurally on the next push, which beats a date nobody has to remember); it
+  names the CHECKS, so "let this commit through" is not expressible; **no
+  wildcard**, the `ACKNOWLEDGED_FAILURES` rule one system over, with `*`, `all`,
+  `any` and `everything` refused by name; and **it forgives a verdict, never an
+  absence** — a check still running or never reported skips exactly as before,
+  rule 6's shape for a gate, since otherwise a set variable makes "CI has not
+  started" deployable and that is the four-cancelled-commits outage again. It is
+  printed in capitals when it fires and named when it applies to nothing, because
+  an override that silently matched no commit reads exactly like a gate that
+  opened on its own. `docs/RUNBOOK.md` is the procedure with the dashboard paths;
+  the four refusals are break-tested rather than asserted once.
   **And the failure now says which of the three it is.** A token sent with no
   detail returned has three causes that read identically from outside — the
   deployment lacks the variable, the values differ, or the build predates it —

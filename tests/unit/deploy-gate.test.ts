@@ -2,11 +2,14 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 import {
+  ABOUT_A_DEPLOYMENT,
   BUILD,
+  CANNOT_PASS,
   NON_BLOCKING,
   SKIP,
   decideFromResponse,
   decideFromRuns,
+  parseOverride,
 } from "../../scripts/vercel-ignore-build.mjs";
 
 /**
@@ -120,8 +123,21 @@ describe("the deploy gate", () => {
     expect(decision.code).toBe(BUILD);
   });
 
-  it("waves past nothing but the two named jobs", () => {
-    expect([...NON_BLOCKING]).toEqual(["advisories", "deploy"]);
+  it("waves past nothing but the named jobs", () => {
+    /*
+     * PINNED AS TWO SETS, because the reasons are not interchangeable: `advisories` cannot
+     * pass whatever this commit is, and the other three are answers about a deployment.
+     * A single list would let the next reader move a name between them without noticing
+     * that it also changes the argument for exempting it.
+     */
+    expect([...CANNOT_PASS]).toEqual(["advisories"]);
+    expect([...ABOUT_A_DEPLOYMENT]).toEqual(["deploy", "fingerprints", "deployed"]);
+    expect([...NON_BLOCKING]).toEqual([
+      "advisories",
+      "deploy",
+      "fingerprints",
+      "deployed",
+    ]);
 
     const decision = decideFromRuns(
       [
@@ -149,6 +165,149 @@ describe("the deploy gate", () => {
       decideFromRuns([{ name: "Vercel", status: "in_progress", conclusion: null }], SHA)
         .message,
     ).toContain("No checks reported");
+  });
+
+  /*
+   * THE DEADLOCK, AS IT ACTUALLY HAPPENED ON 2026-10-17, and the case that would have
+   * caught it. `fingerprints` is `after-deploy.yml`'s drift check; it went red because the
+   * serving deployment had no `HEALTH_SECRET`, which only a NEW BUILD can give it — and
+   * this gate then refused every build of that commit, the fixing one included. A dummy
+   * commit was what got production moving again.
+   *
+   * ASSERTED ON THE EXACT FIXTURE THE LIVE COMMIT PRESENTED, conclusions and all, rather
+   * than on a one-check stand-in: `verify` green beside a red post-deploy check is the
+   * whole shape, and a fixture without the green one would pass for the wrong reason.
+   */
+  it("builds although the post-deploy checks are red, which is the deadlock", () => {
+    const decision = decideFromRuns(
+      [
+        { name: "verify", status: "completed", conclusion: "success" },
+        { name: "advisories", status: "completed", conclusion: "success" },
+        { name: "deploy", status: "completed", conclusion: "failure" },
+        { name: "fingerprints", status: "completed", conclusion: "failure" },
+        { name: "deployed", status: "completed", conclusion: "success" },
+      ],
+      SHA,
+    );
+
+    expect(decision.code).toBe(BUILD);
+    /* Loud, not silent: a red drift tick deploying without a word is its own fault. */
+    expect(decision.message).toContain("fingerprints is failure and does not block");
+    /* And `verify` is still the thing that had to pass. */
+    expect(decision.message).toContain("— verify.");
+  });
+
+  it("still skips when a post-deploy check is red and verify is too", () => {
+    expect(
+      decideFromRuns(
+        [
+          { name: "verify", status: "completed", conclusion: "failure" },
+          { name: "fingerprints", status: "completed", conclusion: "failure" },
+        ],
+        SHA,
+      ).code,
+    ).toBe(SKIP);
+  });
+
+  /*
+   * THE RECOVERY PATH. The exemption above fixes the one deadlock that happened; this is
+   * for the next one, where a check nobody exempted goes red for a reason only a deploy
+   * can clear. The whole value is that it is narrower than a dummy commit, so every case
+   * here is about what it REFUSES.
+   */
+  describe("DEPLOY_GATE_OVERRIDE", () => {
+    const red = [
+      { name: "verify", status: "completed", conclusion: "success" },
+      { name: "secrets", status: "completed", conclusion: "failure" },
+    ];
+
+    it("lets a named check through on the commit it names", () => {
+      const decision = decideFromRuns(red, SHA, `${SHA.slice(0, 10)}:secrets`);
+      expect(decision.code).toBe(BUILD);
+      expect(decision.message).toContain("OVERRIDDEN");
+      expect(decision.message).toContain("secrets (failure)");
+      /* The way out has to be on the screen, or the variable stays set for ever. */
+      expect(decision.message).toContain("Remove the variable");
+      /*
+       * AND IT MUST NOT CLAIM THE COMMIT WAS GREEN. The first version printed "forgave
+       * secrets (failure)" and "CI green — verify, secrets" in one line: a sentence
+       * contradicting itself on the one line that records a deploy nobody signed off.
+       */
+      expect(decision.message).not.toContain("CI green");
+      expect(decision.message).toContain("passed: verify");
+    });
+
+    it("forgives nothing on a different commit", () => {
+      const decision = decideFromRuns(red, SHA, "0123456:secrets");
+      expect(decision.code).toBe(SKIP);
+      expect(decision.message).toContain("forgiving nothing");
+    });
+
+    it("forgives only the checks it names", () => {
+      const decision = decideFromRuns(
+        [...red, { name: "flows", status: "completed", conclusion: "failure" }],
+        SHA,
+        `${SHA.slice(0, 10)}:secrets`,
+      );
+      expect(decision.code).toBe(SKIP);
+      expect(decision.message).toContain("flows (failure)");
+      /* It says what it DID forgive, so a half-covered override is not read as inert. */
+      expect(decision.message).toContain("does not cover these");
+    });
+
+    /*
+     * THE ONE THAT MATTERS MOST. "Let this commit through" must not be expressible, because
+     * that is the gate turned off with a green tick over it.
+     */
+    it("refuses a wildcard", () => {
+      for (const wild of ["*", "all", "any", "everything"]) {
+        const decision = decideFromRuns(red, SHA, `${SHA.slice(0, 10)}:${wild}`);
+        expect(decision.code).toBe(SKIP);
+        expect(decision.message).toContain("name every check");
+      }
+    });
+
+    /*
+     * IT FORGIVES A VERDICT, NEVER AN ABSENCE — rule 6's shape for a gate. Otherwise a
+     * set variable would make "CI has not finished" deployable, which is the four
+     * cancelled commits all over again.
+     */
+    it("cannot wave past a check that has not reported", () => {
+      expect(
+        decideFromRuns(
+          [{ name: "verify", status: "in_progress", conclusion: null }],
+          SHA,
+          `${SHA.slice(0, 10)}:verify`,
+        ).code,
+      ).toBe(SKIP);
+
+      expect(decideFromRuns([], SHA, `${SHA.slice(0, 10)}:verify`).code).toBe(SKIP);
+    });
+
+    it("refuses a sha prefix too short to identify a commit", () => {
+      const decision = decideFromRuns(red, SHA, `${SHA.slice(0, 4)}:secrets`);
+      expect(decision.code).toBe(SKIP);
+      expect(decision.message).toContain("at least 7 characters");
+    });
+
+    /*
+     * A MALFORMED VALUE IS SAID OUT LOUD AND FORGIVES NOTHING. Silence here is the worst
+     * of both: somebody believes the override is in force, the build skips, and the log
+     * reads exactly as it did before they set anything.
+     */
+    it("names a value it could not read, and still skips", () => {
+      for (const bad of ["secrets", `${SHA.slice(0, 10)}:`, `${SHA.slice(0, 10)}: ,`]) {
+        const decision = decideFromRuns(red, SHA, bad);
+        expect(decision.code).toBe(SKIP);
+        expect(decision.message).toContain("DEPLOY_GATE_OVERRIDE");
+      }
+    });
+
+    it("is absent by default, and absence is not an error", () => {
+      expect(parseOverride(undefined, SHA)).toBeNull();
+      expect(parseOverride("   ", SHA)).toBeNull();
+      expect(decideFromRuns(red, SHA).message).not.toContain("DEPLOY_GATE_OVERRIDE");
+    });
   });
 
   /*
