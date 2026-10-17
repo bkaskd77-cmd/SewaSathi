@@ -17,6 +17,7 @@ import { getCategory, getSubBands } from "@/lib/data/categories";
 import { liveTermsVersion } from "@/lib/content/documents";
 import { armConfirmation } from "@/lib/data/customer-risk";
 import { getProvider } from "@/lib/data/providers";
+import { customerIsSuspended } from "@/lib/data/enforcement";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { PAYOUT_RULES } from "@/lib/payments";
@@ -403,6 +404,29 @@ export async function createBooking(
 
   if (Object.keys(errors).length > 0 || !parsed.success) {
     return { ok: false, errors };
+  }
+
+  /*
+   * IS THIS CUSTOMER STOPPED? Asked before anything else is read, because every
+   * check below costs a round trip and a suspended customer fails all of them.
+   *
+   * THE COLUMNS ARE OLDER THAN THIS GATE BY FIVE WEEKS AND NOTHING ENFORCED
+   * THEM. `customer_risk.banned_at` shipped in 20260910000002; nothing wrote it,
+   * and the one reader turned it into a boolean two admin screens DISPLAYED.
+   * This function had never consulted customer risk at all, so a suspension set
+   * by hand changed nothing a customer could notice — a setting that does
+   * nothing when set, which is worse than no setting, because somebody would
+   * have believed it.
+   *
+   * A FAILED READ REFUSES THE BOOKING RATHER THAN ALLOWING IT. `customerIsSuspended`
+   * returns null when it could not ask, and "we could not check" must not read
+   * as "not suspended" — rule 6 in the shape where the absence lets somebody
+   * past a gate. The cost is a booking refused during a database blip, which is
+   * recoverable; the other direction is not.
+   */
+  const standing = await customerIsSuspended(customerId);
+  if (standing === null || standing.suspended) {
+    return { ok: false, errors: { form: "accountSuspended" } };
   }
 
   // Is this still something we sell? The category could have been retired

@@ -393,7 +393,19 @@ export const listProviders = cache(
         .from("providers")
         .select(SELECT)
         .eq("provider_categories.category_slug", filters.category)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        /*
+         * STEP 4 HIDES THE LISTING, which is what `/providers/standards`
+         * publishes: "Your listing stops appearing while the review runs." Step
+         * 3 deliberately does not — the page promises by-name customers still
+         * reach them, and a hidden listing is how they stop being able to.
+         *
+         * WRITTEN AS A FILTER RATHER THAN FOLDED INTO `is_active`, because that
+         * column is the dormancy sweep's and conflating the two would make
+         * "taking a break" and "under review" indistinguishable in every future
+         * report — the confusion 20260925000005 exists to prevent.
+         */
+        .or("enforcement_step.is.null,enforcement_step.lt.4");
 
       if (filters.area) query = query.contains("service_areas", [filters.area]);
       if (filters.verifiedOnly) query = query.eq("is_verified", true);
@@ -466,6 +478,12 @@ export const getProvider = cache(
           SELECT.replace("provider_categories!inner", "provider_categories"),
         )
         .eq("id", id)
+        /*
+         * THE SAME GATE ON THE DIRECT URL. A listing hidden from the catalogue
+         * and readable at `/providers/<id>` is hidden from nobody: the link is
+         * in every customer's history and in search results.
+         */
+        .or("enforcement_step.is.null,enforcement_step.lt.4")
         .maybeSingle();
 
       if (error || !data) {

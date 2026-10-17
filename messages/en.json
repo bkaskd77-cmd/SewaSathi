@@ -710,6 +710,7 @@
         "pickAddress": "Choose or add an address.",
         "addressInvalid": "Something in the address is not right. Check it over.",
         "pickPayment": "Choose how you will pay.",
+        "accountSuspended": "This account cannot make new bookings. Please ring support \u2014 they can tell you why and what happens next.",
         "categoryUnavailable": "We are not taking bookings for that service right now.",
         "providerUnavailable": "That professional is no longer available. Choose another, or let us pick.",
         "photoFailed": "That photo would not upload. You can book without it.",
@@ -1695,7 +1696,8 @@
         "unwitnessed": "This week's payout is waiting while somebody here speaks to you. Where you are paid was changed and we had no way to reach your phone at the time, so we check with you before any money follows it.",
         "unconfirmed": "This week's payout is waiting for somebody here to check your account before the first payment goes to it.",
         "no_destination": "This week's payout is waiting because we do not know where to send it. Add an account below.",
-        "negative": "Nothing is going out this week: our fee on your cash jobs comes to more than you are owed. It comes off what you earn next — we will not ask you for cash."
+        "negative": "Nothing is going out this week: our fee on your cash jobs comes to more than you are owed. It comes off what you earn next — we will not ask you for cash.",
+        "under_review": "This week's payout is waiting while we look into your account. The money is not taken — if the review clears you it is released in full, with an apology. You can ask a person to look again at any time."
       },
       "debtTitle": "A refund you are carrying",
       "debtBody": "Somebody else went back on a job of yours and was paid for their work. At most a quarter of any one payout goes towards it, so no week of yours goes to nothing.",
@@ -2489,7 +2491,8 @@
         "unwitnessed": "Held: the account was changed and NO device could be told. The 72-hour objection window protected nobody here — ring the professional on the number we hold and confirm it was them before this goes out.",
         "unconfirmed": "Held: nobody has checked this account yet. Confirm it on the payout accounts screen and it goes out next week.",
         "no_destination": "Held: they have not told us where to send it.",
-        "negative": "Held: they owe us for this week rather than the other way round. It carries forward and comes off what they earn next — we never ask for it back."
+        "negative": "Held: they owe us for this week rather than the other way round. It carries forward and comes off what they earn next — we never ask for it back.",
+        "under_review": "Held: step 4 of the enforcement ladder is in force. Published as a hold and never a deduction — if the review clears them it is released in full with an apology, so do not approve this until the step is lifted."
       },
       "destinationChanged": "The account changed after this was drafted, so this payout cannot be sent. The new account waits three days and needs checking; next Tuesday's run will draft against it.",
       "approve": "Approve this figure",

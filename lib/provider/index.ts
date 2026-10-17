@@ -94,3 +94,28 @@ export {
   type BusyPreset,
   type ProviderStateInput,
 } from "./availability";
+
+/*
+ * The published enforcement ladder.
+ *
+ * THROUGH THE ENTRY LIKE EVERYTHING ELSE HERE, and the linter is what made that
+ * happen rather than a resolution to remember: `lib/data/enforcement.ts` reached
+ * `./enforcement` directly, `no-restricted-imports` refused it, and `npm run
+ * verify` stopped before anything could be committed. Which is rule 2 working
+ * exactly as written — what each step of the ladder costs is one decision, and a
+ * second caller reaching past this file is a second place that can disagree
+ * about whether step 4 hides a listing.
+ */
+export {
+  ENFORCEMENT_STEPS,
+  blocksDirectBooking,
+  canLift,
+  closesOpenPool,
+  forcesDigitalSettlement,
+  hidesListing,
+  holdsPayout,
+  isEnforcementStep,
+  isRemoved,
+  type Enforcement,
+  type EnforcementStep,
+} from "./enforcement";

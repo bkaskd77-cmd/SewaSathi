@@ -42,6 +42,26 @@ export type SecurityEventKind =
   /* Authorisation and roles */
   | "role.changed"
   | "access.denied"
+  /*
+   * The published enforcement ladder, raised and lifted by a person.
+   *
+   * BOTH HALVES ARE EVENTS BECAUSE THE COLUMN HOLDS ONLY THE PRESENT.
+   * `providers.enforcement_step` says what is in force now; an appeal answered
+   * by a human — which `/providers/standards` promises at every step — needs to
+   * see that step 4 was raised on a date for a reason and lifted on another.
+   * `security_events` is append-only for every caller including the service
+   * role, so this is the history and the column is just the current reading.
+   */
+  | "provider.enforcementRaised"
+  | "provider.enforcementLifted"
+  /*
+   * And the customer half. `customer_risk.banned_at` has existed since
+   * 20260910000002 with nothing writing it and nothing enforcing it, so these
+   * two kinds are the first record this product has ever been able to keep of a
+   * customer being stopped or let back in.
+   */
+  | "customer.suspended"
+  | "customer.reinstated"
   /* Money — the events a dispute is argued from */
   | "payment.amountRecorded"
   | "payment.amountApproved"

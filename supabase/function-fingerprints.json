@@ -136,8 +136,8 @@
     "file": "20261002000007_trip_compensation.sql"
   },
   "provider_can_serve": {
-    "sha": "44c6b266ce54561d",
-    "file": "20260905000002_dispatch.sql"
+    "sha": "a2bcd576de86ee6c",
+    "file": "20261017000001_enforcement_state.sql"
   },
   "provider_outstanding": {
     "sha": "422ab7ee85c2df1c",

@@ -1194,6 +1194,8 @@ export type Database = {
           trip_debt_dispute_note: string | null;
           banned_at: string | null;
           banned_reason: string | null;
+          /** Which admin suspended them. Null on an unsuspended row. */
+          banned_by: string | null;
           updated_at: string;
         };
         Insert: {
@@ -1206,6 +1208,7 @@ export type Database = {
           trip_debt_dispute_note?: string | null;
           banned_at?: string | null;
           banned_reason?: string | null;
+          banned_by?: string | null;
           updated_at?: string;
         };
         Update: Partial<
@@ -1760,6 +1763,17 @@ export type Database = {
            */
           removed_at: string | null;
           /**
+           * Which step of the published enforcement ladder is in force: 3, 4 or
+           * 5, or null for none. Steps 1 and 2 carry no state — step 1 is a
+           * private message, step 2 is the ranking penalty already derived from
+           * `provider_stats`. The history is in `security_events`; this is the
+           * current reading only.
+           */
+          enforcement_step: number | null;
+          enforcement_reason: string | null;
+          enforcement_at: string | null;
+          enforcement_by: string | null;
+          /**
            * Closed for dormancy — twelve months with no completed job while
            * carrying a guarantee balance.
            *
@@ -1809,6 +1823,10 @@ export type Database = {
           approved_at?: string | null;
           application_id?: string | null;
           removed_at?: string | null;
+          enforcement_step?: number | null;
+          enforcement_reason?: string | null;
+          enforcement_at?: string | null;
+          enforcement_by?: string | null;
           closed_at?: string | null;
           closed_reason?: "dormant" | null;
           removal_reason?: string | null;
@@ -1920,6 +1938,7 @@ export type Database = {
             | "unconfirmed"
             | "no_destination"
             | "negative"
+            | "under_review"
             | null;
           external_reference: string | null;
           failure_reason: string | null;
@@ -1955,6 +1974,7 @@ export type Database = {
             | "unconfirmed"
             | "no_destination"
             | "negative"
+            | "under_review"
             | null;
           external_reference?: string | null;
           failure_reason?: string | null;
@@ -1978,6 +1998,7 @@ export type Database = {
             | "unconfirmed"
             | "no_destination"
             | "negative"
+            | "under_review"
             | null;
           external_reference: string | null;
           failure_reason: string | null;

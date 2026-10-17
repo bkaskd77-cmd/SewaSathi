@@ -171,7 +171,13 @@ export type PayoutHeldReason =
   | "unwitnessed"
   | "unconfirmed"
   | "no_destination"
-  | "negative";
+  | "negative"
+  /**
+   * Step 4 of the published enforcement ladder: the review is running and the
+   * money waits. It is not taken, and it is released in full if the review
+   * clears — which is why this is a hold and never a deduction.
+   */
+  | "under_review";
 
 /**
  * The closed set, as one list.
@@ -188,12 +194,28 @@ export const PAYOUT_HELD_REASONS: readonly PayoutHeldReason[] = [
   "unconfirmed",
   "no_destination",
   "negative",
+  "under_review",
 ];
 
 /** The hold reasons, in precedence order. Pure so the test can read it directly. */
 export function heldReasonFor(
   net: number,
   destination: { readiness: { ok: boolean; reason?: string } } | null,
+  /**
+   * The enforcement step in force, or null.
+   *
+   * STEP 4 IS "money already earned waits rather than being paid out. It is not
+   * taken." — `/providers/standards`, published in both languages. Held, never
+   * deducted: the ledger is untouched and the next run drafts the same sum once
+   * the review clears, which is what lets the page promise "released in full
+   * with an apology".
+   *
+   * ITS OWN REASON RATHER THAN REUSING ONE. The professional's own screen prints
+   * this through `whyWaiting`, and "we are reviewing your account" and "we do
+   * not know where to send it" are not the same sentence to be told — one is
+   * ours to explain and the other asks them to go and fix something.
+   */
+  step: number | null = null,
 ): PayoutHeldReason | null {
   /*
    * NEGATIVE FIRST, because where they owe us the destination is irrelevant: we
@@ -203,6 +225,16 @@ export function heldReasonFor(
    * week's net absorbs it.
    */
   if (net < 0) return "negative";
+
+  /*
+   * AFTER `negative` AND BEFORE EVERY DESTINATION REASON. A week they owe us
+   * drafts nothing at all, so there is nothing to hold and reporting a review
+   * would describe a payout that does not exist. Above the destination reasons
+   * because a review is ours and a cooling account is theirs: telling somebody
+   * under review to go and confirm their bank details sends them to fix a thing
+   * that is not what is stopping the money.
+   */
+  if (step !== null && step >= 4) return "under_review";
 
   if (!destination) return "no_destination";
   if (destination.readiness.ok) return null;

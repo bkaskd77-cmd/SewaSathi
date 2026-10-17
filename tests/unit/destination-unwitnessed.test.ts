@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -184,18 +184,42 @@ describe("the closed set is one list", () => {
      * payout that should have been held fails to draft at all — the run counts
      * it as an error and the week goes unpaid, on the one path where a silent
      * failure means somebody is not paid. The db suite compares these against
-     * `pg_constraint`; this reads the migration, because the two lists are
+     * `pg_constraint`; this reads the migrations, because the two lists are
      * written in different languages and nothing else makes them agree.
+     *
+     * THE LAST DEFINITION, FOUND RATHER THAN NAMED, and that is the whole repair
+     * this case needed. It used to read `20261016000001` by name and assert a
+     * length of five. `20261017000002` then widened the constraint for the
+     * enforcement ladder's step 4 and the case went red against a schema that
+     * was correct — the policy trap CLAUDE.md records, one object type over:
+     * a constraint is dropped and re-added by later migrations, so a test
+     * pinned to an earlier file is measuring something nobody ships.
+     *
+     * COMPARED AS SETS, BOTH WAYS, rather than "contains" plus a count. A count
+     * is a second place to remember, and `toContain` alone would pass over a
+     * reason the SQL knows and the TypeScript does not — which is the direction
+     * that silently widens what the database will accept.
      */
+    const files = readdirSync("supabase/migrations")
+      .filter((name) => name.endsWith(".sql"))
+      .sort();
+
+    const defining = files.filter((name) =>
+      readFileSync(`supabase/migrations/${name}`, "utf8").includes(
+        "payouts_held_reason_check",
+      ),
+    );
+    // A scanner that found nothing would make every assertion below vacuous.
+    expect(defining.length).toBeGreaterThan(0);
+
     const sql = readFileSync(
-      "supabase/migrations/20261016000001_destination_notice_reach.sql",
+      `supabase/migrations/${defining[defining.length - 1]}`,
       "utf8",
     );
-    const line = sql.slice(sql.lastIndexOf("held_reason in ("));
-    for (const reason of PAYOUT_HELD_REASONS) {
-      expect(line, reason).toContain(`'${reason}'`);
-    }
-    expect(PAYOUT_HELD_REASONS).toHaveLength(5);
+    const clause = sql.slice(sql.lastIndexOf("held_reason in ("));
+    const inSql = [...clause.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+
+    expect([...inSql].sort()).toEqual([...PAYOUT_HELD_REASONS].sort());
   });
 
   it("has copy on both screens, in both languages", () => {

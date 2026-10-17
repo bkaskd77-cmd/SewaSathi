@@ -383,7 +383,34 @@ export async function runPayouts(
         continue;
       }
 
-      const heldReason = heldReasonFor(net, destination.destination);
+      /*
+       * STEP 4 OF THE PUBLISHED LADDER, read here so the hold is real.
+       *
+       * A READ THAT FAILS SKIPS THE PROFESSIONAL RATHER THAN DRAFTING. "We could
+       * not ask whether they are under review" must not resolve to "they are
+       * not" — that is rule 6 on the one path where the wrong answer releases
+       * money the page says is waiting. Skipped is recoverable: the tranches are
+       * still unpaid and next Tuesday drafts them.
+       */
+      const { data: standing, error: standingError } = await admin
+        .from("providers")
+        .select("enforcement_step")
+        .eq("id", providerId)
+        .maybeSingle();
+
+      if (standingError) {
+        console.error(
+          `[payouts] enforcement unreadable for ${providerId} — ${describeError(standingError)}`,
+        );
+        unreadable += 1;
+        continue;
+      }
+
+      const heldReason = heldReasonFor(
+        net,
+        destination.destination,
+        (standing?.enforcement_step as number | null) ?? null,
+      );
 
       /*
        * A WEEK THEY OWE US DRAFTS NOTHING. `heldReasonFor` still names it, because
