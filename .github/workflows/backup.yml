@@ -224,6 +224,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          # EVERY FAILURE SAYS WHICH COMMAND IT WAS, and this is the general
+          # version of the lesson the preflight below only half learned.
+          #
+          # The drill exited 127 twice. The first time there was nothing to go on
+          # at all; the second time a preflight had been added that names a
+          # missing binary — and it reported nothing, because the binaries were
+          # all present and the failure was somewhere after it. Fixing one CLASS
+          # of opaque failure leaves the next one just as opaque, and each round
+          # costs a full run to learn one fact.
+          #
+          # An `::error::` line on stdout becomes a GitHub annotation, which the
+          # API serves. The job log does not: it lives on a storage host the agent
+          # sandbox cannot reach, so for this session a failure that only writes
+          # to the log has not said anything. The trap puts the line number, the
+          # exit code and the command itself where they can actually be read.
+          trap 'code=$?; echo "::error::restore drill failed at line $LINENO (exit $code): $BASH_COMMAND"' ERR
+
           # THE BINARIES, NAMED BEFORE THEY ARE USED. The first version hardcoded
           # `/usr/lib/postgresql/17/bin/psql` and the step exited 127 — "command
           # not found" — which GitHub reports as a bare `Process completed with

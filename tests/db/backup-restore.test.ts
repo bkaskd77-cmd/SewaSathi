@@ -391,6 +391,20 @@ describe("the workflow runs these same commands", () => {
    * Same lesson as `?debug=auth` and `?debug=triage`: when the only channel is a
    * log somebody else holds, the step has to say the thing itself.
    */
+  /*
+   * THE GENERAL VERSION, AND IT TOOK TWO RUNS TO REACH. The preflight below
+   * names a missing binary; the drill then failed 127 with every binary present,
+   * so it reported nothing and the next fact still cost a whole run. An `::error::`
+   * line becomes a GitHub annotation, which the API serves — the job log does not,
+   * it sits on a storage host this sandbox cannot reach. So a failure that writes
+   * only to the log has, from here, said nothing at all.
+   */
+  it("turns any failing command into a readable annotation", () => {
+    expect(command).toContain("trap ");
+    expect(command).toContain("$BASH_COMMAND");
+    expect(command).toMatch(/::error::restore drill failed at line/);
+  });
+
   it("names the binary it is missing instead of exiting 127", () => {
     expect(command).toContain("command -v");
     expect(command).toMatch(/::error::the restore drill needs these/);
