@@ -260,6 +260,23 @@ describe("the workflow runs these same commands", () => {
    */
   const workflow = readFileSync(".github/workflows/backup.yml", "utf8");
 
+  /*
+   * COMMENTS STRIPPED, BECAUSE NAMING A FLAG IN ORDER TO WARN ABOUT IT IS NOT USING
+   * IT. The first version of the `--no-privileges` case below went red against a
+   * correct workflow: the paragraph explaining why that flag is gone contains the
+   * flag. `check:secrets` draws the same line in its source pass — a mention is
+   * documentation, a read is a read — and `provider-money-one-source.test.ts` has
+   * exactly this arrangement for exactly this reason.
+   *
+   * Only whole comment lines go: YAML `#` and the shell `#` inside `run: |` blocks
+   * are both line comments, and no flag in this file is written after live code on
+   * the same line.
+   */
+  const command = workflow
+    .split("\n")
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+
   it("takes a custom-format dump", () => {
     expect(workflow).toContain("-Fc");
   });
@@ -304,6 +321,64 @@ describe("the workflow runs these same commands", () => {
     // The default for a missing artifact is a warning and a green tick, which
     // is a nightly success for a backup that does not exist.
     expect(workflow).toContain("if-no-files-found: error");
+  });
+
+  /*
+   * THE FLAGS THAT DIVERGED, AND THE REASON THIS GROUP EXISTED WITHOUT CATCHING IT.
+   * This drill dumps with no flags, so its archive carries the ACL and the restore
+   * above proves the grants come back. The nightly job dumped `--no-privileges`
+   * until 2026-10-17, so the artifact a real recovery would use carried none of
+   * them — and every case in this group passed throughout, because they compared
+   * `-Fc`, the cipher, the client version and the artifact path, which are the
+   * parts somebody thought of.
+   *
+   * A DUMP WITHOUT ITS ACL IS BROKEN BOTH WAYS. Into a bare cluster the product is
+   * dead: no GRANT means `42501` on every read through PostgREST. Into a real
+   * Supabase project it is worse, because that project's default ACL hands `anon`
+   * and `authenticated` everything on each table as the restore creates it, with
+   * nothing in the dump to revoke it — 20261011000004 and 20260927000005 undone by
+   * a recovery, silently.
+   */
+  it("dumps the grants, because nothing else re-establishes them", () => {
+    expect(command).not.toContain("--no-privileges");
+    expect(command).not.toContain("-x ");
+  });
+
+  /*
+   * OWNERSHIP IS THE ONE THAT STAYS OFF. It is per-project, a restore target's
+   * roles are not these ones, and nothing in this product depends on it — so the
+   * assertion is that the two flags are judged separately rather than as a pair,
+   * which is how they came to be written as a pair in the first place.
+   */
+  it("still drops ownership, which is per-project", () => {
+    expect(command).toContain("--no-owner");
+  });
+
+  /*
+   * AND THE JOB RESTORES WHAT IT UPLOADED. A backup nobody has restored is a file.
+   * The order is asserted too: a drill that fails must not cost us the artifact it
+   * was drilling, so the upload comes first and a red job then means "the backup
+   * exists and could not be restored".
+   */
+  it("restores the artifact it just produced, after uploading it", () => {
+    const upload = workflow.indexOf("upload-artifact");
+    const restore = workflow.indexOf("Restore it into a scratch database");
+    expect(restore).toBeGreaterThan(-1);
+    expect(restore).toBeGreaterThan(upload);
+    // Against the sealed file, not a plaintext that no longer exists.
+    expect(workflow).toContain("${{ env.artifact }}");
+    expect(workflow).toContain("pg_restore");
+  });
+
+  /*
+   * THE TWO ASSERTIONS THAT MAKE THE DRILL ABOUT ACCESS CONTROL rather than about
+   * row counts. `full_name` proves the grants restored at all; `role` proves they
+   * restored narrowly — it is the column that, one PATCH away, made any signed-in
+   * customer an admin.
+   */
+  it("checks a restored grant in both directions", () => {
+    expect(workflow).toContain("'public.profiles','full_name','UPDATE'");
+    expect(workflow).toContain("'public.profiles','role','UPDATE'");
   });
 
   it("refuses to start without a key, before anything is dumped", () => {

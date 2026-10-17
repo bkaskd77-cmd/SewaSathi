@@ -46,6 +46,25 @@ jobs:
     # minutes allowance until somebody notices the bill.
     timeout-minutes: 30
 
+    # THE SCRATCH DATABASE THE ARTIFACT IS RESTORED INTO. A backup nobody has
+    # restored is a file, not a backup — and until this existed the only restore
+    # this product had ever done was in `tests/db/backup-restore.test.ts`, against
+    # a dump of the TEST cluster taken with different flags, which is a drill
+    # proving a property the real artifact did not have.
+    services:
+      scratch:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drill
+        # 5433 on the host, so nothing collides with a client's own default.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -110,16 +129,34 @@ jobs:
           # database with no way to resume; this one restores selectively and
           # reorders itself to satisfy dependencies.
           #
-          # --no-owner --no-privileges: the roles on a restore target are not
-          # the roles here, and a dump that insists on them fails on every
-          # GRANT. The migrations are what re-establish grants; this is the
-          # data and the shape.
+          # --no-owner: ownership is per-project and a restore target's roles
+          # are not these ones, so insisting on them fails the restore for a
+          # property nothing in this product depends on.
+          #
+          # --no-privileges IS GONE, AND IT SHOULD NEVER HAVE BEEN HERE. It was
+          # justified by "the migrations are what re-establish grants", which is
+          # a sentence nobody could act on: the migrations interleave their
+          # grants with `create table` inside `DO $mig$` blocks, so they cannot
+          # be replayed onto a database that already has the objects. The grants
+          # were therefore not re-established by anything.
+          #
+          # BOTH WAYS OF RESTORING WERE BROKEN BY IT, in opposite directions.
+          # Into a bare cluster the product is dead — no GRANT means `42501` on
+          # every read through PostgREST. Into a real Supabase project it is
+          # worse than dead: that project's default ACL hands `anon` and
+          # `authenticated` everything on each table as the restore creates it,
+          # and the dump carried nothing to revoke it — so a recovery would undo
+          # 20261011000004 and 20260927000005 silently, and the first sign would
+          # be a customer writing their own `profiles.role`.
+          #
+          # The drill below is what keeps this honest: it asserts a restored
+          # `profiles.full_name` is writable by `authenticated` and a restored
+          # `profiles.role` is not.
           /usr/lib/postgresql/17/bin/pg_dump \
             --dbname="$SUPABASE_DB_URL" \
             --format=custom \
             -Fc \
             --no-owner \
-            --no-privileges \
             --file="$out"
 
           ls -l "$out"
@@ -165,4 +202,105 @@ jobs:
           # A missing file must fail the job. The default warns and goes green,
           # which is a nightly tick for a backup that does not exist.
           if-no-files-found: error
+
+      # RESTORED AFTER THE UPLOAD, NEVER BEFORE IT, and the order is this step's
+      # whole safety. A drill that fails must not cost us the artifact it was
+      # drilling: upload first, restore second, so a red job means "the backup
+      # exists and could not be restored" — which is the sentence somebody needs.
+      # The other order loses a good dump to a bad assertion. Same reasoning as
+      # the trip-compensation ledger row being written before the claim is marked.
+      #
+      # AGAINST THE SEALED FILE, never the plaintext, which the dump step
+      # shredded and which no longer exists. So this walks the whole chain a real
+      # recovery walks: the artifact opens with the key we hold, and what comes
+      # out is a database.
+      - name: Restore it into a scratch database
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          PGPASSWORD: drill
+          PGHOST: localhost
+          PGPORT: "5433"
+          PGUSER: postgres
+        run: |
+          set -euo pipefail
+          psql=/usr/lib/postgresql/17/bin/psql
+          key="$RUNNER_TEMP/restore.key"
+          opened="$RUNNER_TEMP/opened.dump"
+
+          printf '%s' "$BACKUP_ENCRYPTION_KEY" > "$key"
+          chmod 600 "$key"
+          gpg --batch --yes --quiet --decrypt \
+            --passphrase-file "$key" -o "$opened" "${{ env.artifact }}"
+          shred -u "$key" 2>/dev/null || rm -f "$key"
+
+          # THE ROLES FIRST, OR EVERY GRANT IN THE DUMP IS AN ERROR. A grant names
+          # its role by name, so restoring into a cluster that has never heard of
+          # `authenticated` drops exactly the lines this drill exists to check —
+          # and drops them as warnings, which read like success.
+          "$psql" -v ON_ERROR_STOP=1 -d postgres -c "
+            do \$\$
+            declare r text;
+            begin
+              foreach r in array array[
+                'anon','authenticated','service_role','authenticator',
+                'supabase_admin','supabase_auth_admin','supabase_storage_admin',
+                'supabase_read_only_user','supabase_replication_admin',
+                'dashboard_user','pgbouncer'
+              ] loop
+                if not exists (select 1 from pg_roles where rolname = r) then
+                  execute format('create role %I nologin', r);
+                end if;
+              end loop;
+            end
+            \$\$;"
+
+          "$psql" -v ON_ERROR_STOP=1 -d postgres -c "create database restore_drill"
+          "$psql" -v ON_ERROR_STOP=1 -d restore_drill -c "
+            create extension if not exists pgcrypto;
+            create extension if not exists \"uuid-ossp\";"
+
+          # `-n public` BECAUSE THAT IS WHAT THIS PRODUCT OWNS. `auth` and
+          # `storage` are Supabase's and depend on extensions a vanilla cluster
+          # does not ship, so restoring them would bury this result in noise
+          # about somebody else's schema.
+          #
+          # DIAGNOSTICS ARE COUNTED, NOT FATAL: a dump of a managed database
+          # always references something a bare cluster lacks. The verdict is the
+          # assertions below, which is the drill's own rule — a clean exit from a
+          # restore that brought back nothing would pass, and does not.
+          /usr/lib/postgresql/17/bin/pg_restore \
+            -d restore_drill -n public --no-owner "$opened" \
+            2>"$RUNNER_TEMP/restore.err" || true
+          echo "restore diagnostics: $(wc -l < "$RUNNER_TEMP/restore.err") line(s)"
+          tail -20 "$RUNNER_TEMP/restore.err" || true
+
+          q () { "$psql" -tAX -d restore_drill -c "$1" | tr -d '[:space:]'; }
+
+          tables=$(q "select count(*) from information_schema.tables where table_schema='public'")
+          policies=$(q "select count(*) from pg_policies where schemaname='public'")
+          triggers=$(q "select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal")
+          functions=$(q "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'")
+          echo "restored: $tables tables, $policies policies, $triggers triggers, $functions functions"
+
+          # A RESTORE THAT BROUGHT BACK THE DATA AND NOT THE RULES is the
+          # quietest possible disaster: the product runs, every page renders, and
+          # the triggers, the policies and the append-only guards are simply gone.
+          [ "$tables"    -gt 30 ] || { echo "::error::only $tables tables came back"; exit 1; }
+          [ "$policies"  -gt 20 ] || { echo "::error::only $policies policies came back"; exit 1; }
+          [ "$triggers"  -gt 5  ] || { echo "::error::only $triggers triggers came back"; exit 1; }
+          [ "$functions" -gt 5  ] || { echo "::error::only $functions functions came back"; exit 1; }
+
+          # THE GRANTS, AND THIS PAIR IS WHY THE STEP EXISTS. One asserts they
+          # restored AT ALL — `full_name` is a column a browser legitimately
+          # writes, so a dump carrying no ACL fails here. The other asserts they
+          # restored NARROWLY: `role` is the escalation that one PATCH away made
+          # any signed-in customer an admin, and a restore that hands it back
+          # writable has undone the fix while looking like a successful recovery.
+          full_name=$(q "select has_column_privilege('authenticated','public.profiles','full_name','UPDATE')")
+          role_col=$(q "select has_column_privilege('authenticated','public.profiles','role','UPDATE')")
+          echo "grants: profiles.full_name UPDATE=$full_name  profiles.role UPDATE=$role_col"
+          [ "$full_name" = "t" ] || { echo "::error::the dump carried no grants — profiles.full_name came back unwritable"; exit 1; }
+          [ "$role_col"  = "f" ] || { echo "::error::profiles.role came back writable by authenticated"; exit 1; }
+
+          echo "Restore drill passed against the artifact this run produced."
           compression-level: 0 # Already compressed by pg_dump and then sealed.
