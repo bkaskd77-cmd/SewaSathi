@@ -1232,6 +1232,33 @@ verify`, and any can be changed by somebody not looking at this code.
   what makes it a separation; until it is set the shared one still works, so the
   deploy that ships this breaks nothing, and the payload names which jobs are
   still sharing so the migration is visible rather than forgotten.
+- **A deploy hook for a commit already serving proves nothing, and a failing
+  check cannot deploy its own fix.** Setting `HEALTH_SECRET` in Vercel and
+  re-running CI by `workflow_dispatch` left the drift check failing exactly as
+  before, and three readings were needed to see why rather than to suspect the
+  value. The variable was created at 11:02; the deployment answering had been
+  built at 09:46 and had never seen it. **`await-deploy` returned in six
+  seconds** — the alias already served that commit, which is all it asks — so
+  the walk and the drift check both measured the old build and reported "Live
+  and current" while doing so.
+  And the hook's own builds came back **CANCELED**, because
+  `vercel-ignore-build.mjs` is fail-closed and the commit already carried a
+  failed check: **the failing check was preventing the deployment that would
+  have fixed it.** Both behaviours are correct on their own and the loop
+  between them is not obvious from either.
+  **So a new environment variable needs a NEW COMMIT, never a re-run.** A
+  dispatch re-deploys nothing when the alias is already on that commit, and a
+  red commit cannot deploy at all.
+  **And the failure now says which of the three it is.** A token sent with no
+  detail returned has three causes that read identically from outside — the
+  deployment lacks the variable, the values differ, or the build predates it —
+  so `check:drift` asks `?deep=1` without a token and prints the refusal's own
+  hint, which names the variable the DEPLOYMENT holds. Public, no secret, one
+  request, on the failure path only.
+  **Both sides of a token are trimmed** for the cause that was suspected and
+  was not: one value typed once and pasted twice carries a trailing newline
+  invisibly, and the comparison then fails with the token looking right on both
+  screens.
 - **An audit row records what the gate saw, not only what the actor did.**
   `freshAdminActor()` refuses a money action without an `amr` proof inside
   fifteen minutes; the row written afterwards said who decided and when, and

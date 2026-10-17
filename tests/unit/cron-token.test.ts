@@ -63,6 +63,38 @@ describe("the cron bearer token", () => {
     }
   });
 
+  it("survives a secret pasted with a trailing space or newline", () => {
+    /*
+     * THE PASTE, AND IT COST A CYCLE TO RULE OUT. One value is typed once and
+     * pasted twice — a provider dashboard and a CI secret — and whitespace
+     * carried into either field is invisible on both screens. The comparison
+     * then fails with no signal: the token looks right everywhere and the door
+     * stays shut.
+     *
+     * A bearer token with meaningful surrounding whitespace does not exist, and
+     * HTTP strips it from the header anyway, so trimming costs nothing.
+     */
+    expect(cronTokenAccepted(`${SECRET}\n`, `Bearer ${SECRET}`)).toBe(true);
+    expect(cronTokenAccepted(` ${SECRET} `, `Bearer ${SECRET}`)).toBe(true);
+    expect(cronTokenAccepted(SECRET, `Bearer ${SECRET} `)).toBe(true);
+
+    /* And it is a trim, not a looser comparison: the middle still matters. */
+    expect(
+      cronTokenAccepted(SECRET, `Bearer ${SECRET.replace("-", " ")}`),
+    ).toBe(false);
+  });
+
+  it("still refuses a secret that is only whitespace", () => {
+    /* Trimming must not turn a blank variable into a usable one — an empty
+       secret accepts nobody, and "   " is an empty secret. */
+    for (const blank of [" ", "\n", "\t  \n"]) {
+      expect(cronTokenAccepted(blank, `Bearer ${blank}`)).toBe(false);
+      expect(
+        jobTokenAccepted({ own: blank, shared: SECRET }, `Bearer ${SECRET}`),
+      ).toBe(false);
+    }
+  });
+
   it("refuses a missing header against a real secret", () => {
     expect(cronTokenAccepted(SECRET, null)).toBe(false);
     expect(cronTokenAccepted(SECRET, "")).toBe(false);

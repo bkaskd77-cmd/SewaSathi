@@ -126,6 +126,37 @@ async function main() {
           "  behind the bearer token now, so a tokenless request gets the public\n" +
           "  verdict and nothing to compare. Set HEALTH_SECRET.\n",
       );
+    } else {
+      /*
+       * WHICH HALF IS WRONG, ASKED RATHER THAN GUESSED. A token was sent and
+       * the detail did not come back, which has three causes that read
+       * identically from here: the deployment does not hold the variable, the
+       * two values differ, or the build serving predates the variable being
+       * set. The `?deep=1` refusal already names the variable the DEPLOYMENT
+       * holds — it is public, carries no secret and costs one request — so the
+       * failure can say which of the three it is instead of sending somebody
+       * to re-check a value that was always right.
+       *
+       * It cost a cycle to learn that the first time: the values matched, the
+       * code was correct, and the build answering had been compiled before the
+       * variable existed.
+       */
+      const hint = await fetch(`${base}/api/health?deep=1`, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(20_000),
+        cache: "no-store",
+      })
+        .then((r) => r.json())
+        .then((body) => body?.hint ?? "(no hint in the refusal)")
+        .catch((error) => `could not ask: ${error.message}`);
+
+      console.error(`  A token WAS sent and the detail did not come back.\n`);
+      console.error(`  The deployment says: ${hint}\n`);
+      console.error(
+        "  If it names HEALTH_SECRET, the deployment holds that variable and the\n" +
+          "  two values differ. If it names CRON_SECRET, this build was compiled\n" +
+          "  before HEALTH_SECRET was set — redeploy rather than re-check the value.\n",
+      );
     }
     process.exit(2);
   }

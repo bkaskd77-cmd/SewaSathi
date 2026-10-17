@@ -56,12 +56,25 @@ export function cronTokenAccepted(
   secret: string | undefined,
   header: string | null,
 ): boolean {
-  if (!secret) return false;
+  /*
+   * BOTH SIDES ARE TRIMMED, and that is about where these values come from
+   * rather than about tidiness. A secret is typed once and pasted twice — into
+   * a provider's dashboard and into a CI secret — and a trailing space or
+   * newline survives both fields invisibly. The comparison then fails with no
+   * signal at all: the token looks right on both screens and the door stays
+   * shut, which is a morning spent suspecting the code.
+   *
+   * It costs nothing: a bearer token with meaningful leading or trailing
+   * whitespace does not exist, and HTTP already strips it from the header on
+   * the way in.
+   */
+  const expected = secret?.trim();
+  if (!expected) return false;
 
   const digest = (value: string) =>
     createHash("sha256").update(value, "utf8").digest();
 
-  return timingSafeEqual(digest(bearerToken(header)), digest(secret));
+  return timingSafeEqual(digest(bearerToken(header).trim()), digest(expected));
 }
 
 /**
