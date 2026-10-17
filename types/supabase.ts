@@ -55,17 +55,9 @@ export type VerificationCheck = "id" | "background" | "skill";
  * TypeScript against `claim_transition_allowed` in SQL.
  */
 export type ClaimStatusName =
-  | "open"
-  | "dispatched"
-  | "attended"
-  | "resolved"
-  | "withdrawn"
-  | "rejected";
+  "open" | "dispatched" | "attended" | "resolved" | "withdrawn" | "rejected";
 export type ClaimVerdictName =
-  | "sameFault"
-  | "differentProblem"
-  | "nothingWrong"
-  | "customerCaused";
+  "sameFault" | "differentProblem" | "nothingWrong" | "customerCaused";
 
 export type Database = {
   public: {
@@ -494,7 +486,8 @@ export type Database = {
           amount_mismatch_resolved_at?: string | null;
           amount_mismatch_resolved_by?: string | null;
           amount_mismatch_note?: string | null;
-          amount_settled_source?: "customer" | "provider" | "adjudicated" | null;
+          amount_settled_source?:
+            "customer" | "provider" | "adjudicated" | null;
           payout_due_at?: string | null;
           payout_holdback_rupees?: number | null;
           payout_holdback_until?: string | null;
@@ -725,6 +718,8 @@ export type Database = {
           detail: Record<string, unknown>;
           request_ip: string | null;
           user_agent: string | null;
+          /** When this session last proved who it is. Null is "not recorded". */
+          proved_at: string | null;
         };
         Insert: {
           at?: string;
@@ -736,6 +731,7 @@ export type Database = {
           detail?: Record<string, unknown>;
           request_ip?: string | null;
           user_agent?: string | null;
+          proved_at?: string | null;
         };
         /* Append-only in the database. There is no legitimate update. */
         Update: never;
@@ -805,19 +801,10 @@ export type Database = {
           exif_skew_minutes: number | null;
           /* Judgements with their evidence. Null is "not checked", never "clean". */
           duplicate_verdict:
-            | "unseen"
-            | "retry"
-            | "flag"
-            | "reject"
-            | "not-compared"
-            | null;
+            "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
           duplicate_distance: number | null;
           freshness_verdict:
-            | "fresh"
-            | "stale"
-            | "no-capture-time"
-            | "not-checked"
-            | null;
+            "fresh" | "stale" | "no-capture-time" | "not-checked" | null;
           created_at: string;
         };
         Insert: {
@@ -833,19 +820,10 @@ export type Database = {
           photo_path?: string | null;
           exif_skew_minutes?: number | null;
           duplicate_verdict?:
-            | "unseen"
-            | "retry"
-            | "flag"
-            | "reject"
-            | "not-compared"
-            | null;
+            "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
           duplicate_distance?: number | null;
           freshness_verdict?:
-            | "fresh"
-            | "stale"
-            | "no-capture-time"
-            | "not-checked"
-            | null;
+            "fresh" | "stale" | "no-capture-time" | "not-checked" | null;
           created_at?: string;
         };
         Update: Partial<
@@ -875,7 +853,9 @@ export type Database = {
           updated_at?: string;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["content_strings"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["content_strings"]["Insert"]
+        >;
         Relationships: [];
       };
 
@@ -919,7 +899,9 @@ export type Database = {
           live_version?: number | null;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["content_documents"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["content_documents"]["Insert"]
+        >;
         Relationships: [];
       };
 
@@ -961,12 +943,7 @@ export type Database = {
           taken_at_source: "exif" | "device" | null;
           hash: string | null;
           duplicate_verdict:
-            | "unseen"
-            | "retry"
-            | "flag"
-            | "reject"
-            | "not-compared"
-            | null;
+            "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
           duplicate_distance: number | null;
           created_at: string;
         };
@@ -979,16 +956,13 @@ export type Database = {
           taken_at_source?: "exif" | "device" | null;
           hash?: string | null;
           duplicate_verdict?:
-            | "unseen"
-            | "retry"
-            | "flag"
-            | "reject"
-            | "not-compared"
-            | null;
+            "unseen" | "retry" | "flag" | "reject" | "not-compared" | null;
           duplicate_distance?: number | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["booking_photos"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["booking_photos"]["Insert"]
+        >;
         Relationships: [];
       };
 
@@ -1098,7 +1072,9 @@ export type Database = {
         Insert: { profile_id: string } & Partial<
           Database["public"]["Tables"]["ai_account_state"]["Row"]
         >;
-        Update: Partial<Database["public"]["Tables"]["ai_account_state"]["Row"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["ai_account_state"]["Row"]
+        >;
         Relationships: [];
       };
 
@@ -1237,7 +1213,6 @@ export type Database = {
         >;
         Relationships: [];
       };
-
 
       provider_applications: {
         Row: {
@@ -1641,7 +1616,9 @@ export type Database = {
           read_at?: string | null;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["notifications"]["Insert"]
+        >;
         Relationships: [];
       };
       push_subscriptions: {
@@ -1937,7 +1914,13 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees: number;
           destination_id: string | null;
-          held_reason: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason:
+            | "cooling"
+            | "unwitnessed"
+            | "unconfirmed"
+            | "no_destination"
+            | "negative"
+            | null;
           external_reference: string | null;
           failure_reason: string | null;
           /**
@@ -1966,7 +1949,13 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees?: number;
           destination_id?: string | null;
-          held_reason?: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason?:
+            | "cooling"
+            | "unwitnessed"
+            | "unconfirmed"
+            | "no_destination"
+            | "negative"
+            | null;
           external_reference?: string | null;
           failure_reason?: string | null;
           ledger_rows_at_draft?: number;
@@ -1983,7 +1972,13 @@ export type Database = {
           net_rupees: number;
           tax_withheld_rupees: number;
           destination_id: string | null;
-          held_reason: "cooling" | "unwitnessed" | "unconfirmed" | "no_destination" | "negative" | null;
+          held_reason:
+            | "cooling"
+            | "unwitnessed"
+            | "unconfirmed"
+            | "no_destination"
+            | "negative"
+            | null;
           external_reference: string | null;
           failure_reason: string | null;
           ledger_rows_at_draft: number;

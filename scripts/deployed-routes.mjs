@@ -196,8 +196,14 @@ export const LOCALE_PREFIXES = ["", "/ne"];
 export const NOT_WALKABLE = [
   { route: "/services/[slug]", covered: "/services/plumbing is walked" },
   { route: "/services/[slug]/[providerId]", covered: "no stable public id" },
-  { route: "/legal/[slug]", covered: "/legal/terms, /privacy, /refunds are walked" },
-  { route: "/bookings/[id]", covered: "needs a booking of the signed-in customer" },
+  {
+    route: "/legal/[slug]",
+    covered: "/legal/terms, /privacy, /refunds are walked",
+  },
+  {
+    route: "/bookings/[id]",
+    covered: "needs a booking of the signed-in customer",
+  },
   { route: "/admin/applications/[id]", covered: "needs an application id" },
   { route: "/[...rest]", covered: "the not-found catch-all" },
 ];
@@ -373,6 +379,52 @@ export function cronPaths(vercelJsonText) {
  *   - **That the cron ever fired.** Reachability is a precondition, not
  *     evidence. Only Vercel's own cron log says a schedule ran.
  */
+/**
+ * How long the PUBLIC health check took, and whether that is a finding.
+ *
+ * WHY THIS IS MEASURED AT ALL. UptimeRobot reported `/api/health` down with a
+ * connection timeout at 11:05 Oslo on 2026-10-17 — the minute a deployment went
+ * live — against a route that made nine network round trips on a cold function
+ * before it could answer. It is two now. A number nobody measures is a number
+ * that drifts back, and this is the one place that already asks the deployment
+ * a question at a known moment.
+ *
+ * FOUR SECONDS IS THE BAR AND IT IS NOT THE TARGET. The walk runs from a GitHub
+ * runner in North America against a function pinned to Singapore, on the first
+ * request after a deploy — so the honest expectation is one to two seconds, and
+ * a bar tight enough to express that would go red on a bad transatlantic
+ * afternoon. A check that cries wolf gets muted, and a muted check is the state
+ * this incident started in. The ELAPSED FIGURE IS PRINTED EITHER WAY, which is
+ * what makes a regression visible long before it fails.
+ */
+export const HEALTH_SLOW_MS = 4000;
+
+export function judgeHealthTiming({ ms, status }) {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) {
+    return {
+      ok: false,
+      detail: "no timing was taken",
+      failure: "/api/health was not timed — the walk did not run",
+    };
+  }
+
+  /* A 503 is a legitimate answer here: something unacknowledged is failing and
+     the endpoint is saying so. The route walk judges the status; this judges
+     only how long it took to say it. */
+  if (ms > HEALTH_SLOW_MS) {
+    return {
+      ok: false,
+      detail: `${Math.round(ms)}ms (status ${status})`,
+      failure:
+        `/api/health took ${Math.round(ms)}ms, over the ${HEALTH_SLOW_MS}ms bar. ` +
+        "A monitor times out and pages for a product that is working. Check what " +
+        "was added to PUBLIC_CHECKS in lib/config/health.ts.",
+    };
+  }
+
+  return { ok: true, detail: `${Math.round(ms)}ms (status ${status})` };
+}
+
 export function judgeCron({ path, status }) {
   if (status === 401) {
     return { ok: true, detail: "401 — deployed and guarded", failure: null };

@@ -63,3 +63,60 @@ export function cronTokenAccepted(
 
   return timingSafeEqual(digest(bearerToken(header)), digest(secret));
 }
+
+/**
+ * Which secret a job is guarded by, and what that leaves shared.
+ *
+ * ONE TOKEN OPENED FOUR DOORS. `CRON_SECRET` was the bearer on the dispatch
+ * sweep, the payment reconciliation, the retention sweep and `/api/health`'s
+ * expensive half — so rotating it rotates all four, and a leak from any one
+ * context opens the money sweeps. Audited as a low finding; this is the half of
+ * the fix that was achievable.
+ *
+ * TWO OF THE FOUR CANNOT BE SEPARATED AND THE REASON IS NOT OURS. Vercel sends
+ * `CRON_SECRET` — exactly that variable, exactly that header — on the paths in
+ * `vercel.json`, and there is no per-path mechanism. Requiring a different
+ * secret on `/api/bookings/dispatch` would mean Vercel's own invocation being
+ * refused every night, with the only evidence a `cron_runs` row nobody wrote.
+ * So those two stay on the shared token, deliberately, and this comment is the
+ * record of why rather than an omission somebody finds later.
+ *
+ * THE TWO THAT CAN ARE THE TWO THAT LEAVE THE BUILDING. `/api/retention/sweep`
+ * is invoked by a person, and `/api/health`'s detail is now read by CI on every
+ * deploy — which means a GitHub Actions secret holds it. Before this, that
+ * secret would have been `CRON_SECRET`, so a repository secret for a read-only
+ * health payload also opened the sweep that moves a professional's money. That
+ * is the concrete gain, and it is worth more than the tidiness.
+ *
+ * A JOB WITH ITS OWN TOKEN SET STOPS ACCEPTING THE SHARED ONE, which is what
+ * makes this a separation rather than an addition. Until it is set the shared
+ * token still works, so nothing breaks on the deploy that ships this and the
+ * owner can set the variables in their own time — and `/api/health` reports
+ * which jobs are still sharing, because a migration nobody can see the state of
+ * is one nobody finishes.
+ */
+export type JobSecrets = {
+  /** The job's own secret, when the owner has set one. */
+  own: string | undefined;
+  /** `CRON_SECRET`, which Vercel sends and which everything still falls back to. */
+  shared: string | undefined;
+};
+
+export type TokenSeparation = "own" | "shared" | "unset";
+
+export function tokenSeparation(secrets: JobSecrets): TokenSeparation {
+  if (secrets.own) return "own";
+  if (secrets.shared) return "shared";
+  return "unset";
+}
+
+export function jobTokenAccepted(
+  secrets: JobSecrets,
+  header: string | null,
+): boolean {
+  /* The own token REPLACES the shared one rather than joining it. Accepting
+     either would be two keys to one door, which is the arrangement this is
+     meant to end. */
+  const expected = secrets.own ?? secrets.shared;
+  return cronTokenAccepted(expected, header);
+}

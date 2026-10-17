@@ -185,10 +185,18 @@ jobs:
       # would always time out — a check that is red on every branch is a check
       # people turn off.
       #
-      # NO SECRET IN ANY OF THE THREE. The wait reads one meta tag off the
-      # alias, `check:deployed` walks public routes, and `check:drift` reads the
-      # public `/api/health` payload. That is what makes running them here
-      # possible at all.
+      # TWO OF THE THREE NEED NO SECRET. The wait reads one meta tag off the
+      # alias and `check:deployed` walks public routes. `check:drift` used to be
+      # the third, reading the public `/api/health` payload — and that payload
+      # was cut back to a verdict after UptimeRobot timed out on a route making
+      # nine round trips. `db.functions` is behind the bearer now, so this job
+      # holds one.
+      #
+      # IT IS `HEALTH_SECRET`, NOT `CRON_SECRET`, and that distinction is the
+      # whole reason the tokens were separated: a repository secret for a
+      # read-only health payload must not also open the sweep that moves a
+      # professional's money. Unset, the drift step exits 2 — "nobody looked",
+      # never a pass — and says which variable is missing.
       - name: Wait for the alias to serve this commit
         if: github.ref_name == 'claude/sewax-roadmap-foundation-e4byl9'
         run: node scripts/await-deploy.mjs
@@ -226,6 +234,11 @@ jobs:
           github.ref_name == 'claude/sewax-roadmap-foundation-e4byl9'
         env:
           DRIFT_URL: ${{ vars.DEPLOY_URL }}
+          # Deliberately only this one. The script falls back to CRON_SECRET
+          # when it finds it, and putting that here would hand CI the key to
+          # the money sweeps for the sake of a read — which is the arrangement
+          # this split exists to end.
+          HEALTH_SECRET: ${{ secrets.HEALTH_SECRET }}
         run: node scripts/check-drift.mjs
 
   # ---------------------------------------------------------------------------

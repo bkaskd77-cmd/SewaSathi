@@ -77,12 +77,14 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 ---
 
 ### BLOCKER: health-unwatched
-- Status: unresolved
+- Status: resolved
 - Claims: nothing a visitor reads — this one is about what WE would know. `/api/health` returns 200 or 503, `healthVerdict` makes `ok` mean "nothing unattended is wrong", and `ACKNOWLEDGED_FAILURES` stops one known failure masking the next. All of that was built because sign-in broke in production for a day and the thing that noticed was a person trying to log in.
 - Lives in: nowhere in this repository. It is a monitor pointed at `https://sewasathi.vercel.app/api/health`, in somebody's account, checking on a schedule and telling a human when the answer stops being 200.
 - Replaced by: any uptime checker on that URL with an alert that reaches a phone. The endpoint is public, cheap and sends nothing, so this needs no credential and no code — a free tier is enough. `?deep=1` must NOT be the monitored URL: it sends a real SMS per run.
 - **Found in the pre-launch security audit, 2026-10-16, and it is the gap the whole health endpoint was built to close.** Every piece of the mechanism is finished and nothing is reading it, which is this product's recorded sin — a tested, documented thing with no caller — at the scale of an operational control. The day `auth.sms` goes from `down` to `ok` and something else breaks, the 503 will be correct, honest, and seen by nobody.
 - **It does not block a deploy and it blocks a launch**, which is the right side of that line: serving customers with no monitor is how a day-long outage happens, and `LAUNCH=true` is the moment that stops being hypothetical.
+- **2026-10-17 — resolved by the owner, and it paged inside a day.** UptimeRobot is pointed at `https://sewasathi.vercel.app/api/health` and reported a connection timeout from North America at 11:05 Oslo, after an up at 08:59. **The first thing it found was the endpoint's own weight**: nine network round trips on a cold function, on the minute a deployment went live and the alias flipped. That is a fair result for a check built to find what nobody was looking at, and the fix is the public path being two reads — see `PUBLIC_CHECKS`.
+- **The five-minute interval does a second job nobody has to remember.** Supabase pauses a free project after a week of inactivity, and the public check really queries the database rather than reporting a cached verdict, so the monitor is also what keeps production awake. `tests/unit/health-public.test.ts` pins that read into the public list, because removing it would be a saving whose cost is invisible for six days.
 
 ### BLOCKER: sms-gateway-unverified
 - Status: unresolved

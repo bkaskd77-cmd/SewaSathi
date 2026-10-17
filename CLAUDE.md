@@ -1187,6 +1187,76 @@ verify`, and any can be changed by somebody not looking at this code.
   reports `ok` having touched nothing. That is the sign-in outage reproduced by
   the check written to catch it — the free version of this check proves nothing.
   One SMS per deep run is the price of the answer.
+- **The public answer is two reads, and it used to be nine.** UptimeRobot
+  reported `/api/health` down with a connection timeout at 11:05 Oslo on
+  2026-10-17 — the minute the deployment of `d6d3e84` reached READY and the
+  alias flipped, which the Vercel deployment record puts at 09:04:43 UTC. The
+  runtime logs are 403 to this session's token, so "alias flip" and "cold start
+  on a slow route" cannot be separated from the log; what is not in doubt is
+  that the route made **nine network round trips on a cold function** before it
+  could answer anything, and a URL whose whole job is "can this serve a customer
+  right now" must not be the slowest thing in the product.
+  `PUBLIC_CHECKS` is the public path now: the ten free checks plus
+  `database` and `auth.config`, run together, so the wall cost is one cold
+  connection plus one round trip. Those two are the only dependencies whose
+  failure means a customer is actually stuck — the catalogue cannot be read, or
+  phone sign-in is off, which is the outage this endpoint was built after.
+  **The database read stays public for a second reason that is easy to optimise
+  away**: Supabase pauses a free project after a week of inactivity, so a
+  five-minute monitor hitting a route that really queries the database is what
+  keeps the project awake. It is pinned in `tests/unit/health-public.test.ts`
+  because the cost of removing it is invisible for six days.
+  **The six read-only checks that each cost a round trip are behind the bearer
+  token**, and the two that cost money still need `?deep=1` on top of it. A
+  public reader gets `{ ok, clean, commit }` and nothing else, which also closes
+  the audit's accepted risk that this URL was an inventory of every dependency
+  we have. **What is lost is said out loud**: `db.functions` no longer turns the
+  public URL red on drift. That channel is not gone — the nightly dispatch sweep
+  fails its own run on a mismatch, and `check:drift` runs in CI on every deploy,
+  with the token now.
+- **One token opened four doors, and two of them could be separated.**
+  `CRON_SECRET` was the bearer on the dispatch sweep, the reconciliation, the
+  retention sweep and the deep health probe, so rotating it rotated all four.
+  **Vercel sends `CRON_SECRET` — that variable, that header — on the paths in
+  `vercel.json` and offers no per-path mechanism**, so the two scheduled routes
+  cannot have their own: a job-specific secret there means Vercel's own nightly
+  invocation refused, with the only evidence a `cron_runs` row nobody wrote.
+  That is written in both routes rather than left as an apparent oversight, and
+  `/api/health`'s token report prints them as `vercel`.
+  The two nobody schedules get their own. `HEALTH_SECRET` is the one that
+  matters: `check:drift` reads the detailed payload on every deploy, so a GitHub
+  Actions secret holds that token — and before the split that secret would have
+  been `CRON_SECRET`, which also opens the sweep that moves a professional's
+  money. A read-only payload is not worth that blast radius.
+  **A job's own token REPLACES the shared one rather than joining it**, which is
+  what makes it a separation; until it is set the shared one still works, so the
+  deploy that ships this breaks nothing, and the payload names which jobs are
+  still sharing so the migration is visible rather than forgotten.
+- **An audit row records what the gate saw, not only what the actor did.**
+  `freshAdminActor()` refuses a money action without an `amr` proof inside
+  fifteen minutes; the row written afterwards said who decided and when, and
+  nothing about whether they had been challenged — so a reviewer reconstructing
+  a disputed refund had to take the gate on trust, which is the one thing a log
+  exists to remove. `security_events.proved_at` is that reading.
+  **It is read inside `lib/audit` rather than passed in**, because the row is
+  written in the data layer — `issueRefund` logs, not the action that called it
+  — and threading a proof through eleven writers in four modules is eleven
+  places to pass null. `sessionAuthenticatedAt` is `cache()`d per request, so
+  the log records the SAME reading the gate judged; two reads could disagree
+  across a token refresh, and a row claiming a proof the gate never saw is worse
+  than no column.
+  **Null is "not recorded" and is the common case** — a cron, a callback, every
+  row older than the column — and nothing is backfilled. **It is not a
+  constraint, deliberately**: refusing a row would put `lib/audit`'s one
+  guarantee at risk, which is that it never throws and never rolls back the
+  thing it is logging. The gate refuses; this records.
+  **And it nearly broke that guarantee on the way in.** Constructing the auth
+  client with no request scope does not fail where it is awaited: GoTrue loads
+  its initial session in the background, that load calls `cookies()`, and the
+  throw arrives as an **unhandled rejection** no `try` around the call can
+  catch. Four of them turned the suite red. `proofForThisSession` asks for the
+  cookie store first, where a failure can be caught, and treats its absence as
+  the honest null.
 - **`unknown` is never `ok` — and the corollary was missed for months, which
   503'd a working product.** Not looking must never read as working; that is
   precisely the confusion that let this run for a day. The other half is that a

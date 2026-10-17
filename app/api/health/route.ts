@@ -41,7 +41,11 @@ import { smsGateway } from "@/lib/sms";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STEP_UP_HOURS } from "@/lib/auth/admin-gate";
 import { sealingStatus } from "@/lib/security/secret-box";
-import { cronTokenAccepted } from "@/lib/security/cron-token";
+import {
+  jobTokenAccepted,
+  tokenSeparation,
+  type JobSecrets,
+} from "@/lib/security/cron-token";
 
 /**
  * Can this product actually serve a customer right now?
@@ -1027,14 +1031,66 @@ async function checkRegion(): Promise<Check> {
   };
 }
 
+/**
+ * The health endpoint's own secret, and what it falls back to.
+ *
+ * ITS OWN, BECAUSE THIS IS THE ONE THAT LEAVES THE BUILDING. CI reads this
+ * payload on every deploy, so the token lives in a GitHub Actions secret — and
+ * before the split that secret would have been `CRON_SECRET`, which also opens
+ * the sweep that moves a professional's money. A read-only health payload is
+ * not worth that blast radius.
+ *
+ * The fallback is what makes the migration safe: until `HEALTH_SECRET` is set
+ * the shared token still works, so the deploy that ships this breaks nothing,
+ * and the payload reports which jobs are still sharing so the migration is
+ * visible rather than forgotten.
+ */
+function healthSecrets(): JobSecrets {
+  return {
+    own: process.env.HEALTH_SECRET,
+    shared: process.env.CRON_SECRET,
+  };
+}
+
+/**
+ * Which jobs are on their own token, for somebody finishing the migration.
+ *
+ * `vercel` IS NOT A FAILURE TO SEPARATE, it is the statement that separation is
+ * not available there: Vercel sends `CRON_SECRET` — that variable, that header
+ * — on the paths in `vercel.json`, with no per-path mechanism, so a different
+ * secret on the dispatch sweep means Vercel's own nightly invocation refused.
+ * Printing it beside the two that CAN be separated is what stops somebody
+ * reading the shared pair as an oversight and "fixing" it.
+ */
+function tokenReport(): Record<string, string> {
+  return {
+    "api.health": tokenSeparation(healthSecrets()),
+    "retention.sweep": tokenSeparation({
+      own: process.env.RETENTION_SECRET,
+      shared: process.env.CRON_SECRET,
+    }),
+    "bookings.dispatch": "vercel",
+    "payments.reconcile": "vercel",
+  };
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const wantsDeep = url.searchParams.get("deep") === "1";
 
-  const secret = process.env.CRON_SECRET;
-  const deepAllowed =
-    wantsDeep &&
-    cronTokenAccepted(secret, request.headers.get("authorization"));
+  /*
+   * THREE TIERS, AND THE TOKEN IS WHAT SEPARATES THE FIRST FROM THE SECOND.
+   * Public is the verdict alone, over the two cheap reads. The token adds the
+   * six read-only checks that each cost a round trip, and `?deep=1` on top of
+   * the token adds the two that cost money. No query parameter grants anything
+   * — a parameter is the caller's to set, so detail is the bearer or nothing.
+   */
+  const secrets = healthSecrets();
+  const detailed = jobTokenAccepted(
+    secrets,
+    request.headers.get("authorization"),
+  );
+  const deepAllowed = wantsDeep && detailed;
 
   if (wantsDeep && !deepAllowed) {
     /*
@@ -1051,34 +1107,54 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         error: "unauthorized",
-        hint: secret
-          ? "deep=1 needs the CRON_SECRET bearer token"
-          : "deep=1 is disabled on this deployment: CRON_SECRET is not set, so no token can authorise it",
+        hint:
+          tokenSeparation(secrets) === "unset"
+            ? "deep=1 is disabled on this deployment: neither HEALTH_SECRET nor CRON_SECRET is set, so no token can authorise it"
+            : `deep=1 needs the ${secrets.own ? "HEALTH_SECRET" : "CRON_SECRET"} bearer token`,
       },
       { status: 401, headers: { "cache-control": "no-store" } },
     );
   }
 
+  /*
+   * THE PUBLIC ANSWER IS TWO READS, RUN TOGETHER. Everything else here is free
+   * — environment variables and in-process state — so the wall time of a public
+   * request is one cold connection plus one round trip, against the nine this
+   * route used to make before it could say anything at all.
+   *
+   * `database` and `auth.config` are the pair, and `PUBLIC_CHECKS` is where the
+   * reasoning lives: they are the only two dependencies whose failure means a
+   * customer is actually stuck, and the database read is also what keeps a free
+   * Supabase project from pausing under a five-minute monitor.
+   */
   const checks: Check[] = [
     checkSessionConfig(),
-    ...(await Promise.all([
-      checkAuthConfig(),
-      checkDatabase(),
-      checkServiceRole(),
-      checkRegion(),
-      checkFunctions(),
-    ])),
+    ...(await Promise.all([checkAuthConfig(), checkDatabase()])),
     checkTriage(),
-    await checkTriageFallback(),
-    await checkCronRuns(),
     checkSmsGateway(),
     checkSmsProbe(),
     checkSealing(),
     checkPush(),
     checkAssetLinks(),
     checkRateLimiter(),
-    await checkSmsBudget(),
   ];
+
+  if (detailed) {
+    /*
+     * Six more, each costing a round trip or a query. A person is reading this
+     * payload, so a second or two is theirs to spend; a monitor's is not.
+     */
+    checks.push(
+      ...(await Promise.all([
+        checkServiceRole(),
+        checkRegion(),
+        checkFunctions(),
+      ])),
+      await checkTriageFallback(),
+      await checkCronRuns(),
+      await checkSmsBudget(),
+    );
+  }
 
   if (deepAllowed) {
     checks.push(
@@ -1105,12 +1181,36 @@ export async function GET(request: Request) {
    */
   const verdict = healthVerdict(checks);
 
+  /*
+   * A PUBLIC READER GETS THE VERDICT AND NOTHING ELSE.
+   *
+   * It is what a monitor needs — a status code and a boolean — and it stops
+   * this URL being a list of every dependency this product has, which the
+   * pre-launch audit recorded as an accepted risk and which is now simply
+   * closed. `clean` rides along because it is a boolean about us rather than a
+   * fact about anybody's infrastructure, and because `ok:true, clean:false`
+   * is the state somebody looking at a dashboard should be able to see.
+   */
+  if (!detailed) {
+    return NextResponse.json(
+      { ok: verdict.ok, clean: verdict.clean, commit: BUILD_COMMIT_SHORT },
+      {
+        status: verdict.ok ? 200 : 503,
+        headers: {
+          "cache-control": "no-store",
+          "cdn-cache-control": "no-store",
+        },
+      },
+    );
+  }
+
   return NextResponse.json(
     {
       ok: verdict.ok,
       clean: verdict.clean,
       commit: BUILD_COMMIT_SHORT,
       deep: deepAllowed,
+      tokens: tokenReport(),
       /*
        * The acknowledgements themselves, not just their names — a reader
        * meeting `ok:true` beside a `down` check needs the reason and the date on

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { describeEnrollError } from "@/lib/auth/mfa-error";
 import { authenticatedAt, type SessionClaims } from "@/lib/auth/step-up";
 import { site } from "@/lib/config/site";
@@ -43,7 +45,11 @@ export type MfaState = {
   verifiedAt: Date | null;
 };
 
-const UNKNOWN: MfaState = { hasFactor: false, verified: false, verifiedAt: null };
+const UNKNOWN: MfaState = {
+  hasFactor: false,
+  verified: false,
+  verifiedAt: null,
+};
 
 /**
  * Where this session stands, as one object.
@@ -172,10 +178,10 @@ async function ensureAuthenticatorLabel(): Promise<string | null> {
     const label = authenticatorLabel(data.user);
     if (!label) return null;
 
-    const { error: writeError } = await createAdminClient().auth.admin.updateUserById(
-      data.user.id,
-      { email: label },
-    );
+    const { error: writeError } =
+      await createAdminClient().auth.admin.updateUserById(data.user.id, {
+        email: label,
+      });
     return writeError ? describeEnrollError(writeError) : null;
   } catch (thrown) {
     return describeEnrollError(thrown);
@@ -360,17 +366,24 @@ export async function accessTokenLifetimeSeconds(): Promise<number | null> {
  * token refreshed a minute ago carrying an authentication from six hours ago —
  * is tested without a session. Everything this function adds is the round trip.
  *
+ * MEMOISED PER REQUEST, like `getSessionProfile`. One admin action now asks
+ * twice — `freshAdminActor()` to decide whether the write is allowed, and
+ * `lib/audit` to record the proof on the row — and those two must be the same
+ * reading or the audit row describes a different moment from the one the gate
+ * judged. `cache()` makes that structural rather than a convention, and costs
+ * one round trip instead of two.
+ *
  * SO RE-AUTH IS RE-VERIFICATION. Verifying a fresh code starts a session whose
  * `amr` carries the moment it happened; nothing is stored on our side and
  * nothing has to be cleared. Null when there is no session or no usable claim —
  * never a guess, and `isFresh` treats null as expired, which is the safe
  * direction when being wrong hands somebody's earnings to a stranger.
  */
-export async function sessionAuthenticatedAt(): Promise<Date | null> {
+export const sessionAuthenticatedAt = cache(async (): Promise<Date | null> => {
   try {
     const { data } = await createClient().auth.getClaims();
     return authenticatedAt((data?.claims ?? {}) as SessionClaims);
   } catch {
     return null;
   }
-}
+});

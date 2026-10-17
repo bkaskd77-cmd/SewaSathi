@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { sweepRetention, retentionPolicy } from "@/lib/data/retention";
-import { cronTokenAccepted } from "@/lib/security/cron-token";
+import { jobTokenAccepted } from "@/lib/security/cron-token";
 
 /**
  * Apply the retention policy, or report what it would apply.
@@ -24,9 +24,19 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  /*
+   * ITS OWN TOKEN, BECAUSE NOTHING SCHEDULES THIS. It is not in `vercel.json`,
+   * so no Vercel cron sends `CRON_SECRET` at it — a person does, from a shell,
+   * which is exactly the context a token leaks from. `RETENTION_SECRET`
+   * replaces the shared one the moment it is set; until then the shared one
+   * still works, so this deploy breaks nothing.
+   */
   if (
-    !cronTokenAccepted(
-      process.env.CRON_SECRET,
+    !jobTokenAccepted(
+      {
+        own: process.env.RETENTION_SECRET,
+        shared: process.env.CRON_SECRET,
+      },
       request.headers.get("authorization"),
     )
   ) {

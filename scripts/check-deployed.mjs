@@ -53,6 +53,8 @@ import {
   coverageGaps,
   cronPaths,
   judgeCron,
+  judgeHealthTiming,
+  HEALTH_SLOW_MS,
   judgeGone,
   judgePwa,
   judgeGuarded,
@@ -159,12 +161,23 @@ function selfTest() {
     // [label, judgement, mustPass]
     [
       "a guarded route redirecting to its own login",
-      () => judgeGuarded({ route: "/admin/signals", status: 307, location: "https://x.test/login?next=%2Fadmin%2Fsignals" }),
+      () =>
+        judgeGuarded({
+          route: "/admin/signals",
+          status: 307,
+          location: "https://x.test/login?next=%2Fadmin%2Fsignals",
+        }),
       true,
     ],
     [
       "a guarded Nepali route redirecting to the Nepali login",
-      () => judgeGuarded({ route: "/admin/signals", prefix: "/ne", status: 307, location: "https://x.test/ne/login?next=%2Fne%2Fadmin%2Fsignals" }),
+      () =>
+        judgeGuarded({
+          route: "/admin/signals",
+          prefix: "/ne",
+          status: 307,
+          location: "https://x.test/ne/login?next=%2Fne%2Fadmin%2Fsignals",
+        }),
       true,
     ],
     [
@@ -179,12 +192,23 @@ function selfTest() {
     ],
     [
       "a Nepali reader dropped at the English login",
-      () => judgeGuarded({ route: "/account", prefix: "/ne", status: 307, location: "https://x.test/login?next=%2Faccount" }),
+      () =>
+        judgeGuarded({
+          route: "/account",
+          prefix: "/ne",
+          status: 307,
+          location: "https://x.test/login?next=%2Faccount",
+        }),
       false,
     ],
     [
       "a redirect somewhere else entirely",
-      () => judgeGuarded({ route: "/account", status: 307, location: "https://x.test/" }),
+      () =>
+        judgeGuarded({
+          route: "/account",
+          status: 307,
+          location: "https://x.test/",
+        }),
       false,
     ],
     [
@@ -192,18 +216,39 @@ function selfTest() {
       () => judgeGuarded({ route: "/account", status: 307, location: null }),
       false,
     ],
-    ["an open route answering 200", () => judgeOpen({ route: "/", status: 200 }), true],
-    ["an open route answering 404", () => judgeOpen({ route: "/", status: 404 }), false],
+    [
+      "an open route answering 200",
+      () => judgeOpen({ route: "/", status: 200 }),
+      true,
+    ],
+    [
+      "an open route answering 404",
+      () => judgeOpen({ route: "/", status: 404 }),
+      false,
+    ],
     /*
      * THE APP SHELL. `cache.addAll` rejects whole on one 404, so a missing
      * shell URL means nobody gets an offline page at all — and the product
      * keeps working, which is why this needs a walk rather than a reading.
      */
-    ["a shell URL that exists", () => judgePwa({ path: "/offline", status: 200 }), true],
-    ["a shell URL that 404s", () => judgePwa({ path: "/offline", status: 404 }), false],
+    [
+      "a shell URL that exists",
+      () => judgePwa({ path: "/offline", status: 200 }),
+      true,
+    ],
+    [
+      "a shell URL that 404s",
+      () => judgePwa({ path: "/offline", status: 404 }),
+      false,
+    ],
     [
       "the worker served as JavaScript",
-      () => judgePwa({ path: "/sw.js", status: 200, contentType: "text/javascript; charset=utf-8" }),
+      () =>
+        judgePwa({
+          path: "/sw.js",
+          status: 200,
+          contentType: "text/javascript; charset=utf-8",
+        }),
       true,
     ],
     [
@@ -211,8 +256,16 @@ function selfTest() {
       () => judgePwa({ path: "/sw.js", status: 200, contentType: "text/html" }),
       false,
     ],
-    ["a removed route staying removed", () => judgeGone({ route: "/careers", status: 404 }), true],
-    ["a removed route still served", () => judgeGone({ route: "/careers", status: 200 }), false],
+    [
+      "a removed route staying removed",
+      () => judgeGone({ route: "/careers", status: 404 }),
+      true,
+    ],
+    [
+      "a removed route still served",
+      () => judgeGone({ route: "/careers", status: 200 }),
+      false,
+    ],
     [
       "a cron target refusing an unauthenticated caller",
       () => judgeCron({ path: "/api/payments/reconcile", status: 401 }),
@@ -246,6 +299,21 @@ function selfTest() {
     }
   }
 
+  if (judgeHealthTiming({ ms: HEALTH_SLOW_MS + 1, status: 200 }).ok) {
+    console.error("  self-test FAILED — a slow health check was judged fine");
+    bad += 1;
+  }
+  if (!judgeHealthTiming({ ms: 120, status: 200 }).ok) {
+    console.error("  self-test FAILED — a fast health check was flagged");
+    bad += 1;
+  }
+  if (judgeHealthTiming({ ms: Number.NaN, status: "error" }).ok) {
+    console.error(
+      "  self-test FAILED — an untimed health check read as a pass",
+    );
+    bad += 1;
+  }
+
   // The cron paths have to come out of vercel.json, or the walk below checks
   // nothing while looking exactly as green as one that checked everything.
   const parsed = cronPaths(readFileSync("vercel.json", "utf8"));
@@ -277,7 +345,9 @@ function selfTest() {
    * somebody does the right thing. `/admin/__never__` cannot be listed, because it
    * cannot exist.
    */
-  const invented = coverageGaps(["app/[locale]/(admin)/admin/__never__/page.tsx"]);
+  const invented = coverageGaps([
+    "app/[locale]/(admin)/admin/__never__/page.tsx",
+  ]);
   if (invented.length !== 1 || invented[0].route !== "/admin/__never__") {
     console.error(
       "  self-test FAILED — coverageGaps did not report an unlisted admin page",
@@ -286,7 +356,9 @@ function selfTest() {
   }
 
   if (bad > 0) {
-    console.error(`\nDeploy check: ${bad} self-test failure${bad === 1 ? "" : "s"}.\n`);
+    console.error(
+      `\nDeploy check: ${bad} self-test failure${bad === 1 ? "" : "s"}.\n`,
+    );
     process.exit(1);
   }
   console.log(
@@ -405,7 +477,11 @@ async function main() {
 
   console.log("\nBuild");
   if (!served) {
-    line(false, "served commit", "no x-build-commit meta — build predates the stamp");
+    line(
+      false,
+      "served commit",
+      "no x-build-commit meta — build predates the stamp",
+    );
     failures.push(
       "The live page carries no build stamp, so it is older than the commit that added one. That alone means the deploy has not landed.",
     );
@@ -538,18 +614,54 @@ async function main() {
     if (verdict.failure) failures.push(verdict.failure);
   }
 
+  /*
+   * HOW LONG THE PUBLIC CHECK TAKES, measured where the number can be read back
+   * — CI, at a known moment, against the commit this job deployed. The sandbox
+   * cannot reach the site at all, so this is the only place the figure exists.
+   *
+   * TWICE, AND THE SECOND IS THE ONE JUDGED. The first request after a deploy
+   * pays for the cold start and the TLS handshake and is worth printing; the
+   * second is what a monitor sees for the rest of the day, and holding the
+   * cold one to the same bar would be `server.region`'s mistake one script
+   * over.
+   */
+  console.log("\nPublic health check");
+  const timings = [];
+  for (let i = 0; i < 2; i += 1) {
+    const startedAt = Date.now();
+    try {
+      const answer = await get(`${origin}/api/health`);
+      timings.push({ ms: Date.now() - startedAt, status: answer.status });
+    } catch (error) {
+      timings.push({ ms: Number.NaN, status: `error: ${error.message}` });
+    }
+  }
+
+  line(
+    true,
+    "cold",
+    `${Math.round(timings[0].ms)}ms (status ${timings[0].status})`,
+  );
+  const warm = judgeHealthTiming(timings[1]);
+  line(warm.ok, "warm", warm.detail);
+  if (warm.failure) failures.push(warm.failure);
+
   if (failures.length === 0) {
     console.log("\n  Live and current.\n");
     return;
   }
 
-  console.error(`\n${failures.length} problem${failures.length === 1 ? "" : "s"}:`);
+  console.error(
+    `\n${failures.length} problem${failures.length === 1 ? "" : "s"}:`,
+  );
   for (const failure of failures) console.error(`  - ${failure}`);
   console.error("");
   process.exit(1);
 }
 
 main().catch((error) => {
-  console.error(`\ncheck-deployed failed to run: ${error.stack || error.message}\n`);
+  console.error(
+    `\ncheck-deployed failed to run: ${error.stack || error.message}\n`,
+  );
   process.exit(2);
 });

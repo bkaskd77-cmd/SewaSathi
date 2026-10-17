@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { bearerToken, cronTokenAccepted } from "@/lib/security/cron-token";
+import {
+  bearerToken,
+  cronTokenAccepted,
+  jobTokenAccepted,
+  tokenSeparation,
+} from "@/lib/security/cron-token";
 
 /**
  * The bearer token four scheduled jobs are guarded by.
@@ -86,10 +91,27 @@ describe("nothing compares the secret itself", () => {
       const source = readFileSync(file, "utf8");
       if (!source.includes("CRON_SECRET")) continue;
 
+      /*
+       * THE OPERANDS, NOT THE LINE. The first version flagged any line holding
+       * `===` and the word "secret", and its first catch was
+       * `tokenSeparation(secrets) === "unset"` — a verdict string compared to a
+       * verdict string, in the 401 hint. A checker that reports correct code is
+       * one whose real entries get skimmed, which is the lesson `check:keys`
+       * paid for three times. So this matches the shape that was actually
+       * wrong: a bare secret-ish identifier, or a `process.env` member, as one
+       * side of the comparison.
+       */
+      const COMPARED = [
+        /\b(secret|token|offered|expected)\s*[!=]==/,
+        /[!=]==\s*(secret|token|offered|expected)\b/,
+        /process\.env\.\w+\s*[!=]==/,
+        /[!=]==\s*process\.env\.\w+/,
+      ];
+
       for (const line of source.split("\n")) {
         const code = line.split("//")[0];
-        if (!code.includes("secret") && !code.includes("CRON_SECRET")) continue;
-        if (/[!=]==/.test(code) && !code.includes("undefined")) {
+        if (code.includes("undefined") || code.includes("null")) continue;
+        if (COMPARED.some((rule) => rule.test(code))) {
           offenders.push(`${file}: ${line.trim()}`);
         }
       }
@@ -114,3 +136,75 @@ function routeFiles(): string[] {
   walk(root);
   return out.sort();
 }
+
+describe("one token no longer opens four doors", () => {
+  const OWN = "the-health-token";
+  const SHARED = "the-shared-cron-token";
+
+  it("accepts the shared token until a job has its own", () => {
+    /* The migration has to be safe on the deploy that ships it: until the owner
+       sets the new variable, yesterday's token still works. */
+    const secrets = { own: undefined, shared: SHARED };
+    expect(jobTokenAccepted(secrets, `Bearer ${SHARED}`)).toBe(true);
+    expect(tokenSeparation(secrets)).toBe("shared");
+  });
+
+  it("stops accepting the shared one the moment the job has its own", () => {
+    /* THE PROPERTY THAT MAKES THIS A SEPARATION. Accepting either would be two
+       keys to one door, which is the arrangement being ended — and it is the
+       half somebody would get wrong by writing `||` over a list. */
+    const secrets = { own: OWN, shared: SHARED };
+    expect(jobTokenAccepted(secrets, `Bearer ${OWN}`)).toBe(true);
+    expect(jobTokenAccepted(secrets, `Bearer ${SHARED}`)).toBe(false);
+    expect(tokenSeparation(secrets)).toBe("own");
+  });
+
+  it("accepts nobody when neither is set", () => {
+    const secrets = { own: undefined, shared: undefined };
+    for (const header of [null, "", "Bearer ", `Bearer ${SHARED}`]) {
+      expect(jobTokenAccepted(secrets, header)).toBe(false);
+    }
+    expect(tokenSeparation(secrets)).toBe("unset");
+  });
+
+  it("reports the two jobs Vercel invokes as shared, and says so on the route", () => {
+    /*
+     * NOT AN OVERSIGHT, AND THE CODE HAS TO SAY SO. Vercel sends `CRON_SECRET`
+     * — that variable, that header — on the paths in `vercel.json`, with no
+     * per-path mechanism, so a job-specific secret on the dispatch sweep means
+     * Vercel's own nightly invocation refused, with the only evidence a
+     * `cron_runs` row nobody wrote. Asserted on the source because the next
+     * person to read those two routes will wonder why they were skipped.
+     */
+    for (const route of [
+      "app/api/bookings/dispatch/route.ts",
+      "app/api/payments/reconcile/route.ts",
+    ]) {
+      const source = readFileSync(route, "utf8");
+      expect(source).toContain("THE SHARED TOKEN, AND IT CANNOT BE OTHERWISE");
+      expect(source).toContain("process.env.CRON_SECRET");
+    }
+  });
+
+  it("gives the two nobody schedules a token of their own", () => {
+    const health = readFileSync("app/api/health/route.ts", "utf8");
+    expect(health).toContain("process.env.HEALTH_SECRET");
+
+    const retention = readFileSync("app/api/retention/sweep/route.ts", "utf8");
+    expect(retention).toContain("process.env.RETENTION_SECRET");
+    expect(retention).toContain("jobTokenAccepted");
+  });
+
+  it("does not hand CI the key to the money sweeps", () => {
+    /*
+     * THE CONCRETE GAIN, AND THE ONE WORTH PINNING. `check:drift` reads the
+     * detailed health payload on every deploy, so a repository secret holds
+     * that token. Before the split it would have been `CRON_SECRET` — a secret
+     * for a read-only payload that also opens the sweep moving a
+     * professional's money.
+     */
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    expect(workflow).toContain("HEALTH_SECRET: ${{ secrets.HEALTH_SECRET }}");
+    expect(workflow).not.toContain("CRON_SECRET: ${{ secrets.CRON_SECRET }}");
+  });
+});

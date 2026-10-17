@@ -49,6 +49,11 @@ export declare function judgeCron(input: {
   path: string;
   status: number | string;
 }): Verdict;
+export declare const HEALTH_SLOW_MS: number;
+export declare function judgeHealthTiming(input: {
+  ms: number;
+  status: number | string;
+}): Verdict;
 export declare function routeForPageFile(file: string): string | null;
 export declare function coverageGaps(
   pageFiles: readonly string[],

@@ -62,6 +62,14 @@ const SECRET_NAMES = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "ANTHROPIC_API_KEY",
   "CRON_SECRET",
+  /*
+   * The two jobs that could be separated from CRON_SECRET. `HEALTH_SECRET` is
+   * the one that leaves the building — CI holds it as a repository secret to
+   * read the drift line on every deploy — so it is worth the same scrutiny as
+   * the token it replaces, not less for being read-only.
+   */
+  "HEALTH_SECRET",
+  "RETENTION_SECRET",
   "ESEWA_SECRET_KEY",
   "KHALTI_SECRET_KEY",
   "SMS_HEALTH_NUMBER",

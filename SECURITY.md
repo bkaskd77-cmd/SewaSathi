@@ -1328,12 +1328,13 @@ RLS policy, table and function grant, storage bucket, cron and secret was read;
 the two highest findings and three mediums were fixed in the same commit and are
 written up above.
 
-- **The admin step-up has no per-action record.** `freshAdminActor()` refuses
-  without a fifteen-minute `amr` proof, and `security_events` records the
-  decision rather than the proof that preceded it. A reviewer reconstructing an
-  incident can see who decided and when, not whether they were challenged.
-  Adding it means a column on the audit row and is worth doing the first time
-  anybody asks "was that session actually re-authenticated".
+- ~~The admin step-up has no per-action record.~~ **Fixed**, the day after it
+  was listed. `security_events.proved_at` carries the acting session's `amr`
+  reading, taken from the memoised call the gate itself judged rather than a
+  second read that could disagree across a token refresh. Null is "not
+  recorded" — a cron, a callback, every row older than the column — and nothing
+  is backfilled. It is deliberately not a constraint: a log that can refuse is
+  a log that can roll back the thing it is recording.
 - **An account number still crosses the wire to a browser.**
   `revealDestination` returns the digits as a server action's return value, so
   they stay out of the server-rendered HTML and out of the router cache, the
@@ -1341,16 +1342,31 @@ written up above.
   fifteen-minute proof. What it is not is a remittance adapter: until one
   exists, somebody has to read the number and type it into a bank, and no
   arrangement of this code removes that.
-- **`/api/health` is public and names every dependency.** That is deliberate —
-  it is how an outage is found without a credential — and it does disclose which
-  providers this product uses and which are currently failing. The expensive
-  half is behind `CRON_SECRET`; the cheap half stays open.
-- **The cron endpoints are guarded by a shared bearer token, not per-job.** One
-  `CRON_SECRET` opens the dispatch sweep, the payment reconciliation, the
-  retention sweep and `?deep=1`. Rotating it rotates all four. Per-job secrets
-  are a real improvement and a four-variable one; the comparison is constant
-  time now (`lib/security/cron-token.ts`), which was the part that was wrong.
-- **No alerting reads `/api/health`.** The endpoint exists, the verdict is
-  honest, `ACKNOWLEDGED_FAILURES` keeps one failure from masking the next — and
-  nothing is watching it. That is a monitor to buy rather than code to write,
-  and it is in `LAUNCH-BLOCKERS.md`.
+- ~~`/api/health` is public and names every dependency.~~ **Closed, by the
+  performance fix rather than by a security one.** A public reader gets
+  `{ ok, clean, commit }`: a status code, a verdict and the commit serving it.
+  Every check name, state and detail is behind the bearer token, and the two
+  that cost money need `?deep=1` on top of it. An outage is still findable
+  without a credential — that is what the status code is — but the list of which
+  providers this product depends on, and which of them is failing this morning,
+  is not on the open internet any more.
+- **The cron endpoints were guarded by one shared bearer token. Two of the four
+  are separated now, and the other two cannot be.** `HEALTH_SECRET` and
+  `RETENTION_SECRET` each replace `CRON_SECRET` on their own route the moment
+  they are set, which is what makes this a separation rather than a second key
+  to the same door. `/api/bookings/dispatch` and `/api/payments/reconcile` stay
+  shared because **Vercel sends `CRON_SECRET` — that variable, that header — on
+  the paths in `vercel.json` with no per-path mechanism**: a job-specific secret
+  there means Vercel's own nightly invocation refused, with the only evidence a
+  `cron_runs` row nobody wrote. Both routes say so where somebody would change
+  them, and `/api/health`'s token report prints them as `vercel` rather than as
+  jobs somebody forgot.
+  **The gain is concrete rather than tidy**: `check:drift` reads the detailed
+  health payload on every deploy, so a GitHub Actions secret now holds that
+  token — and before the split it would have been `CRON_SECRET`, which also
+  opens the sweep that moves a professional's money.
+- ~~No alerting reads `/api/health`.~~ **Fixed by the owner, and it paged within
+  a day.** UptimeRobot is pointed at the endpoint and reported it down at 11:05
+  Oslo on 2026-10-17. The first thing the monitor found was the endpoint's own
+  weight — nine network round trips on a cold function — which is a fair result
+  for a check built to find what nobody was looking at.

@@ -1,5 +1,8 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
+import { sessionAuthenticatedAt } from "@/lib/auth/session";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -182,7 +185,8 @@ export type SecurityEventKind =
   | "aiLimits.changed"
   | "admin.action";
 
-export type ActorRole = "customer" | "provider" | "admin" | "system" | "anonymous";
+export type ActorRole =
+  "customer" | "provider" | "admin" | "system" | "anonymous";
 
 export type SecurityEvent = {
   kind: SecurityEventKind;
@@ -210,14 +214,64 @@ export type SecurityEvent = {
   userAgent?: string | null;
 };
 
+/**
+ * The acting session's proof, or null when there is no session to ask.
+ *
+ * WHY THE COOKIE STORE IS TOUCHED FIRST, and it is not defensive politeness.
+ * `recordSecurityEvent` is called from places with no request scope at all — a
+ * sweep, a unit test, anything reached outside a handler — and constructing the
+ * auth client there does not fail where it is awaited: GoTrue loads its initial
+ * session in the background, that load calls `cookies()`, and the throw arrives
+ * as an UNHANDLED REJECTION which no `try` around this call can catch. Four of
+ * them turned the suite red on the commit that added this column, which is the
+ * loud version of a log that had started being able to break the thing it logs.
+ *
+ * So the scope is tested where the failure can be caught, and its absence is
+ * the honest null: no request means no session means nothing was proved here.
+ */
+async function proofForThisSession(): Promise<Date | null> {
+  try {
+    await cookies();
+  } catch {
+    return null;
+  }
+  return sessionAuthenticatedAt();
+}
+
 export async function recordSecurityEvent(event: SecurityEvent): Promise<void> {
   if (!hasSupabaseConfig()) return;
 
   try {
+    /*
+     * WHEN THIS SESSION LAST PROVED WHO IT IS, recorded beside what it did.
+     *
+     * THE GAP THIS CLOSES. `freshAdminActor()` refuses a money action without
+     * an `amr` timestamp inside `REAUTH_WINDOW_MINUTES`, and the row it wrote
+     * afterwards said who decided and when — not whether they had been
+     * challenged. A reviewer reconstructing an incident could see the decision
+     * and had to take the gate on trust, which is the one thing a log is for.
+     *
+     * READ HERE RATHER THAN PASSED IN, because the row is written inside the
+     * data layer — `issueRefund` logs, not the action that called it — and
+     * threading a proof through eleven writers in four modules is eleven places
+     * to pass null. `sessionAuthenticatedAt` is memoised per request, so this
+     * is the SAME reading the gate judged rather than a second one taken a
+     * moment later; two reads could disagree across a token refresh, and a row
+     * claiming a proof the gate never saw is worse than no column.
+     *
+     * NULL IS "NOT RECORDED", never "unproven" — rule 6, and it is the common
+     * case by design: a cron sweep, a gateway callback and every row written
+     * before this column existed all have no session to read. Reading that
+     * silence as "nobody was challenged" would manufacture a finding, exactly
+     * as reading it as "they were" would manufacture a clean record.
+     */
+    const provedAt = await proofForThisSession();
+
     const { error } = await createAdminClient()
       .from("security_events")
       .insert({
         kind: event.kind,
+        proved_at: provedAt ? provedAt.toISOString() : null,
         actor_id: event.actorId ?? null,
         actor_role: event.actorRole ?? (event.actorId ? "customer" : "system"),
         subject_type: event.subjectType ?? null,
@@ -228,7 +282,9 @@ export async function recordSecurityEvent(event: SecurityEvent): Promise<void> {
       });
 
     if (error) {
-      console.error(`[audit] ${event.kind} not recorded — ${describeError(error)}`);
+      console.error(
+        `[audit] ${event.kind} not recorded — ${describeError(error)}`,
+      );
     }
   } catch (thrown) {
     // Never rethrown. The thing being logged already happened.

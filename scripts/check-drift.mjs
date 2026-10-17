@@ -46,7 +46,9 @@ async function main() {
 
   if (process.argv.includes("--self-test")) {
     console.log("\nSchema drift");
-    console.log(`  ${DRIFT_CHECK} rule self-tested over six payloads; the site was not contacted`);
+    console.log(
+      `  ${DRIFT_CHECK} rule self-tested over six payloads; the site was not contacted`,
+    );
     return;
   }
 
@@ -64,10 +66,31 @@ async function main() {
     "https://sewasathi.vercel.app"
   ).replace(/\/+$/, "");
 
+  /*
+   * THE TOKEN, AND WHY THIS SCRIPT NEEDED ONE. `db.functions` moved behind the
+   * bearer when the public endpoint was cut back to two reads — a monitor was
+   * timing out on nine round trips, and a drift comparison is not a thing a
+   * monitor should be paying for. So this reads the detailed payload now, which
+   * means CI holds a repository secret.
+   *
+   * THAT SECRET IS `HEALTH_SECRET` AND NOT `CRON_SECRET`, deliberately: a
+   * read-only health payload is not worth a key that also opens the sweep
+   * moving a professional's money. The endpoint still accepts the shared token
+   * until the owner sets the new one, so this keeps working either way.
+   *
+   * NO TOKEN IS EXIT 2 and never a pass — `judgeDrift` already refuses a
+   * payload with no `db.functions` line, which is exactly what a tokenless
+   * request now receives.
+   */
+  const token = process.env.HEALTH_SECRET || process.env.CRON_SECRET || "";
+
   let payload;
   try {
     const response = await fetch(`${base}/api/health`, {
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
     });
@@ -97,6 +120,13 @@ async function main() {
   if (verdict.code === 2) {
     console.error(`\nCould not compare — ${verdict.message}`);
     console.error("  Exit 2: nobody looked, which is not a pass.\n");
+    if (!token) {
+      console.error(
+        "  No HEALTH_SECRET or CRON_SECRET in the environment. `db.functions` is\n" +
+          "  behind the bearer token now, so a tokenless request gets the public\n" +
+          "  verdict and nothing to compare. Set HEALTH_SECRET.\n",
+      );
+    }
     process.exit(2);
   }
 

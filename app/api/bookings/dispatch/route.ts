@@ -39,6 +39,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  /*
+   * THE SHARED TOKEN, AND IT CANNOT BE OTHERWISE. Vercel sends `CRON_SECRET` —
+   * that variable, that header — on the paths in `vercel.json`, and there is no
+   * per-path mechanism. A job-specific secret here would mean the dispatch sweep
+   * refused every night, with the only evidence a `cron_runs` row nobody wrote.
+   * `/api/health`'s token report prints this as `vercel` rather than as a job
+   * somebody forgot to separate.
+   */
   if (
     !cronTokenAccepted(
       process.env.CRON_SECRET,

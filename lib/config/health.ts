@@ -498,8 +498,7 @@ export function sealingReadiness(
  * for in `CRON_JOBS` and `LOGGABLE_REASONS`.
  */
 export type SmsProbeTarget =
-  | { ok: true; e164: string }
-  | { ok: false; reason: string };
+  { ok: true; e164: string } | { ok: false; reason: string };
 
 export function smsProbeTarget(raw: string | undefined): SmsProbeTarget {
   const trimmed = (raw ?? "").trim();
@@ -585,4 +584,72 @@ export function smsProbeReadiness(target: SmsProbeTarget): string {
     `SMS_HEALTH_NUMBER is not a Nepali mobile (${target.reason}), so deep=1 ` +
     "would send nothing. This is the variable rather than the gateway."
   );
+}
+
+/**
+ * What a public request runs, and what waits behind the token.
+ *
+ * THE INCIDENT. UptimeRobot reported `/api/health` down with a connection
+ * timeout at 11:05 Oslo on 2026-10-17, which is the minute the deployment of
+ * `d6d3e84` went live and the alias flipped. The monitor is right to complain
+ * either way, because the route it was pointed at made **nine network round
+ * trips** on a cold function before it could answer: a database read, an auth
+ * settings read, a service-role read, three region samples, a function
+ * fingerprint query, a triage-fallback count, a cron-runs read and an AI spend
+ * read. A URL whose job is "can this serve a customer right now" cannot be the
+ * slowest thing in the product.
+ *
+ * SO THE PUBLIC ANSWER IS TWO READS, RUN TOGETHER, and the two are the only
+ * dependencies whose failure means a customer is actually stuck: the catalogue
+ * cannot be read, or phone sign-in has been switched off. Everything else a
+ * reader wants is still there, behind the token, where it costs a person's
+ * attention rather than a monitor's timeout.
+ *
+ * THE DATABASE READ STAYS PUBLIC ON PURPOSE, and it is not only a liveness
+ * check: Supabase pauses a free project after a week of inactivity, so a
+ * five-minute monitor hitting a route that really queries the database is also
+ * what keeps the project awake. `tests/unit/health-state.test.ts` pins
+ * `database` into this list for that reason — optimising it away later would be
+ * a saving that pauses the project.
+ *
+ * WHAT IS LOST, SAID PLAINLY. `db.functions` no longer turns the public URL red
+ * on schema drift. That channel is not gone: the nightly dispatch sweep fails
+ * its own run on a mismatch and `scripts/check-drift.mjs` runs in CI on every
+ * deploy — with the token now, which is what `HEALTH_SECRET` is for. `cron.runs`
+ * and `server.region` were already `ok` by design and never moved the verdict.
+ */
+export const PUBLIC_CHECKS = [
+  "session.config",
+  "auth.config",
+  "database",
+  "triage",
+  "sms.gateway",
+  "auth.sms.probe",
+  "payout.sealing",
+  "notify.push",
+  "twa.assetlinks",
+  "rateLimit",
+] as const;
+
+/** Read-only, but each costs a round trip or a query. Token only. */
+export const DETAILED_CHECKS = [
+  "server.serviceRole",
+  "server.region",
+  "db.functions",
+  "triage.fallback",
+  "cron.runs",
+  "sms.budget",
+] as const;
+
+/** Costs money or sends a message. Token AND `?deep=1`. */
+export const DEEP_CHECKS = ["auth.sms", "triage.model"] as const;
+
+/**
+ * Is this check one a public request runs?
+ *
+ * Exported so the route builds its list from the same constant a test reads,
+ * rather than from a second array that agrees with it today.
+ */
+export function isPublicCheck(name: string): boolean {
+  return (PUBLIC_CHECKS as readonly string[]).includes(name);
 }
