@@ -172,7 +172,19 @@ async function checkDatabase(): Promise<Check> {
       ? {
           name: "database",
           state: "ok",
-          detail: `Categories readable in ${Math.round(performance.now() - startedAt)}ms.`,
+          /*
+           * THE NUMBER SAYS WHAT IT IS, because the payload prints it four
+           * lines above `server.region` and the two run the SAME QUERY against
+           * the SAME URL. This one is a single read and the first of the
+           * request, so it carries the TLS handshake and the connection setup;
+           * `checkRegion` fires three and takes the median for exactly that
+           * reason, and says so in its own comment. Read live on 2026-10-17 the
+           * pair was 726ms and 46ms — fifteen times apart, measuring one thing,
+           * with the caveat attached only to the smaller one. A reader compares
+           * them and concludes the database is slow. The reading is honest; the
+           * sentence beside it has to be too.
+           */
+          detail: `Categories readable in ${Math.round(performance.now() - startedAt)}ms — one cold read, handshake included. server.region's median is the distance.`,
         }
       : {
           name: "database",

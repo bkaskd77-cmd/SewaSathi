@@ -643,6 +643,24 @@ describe("a slow database reading cannot 503 a working product", () => {
     expect(source).toContain("const CLOSE_ENOUGH_MS = 80");
   });
 
+  it("does not let the database reading be read as the distance", () => {
+    /*
+     * `checkDatabase` and `checkRegion` fetch the SAME URL. One reports a
+     * single reading, the first of the request, which carries the handshake;
+     * the other fires three and takes the median precisely so the cold one
+     * cannot libel the region. Live on 2026-10-17 that printed 726ms and 46ms
+     * in one payload — fifteen times apart, measuring one query, with the
+     * caveat attached only to the smaller number.
+     *
+     * Asserted as the sentence rather than as a threshold, because there is
+     * nothing wrong with either measurement: what was wrong is that the pair
+     * invited a comparison neither supports.
+     */
+    const source = readFileSync("app/api/health/route.ts", "utf8");
+    expect(source).toContain("one cold read, handshake included");
+    expect(source).toContain("server.region's median is the distance");
+  });
+
   it("does not tell somebody to fix a file that is already right", () => {
     /*
      * The old sentence was "Check \"regions\" in vercel.json and redeploy",
