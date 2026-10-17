@@ -5,6 +5,12 @@ import { Search } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { redirect } from "@/i18n/navigation";
+import { CustomerSuspension } from "@/components/admin/enforcement-panel";
+
+import {
+  reinstateCustomerAction,
+  suspendCustomerAction,
+} from "../enforcement/actions";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
@@ -264,6 +270,36 @@ export default async function LookupPage(props: {
                 />
               ) : null}
             </dl>
+
+            {/*
+              * SUSPENSION STARTS HERE, AND ONLY HERE, which is a decision rather
+              * than convenience. This screen already resolves a person from a
+              * phone number and already writes a `customerRisk.viewed` row for
+              * the search — so the one path to finding somebody is the one path
+              * that is logged. A second search box on `/admin/enforcement` would
+              * be a second way to reach the same person, and only one of them
+              * would leave a record.
+              *
+              * THE RISK NUMBERS ARE RIGHT ABOVE IT ON PURPOSE. No-shows, false
+              * addresses and trip debt are the evidence somebody is about to act
+              * on; a suspension decided on a screen that does not show them is a
+              * decision taken without the thing it is about.
+              */}
+            {result.customer ? (
+              <div className="mt-4 border-t border-border pt-4">
+                <CustomerSuspension
+                  profileId={result.customer.id}
+                  fullName={result.customer.name}
+                  reason={null}
+                  suspendAction={
+                    result.risk.banned ? null : suspendCustomerAction
+                  }
+                  reinstateAction={
+                    result.risk.banned ? reinstateCustomerAction : null
+                  }
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       )}

@@ -51,6 +51,17 @@ export const MONEY_MODULES: readonly string[] = [
   "@/lib/data/ai-ceilings",
   "@/lib/data/claims",
   "@/lib/data/customer-risk",
+  /*
+   * NOT OBVIOUSLY A MONEY MODULE, AND LISTED HERE ON PURPOSE. Step 4 of the
+   * published ladder holds a professional's earnings and step 5 removes the
+   * listing and reclaims the commission that was avoided — so two of the three
+   * steps this module writes are money decisions, and a customer suspension
+   * stops every future booking they would have paid for. Listing it is what
+   * makes `tests/unit/admin-money-reauth.test.ts` fail on a future writer added
+   * here without the gate, rather than leaving "this one moves money" in
+   * somebody's head, which is the state the whole file was written to end.
+   */
+  "@/lib/data/enforcement",
   "@/lib/data/payments",
   "@/lib/data/payout-destinations",
   "@/lib/data/payouts",
@@ -142,6 +153,30 @@ export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
     module: "@/lib/data/payout-destinations",
     proof: "fresh-actor",
     why: "The human witness in the account-takeover control: a destination nobody could be notified about waits here. Somebody who can confirm their own new account from a walked-up session has removed the only check that is not another session.",
+  },
+  {
+    fn: "setEnforcement",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "Step 4 holds a professional's earnings and step 5 removes their listing and reclaims commission. A ladder raised from a session somebody walked away from is the account-takeover shape pointed at somebody else's livelihood.",
+  },
+  {
+    fn: "liftEnforcement",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "Lifting releases held earnings and puts the listing back. Gated as hard as raising, deliberately: a stolen session that can clear a step is a stolen session that can un-review an account somebody opened a review on.",
+  },
+  {
+    fn: "suspendCustomer",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "It stops every future booking that account could make. No money moves in the instant, which is exactly the argument `markPayoutConfirmed` is excused on — and it is refused here, because cutting somebody off from the product is not a write that cannot cost anybody anything.",
+  },
+  {
+    fn: "reinstateCustomer",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "The other direction of the same decision. Un-suspending from a session nobody proved is how a suspension raised for fraud is quietly undone.",
   },
   {
     fn: "saveAiLimits",

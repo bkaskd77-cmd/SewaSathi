@@ -710,7 +710,7 @@
         "pickAddress": "Choose or add an address.",
         "addressInvalid": "Something in the address is not right. Check it over.",
         "pickPayment": "Choose how you will pay.",
-        "accountSuspended": "This account cannot make new bookings. Please ring support \u2014 they can tell you why and what happens next.",
+        "accountSuspended": "This account cannot make new bookings. Please ring support — they can tell you why and what happens next.",
         "categoryUnavailable": "We are not taking bookings for that service right now.",
         "providerUnavailable": "That professional is no longer available. Choose another, or let us pick.",
         "photoFailed": "That photo would not upload. You can book without it.",
@@ -2758,6 +2758,37 @@
         "badCode": "Pick a reason from the list.",
         "noReason": "Say why, in a sentence.",
         "failed": "That did not save. Nothing changed."
+      }
+    },
+    "enforcement": {
+      "title": "Enforcement",
+      "lead": "The five steps published on /providers/standards. Steps 1 and 2 need nothing here — step 1 is a private message and step 2 is list position, already derived from how often somebody turns work down. Everything below needs a person, and a reason.",
+      "providersHeading": "Professionals",
+      "customersHeading": "Suspended customers",
+      "customersLead": "Suspending somebody starts at Lookup, where the no-shows and the trip debt are on the same screen as the decision. This list is who is suspended now.",
+      "unreadable": "We could not read this. That is not the same as nobody being under a step — do not act on an empty screen.",
+      "noProviders": "No listings yet.",
+      "noCustomers": "Nobody is suspended.",
+      "noneInForce": "No step in force",
+      "inForce": "Step {n} in force",
+      "reasonLabel": "Why — the professional can ask a person to read this",
+      "reasonPlaceholder": "What triggered it, in numbers where you have them",
+      "liftReasonLabel": "Why it is being lifted",
+      "lift": "Lift the step",
+      "permanent": "Step 5 is published as permanent. Coming back means re-applying, which records the second decision beside the first.",
+      "step3": "3 — close the open pool",
+      "step4": "4 — hide the listing, hold the payout",
+      "step5": "5 — remove permanently",
+      "suspend": "Suspend this customer",
+      "reinstate": "Let them book again",
+      "unnamed": "No name recorded",
+      "error": {
+        "needsReason": "A reason is required. The page promises an appeal somebody can answer.",
+        "notFound": "No such person, or nothing to lift.",
+        "badStep": "Steps 1 and 2 are not set here.",
+        "removedIsPermanent": "Step 5 is permanent. They re-apply rather than being un-removed.",
+        "writeFailed": "That did not save. Nothing was changed.",
+        "unavailable": "Prove who you are again first — this needs a code from the last fifteen minutes."
       }
     }
   },

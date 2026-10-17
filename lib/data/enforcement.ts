@@ -318,3 +318,99 @@ export async function customerIsSuspended(
   if (!data || data.banned_at === null) return { suspended: false, reason: null };
   return { suspended: true, reason: (data.banned_reason as string) ?? null };
 }
+
+/* ------------------------------------------------------------------ reads --- */
+
+export type EnforcedProvider = {
+  id: string;
+  displayName: string;
+  step: EnforcementStep | null;
+  reason: string | null;
+  at: string | null;
+};
+
+export type SuspendedCustomer = {
+  profileId: string;
+  fullName: string | null;
+  reason: string | null;
+};
+
+export type EnforcementBoard = {
+  /** Null is "we could not read it", never "nobody is under a step". */
+  providers: EnforcedProvider[] | null;
+  customers: SuspendedCustomer[] | null;
+};
+
+/**
+ * What the screen shows.
+ *
+ * A FAILED READ IS ITS OWN ANSWER AND NEVER AN EMPTY LIST. "Nobody is under a
+ * step" and "we could not ask" are opposite facts, and on this screen the first
+ * one read as the second would tell somebody the ladder is clear when it is
+ * simply unreadable — the `/services` rule, where a failed read must never
+ * render as a measured zero.
+ *
+ * EVERY PROVIDER, NOT ONLY THE ENFORCED ONES. A screen that listed only people
+ * already under a step would have no way to raise one, which is how the ladder
+ * came to be published with nothing behind it in the first place.
+ */
+export async function enforcementBoard(): Promise<EnforcementBoard> {
+  if (!hasSupabaseConfig()) return { providers: null, customers: null };
+
+  const db = createAdminClient();
+
+  const [providers, customers] = await Promise.all([
+    db
+      .from("providers")
+      .select("id, display_name, enforcement_step, enforcement_reason, enforcement_at")
+      .order("enforcement_step", { ascending: false, nullsFirst: false })
+      .order("display_name"),
+    db
+      .from("customer_risk")
+      .select("profile_id, banned_reason")
+      .not("banned_at", "is", null),
+  ]);
+
+  /*
+   * THE NAMES COME IN A SECOND QUERY RATHER THAN AN EMBED, and that is cheaper
+   * to reason about than it looks. `customer_risk` has exactly one foreign key
+   * to `profiles`, so an embed would be unambiguous at runtime — but the
+   * hand-written types do not model the relation, and the failure mode of an
+   * embed PostgREST refuses is the WHOLE read failing, which this repository has
+   * already been bitten by four times in one day. Two reads on an admin screen
+   * with a handful of rows is not a cost worth that risk.
+   */
+  let names = new Map<string, string | null>();
+  if (!customers.error && (customers.data ?? []).length > 0) {
+    const ids = (customers.data ?? []).map((row) => row.profile_id as string);
+    const { data: people } = await db
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", ids);
+    names = new Map(
+      (people ?? []).map((row) => [
+        row.id as string,
+        (row.full_name as string | null) ?? null,
+      ]),
+    );
+  }
+
+  return {
+    providers: providers.error
+      ? null
+      : (providers.data ?? []).map((row) => ({
+          id: row.id as string,
+          displayName: (row.display_name as string) ?? "",
+          step: (row.enforcement_step as EnforcementStep | null) ?? null,
+          reason: (row.enforcement_reason as string | null) ?? null,
+          at: (row.enforcement_at as string | null) ?? null,
+        })),
+    customers: customers.error
+      ? null
+      : (customers.data ?? []).map((row) => ({
+          profileId: row.profile_id as string,
+          fullName: names.get(row.profile_id as string) ?? null,
+          reason: (row.banned_reason as string | null) ?? null,
+        })),
+  };
+}
