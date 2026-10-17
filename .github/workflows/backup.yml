@@ -223,7 +223,32 @@ jobs:
           PGUSER: postgres
         run: |
           set -euo pipefail
-          psql=/usr/lib/postgresql/17/bin/psql
+
+          # THE BINARIES, NAMED BEFORE THEY ARE USED. The first version hardcoded
+          # `/usr/lib/postgresql/17/bin/psql` and the step exited 127 — "command
+          # not found" — which GitHub reports as a bare `Process completed with
+          # exit code 127` with the log on a host the agent sandbox cannot read.
+          # So the failure said nothing about which binary was missing, and the
+          # only way to find out was another run.
+          #
+          # PATH RATHER THAN AN ABSOLUTE PATH, because the version directory is
+          # the packaging's business and not this script's, and a preflight that
+          # names the missing tool turns an opaque 127 into a sentence. Printed
+          # every run, not only on failure: a list of what is actually installed
+          # is what the next person needs when this breaks again.
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "client binaries in /usr/lib/postgresql/17/bin:"
+          ls -1 /usr/lib/postgresql/17/bin 2>/dev/null || echo "  (no such directory)"
+          missing=""
+          for b in psql pg_restore createdb gpg; do
+            command -v "$b" >/dev/null 2>&1 || missing="$missing $b"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the restore drill needs these and the runner has none of them:$missing"
+            exit 1
+          fi
+
+          psql=psql
           key="$RUNNER_TEMP/restore.key"
           opened="$RUNNER_TEMP/opened.dump"
 
@@ -268,7 +293,7 @@ jobs:
           # always references something a bare cluster lacks. The verdict is the
           # assertions below, which is the drill's own rule — a clean exit from a
           # restore that brought back nothing would pass, and does not.
-          /usr/lib/postgresql/17/bin/pg_restore \
+          pg_restore \
             -d restore_drill -n public --no-owner "$opened" \
             2>"$RUNNER_TEMP/restore.err" || true
           echo "restore diagnostics: $(wc -l < "$RUNNER_TEMP/restore.err") line(s)"

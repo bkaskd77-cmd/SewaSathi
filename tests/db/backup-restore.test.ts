@@ -381,6 +381,23 @@ describe("the workflow runs these same commands", () => {
     expect(workflow).toContain("'public.profiles','role','UPDATE'");
   });
 
+  /*
+   * AN OPAQUE FAILURE IS A FAILURE NOBODY CAN ACT ON. The drill's first real run
+   * exited 127 — "command not found" — and GitHub reported exactly that, with the
+   * log on a host this sandbox cannot read. A missing binary, an unreachable
+   * service and a genuinely broken restore were indistinguishable, and the only
+   * way to tell was another run.
+   *
+   * Same lesson as `?debug=auth` and `?debug=triage`: when the only channel is a
+   * log somebody else holds, the step has to say the thing itself.
+   */
+  it("names the binary it is missing instead of exiting 127", () => {
+    expect(command).toContain("command -v");
+    expect(command).toMatch(/::error::the restore drill needs these/);
+    // And it lists what IS installed, because the absence alone does not say why.
+    expect(command).toContain("ls -1 /usr/lib/postgresql/17/bin");
+  });
+
   it("refuses to start without a key, before anything is dumped", () => {
     /*
      * ORDER IS THE POINT. With no key the sealing step fails having ALREADY
