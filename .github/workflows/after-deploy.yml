@@ -52,11 +52,15 @@ name: After a production deploy
 # of lint, typecheck and tests never ran. This can only fail for one reason, and
 # that reason is worth its own red tick.
 #
-# NO SECRET. It reads the public `/api/health` payload rather than the database,
-# so there is no service-role key here and no Vercel token. The comparison runs
-# inside the deployment, in `lib/data/schema-drift.ts`, which is also what the
-# nightly cron calls — one implementation, so CI and the cron cannot disagree
-# about what drift means.
+# ONE READ-ONLY TOKEN, AND THIS PARAGRAPH USED TO SAY "NO SECRET". That was true
+# until 6f37399 moved `db.functions` behind the bearer token, and the sentence
+# survived the change it was describing — the class this repository keeps
+# recording. There is still no service-role key here and no Vercel token: the
+# drift job sends `HEALTH_SECRET`, which buys a read-only payload and nothing
+# else, and the `deployed` job sends nothing at all. The comparison runs inside
+# the deployment, in `lib/data/schema-drift.ts`, which is also what the nightly
+# cron calls — one implementation, so CI and the cron cannot disagree about what
+# drift means.
 on:
   deployment_status:
 
@@ -80,7 +84,33 @@ jobs:
       # No `npm ci`: the script is plain Node with no imports beyond
       # `node:process`, and installing the tree here would be a minute spent on
       # nothing. It self-tests its own rule before it makes the request.
+      # THE TOKEN, AND THE REASON THIS STEP HAD NONE FOR THREE COMMITS. `db.functions`
+      # moved behind the bearer token in 6f37399, when the public `/api/health` answer
+      # became `{ ok, clean, commit }` and nothing else. `ci.yml`'s copy of this step was
+      # given `HEALTH_SECRET` in that commit and this one was not — one invocation written
+      # twice, and only one of them updated. So this job read the tokenless payload, found
+      # no `db.functions` line, and exited 2 ("could not look") on every run from that
+      # commit onward: d6899c4, 7d9861c and 5a7942d.
+      #
+      # IT IS ALSO WHAT LOCKED THE DEPLOY GATE. `vercel-ignore-build.mjs` counted this
+      # job's red tick and skipped every build of d6899c4 — including the build that would
+      # have carried the variable the check was complaining about. The gate no longer
+      # counts it (`ABOUT_A_DEPLOYMENT`), which is the structural half; this is the other
+      # half, and a permanently red check nobody can fix is how a monitor comes to be
+      # ignored.
+      #
+      # `HEALTH_SECRET` AND NOT `CRON_SECRET`: a read-only payload is not worth the blast
+      # radius of the token that also opens the sweep moving a professional's money. The
+      # script falls back to `CRON_SECRET` while the split is still being migrated, and
+      # names which it used.
+      #
+      # NO `DRIFT_URL` HERE, deliberately: the deployment's own `target_url` is passed as
+      # an argument instead, because any URL serving that build answers `/api/health`
+      # identically — see the header on the `deployed` job for why that is wrong there and
+      # right here.
       - name: Compare live function fingerprints against the tree
+        env:
+          HEALTH_SECRET: ${{ secrets.HEALTH_SECRET }}
         run: node scripts/check-drift.mjs "${{ github.event.deployment_status.target_url }}"
 
   deployed:

@@ -26,7 +26,18 @@ was the next commit — a different sha the red check had never been reported
 against — and that it carried real work was luck. With nothing to commit it would
 have had to be a commit whose whole content is "let the gate open".
 
-### 1. First, check whether this is still possible
+### 0. The one that has already happened
+
+`after-deploy.yml`'s `fingerprints` job exited 2 on three consecutive commits
+because that step was never given `HEALTH_SECRET` when `db.functions` moved
+behind the bearer token. Both halves are fixed — the gate no longer counts it,
+and the step now carries the token — and `tests/unit/drift-token.test.ts` fails
+if any `check-drift.mjs` invocation loses it again. If `fingerprints` is red and
+the log ends `exit code 2` with "No HEALTH_SECRET or CRON_SECRET in the
+environment", that regression is back and the fix is one `env:` line, not an
+override.
+
+### 1. Then check whether the deadlock is still possible
 
 The three checks that are answers *about a deployment* rather than about the
 commit — `deploy`, `fingerprints`, `deployed` — are exempt now

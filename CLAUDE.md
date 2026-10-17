@@ -1291,6 +1291,34 @@ verify`, and any can be changed by somebody not looking at this code.
   an override that silently matched no commit reads exactly like a gate that
   opened on its own. `docs/RUNBOOK.md` is the procedure with the dashboard paths;
   the four refusals are break-tested rather than asserted once.
+- **And the check that locked it had been unable to pass for three commits,
+  because of the commit that moved the payload.** `db.functions` went behind the
+  bearer token in `6f37399`; `ci.yml`'s drift step was given `HEALTH_SECRET` in
+  that same commit and `after-deploy.yml`'s **was not**. So the backstop read the
+  tokenless `{ ok, clean, commit }`, found no `db.functions` line and exited 2 —
+  "could not look" — on `d6899c4`, `7d9861c` and `5a7942d`. **One invocation
+  written twice and only one updated**, which is this file's most-repeated shape,
+  and the half-done change was mine.
+  **The two halves of the deadlock are now separately closed**, and the ordering
+  matters: the gate no longer counts the check (structural), AND the check can
+  pass (the token). Fixing only the gate would have left a permanently red tick
+  nobody could clear, which is exactly how `db.functions`' real drift finding
+  sat unread behind `auth.sms` — one unresolved failure masking the next.
+  **Proven by the two jobs disagreeing on one deployment**: the same script
+  against the same build in the same minute, `deploy` green with the token and
+  `fingerprints` exit 2 without it.
+  **`tests/unit/drift-token.test.ts` is the guard and it reads the workflows**,
+  because a comment would have gone as stale as the one that did — the header
+  said "NO SECRET" for three commits after that stopped being true, which is
+  what let the broken step read as deliberate. It **asserts coverage rather than
+  a list**: every workflow file is scanned and every `check-drift.mjs`
+  invocation must carry the variable, so a third copy is covered the day it
+  exists. It also refuses `CRON_SECRET` from a workflow — the script's fallback
+  is for a deployment mid-migration, not for CI, and handing an Actions job the
+  token that opens the sweep moving a professional's money is the blast radius
+  the split exists to avoid. **The invocation count is asserted first**, since a
+  regex that stopped matching would make every other case pass over an empty
+  list; break-tested on all four.
   **And the failure now says which of the three it is.** A token sent with no
   detail returned has three causes that read identically from outside — the
   deployment lacks the variable, the values differ, or the build predates it —
