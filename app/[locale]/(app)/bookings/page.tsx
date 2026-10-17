@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
+import { customerIsSuspended } from "@/lib/data/enforcement";
+import { SuspensionNotice } from "@/components/shared/suspension-notice";
 import {
   attentionFor,
   formatSlotInstant,
@@ -196,8 +198,20 @@ export default async function BookingsPage() {
     );
   };
 
+  /*
+   * THE SAME SENTENCE FOR THE OTHER SIDE. Before this, a suspended customer met
+   * one refusal at the end of a five-screen booking flow and nothing anywhere
+   * said why or what to do about it.
+   */
+  const standing = await customerIsSuspended(profile.id);
+
   return (
     <div className="mx-auto w-full max-w-3xl">
+      {standing?.suspended ? (
+        <div className="mb-6">
+          <SuspensionNotice audience="customer" reason={standing.reason} />
+        </div>
+      ) : null}
       {/* THE WAY OUT OF THIS PAGE IS FORWARDS.
           Somebody looking at their bookings is a customer who already trusts
           us enough to have used the product — the single most likely person to

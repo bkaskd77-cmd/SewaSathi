@@ -48,6 +48,8 @@ export const WAKES_A_PHONE: readonly NotificationKind[] = [
   "booking.completed",
   /** The professional withdrew. The customer needs to pick somebody else. */
   "booking.declined",
+  /** We took the professional off the job. Same need, a different cause. */
+  "booking.providerUnavailable",
   /** Nobody took it. Ending is news; silence would read as still looking. */
   "booking.noProviderFound",
   /** The person who was coming has run out of day. */
@@ -106,6 +108,13 @@ export const WORTH_AN_SMS: readonly NotificationKind[] = [
   "payment.mismatch",
   /* Ending: silence would read as "still looking". */
   "booking.noProviderFound",
+  /*
+   * The professional was taken off the job by us. Worth paying for because the
+   * customer is otherwise waiting at home for somebody who is not coming, and
+   * because we caused it — a notification we are the reason for is not one to
+   * leave to whether they happen to open the app.
+   */
+  "booking.providerUnavailable",
   /* Somebody is at the door right now and the clock on a wasted trip is running. */
   "booking.providerArrived",
 ];

@@ -4,11 +4,14 @@ import { revalidatePath } from "next/cache";
 
 import { freshAdminActor } from "@/lib/auth/admin-gate";
 import {
+  cancelSuspendedBooking,
   liftEnforcement,
   reinstateCustomer,
+  releaseSuspendedBooking,
   setEnforcement,
   suspendCustomer,
   type EnforcementResult,
+  type JobOutcome,
 } from "@/lib/data/enforcement";
 import { isEnforcementStep } from "@/lib/provider";
 
@@ -114,6 +117,46 @@ export async function reinstateCustomerAction(
     profileId: field(data, "profileId"),
     reason: field(data, "reason"),
     actorId: gate.profile.id,
+  });
+
+  if (result.ok) revalidatePath(PATH);
+  return result;
+}
+
+/**
+ * Take a job off a suspended professional, or end it.
+ *
+ * GATED LIKE THE SUSPENSION ITSELF. These move real work away from somebody and
+ * tell a customer their professional is gone; the eight-hour window is for
+ * reading a queue, not for rearranging somebody's week.
+ *
+ * SEPARATE FROM RAISING THE STEP ON PURPOSE. The suspension lands immediately —
+ * somebody who needs stopping is stopped before the paperwork — and the jobs
+ * already in flight are dealt with one at a time afterwards. Blocking a
+ * suspension until a dozen bookings were resolved would mean the slowest case
+ * delays the most urgent one.
+ */
+export async function releaseJobAction(data: FormData): Promise<JobOutcome> {
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: "unavailable" };
+
+  const result = await releaseSuspendedBooking({
+    bookingId: field(data, "bookingId"),
+    actorId: gate.profile.id,
+  });
+
+  if (result.ok) revalidatePath(PATH);
+  return result;
+}
+
+export async function cancelJobAction(data: FormData): Promise<JobOutcome> {
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: "unavailable" };
+
+  const result = await cancelSuspendedBooking({
+    bookingId: field(data, "bookingId"),
+    actorId: gate.profile.id,
+    reason: field(data, "reason"),
   });
 
   if (result.ok) revalidatePath(PATH);

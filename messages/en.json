@@ -911,6 +911,7 @@
       "completed": "Work done",
       "cancelled": "Cancelled",
       "declined": "Professional withdrew",
+      "providerUnavailable": "Professional unavailable",
       "providerArrived": "At your door",
       "amountEntered": "Amount to check",
       "paid": "Paid",
@@ -2789,8 +2790,16 @@
         "badStep": "Steps 1 and 2 are not set here.",
         "removedIsPermanent": "Step 5 is permanent. They re-apply rather than being un-removed.",
         "writeFailed": "That did not save. Nothing was changed.",
-        "unavailable": "Prove who you are again first — this needs a code from the last fifteen minutes."
-      }
+        "unavailable": "Prove who you are again first — this needs a code from the last fifteen minutes.",
+        "inProgress": "Work has started. Ring them rather than ending it from here."
+      },
+      "jobsLead": "These jobs are already in flight. Each one needs releasing to the pool or ending — the customer is told either way.",
+      "jobsUnreadable": "We could not read their jobs. That is not the same as there being none.",
+      "noJobs": "No jobs in flight.",
+      "release": "Open to everybody",
+      "cancelJob": "End it",
+      "cancelReasonPlaceholder": "What the customer is told",
+      "inProgressRing": "Work has started — somebody is in the customer's home. Ring them; this is not a button."
     }
   },
   "offline": {
@@ -2838,6 +2847,10 @@
       "declined": {
         "title": "Your professional withdrew",
         "body": "The job is open again. Open it to pick somebody else."
+      },
+      "providerUnavailable": {
+        "title": "Your job is open again",
+        "body": "The professional we assigned is no longer available. We have reopened it — you can pick somebody else now."
       },
       "noProviderFound": {
         "title": "Nobody could take this one",
@@ -2888,10 +2901,22 @@
       "quoteReady": "SajiloKaam: the price for job {reference} is ready. Nothing starts until you agree it.",
       "priceCorrected": "SajiloKaam: job {reference} turned out to be a different one. Your professional needs you to agree a new price.",
       "noProviderFound": "SajiloKaam: we could not find anyone free for job {reference}. Open the app to try again.",
+      "providerUnavailable": "SajiloKaam: the professional on job {reference} is no longer available. Your job is open again — open the app to pick somebody else.",
       "providerArrived": "SajiloKaam: your professional has arrived for job {reference}."
     },
     "payment": {
       "mismatch": "SajiloKaam: the two amounts for job {reference} do not match. Nothing settles until we look into it."
     }
+  },
+  "suspension": {
+    "providerTitle": "Your account is under review",
+    "providerBody": "While the review runs you are not offered jobs from the open pool, and new jobs settle by eSewa or Khalti only. Depending on the step, your listing may not appear and money you have earned waits rather than being paid out. It is not taken — if the review clears you it is released in full.",
+    "customerTitle": "This account cannot make new bookings",
+    "customerBody": "You cannot start a new booking at the moment. Anything already arranged is unaffected unless somebody here has told you otherwise.",
+    "because": "What was recorded: {reason}",
+    "appealLead": "A person will look at this again if you ask. Tell us what you think we have got wrong — the same people who decided it read the reply.",
+    "appealWhatsapp": "Appeal on WhatsApp",
+    "appealPhone": "Or ring {number}",
+    "appealMessage": "Hello — I would like to appeal a restriction on my SajiloKaam account."
   }
 }

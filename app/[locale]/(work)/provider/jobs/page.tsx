@@ -10,6 +10,8 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { checkNepaliMobile } from "@/lib/auth";
 import { getSessionProfile } from "@/lib/auth/session";
+import { providerStandingFor } from "@/lib/data/enforcement";
+import { SuspensionNotice } from "@/components/shared/suspension-notice";
 import type { CorrectionProduct } from "@/components/provider/correction-panel";
 import type { NameBandProduct } from "@/components/provider/name-band-panel";
 import {
@@ -262,8 +264,22 @@ export default async function ProviderJobsPage() {
     }),
   );
 
+  /*
+   * THE NOTICE GOES ABOVE EVERYTHING, because a professional whose listing has
+   * vanished and whose payout has stopped opens this page first and otherwise
+   * finds no explanation anywhere in the product. A consequence somebody can
+   * only understand by experiment is the trap `/providers/standards` refuses to
+   * have for thresholds; it is the same trap for effects.
+   */
+  const standing = await providerStandingFor(profile.id);
+
   return (
     <div className="mx-auto w-full max-w-2xl">
+      {standing?.step != null ? (
+        <div className="mb-6">
+          <SuspensionNotice audience="provider" reason={standing.reason} />
+        </div>
+      ) : null}
       <header className="animate-rise">
         <h1 className="font-display text-display-md">{t("title")}</h1>
         {/* "Signed in as Anita Rai" alongside a header saying Bikas reads as

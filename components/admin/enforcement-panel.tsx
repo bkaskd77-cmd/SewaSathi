@@ -47,6 +47,7 @@ export function EnforcementPanel({
   reason,
   setAction,
   liftAction,
+  inFlight,
 }: {
   providerId: string;
   displayName: string;
@@ -54,6 +55,15 @@ export function EnforcementPanel({
   reason: string | null;
   setAction: Action;
   liftAction: Action;
+  /**
+   * The jobs already in flight, rendered by the server and passed in.
+   *
+   * A SLOT RATHER THAN A FETCH, because this is a Client Component and the read
+   * is `createAdminClient()`. Passing the element keeps the service-role query
+   * on the server where it belongs — the alternative is an endpoint that hands
+   * a browser somebody else's bookings.
+   */
+  inFlight?: React.ReactNode;
 }) {
   const t = useTranslations("admin.enforcement");
   const [error, setError] = React.useState<string | null>(null);
@@ -126,6 +136,8 @@ export function EnforcementPanel({
         <p className="mt-3 text-sm text-muted-foreground">{t("permanent")}</p>
       ) : null}
 
+      {inFlight}
+
       {error ? (
         <p className="animate-rise mt-3 text-sm text-destructive-ink">
           {t(`error.${error}` as "error.needsReason")}
@@ -192,5 +204,112 @@ export function CustomerSuspension({
         </p>
       ) : null}
     </article>
+  );
+}
+
+type JobResult = { ok: true } | { ok: false; reason: string };
+type JobAction = (data: FormData) => Promise<JobResult>;
+
+export type InFlightRow = {
+  id: string;
+  reference: string;
+  status: string;
+  scheduledFor: string | null;
+  releasable: boolean;
+};
+
+/**
+ * The jobs a suspension leaves hanging, and the two ways out of each.
+ *
+ * WHY THIS IS ON THE SAME SCREEN AS THE SUSPENSION. Raising a step stops NEW
+ * work and does nothing to a job already accepted — so without this list a
+ * suspension leaves customers waiting at home for somebody who is never coming,
+ * and nothing anywhere says so. "They cannot take more work" and "the work they
+ * have is handled" are different facts, and only the second is a customer not
+ * being let down.
+ *
+ * `in_progress` HAS NEITHER BUTTON. The status machine allows `accepted` and
+ * `en_route` back to `pending` and deliberately not this one: somebody is in
+ * the customer's house with the floor up, and walking out of that is a phone
+ * call. It is still listed, because the job a screen hides is the one nobody
+ * deals with.
+ *
+ * RELEASING IS SAFE ONLY BECAUSE OF THE SUSPENSION. `provider_can_serve`
+ * excludes anybody with a step in force, so the pool this returns the job to is
+ * one they cannot reach — otherwise the obvious failure is the same person
+ * claiming it straight back.
+ */
+export function InFlightJobs({
+  rows,
+  releaseAction,
+  cancelAction,
+}: {
+  rows: InFlightRow[] | null;
+  releaseAction: JobAction;
+  cancelAction: JobAction;
+}) {
+  const t = useTranslations("admin.enforcement");
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function run(action: JobAction, data: FormData) {
+    const result = await action(data);
+    setError(result.ok ? null : result.reason);
+  }
+
+  if (rows === null) {
+    return (
+      <p className="mt-3 text-sm text-warning-ink">{t("jobsUnreadable")}</p>
+    );
+  }
+  if (rows.length === 0) {
+    return <p className="mt-3 text-sm text-muted-foreground">{t("noJobs")}</p>;
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="text-sm text-foreground">{t("jobsLead")}</p>
+      {rows.map((row) => (
+        <div
+          key={row.id}
+          className="rounded-md border border-border p-3 text-sm"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium text-foreground">{row.reference}</span>
+            <span className="text-muted-foreground">{row.status}</span>
+          </div>
+
+          {row.releasable ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <form action={(data) => run(releaseAction, data)}>
+                <input type="hidden" name="bookingId" value={row.id} />
+                <Submitting label={t("release")} />
+              </form>
+              <form
+                action={(data) => run(cancelAction, data)}
+                className="flex flex-wrap items-center gap-2"
+              >
+                <input type="hidden" name="bookingId" value={row.id} />
+                <Input
+                  name="reason"
+                  required
+                  minLength={1}
+                  className="h-9 w-56"
+                  placeholder={t("cancelReasonPlaceholder")}
+                />
+                <Submitting label={t("cancelJob")} />
+              </form>
+            </div>
+          ) : (
+            <p className="mt-2 text-muted-foreground">{t("inProgressRing")}</p>
+          )}
+        </div>
+      ))}
+
+      {error ? (
+        <p className="animate-rise text-sm text-destructive-ink">
+          {t(`error.${error}` as "error.needsReason")}
+        </p>
+      ) : null}
+    </div>
   );
 }

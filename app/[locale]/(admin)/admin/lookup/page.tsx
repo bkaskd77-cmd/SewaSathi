@@ -5,9 +5,15 @@ import { Search } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { redirect } from "@/i18n/navigation";
-import { CustomerSuspension } from "@/components/admin/enforcement-panel";
+import {
+  CustomerSuspension,
+  InFlightJobs,
+} from "@/components/admin/enforcement-panel";
+import { inFlightBookings } from "@/lib/data/enforcement";
 
 import {
+  cancelJobAction,
+  releaseJobAction,
   reinstateCustomerAction,
   suspendCustomerAction,
 } from "../enforcement/actions";
@@ -298,6 +304,29 @@ export default async function LookupPage(props: {
                     result.risk.banned ? reinstateCustomerAction : null
                   }
                 />
+
+                {/*
+                  * THE SAME LIST FOR THE OTHER SIDE, and shown only once they
+                  * are suspended. A customer's upcoming bookings are not the
+                  * admin's business until a decision has been taken about the
+                  * account — showing them beside every lookup would make a
+                  * search into a browse of somebody's calendar.
+                  *
+                  * THE ADMIN DECIDES EACH ONE rather than the suspension
+                  * deciding for them. A booking somebody has already arranged
+                  * may be perfectly fine to let run; cancelling it
+                  * automatically would punish the professional who was going
+                  * to do the work for something the customer did.
+                  */}
+                {result.risk.banned ? (
+                  <InFlightJobs
+                    rows={await inFlightBookings({
+                      customerId: result.customer.id,
+                    })}
+                    releaseAction={releaseJobAction}
+                    cancelAction={cancelJobAction}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>

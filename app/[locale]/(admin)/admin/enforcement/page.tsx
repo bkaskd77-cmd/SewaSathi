@@ -6,16 +6,19 @@ import { CircleAlert } from "lucide-react";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
-import { enforcementBoard } from "@/lib/data/enforcement";
+import { enforcementBoard, inFlightBookings } from "@/lib/data/enforcement";
 import {
   CustomerSuspension,
   EnforcementPanel,
+  InFlightJobs,
 } from "@/components/admin/enforcement-panel";
 import { ReauthNotice } from "@/components/admin/reauth-notice";
 
 import {
+  cancelJobAction,
   liftEnforcementAction,
   reinstateCustomerAction,
+  releaseJobAction,
   setEnforcementAction,
 } from "./actions";
 
@@ -59,6 +62,22 @@ export default async function EnforcementPage(props: {
   await getLocale();
   const board = await enforcementBoard();
 
+  /*
+   * JOBS ARE READ FOR THE ENFORCED LISTINGS ONLY, and only because those are
+   * the ones with work to rescue. Reading them for every listing would be a
+   * query per professional on a screen that mostly shows people nothing is
+   * wrong with.
+   */
+  const enforced = (board.providers ?? []).filter((p) => p.step !== null);
+  const jobs = new Map(
+    await Promise.all(
+      enforced.map(
+        async (p) =>
+          [p.id, await inFlightBookings({ providerId: p.id })] as const,
+      ),
+    ),
+  );
+
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
@@ -89,6 +108,15 @@ export default async function EnforcementPage(props: {
                 reason={provider.reason}
                 setAction={setEnforcementAction}
                 liftAction={liftEnforcementAction}
+                inFlight={
+                  provider.step === null ? null : (
+                    <InFlightJobs
+                      rows={jobs.get(provider.id) ?? null}
+                      releaseAction={releaseJobAction}
+                      cancelAction={cancelJobAction}
+                    />
+                  )
+                }
               />
             ))}
           </div>

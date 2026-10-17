@@ -62,6 +62,15 @@ export type SecurityEventKind =
    */
   | "customer.suspended"
   | "customer.reinstated"
+  /*
+   * A job taken off a suspended professional, or ended because the customer
+   * was. Two kinds rather than one with a flag, because a release and a
+   * cancellation are different outcomes for the customer — one means somebody
+   * else is coming, the other means nobody is — and a log read six months later
+   * should not need a detail field consulted to tell them apart.
+   */
+  | "booking.releasedOnSuspension"
+  | "booking.cancelledOnSuspension"
   /* Money — the events a dispute is argued from */
   | "payment.amountRecorded"
   | "payment.amountApproved"

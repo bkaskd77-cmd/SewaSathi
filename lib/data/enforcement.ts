@@ -1,6 +1,8 @@
 import "server-only";
 
 import { recordSecurityEvent } from "@/lib/audit";
+import { judgeCancellation, type BookingStatus } from "@/lib/booking";
+import { notify } from "@/lib/notify";
 import { hasSupabaseConfig } from "@/lib/env";
 import {
   canLift,
@@ -441,4 +443,238 @@ export async function providerEnforcement(
 
   if (error) return null;
   return { step: (data?.enforcement_step as EnforcementStep | null) ?? null };
+}
+
+/* ------------------------------------------------- jobs already in flight --- */
+
+export type InFlightBooking = {
+  id: string;
+  reference: string;
+  status: string;
+  scheduledFor: string | null;
+  customerId: string;
+  /** False for `in_progress`: somebody is in the house with the floor up. */
+  releasable: boolean;
+};
+
+/**
+ * The jobs a suspension leaves hanging.
+ *
+ * WHY THE SCREEN NEEDS THIS AT ALL. Raising a step stops NEW work — the open
+ * pool closes, the listing goes, the payout waits. It does nothing to a job
+ * already accepted, so without this list a suspension leaves customers waiting
+ * at home for somebody who is never coming, and nothing anywhere says so. That
+ * is the gap between "they cannot take more work" and "the work they have is
+ * handled", and only the second one is a customer not being let down.
+ *
+ * `in_progress` IS LISTED AND CANNOT BE RELEASED. The status machine allows
+ * `accepted -> pending` and `en_route -> pending` and deliberately not this one:
+ * somebody is in the customer's house with the floor up, and walking out of
+ * that is a phone call rather than a button. It still appears, because a job
+ * the screen hid would be the one nobody dealt with.
+ *
+ * A FAILED READ IS NULL AND NEVER AN EMPTY LIST. "No jobs in flight" and "we
+ * could not ask" are opposite facts, and on this screen the second rendered as
+ * the first tells somebody they are finished when they have not started.
+ */
+export async function inFlightBookings(
+  subject: { providerId: string } | { customerId: string },
+): Promise<InFlightBooking[] | null> {
+  if (!hasSupabaseConfig()) return [];
+
+  const open = ["pending", "accepted", "en_route", "in_progress"];
+
+  let query = createAdminClient()
+    .from("bookings")
+    .select("id, reference, status, scheduled_for, customer_id")
+    .in("status", open)
+    .order("scheduled_for", { ascending: true, nullsFirst: false });
+
+  query =
+    "providerId" in subject
+      ? query.eq("provider_id", subject.providerId)
+      : query.eq("customer_id", subject.customerId);
+
+  const { data, error } = await query;
+  if (error) return null;
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    reference: (row.reference as string) ?? "",
+    status: row.status as string,
+    scheduledFor: (row.scheduled_for as string | null) ?? null,
+    customerId: row.customer_id as string,
+    releasable: row.status !== "in_progress",
+  }));
+}
+
+export type JobOutcome =
+  | { ok: true }
+  | { ok: false; reason: "notFound" | "inProgress" | "writeFailed" | "unavailable" };
+
+/**
+ * Take the job off them and open it to everybody.
+ *
+ * THE SUSPENSION ITSELF IS WHAT MAKES THIS SAFE. Releasing to the pool would
+ * normally risk the same person claiming it straight back; `provider_can_serve`
+ * now excludes anybody with a step in force, so the pool they are released into
+ * is one they cannot reach. The dispatch machinery then does what it already
+ * does for a withdrawal, including offering the customer ranked alternatives.
+ *
+ * THE CUSTOMER'S ORIGINAL CHOICE SURVIVES, as it does on every other widening:
+ * "I asked for Krishna and Sita came" has to stay answerable afterwards.
+ *
+ * THE CUSTOMER IS TOLD, AND WITH ITS OWN REASON. `booking.providerUnavailable`
+ * rather than `booking.declined`, because they did not decline — we took them
+ * off — and a product that says otherwise teaches the customer something false
+ * about a person it has stopped working with.
+ */
+export async function releaseSuspendedBooking(input: {
+  bookingId: string;
+  actorId: string;
+}): Promise<JobOutcome> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
+
+  const db = createAdminClient();
+
+  const { data: booking, error: readError } = await db
+    .from("bookings")
+    .select("id, reference, status, provider_id, customer_id")
+    .eq("id", input.bookingId)
+    .maybeSingle();
+
+  if (readError) return { ok: false, reason: "writeFailed" };
+  if (!booking) return { ok: false, reason: "notFound" };
+  if (booking.status === "in_progress") return { ok: false, reason: "inProgress" };
+
+  const now = new Date().toISOString();
+
+  const { error: writeError } = await db
+    .from("bookings")
+    .update({
+      status: "pending",
+      provider_id: null,
+      opened_at: now,
+      first_choice_provider_id:
+        (booking.provider_id as string | null) ?? undefined,
+    })
+    .eq("id", input.bookingId)
+    /* The state this was judged against: a second tap updates nothing. */
+    .in("status", ["pending", "accepted", "en_route"]);
+
+  if (writeError) return { ok: false, reason: "writeFailed" };
+
+  await recordSecurityEvent({
+    kind: "booking.releasedOnSuspension",
+    actorId: input.actorId,
+    actorRole: "admin",
+    subjectType: "booking",
+    subjectId: input.bookingId,
+    detail: { from: (booking.provider_id as string | null) ?? null },
+  });
+
+  await notify({
+    recipientId: booking.customer_id as string,
+    kind: "booking.providerUnavailable",
+    params: { reference: (booking.reference as string) ?? "" },
+    bookingId: input.bookingId,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * End the job instead, at no cost to the customer.
+ *
+ * THE FEE IS ZERO AND IS NOT A DECISION TAKEN HERE. `lib/booking/cancellation.ts`
+ * returns zero for every window because our money moves after the work — and on
+ * this path charging anything would be charging somebody for a suspension they
+ * had no part in. The column exists so a fee is later a constant rather than a
+ * migration; it is not one today and this writer does not invent one.
+ *
+ * THE ADMIN WINDOW IS THE WIDEST OF THE THREE, which is why this can end a job
+ * the customer no longer could: `judgeCancellation` lets support cancel until
+ * the job is over. That is the published rule, not an exception made here.
+ */
+export async function cancelSuspendedBooking(input: {
+  bookingId: string;
+  actorId: string;
+  reason: string;
+}): Promise<JobOutcome> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unavailable" };
+
+  const db = createAdminClient();
+
+  const { data: booking, error: readError } = await db
+    .from("bookings")
+    .select("id, reference, status, customer_id")
+    .eq("id", input.bookingId)
+    .maybeSingle();
+
+  if (readError) return { ok: false, reason: "writeFailed" };
+  if (!booking) return { ok: false, reason: "notFound" };
+
+  const verdict = judgeCancellation(booking.status as BookingStatus, "admin");
+  if (!verdict.allowed) return { ok: false, reason: "inProgress" };
+
+  const { error: writeError } = await db
+    .from("bookings")
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancellation_reason: words(input.reason, 500),
+      cancellation_fee: 0,
+    })
+    .eq("id", input.bookingId)
+    .in("status", ["pending", "accepted", "en_route", "in_progress"]);
+
+  if (writeError) return { ok: false, reason: "writeFailed" };
+
+  await recordSecurityEvent({
+    kind: "booking.cancelledOnSuspension",
+    actorId: input.actorId,
+    actorRole: "admin",
+    subjectType: "booking",
+    subjectId: input.bookingId,
+    detail: { reason: words(input.reason, 500) },
+  });
+
+  await notify({
+    recipientId: booking.customer_id as string,
+    kind: "booking.cancelled",
+    params: { reference: (booking.reference as string) ?? "" },
+    bookingId: input.bookingId,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * The step in force for the person signed in, by their profile id.
+ *
+ * BY PROFILE RATHER THAN BY LISTING, because the screens that show the notice
+ * know who is signed in and not which `providers` row is theirs. One read
+ * rather than making four pages join it themselves.
+ *
+ * NULL IS "WE COULD NOT ASK", and a screen that cannot ask simply shows no
+ * notice — the opposite of the booking gate, deliberately. There, failing open
+ * lets somebody past a control; here, failing closed would put a suspension
+ * notice in front of somebody who is not suspended, which is its own harm.
+ */
+export async function providerStandingFor(
+  profileId: string,
+): Promise<{ step: EnforcementStep | null; reason: string | null } | null> {
+  if (!hasSupabaseConfig()) return { step: null, reason: null };
+
+  const { data, error } = await createAdminClient()
+    .from("providers")
+    .select("enforcement_step, enforcement_reason")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (error) return null;
+  return {
+    step: (data?.enforcement_step as EnforcementStep | null) ?? null,
+    reason: (data?.enforcement_reason as string | null) ?? null,
+  };
 }

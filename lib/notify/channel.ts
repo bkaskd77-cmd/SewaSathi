@@ -21,6 +21,20 @@ export type NotificationKind =
   | "booking.completed"
   | "booking.cancelled"
   | "booking.declined"
+  /*
+   * The professional is no longer available and the job has been reopened.
+   *
+   * ITS OWN KIND RATHER THAN REUSING `booking.declined`, and the difference is
+   * a small lie avoided. A declined job and a job released because we suspended
+   * somebody look identical to the customer — their professional is gone and
+   * the job is open again — but "your professional withdrew" is not what
+   * happened, and a product that says it is teaching the customer something
+   * false about a person it has stopped working with.
+   *
+   * NOT `booking.widened` EITHER: that says "we opened your job to everybody"
+   * without saying why, which on this path is the only part worth telling them.
+   */
+  | "booking.providerUnavailable"
   /** The customer picked this professional after somebody else refused. */
   | "booking.assigned"
   /**
@@ -226,6 +240,7 @@ const LIST_NOTES: Partial<Record<NotificationKind, string>> = {
   "booking.completed": "completed",
   "booking.cancelled": "cancelled",
   "booking.declined": "declined",
+  "booking.providerUnavailable": "providerUnavailable",
   "booking.assigned": "assigned",
   "booking.providerArrived": "providerArrived",
   "booking.amountEntered": "amountEntered",

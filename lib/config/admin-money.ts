@@ -167,6 +167,18 @@ export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
     why: "Lifting releases held earnings and puts the listing back. Gated as hard as raising, deliberately: a stolen session that can clear a step is a stolen session that can un-review an account somebody opened a review on.",
   },
   {
+    fn: "releaseSuspendedBooking",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "It takes a job off a professional who had accepted it and tells the customer somebody else is coming. No rupee moves in the instant and a week of work does — the `markPayoutConfirmed` excuse does not reach this far.",
+  },
+  {
+    fn: "cancelSuspendedBooking",
+    module: "@/lib/data/enforcement",
+    proof: "fresh-actor",
+    why: "It ends somebody's booking at no charge. The fee is zero by policy rather than by this writer's choice, which is exactly why the act needs a person who has just proved who they are.",
+  },
+  {
     fn: "suspendCustomer",
     module: "@/lib/data/enforcement",
     proof: "fresh-actor",
