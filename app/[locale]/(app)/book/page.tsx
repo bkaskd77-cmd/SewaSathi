@@ -7,7 +7,8 @@ import type { SavedAddress } from "@/components/booking/step-address";
 import type { Locale } from "@/i18n/routing";
 import { tripDebtNotice } from "@/lib/abuse";
 import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
-import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
+import { categoryCopy, categoryQuote } from "@/lib/config/services";
+import { supportPhoneDisplay } from "@/lib/config/site";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
 import { customerHistory } from "@/lib/data/customer-risk";
@@ -172,6 +173,52 @@ export default async function BookPage(props: {
     `/book?${back.toString()}`,
   )}`;
 
+  /*
+   * NO BAND, NO BOOKING — and this is a refusal rather than a flow with the
+   * prices hidden.
+   *
+   * `getCategories` blanks the band when the `categories` read FAILS, because
+   * the seed holds the band as authored and `/admin/bands` moves it in the table
+   * — so the two diverge with every decision somebody takes. Offering the flow
+   * anyway would collect a description, an address and a time and then have
+   * `createBooking` refuse at the end, which is a worse screen than this one;
+   * and quoting from the seed is the thing being fixed, since `quoted_max` is
+   * frozen onto the booking and is what `judgeFinalAmount` measures a 2x
+   * overcharge against.
+   *
+   * THE BLANKING IS WHOLESALE, so one unreadable category means the read failed
+   * and every band is unknown. `some` rather than `every` because a survey trade
+   * is never `unreadable` and would make `every` false for ever.
+   *
+   * The sentence is `/services`' — ours, not theirs — with the support number,
+   * because somebody who wanted a plumber now needs a way to get one.
+   */
+  const bandsUnreadable = categories.some(
+    (category) => categoryQuote(category).kind === "unreadable",
+  );
+
+  if (bandsUnreadable) {
+    return (
+      <div className="mx-auto w-full max-w-2xl">
+        <header className="animate-rise">
+          <h1 className="font-display text-display-md">{t("title")}</h1>
+        </header>
+        <p className="animate-rise mt-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-body-md">
+          {t("pricesUnreadable")}
+          {/*
+            THE NUMBER ONLY IF THERE IS ONE. `supportPhoneDisplay` is null until
+            a real line exists, and "ring null now" is worse than not offering a
+            call — `/provider/payouts` settled that and the rule transfers. The
+            first sentence stands on its own either way.
+          */}
+          {supportPhoneDisplay
+            ? ` ${t("pricesUnreadableCall", { phone: supportPhoneDisplay })}`
+            : ""}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <header className="animate-rise">
@@ -205,12 +252,20 @@ export default async function BookPage(props: {
                * trusting five components to remember is how the invented movers
                * range survived on five screens after the data said otherwise.
                */
-              const survey = isSurveyPriced(category);
+              const quote = categoryQuote(category);
+              const survey = quote.kind === "survey";
               return {
                 slug: category.slug,
                 label: categoryCopy(category, locale).name,
-                priceMin: survey ? null : category.basePriceMin,
-                priceMax: survey ? null : category.basePriceMax,
+                /*
+                 * `band` or `survey` only: the guard above returned for an
+                 * unreadable read, so this is narrowing rather than a third
+                 * branch nobody can reach. Reading the two columns directly here
+                 * would compile and would be the second place deciding what a
+                 * null band means.
+                 */
+                priceMin: quote.kind === "band" ? quote.low : null,
+                priceMax: quote.kind === "band" ? quote.high : null,
                 surveyPriced: survey,
                 /*
                  * THE PRODUCTS, SO THIS FLOW CAN ASK WHICH ONE. Until now that
@@ -240,9 +295,10 @@ export default async function BookPage(props: {
                 // Formatted here rather than passed as a formatter: a function
                 // cannot cross the server/client boundary, and the locale-aware
                 // currency rules belong on the server anyway.
-                quoteLabel: survey
-                  ? tServices("surveyPriced")
-                  : `${formatNpr(category.basePriceMin, { locale })}–${formatNpr(category.basePriceMax, { locale })}`,
+                quoteLabel:
+                  quote.kind === "band"
+                    ? `${formatNpr(quote.low, { locale })}–${formatNpr(quote.high, { locale })}`
+                    : tServices("surveyPriced"),
               };
             })}
             savedAddresses={savedAddresses}

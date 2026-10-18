@@ -1719,6 +1719,15 @@ and `/admin/bands` is where one moves, with a proposal carrying its evidence and
 rejection stored in `category_price_revisions`. A field here would route around all
 of that, on a number `freeze_booking_band` stamps onto every booking. The band is
 shown read-only beside the words.
+**And it is shown as a sentence when it cannot be read**, because these two columns
+are nullable now: a failed `categories` read withholds the band rather than serving
+`seed/categories.json`'s, so `String(category.basePriceMin)` here would print the
+word `null` under a heading about prices. `categoryQuote` (`lib/config/services.ts`)
+is the three-answer decision every price surface asks — `band`, `survey`,
+`unreadable` — and `createBooking` refuses rather than freeze a quote from the seed,
+which is the half that mattered: `quoted_max` is the ceiling `judgeFinalAmount`
+measures a 2x overcharge against. An UNCONFIGURED clone keeps its numbers, since
+with no keys the seed is the data; only a FAILURE withholds them.
 
 **The audit row is the history, which is why it carries the words.**
 `setStringAction` logs a length rather than a string, because

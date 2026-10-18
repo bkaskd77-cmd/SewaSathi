@@ -114,8 +114,29 @@ export type Category = {
   descriptionNe: string;
   ctaLabel: string;
   ctaLabelNe: string;
-  basePriceMin: number;
-  basePriceMax: number;
+  /**
+   * The published band, or NULL when we could not read it.
+   *
+   * NULL IS "WE COULD NOT READ IT", NEVER "THIS TRADE HAS NO PRICE" — that is
+   * `pricingModel: "survey"` and is a different fact. `lib/data/categories.ts`
+   * blanks these two when the `categories` query FAILS, so what used to happen
+   * silently cannot: the seed holds the band as authored, the table holds the
+   * band as published, `/admin/bands` can move the second without touching the
+   * first, and a failed read therefore served a figure that could be months
+   * out of date on the first screen anybody sees.
+   *
+   * IT IS NOT A DISPLAY CONCERN. `createBooking` derives `quoted_min` and
+   * `quoted_max` from these same two numbers, and `judgeFinalAmount` measures
+   * its 2x overcharge ceiling off `quoted_max` — so a stale seed band reached a
+   * customer protection, not just a card. A booking is refused outright rather
+   * than quoted from the seed; see `categoryQuote` and `lib/data/bookings.ts`.
+   *
+   * AN UNCONFIGURED CLONE KEEPS ITS NUMBERS, deliberately: with no Supabase keys
+   * the seed IS the data and there is no published band for it to disagree with,
+   * so blanking it there would break a fresh checkout to protect against nothing.
+   */
+  basePriceMin: number | null;
+  basePriceMax: number | null;
   /**
    * WHERE THESE TWO NUMBERS CAME FROM, recorded beside them.
    *
@@ -190,6 +211,50 @@ export function isSurveyPriced(
 ): boolean {
   return category.pricingModel === "survey";
 }
+
+/**
+ * What this category can tell a customer about price, in three answers.
+ *
+ * ONE FUNCTION FOR EVERY SURFACE THAT SHOWS A PRICE, which is `isSurveyPriced`'s
+ * own rule — that one is asked on six screens precisely so "should I show a
+ * range" is decided once. This is the same decision with the third answer it was
+ * missing: a band we could not read is neither a range to print nor a trade that
+ * publishes none.
+ *
+ * `unreadable` IS NOT `survey`, and collapsing them would be the expensive
+ * mistake. "Priced after a free survey" is a promise about how movers and
+ * packers works, true on every screen for ever; printing it over plumbing
+ * because a query timed out tells a customer something false about the product
+ * and sends them into a flow that asks for a surveyor.
+ *
+ * IT COMPOSES `isSurveyPriced` RATHER THAN RE-DERIVING IT, so the two can never
+ * disagree about which trades publish no price — the divergence
+ * `lib/provider/measured.ts` exists to prevent, one concern over.
+ *
+ * SURVEY IS ANSWERED FIRST, deliberately. A survey trade's stored bounds are the
+ * old guess that nothing reads, so it is `survey` whether the read worked or
+ * not: the sentence a movers customer gets must not depend on the health of a
+ * query.
+ */
+export type CategoryQuote =
+  | { kind: "band"; low: number; high: number }
+  | { kind: "survey" }
+  | { kind: "unreadable" };
+
+export function categoryQuote(
+  category: Pick<Category, "pricingModel" | "basePriceMin" | "basePriceMax">,
+): CategoryQuote {
+  if (isSurveyPriced(category)) return { kind: "survey" };
+  if (category.basePriceMin === null || category.basePriceMax === null) {
+    return { kind: "unreadable" };
+  }
+  return {
+    kind: "band",
+    low: category.basePriceMin,
+    high: category.basePriceMax,
+  };
+}
+
 
 /**
  * A category's copy in one language.

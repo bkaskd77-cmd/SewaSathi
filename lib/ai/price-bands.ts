@@ -67,17 +67,68 @@ function noteFrom(subBands: readonly SubBand[]): string {
     .join("; ");
 }
 
-function toBand(category: Category, subBands: readonly SubBand[]): PriceBand {
+/**
+ * The authored band for a slug, for when the live one could not be read.
+ *
+ * THE CLAMP MUST WORK, WHICH IS WHY THIS PATH KEEPS THE SEED while the catalogue
+ * does not. `getCategories` now returns a null band on a failed read, because a
+ * figure nobody can vouch for must not be PUBLISHED to a customer or frozen onto
+ * a booking. Neither is what happens here: a triage answer is an estimate in the
+ * hero, and the clamp exists to stop the model asserting Rs 40,000 for a tap
+ * washer. A slightly stale researched bound does that job; no bound at all does
+ * not, and the failure would be a wild number on the first screen anybody sees.
+ * `FALLBACK_PRICE_BANDS` has said exactly this in its own comment since it was
+ * written — "the price clamp has to work even if the categories read failed" —
+ * and this is the line that makes it true one level down.
+ */
+const SEED_BAND = new Map<string, { low: number; high: number }>(
+  CATEGORY_SEED.flatMap((category) =>
+    /*
+     * The seed's own rows always carry both, so this filter drops nothing today.
+     * It is here because the TYPE now admits null — `Category` is one shape for
+     * the authored copy and the live row — and defaulting a missing bound to a
+     * number would be the invented figure this map exists to avoid.
+     */
+    category.basePriceMin !== null && category.basePriceMax !== null
+      ? [
+          [
+            category.slug,
+            { low: category.basePriceMin, high: category.basePriceMax },
+          ] as const,
+        ]
+      : [],
+  ),
+);
+
+function toBand(
+  category: Category,
+  subBands: readonly SubBand[],
+): PriceBand | null {
   const mine = subBands
     .filter((band) => band.categorySlug === category.slug)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  /*
+   * NO DEFAULT, AND THEREFORE A NULL RETURN. The seed's own rows are never
+   * blanked, so a live band missing means a seed band is there; and a slug the
+   * seed does not know can only have come FROM the table, where the band is not
+   * null. So both missing is unreachable — which is exactly why it must not be
+   * written as `?? 0`, a band of nothing handed to a model that will copy it.
+   * A category we cannot bound is a category the prompt does not mention, and
+   * `lib/ai/mockTriage.ts` is what answers for it.
+   */
+  const band =
+    category.basePriceMin !== null && category.basePriceMax !== null
+      ? { low: category.basePriceMin, high: category.basePriceMax }
+      : SEED_BAND.get(category.slug);
+  if (!band) return null;
 
   return {
     slug: category.slug,
     name: category.nameEn,
     nameNe: category.nameNe,
-    low: category.basePriceMin,
-    high: category.basePriceMax,
+    low: band.low,
+    high: band.high,
     /*
      * A survey trade has no sub-bands and must not be handed a range to copy.
      * Movers is the case: no Nepali operator publishes a price, so the stored
@@ -99,7 +150,8 @@ function toBand(category: Category, subBands: readonly SubBand[]): PriceBand {
  */
 export const FALLBACK_PRICE_BANDS: PriceBand[] = [...CATEGORY_SEED]
   .sort((a, b) => a.sortOrder - b.sortOrder)
-  .map((category) => toBand(category, SUB_BAND_SEED));
+  .map((category) => toBand(category, SUB_BAND_SEED))
+  .filter((band): band is PriceBand => band !== null);
 
 /**
  * The live bands, from the database, falling back to the authored ones.
@@ -120,5 +172,6 @@ export async function getPriceBands(): Promise<PriceBand[]> {
   if (categories.length === 0) return FALLBACK_PRICE_BANDS;
   return [...categories]
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((category) => toBand(category, subBands));
+    .map((category) => toBand(category, subBands))
+    .filter((band): band is PriceBand => band !== null);
 }

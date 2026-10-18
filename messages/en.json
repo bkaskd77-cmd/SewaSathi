@@ -146,7 +146,8 @@
     },
     "fromPrice": "From {price}",
     "surveyPriced": "Priced after a free survey",
-    "bookedThisWeek": "{n} booked this week"
+    "bookedThisWeek": "{n} booked this week",
+    "priceAtBooking": "Price shown when you book"
   },
   "footer": {
     "company": "Company",
@@ -390,7 +391,8 @@
     },
     "unreadableTitle": "We can't load professionals right now",
     "unreadableBody": "This is us, not you — nothing is wrong with your search. Try again in a moment, and if it keeps happening the fault is at our end.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "priceAtBooking": "Price shown when you book"
   },
   "auth": {
     "login": {
@@ -725,7 +727,8 @@
         },
         "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again.",
         "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick.",
-        "providerFull": "Somebody booked that time while you were filling this in. Pick another time, or let us choose."
+        "providerFull": "Somebody booked that time while you were filling this in. Pick another time, or let us choose.",
+        "pricesUnreadable": "We could not read the price for this trade, so this booking was not taken. Nothing has been charged. Please try again in a few minutes."
       },
       "cannotCome": {
         "reason": {
@@ -738,7 +741,9 @@
         "waitBody": "We will let them know the moment you confirm. If there is no answer in {minutes} minutes, you can open the job to everybody from your booking page.",
         "freeFrom": "Free again from {when}.",
         "chooseAnother": "Choose somebody who is free"
-      }
+      },
+      "pricesUnreadable": "We cannot read our prices just now, so we are not going to guess at one — this is us, not you. Please try again in a few minutes.",
+      "pricesUnreadableCall": "Need it now? Ring {phone}."
     },
     "status": {
       "pending": "Finding a professional",
@@ -2591,6 +2596,7 @@
         "changeIcon": "Change the icon",
         "iconSet": "Icons a card can draw",
         "bandReadOnly": "Price band Rs {min}–{max} — moved on the bands screen, not here.",
+        "bandUnreadable": "We could not read this trade's price band just now, so it is not shown. It is unchanged — the bands screen is where it moves.",
         "save": "Save"
       },
       "documents": {

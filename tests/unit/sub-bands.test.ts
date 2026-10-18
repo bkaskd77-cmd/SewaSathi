@@ -40,8 +40,10 @@ describe("the category band is the union of its sub-bands", () => {
   it("never lets a sub-band escape its category", () => {
     for (const band of SUB_BAND_SEED) {
       const category = CATEGORY_SEED.find((c) => c.slug === band.categorySlug)!;
-      expect(band.low).toBeGreaterThanOrEqual(category.basePriceMin);
-      expect(band.high).toBeLessThanOrEqual(category.basePriceMax);
+      /* Non-null by construction: the seed is never blanked, which
+         `quote-floor.test.ts` asserts outright. */
+      expect(band.low).toBeGreaterThanOrEqual(category.basePriceMin!);
+      expect(band.high).toBeLessThanOrEqual(category.basePriceMax!);
       expect(band.high).toBeGreaterThanOrEqual(band.low);
     }
   });
@@ -73,7 +75,7 @@ describe("AC servicing is the proof case", () => {
 
   it("would be a 24x range as one band and is four products instead", () => {
     const ac = CATEGORY_SEED.find((c) => c.slug === "ac-servicing")!;
-    expect(ac.basePriceMax / ac.basePriceMin).toBeGreaterThan(10);
+    expect(ac.basePriceMax! / ac.basePriceMin!).toBeGreaterThan(10);
     expect(byCategory("ac-servicing").length).toBeGreaterThan(1);
   });
 });

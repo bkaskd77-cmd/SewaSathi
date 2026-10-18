@@ -491,6 +491,61 @@ us, not you" rather than offering to widen a search it could not run. Rule 6 in
 the shape it takes for a screen: a failed read must never render as a measured
 zero.
 
+**And the CATEGORY fallback was the same mistake wearing reassurance.** The read
+said a failed query "degrades to slightly stale prices rather than an error
+page", which was the problem stated as a feature: `/admin/bands` moves a
+published band in the TABLE and never in `seed/categories.json`, so the gap grows
+with every decision somebody takes — and until today a failed read served the
+older figure on the landing grid, on `/services`, on every category page, and
+**inside `createBooking`**. That last one is why this is not a display concern:
+the quote is frozen onto the row, `quoted_max` is what `judgeFinalAmount`
+measures its 2x overcharge ceiling against, and `quoted_min` is what the
+commission floor is charged on through `max(final_amount, quoted_min)`. A stale
+seed band reached a customer protection and our own fee. **`freeze_booking_band`
+cannot save it** — that trigger fills `band_min` and leaves the quote alone, and
+`sync_booking_quote_floor` only re-derives when `provider_id` or an approved
+correction changes, so a booking taken and worked by the professional the customer
+picked keeps the seed's ceiling to the end.
+**`Category.basePriceMin` and `basePriceMax` are nullable now, and the TYPE is the
+guard.** A `bandKnown` flag beside the numbers was the obvious shape and is rule
+6's own failure — the figures would still be sitting there for anything that
+forgot to ask. Making them null made the compiler name all twelve readers, which
+is how the admin editor's `String(null)` ("Rs null – Rs null") and the triage
+clamp were found at all.
+**`categoryQuote` is the one decision, with three answers**, which is
+`isSurveyPriced`'s own rule plus the answer it was missing: `band`, `survey`,
+`unreadable`. **Collapsing the last two is the expensive mistake** — "priced after
+a free survey" is a promise about how movers works, true for ever, and printing it
+over plumbing because a query timed out tells a customer something false and sends
+them looking for a surveyor. It composes `isSurveyPriced` rather than re-deriving
+it, and survey is answered FIRST, so the sentence a movers customer reads never
+depends on the health of a query. **The wording stays per-surface** — a range on
+`/services`, a floor on the landing grid — and a shared `quoteLabel` helper was
+written and then deleted for that reason: what must not differ is which of the
+three applies and the sentence for the third, which is one message key on both.
+**`createBooking` REFUSES on an unreadable band** rather than quoting the seed,
+and `/book` declines to render the flow at all — a form that collects a
+description, an address and a time and then refuses is a worse screen than one
+honest sentence. Two layers because a server action is a public POST, and because
+the catalogue read can succeed on the page and fail on the submit.
+**An UNCONFIGURED clone keeps its numbers**, deliberately: with no keys the seed
+IS the data, there is no published band for it to disagree with, and blanking
+there would break a fresh checkout to guard against nothing. That split is the
+whole subtlety, so all three failure branches go through one
+`unreadableCatalogue()` and `tests/unit/category-fallback.test.ts` reads the
+source through the TypeScript AST — the behaviour is unreachable from a unit test
+(`cache()` plus a Supabase client, with no seam), and what actually regresses is
+somebody adding a fifth branch and reaching for the seed because that is what the
+others did.
+**The TRIAGE clamp keeps the seed on purpose and now says so.** `getPriceBands`
+falls back to `FALLBACK_PRICE_BANDS`, whose own comment has always read "the price
+clamp has to work even if the categories read failed" — and it is right: a triage
+answer is an estimate in the hero, not a figure frozen onto a booking, and the
+clamp exists to stop the model asserting Rs 40,000 for a tap washer. A slightly
+stale researched bound does that; no bound does not. `toBand` returns **null**
+rather than `?? 0` for a category it cannot bound at all, because a band of
+nothing handed to a model is a band it will copy.
+
 `lib/data/` is the boundary: `categories.ts`, `providers.ts` (list, one, counts,
 reviews) and `ranking.ts`. Pages never touch Supabase directly.
 

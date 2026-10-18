@@ -26,8 +26,24 @@ import { createPublicClient } from "@/lib/supabase/public";
  * `seed/categories.json` is the authored copy. It seeds the table (via
  * scripts/generate-seed-sql.mjs) and it is what we fall back to when Supabase
  * is unconfigured or unreachable — a fresh clone with no keys still renders
- * the whole catalogue, and a database blip degrades to slightly stale prices
- * rather than an error page.
+ * the whole catalogue rather than an error page.
+ *
+ * AND "DEGRADES TO SLIGHTLY STALE PRICES" IS WHAT THAT SENTENCE USED TO SAY,
+ * which was the whole problem stated as reassurance. `/admin/bands` moves a
+ * published band in the TABLE and never in this file, so the gap between the two
+ * grows with every decision somebody takes — and a failed read served the older
+ * figure on the landing grid, on `/services`, on every category page, and into
+ * `createBooking`, where it became the booking's own `quoted_max` and therefore
+ * the ceiling `judgeFinalAmount` measures a 2x overcharge against. Not stale
+ * decoration: a stale customer protection.
+ *
+ * `withoutBand` IS THE ANSWER AND IT IS NARROW. On a FAILURE the seed is still
+ * the right source for every word on the card — the name, the Nepali, the
+ * descriptor, the icon are authored here and cannot go stale against the table
+ * in any way that matters — so the catalogue still renders; only the two numbers
+ * nobody can vouch for are withheld, and `categoryQuote` turns that into a
+ * sentence. **An UNCONFIGURED clone keeps them**, because with no keys the seed
+ * IS the data and there is no published band for it to disagree with.
  */
 
 export type { Category };
@@ -103,8 +119,44 @@ function fromRow(row: CategoryRow): Category {
  * `cache` dedupes this within one render — the header, the grid and the page
  * body all ask for it and one request should mean one query.
  */
+/**
+ * The seed, with the two numbers a failed read cannot vouch for removed.
+ *
+ * It is a mapping rather than a filter: the ten categories still render, with
+ * every authored word intact. A shorter catalogue would be a second, worse lie —
+ * `/services`' rule that an empty list and a failed read are different screens.
+ */
+function withoutBand(categories: readonly Category[]): Category[] {
+  return categories.map((category) => ({
+    ...category,
+    basePriceMin: null,
+    basePriceMax: null,
+  }));
+}
+
+/**
+ * The answer to every way the read can fail, in one place.
+ *
+ * THREE BRANCHES REACHED THIS AND EACH USED TO `return CATEGORY_SEED` — a query
+ * error, zero rows, and a throw. Three copies of "fall back" is three chances
+ * for the next one somebody adds to quietly serve a band nobody can vouch for,
+ * which is how this whole fallback came to be a money path. One function, and
+ * `tests/unit/category-fallback.test.ts` reads this source and fails if a bare
+ * seed return appears outside the unconfigured branch.
+ */
+function unreadableCatalogue(reason: string): Category[] {
+  markDataSource("categories", "seed", reason);
+  return withoutBand(CATEGORY_SEED);
+}
+
 export const getCategories = cache(async (): Promise<Category[]> => {
   if (!hasSupabaseConfig()) {
+    /*
+     * NOT BLANKED. With no keys there is no table to have moved on, so the seed
+     * is the data rather than a stale copy of it, and blanking here would break
+     * a fresh checkout to guard against nothing. `markDataSource` says `seed`
+     * either way, which is what `?debug=data` prints.
+     */
     markDataSource("categories", "seed", "no Supabase URL or anon key");
     return CATEGORY_SEED;
   }
@@ -119,21 +171,24 @@ export const getCategories = cache(async (): Promise<Category[]> => {
       .order("sort_order");
 
     if (error || !data || data.length === 0) {
-      markDataSource(
-        "categories",
-        "seed",
+      /*
+       * ZERO ROWS IS BLANKED TOO, which is worth saying because it reads like a
+       * different case. Keys are configured, so a table exists and somebody may
+       * have moved a band in it; a query that came back empty is a query we
+       * could not read, not a catalogue with no prices in it.
+       */
+      return unreadableCatalogue(
         error ? describeError(error) : "query returned 0 rows",
       );
-      return CATEGORY_SEED;
     }
 
     markDataSource("categories", "database");
     return (data as CategoryRow[]).map(fromRow);
   } catch (thrown) {
     rethrowFrameworkSignal(thrown);
-    // Unreachable database. The catalogue is not worth a 500.
-    markDataSource("categories", "seed", describeError(thrown));
-    return CATEGORY_SEED;
+    // Unreachable database. The catalogue is not worth a 500 — and it is not
+    // worth a price nobody can vouch for either.
+    return unreadableCatalogue(describeError(thrown));
   }
 });
 

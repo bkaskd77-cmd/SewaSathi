@@ -34,7 +34,7 @@ import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import {
   categoryCopy,
-  isSurveyPriced,
+  categoryQuote,
   SERVICE_CATEGORIES,
 } from "@/lib/config/services";
 import {
@@ -282,12 +282,15 @@ export default async function Home() {
                 and it answers what somebody choosing a category is actually
                 asking, which a number they cannot verify never did.
 
-                `isSurveyPriced` decides, as it already does on five other
-                surfaces: movers publishes no band anywhere, because no Nepali
-                operator quotes a move without seeing it. A category with no
-                band must never render a floor of zero.
+                `categoryQuote` decides, as `isSurveyPriced` already did on five
+                other surfaces: movers publishes no band anywhere, because no
+                Nepali operator quotes a move without seeing it. A category with
+                no band must never render a floor of zero — and a band we could
+                not READ is a third answer again, because printing the seed's
+                floor here would publish a figure `/admin/bands` may have moved
+                months ago, on the first screen anybody sees.
               */
-              const surveyPriced = isSurveyPriced(category);
+              const quote = categoryQuote(category);
               const booked = bookingCounts.get(slug);
 
               const span = featured
@@ -346,13 +349,13 @@ export default async function Home() {
                           </span>
 
                           <span className="mt-auto pt-3 text-caption tabular-nums text-muted-foreground/80 transition-transform duration-200 group-hover:-translate-y-px">
-                            {surveyPriced
+                            {quote.kind === "survey"
                               ? t("surveyPriced")
-                              : t("fromPrice", {
-                                  price: formatNpr(category.basePriceMin, {
-                                    locale,
-                                  }),
-                                })}
+                              : quote.kind === "unreadable"
+                                ? t("priceAtBooking")
+                                : t("fromPrice", {
+                                    price: formatNpr(quote.low, { locale }),
+                                  })}
                             {/*
                               REAL, AND ONLY ABOVE ITS FLOOR. `categoryBookingCounts`
                               drops anything under CATEGORY_COUNT_FLOOR, so a slug

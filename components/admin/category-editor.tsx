@@ -160,12 +160,23 @@ export function CategoryEditor({ category }: { category: Category }) {
           />
         </label>
 
-        {/* Read-only on purpose. The band moves on /admin/bands and nowhere else. */}
+        {/*
+          Read-only on purpose. The band moves on /admin/bands and nowhere else.
+
+          AND `String(null)` IS THE WORD "null". These two became nullable when a
+          failed catalogue read started withholding the band rather than serving
+          the seed's, so the interpolation that was safe for two columns of
+          integers now has a third case — and on this screen it would print
+          `Rs null – Rs null` under a heading about prices, which reads as a data
+          bug in the category rather than a read that did not answer.
+        */}
         <p className="text-caption text-muted-foreground">
-          {t("bandReadOnly", {
-            min: String(category.basePriceMin),
-            max: String(category.basePriceMax),
-          })}
+          {category.basePriceMin === null || category.basePriceMax === null
+            ? t("bandUnreadable")
+            : t("bandReadOnly", {
+                min: String(category.basePriceMin),
+                max: String(category.basePriceMax),
+              })}
         </p>
 
         <SaveButton label={t("save")} />

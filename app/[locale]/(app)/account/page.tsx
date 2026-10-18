@@ -14,11 +14,13 @@ import { signOutAction } from "@/app/[locale]/(auth)/actions";
 import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SuspensionNotice } from "@/components/shared/suspension-notice";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { tripDebtNotice } from "@/lib/abuse";
 import { customerHistory } from "@/lib/data/customer-risk";
+import { customerIsSuspended } from "@/lib/data/enforcement";
 import { readActivityOptOut } from "@/lib/data/profile-prefs";
 import { formatE164ForDisplay } from "@/lib/auth";
 import { formatNpr } from "@/lib/utils";
@@ -67,7 +69,7 @@ export default async function AccountPage() {
    * read it already makes is not made cheaper by carrying a column nobody else
    * asks for.
    */
-  const [hiddenFromActivity, risk] = await Promise.all([
+  const [hiddenFromActivity, risk, standing] = await Promise.all([
     readActivityOptOut(profile.id),
     /*
      * The carried trip charge, so this screen can say what is owed and take the
@@ -75,6 +77,19 @@ export default async function AccountPage() {
      * and a round trip is the unit of cost since the region move.
      */
     customerHistory(profile.id),
+    /*
+     * WHETHER THIS ACCOUNT IS SUSPENDED, in the same wave for the same reason.
+     * `/bookings` carries the notice too and takes it as a wave of its own; here
+     * there was already a `Promise.all` to join, so it costs nothing.
+     *
+     * IT IS ON THIS SCREEN BECAUSE THIS IS WHERE SOMEBODY COMES TO ASK WHY.
+     * A suspension stops every future booking that account could make, and the
+     * ladder's whole published posture is that deterrence nobody can read is a
+     * trap — so a page headed with the person's own details is exactly where the
+     * restriction and the way to appeal belong. Without it, somebody who cannot
+     * book sees a failure on `/book` and a perfectly ordinary account page.
+     */
+    customerIsSuspended(profile.id),
   ]);
 
   /*
@@ -121,6 +136,19 @@ export default async function AccountPage() {
         <h1 className="font-display text-display-md">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
+
+      {/*
+        ABOVE THE DETAILS, which is `instead`'s rule from the triage ceilings one
+        surface over: a limit goes above the thing it refused, because a notice
+        under a screenful of ordinary account rows is a notice nobody reads. A
+        failed read renders nothing rather than a notice nobody can act on —
+        `standing` is null for "we could not tell", never "suspended".
+      */}
+      {standing?.suspended ? (
+        <div className="mt-6">
+          <SuspensionNotice audience="customer" reason={standing.reason} />
+        </div>
+      ) : null}
 
       <Card
         className="animate-rise mt-8 divide-y divide-border"

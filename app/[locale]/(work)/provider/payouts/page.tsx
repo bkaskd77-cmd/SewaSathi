@@ -5,6 +5,7 @@ import { Wallet } from "lucide-react";
 
 import { DestinationForm } from "@/components/provider/destination-form";
 import { MoneyView } from "@/components/provider/money";
+import { SuspensionNotice } from "@/components/shared/suspension-notice";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
@@ -13,6 +14,7 @@ import {
   currentDestination,
   lastChangedAt,
 } from "@/lib/data/payout-destinations";
+import { providerStandingFor } from "@/lib/data/enforcement";
 import { providerMoney, waitFor } from "@/lib/data/payouts";
 import { getMyProvider } from "@/lib/data/provider-jobs";
 import { formatInstant } from "@/lib/booking";
@@ -67,10 +69,20 @@ export default async function PayoutsPage(props: {
    * ONE WAVE. Three reads, none depending on another — the standing latency rule,
    * and this screen is opened from Kathmandu against a database in Singapore.
    */
-  const [read, changedAt, money] = await Promise.all([
+  const [read, changedAt, money, standing] = await Promise.all([
     currentDestination(me!.providerId),
     lastChangedAt(me!.providerId),
     providerMoney(me!.providerId),
+    /*
+     * WHETHER THE LISTING IS UNDER ENFORCEMENT, in the same wave because nothing
+     * here depends on it. It belongs on THIS screen above all others: step 4 of
+     * the published ladder HOLDS EARNINGS, so a professional under it comes
+     * looking exactly here, finds a balance that is not moving, and would
+     * otherwise have no sentence anywhere telling them why or how to appeal.
+     * `whyWaiting` says what a held payout is waiting on and deliberately does
+     * not say "you are under review" — that is this notice's job.
+     */
+    providerStandingFor(profile!.id),
   ]);
 
   const destination = read.ok ? read.destination : null;
@@ -90,6 +102,20 @@ export default async function PayoutsPage(props: {
         </h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
+
+      {/*
+        THE ENFORCEMENT NOTICE ABOVE THE MONEY, and that ordering is the point.
+        Step 4 holds earnings, so the figure below this is the thing the reader
+        came for and the thing the step has stopped — a balance that will not move
+        with no explanation anywhere is how a working process comes to feel
+        arbitrary. `instead`'s rule from the triage ceilings: a limit goes above
+        the answer it refused. Null is "we could not tell" and renders nothing.
+      */}
+      {standing?.step != null ? (
+        <div className="mt-6">
+          <SuspensionNotice audience="provider" reason={standing.reason} />
+        </div>
+      ) : null}
 
       {/*
         THE MONEY FIRST, THE ADDRESS SECOND. Somebody opening this screen is asking

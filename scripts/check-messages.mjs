@@ -404,6 +404,97 @@ for (const key of leaves(catalogues.ne)) {
   }
 }
 
+/*
+ * A CHARACTER THAT HAS NO BUSINESS IN DEVANAGARI.
+ *
+ * WHY THIS IS A CHECK AND NOT A TRAP PATTERN. `booking.flow.errors.accountSuspended`
+ * shipped to production reading `उहाँहरấले` — a Vietnamese `ấ` (U+1EA5) sitting
+ * where `ू` (U+0942) belonged, on the sentence a suspended customer reads to find
+ * out why they cannot book. Nothing could see it: the placeholder check compares
+ * argument names, the plural rule reads for a two-token shape, `NEPALI_TRAPS` is a
+ * list of mistakes somebody already made and nobody would ever add a pattern for
+ * one stray codepoint. And a reader cannot see it either — at body size in a
+ * Devanagari face it is a smudge, which is precisely why it survived review.
+ *
+ * SO THE RULE IS AN ALLOW-LIST, which is the only version that catches the NEXT
+ * stray glyph rather than this one. Devanagari, ASCII and a short named set;
+ * everything else is a failure with its Unicode name printed, because "there is a
+ * bad character somewhere in this sentence" is not actionable.
+ */
+const ALLOWED_NON_DEVANAGARI = new Map([
+  ["\u00a9", "the copyright sign in footer.copyright"],
+  ["\u200d", "ZERO WIDTH JOINER — controls conjunct forms in Devanagari"],
+  ["\u200b", "ZERO WIDTH SPACE — a wrap opportunity in a long Latin token"],
+  ["\u00a0", "NO-BREAK SPACE"],
+  ["\u2014", "em dash"],
+  ["\u2013", "en dash"],
+  ["\u2018", "left single quote"],
+  ["\u2019", "right single quote"],
+  ["\u201c", "left double quote"],
+  ["\u201d", "right double quote"],
+  ["\u2026", "ellipsis"],
+  ["\u00b7", "middle dot"],
+  ["\u00d7", "multiplication sign"],
+  ["\u00b0", "degree sign"],
+  ["\u2265", "greater-than-or-equal"],
+  ["\u2264", "less-than-or-equal"],
+  ["\u2192", "rightwards arrow"],
+  ["\u20b9", "rupee sign"],
+]);
+
+/** Every character in `value` that is neither Devanagari, ASCII, nor allowed. */
+export function strayGlyphs(value) {
+  const out = new Set();
+  for (const ch of value) {
+    const cp = ch.codePointAt(0);
+    if (cp < 128) continue;
+    if (cp >= 0x0900 && cp <= 0x097f) continue;
+    if (ALLOWED_NON_DEVANAGARI.has(ch)) continue;
+    out.add(ch);
+  }
+  return [...out];
+}
+
+let glyphsScanned = 0;
+for (const key of leaves(catalogues.ne)) {
+  const value = at(catalogues.ne, key);
+  if (typeof value !== "string") continue;
+  glyphsScanned += 1;
+  for (const ch of strayGlyphs(value)) {
+    const point = `U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`;
+    failures.push(
+      `ne.json "${key}" contains ${point} (${ch}), which is neither Devanagari ` +
+        `nor ASCII nor on the allow-list in check-messages.mjs. A stray Latin ` +
+        `glyph in Devanagari renders as a smudge and no other check can see it.`,
+    );
+  }
+}
+
+/*
+ * SELF-TEST, like the plural rule and the placeholder reader above it. A scanner
+ * that visited nothing and a clean catalogue print the same tick — and the first
+ * version of this very scan, written to find the `ấ`, reported "no stray
+ * characters" because the function was defined and never called.
+ */
+{
+  const caught = strayGlyphs("उहाँहर\u1ea5ले");
+  if (caught.length !== 1 || caught[0] !== "\u1ea5") {
+    failures.push(
+      "the stray-glyph scan no longer flags U+1EA5, the character that shipped " +
+        "to production in booking.flow.errors.accountSuspended.",
+    );
+  }
+  if (strayGlyphs("उहाँहरूले — \u00a9 2026 (ok)").length !== 0) {
+    failures.push("the stray-glyph scan flags correct Nepali copy.");
+  }
+  if (glyphsScanned < 100) {
+    failures.push(
+      `the stray-glyph scan visited only ${glyphsScanned} strings, so it is not ` +
+        "reading the catalogue.",
+    );
+  }
+}
+
 console.log("\nMessage catalogues");
 console.log(`  ${referenceKeys.length} keys in ${REFERENCE}.json`);
 
@@ -416,6 +507,9 @@ if (failures.length > 0) {
 
 console.log(`  ${LOCALES.join(", ")} agree on every key and placeholder.`);
 console.log(`  ${NEPALI_TRAPS.length} Nepali spelling traps checked.`);
+console.log(
+  `  ${glyphsScanned} Nepali strings scanned for stray glyphs; scan self-tested.`,
+);
 console.log(
   "  plural rule and placeholder reader self-tested; no count reads as \"1 times\".",
 );

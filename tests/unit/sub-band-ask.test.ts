@@ -152,11 +152,13 @@ describe("there is always something to ask, or nothing at all", () => {
     for (const band of SUB_BAND_SEED) {
       const category = bySlug.get(band.categorySlug);
       expect(category, band.categorySlug).toBeDefined();
+      /* The seed is never blanked — `quote-floor.test.ts` asserts that — so
+         these two are non-null by construction here. */
       expect(band.low, `${band.categorySlug}/${band.slug} low`).toBeGreaterThanOrEqual(
-        category!.basePriceMin,
+        category!.basePriceMin!,
       );
       expect(band.high, `${band.categorySlug}/${band.slug} high`).toBeLessThanOrEqual(
-        category!.basePriceMax,
+        category!.basePriceMax!,
       );
     }
   });

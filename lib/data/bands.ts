@@ -584,7 +584,23 @@ export async function approveBand(input: DecisionInput): Promise<BandDecisionRes
        * jobs rather than from competitor research.
        */
       pricingSource: "observed",
-      note: `${input.proposal.sample} settled jobs, robust p25/p75. ${input.reason.trim()}`,
+      /*
+       * PROVENANCE, AND NOT THE TYPED REASON — which it carried until now.
+       * `pricing_note` is on the `Category` object every public surface reads
+       * (`lib/data/categories.ts` maps it), and the only thing keeping it out of
+       * the browser is the narrow `CategoryOption` projection the booking flow
+       * takes — pinned by `tests/unit/pricing-note-private.test.ts`, because one
+       * reasonable widening of that type for an unrelated purpose would put free
+       * text an admin typed about a price into the RSC payload of a public page.
+       *
+       * IT COSTS NOTHING TO DROP. The reason is already recorded twice in
+       * admin-only places — `category_price_revisions.reason`, append-only, and
+       * the `pricing.bandApproved` audit row — and `/admin/bands` reads it back
+       * from the first of those as its last-decision line. What belongs in this
+       * column is the one-line answer to "where did this number come from",
+       * which is the sample and not the argument for accepting it.
+       */
+      note: `${input.proposal.sample} settled jobs, robust p25/p75.`,
     },
   );
 }
@@ -691,9 +707,8 @@ export async function stateBand(
          * not go in. It buys nothing either: the reason is already recorded in
          * `category_price_revisions.reason` and in the audit row, both admin-only,
          * and `/admin/bands` reads it back from there. The computed path above
-         * DOES append its reason here, which is the same latent exposure and is
-         * left alone rather than changed under this commit — it is noted in the
-         * handover with the same fix.
+         * had the same latent exposure and no longer does: both write provenance
+         * only, so no free text an admin typed reaches this column by any route.
          *
          * "No sample" is the half that matters: this column is the one-line
          * answer to "where did this number come from", and the honest answer is

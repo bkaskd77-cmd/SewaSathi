@@ -117,8 +117,18 @@ describe("every published band says where it came from", () => {
 
   it("has a floor below its ceiling on every trade", () => {
     for (const category of CATEGORY_SEED) {
-      expect(category.basePriceMin).toBeGreaterThan(0);
-      expect(category.basePriceMax).toBeGreaterThan(category.basePriceMin);
+      /*
+       * THE SEED ALWAYS CARRIES BOTH, which is now a claim worth asserting
+       * rather than a fact of the type. `Category.basePriceMin` became nullable
+       * when `lib/data/categories.ts` started blanking the band on a FAILED
+       * read — but the authored copy is never blanked, and every narrowing in
+       * the seed-reading tests below rests on that. If it ever stopped being
+       * true, those tests would start skipping silently instead of failing.
+       */
+      expect(category.basePriceMin, category.slug).not.toBeNull();
+      expect(category.basePriceMax, category.slug).not.toBeNull();
+      expect(category.basePriceMin!).toBeGreaterThan(0);
+      expect(category.basePriceMax!).toBeGreaterThan(category.basePriceMin!);
     }
   });
 });

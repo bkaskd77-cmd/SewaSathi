@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
-import { categoryCopy, isSurveyPriced } from "@/lib/config/services";
+import { categoryCopy, categoryQuote } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategory, getSubBands } from "@/lib/data/categories";
 import { bandBounds, type BandSource } from "@/lib/booking";
@@ -62,13 +62,25 @@ export async function generateMetadata(props: {
    * around to qualify it, so a survey trade must not carry one here either.
    * Google caches this; an invented range would outlive the fix.
    */
-  const description = isSurveyPriced(category)
-    ? t("categoryDescriptionSurvey", { description: copy.description })
-    : t("categoryDescription", {
-        description: copy.description,
-        low: formatNpr(category.basePriceMin, { locale }),
-        high: formatNpr(category.basePriceMax, { locale }),
-      });
+  /*
+   * AN UNREADABLE BAND GETS THE SAME SENTENCE AS A SURVEY TRADE HERE, and only
+   * here, which is the one place `categoryQuote`'s third answer is allowed to
+   * collapse into its second. This string is a meta description: Google caches
+   * it, so a range quoted off a figure nobody could vouch for would outlive the
+   * blip that caused it by weeks, and there is nobody around to qualify it. The
+   * survey wording ("priced after a visit") is the closest true thing to say
+   * about a trade whose price we cannot currently state — and unlike the card,
+   * no reader of it is about to be sent into a surveyor flow.
+   */
+  const quote = categoryQuote(category);
+  const description =
+    quote.kind === "band"
+      ? t("categoryDescription", {
+          description: copy.description,
+          low: formatNpr(quote.low, { locale }),
+          high: formatNpr(quote.high, { locale }),
+        })
+      : t("categoryDescriptionSurvey", { description: copy.description });
 
   return {
     title,
@@ -142,20 +154,31 @@ export default async function CategoryPage(props: {
    * Only a customer-stated band narrows it, which is the rule `bandBounds`
    * owns and `booking_band_bounds` enforces in Postgres.
    */
-  const subBands = isSurveyPriced(category) ? [] : await getSubBands();
+  /*
+   * NO PRODUCTS EITHER WHEN THE BAND IS UNREADABLE, which keeps one screen
+   * saying one thing. `getSubBands` is its OWN query and may well have
+   * succeeded, so the seed's product prices would render perfectly well
+   * underneath a line saying we cannot state a price — a contradiction in one
+   * header, and the same staleness one level down.
+   */
+  const quote = categoryQuote(category);
+  const subBands = quote.kind === "band" ? await getSubBands() : [];
   const statedBand =
     band && bandSource === "customer"
       ? (subBands.find(
           (sub) => sub.categorySlug === category.slug && sub.slug === band,
         ) ?? null)
       : null;
-  const bounds = bandBounds({
-    category: { low: category.basePriceMin, high: category.basePriceMax },
-    stated: statedBand
-      ? { slug: statedBand.slug, low: statedBand.low, high: statedBand.high }
-      : null,
-    statedSource: (bandSource as BandSource | null) ?? null,
-  });
+  const bounds =
+    quote.kind === "band"
+      ? bandBounds({
+          category: { low: quote.low, high: quote.high },
+          stated: statedBand
+            ? { slug: statedBand.slug, low: statedBand.low, high: statedBand.high }
+            : null,
+          statedSource: (bandSource as BandSource | null) ?? null,
+        })
+      : null;
 
   // Keep the triage context when filters are cleared — it is not a filter.
   const contextParams = new URLSearchParams();
@@ -229,7 +252,7 @@ export default async function CategoryPage(props: {
           </p>
         )}
 
-        {isSurveyPriced(category) ? (
+        {quote.kind === "survey" ? (
           /*
              NO RANGE, AND A REASON RATHER THAN AN APOLOGY. "Priced after a
              free survey" on its own reads as a product that will not say; the
@@ -241,6 +264,17 @@ export default async function CategoryPage(props: {
               {t("surveyPriced")}
             </span>{" "}
             · {t("surveyPricedBody")}
+          </p>
+        ) : quote.kind === "unreadable" || bounds === null ? (
+          /*
+             AND A THIRD SENTENCE, because the other two are both promises about
+             the TRADE and this is a fact about us. Printing the survey line here
+             would tell somebody plumbing is quoted after a visit, which is false
+             and sends them looking for a surveyor; printing a range would be the
+             seed's figure, which `/admin/bands` may have moved months ago.
+           */
+          <p className="mt-3 text-body-sm text-muted-foreground">
+            {t("priceAtBooking")}
           </p>
         ) : (
           <p className="mt-3 text-body-sm text-muted-foreground">
@@ -259,12 +293,15 @@ export default async function CategoryPage(props: {
             would hide professionals whose dashboard rate sits below the band
             they are perfectly able to work in, which is a different question
             from what this job costs. */}
-        <ProviderFilters
-          priceBand={{
-            low: category.basePriceMin,
-            high: category.basePriceMax,
-          }}
-        />
+        {/*
+          THE RATE FILTER NEEDS A BAND TO SPAN, so an unreadable one renders no
+          filter rather than one bounded by the seed. A slider whose ends are
+          wrong silently excludes professionals, which is the `/services` rule
+          again: a failed read must not look like a measured answer.
+        */}
+        {quote.kind === "band" ? (
+          <ProviderFilters priceBand={{ low: quote.low, high: quote.high }} />
+        ) : null}
       </div>
 
       <Suspense key={listKey} fallback={<ProviderListSkeleton />}>

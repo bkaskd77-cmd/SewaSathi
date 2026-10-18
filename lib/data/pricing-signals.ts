@@ -21,12 +21,15 @@
  * measures. `belowQuoteJobs` is the other question — the commission floor
  * biting on one person — and `commission_appeals` is what answers that.
  *
- * What to do with a high `belowBandPct`: move `basePriceMin` in the category
- * seed, set `pricingSource` to `observed` with the date and what it was derived
- * from, re-run `seed:sql`, apply the migration. The band changes for future
- * bookings only — every existing booking carries its own frozen copy, which is
- * what keeps this measurement answerable about the band that was actually
- * published rather than the one we have since moved to.
+ * What to do with a high `belowBandPct`: move the band on `/admin/bands`, which
+ * records the decision in `category_price_revisions` with its evidence and its
+ * actor. **This paragraph used to say to edit the category seed, re-run
+ * `seed:sql` and apply a migration**, which was the only way when it was written
+ * and has not been since `/admin/bands` shipped — a comment describing a
+ * procedure the product had replaced. The band changes for future bookings only
+ * either way: every existing booking carries its own frozen copy, which is what
+ * keeps this measurement answerable about the band that was actually published
+ * rather than the one we have since moved to.
  *
  * PURE, like `ranking.ts` and `recommendations.ts`. The read that fills it is
  * `listPricingSignals` in `lib/data/payments.ts`, next to the appeal it exists

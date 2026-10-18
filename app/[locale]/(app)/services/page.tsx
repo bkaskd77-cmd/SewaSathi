@@ -15,7 +15,7 @@ import type { Locale } from "@/i18n/routing";
 import {
   categoryCopy,
   categoryIcon,
-  isSurveyPriced,
+  categoryQuote,
 } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories } from "@/lib/data/categories";
@@ -186,6 +186,11 @@ export default async function ServicesPage(props: {
           const Icon = categoryIcon(category.icon);
           const count = counts[category.slug] ?? 0;
           const copy = categoryCopy(category, locale);
+          /* Three answers, decided once — see `categoryQuote`. The WORDING is
+             per-surface (a range here, a floor on the landing grid) and always
+             was; what must not differ is which of the three applies, and the
+             sentence for the third, which is one message key on both. */
+          const quote = categoryQuote(category);
 
           return (
             <li key={category.slug}>
@@ -222,14 +227,19 @@ export default async function ServicesPage(props: {
                     </p>
 
                     <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      {/* A TRADE WITH NO PUBLISHED PRICE SAYS SO. Printing
-                          the stored numbers here would fabricate the one
-                          figure the market refuses to state before somebody
-                          has looked — see `isSurveyPriced`. */}
+                      {/* A TRADE WITH NO PUBLISHED PRICE SAYS SO, and a band
+                          we could not READ says something else again — see
+                          `categoryQuote`. Printing the stored numbers for the
+                          first would fabricate the one figure the market
+                          refuses to state before somebody has looked; printing
+                          them for the second would publish the seed's figure,
+                          which `/admin/bands` may have moved months ago. */}
                       <span className="font-display text-body-md font-bold tabular-nums">
-                        {isSurveyPriced(category)
+                        {quote.kind === "survey"
                           ? t("surveyPriced")
-                          : `${formatNpr(category.basePriceMin, { locale })} – ${formatNpr(category.basePriceMax, { locale })}`}
+                          : quote.kind === "unreadable"
+                            ? t("priceAtBooking")
+                            : `${formatNpr(quote.low, { locale })} – ${formatNpr(quote.high, { locale })}`}
                       </span>
                       <span className="text-caption text-muted-foreground">
                         {t("available", { count, n: String(count) })}

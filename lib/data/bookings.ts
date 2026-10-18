@@ -12,7 +12,7 @@ import {
   type BookingStatus,
 } from "@/lib/booking";
 import { providerCapacity } from "@/lib/data/capacity";
-import { isSurveyPriced } from "@/lib/config/services";
+import { categoryQuote } from "@/lib/config/services";
 import { getCategory, getSubBands } from "@/lib/data/categories";
 import { liveTermsVersion } from "@/lib/content/documents";
 import { armConfirmation } from "@/lib/data/customer-risk";
@@ -501,7 +501,33 @@ export async function createBooking(
    * put the invented figure straight back on the booking, where the 2x ceiling
    * and the commission floor would both then be built from it.
    */
-  const survey = isSurveyPriced(category);
+  const quote = categoryQuote(category);
+  const survey = quote.kind === "survey";
+
+  /*
+   * A BAND WE COULD NOT READ REFUSES THE BOOKING, and this is the money half of
+   * that change rather than a display concern.
+   *
+   * `getCategories` falls back to `seed/categories.json` when the query fails,
+   * and `/admin/bands` moves a published band in the TABLE and never in that
+   * file — so the two diverge with every decision somebody takes. The figures
+   * below are frozen onto the row: `quoted_max` is what `judgeFinalAmount`
+   * measures its 2x overcharge ceiling against, and `quoted_min` is what the
+   * commission floor is charged on through `max(final_amount, quoted_min)`. A
+   * stale seed band therefore reached a customer protection and our own fee, not
+   * a card — and `freeze_booking_band()` cannot save it, because that trigger
+   * fills `band_min` and leaves the quote alone, while
+   * `sync_booking_quote_floor` only re-derives when `provider_id` or an approved
+   * correction changes.
+   *
+   * SO IT IS REFUSED RATHER THAN GUESSED. `/book` already declines to render the
+   * flow when the band is unreadable, so this is the second layer for a server
+   * action that is a public POST — and for the case where the catalogue read
+   * succeeded on the page and failed on the submit.
+   */
+  if (quote.kind === "unreadable") {
+    return { ok: false, errors: { form: "pricesUnreadable" } };
+  }
 
   /*
    * THE BAND THE CUSTOMER NAMED IS THE PRICE, not just the calendar entry.
@@ -513,15 +539,17 @@ export async function createBooking(
    * Postgres is the same rule where it actually holds — this is the copy the
    * screens and the insert read.
    */
-  const bounds = survey
-    ? null
-    : bandBounds({
-        category: { low: category.basePriceMin, high: category.basePriceMax },
-        stated: subBand
-          ? { slug: subBand.slug, low: subBand.low, high: subBand.high }
-          : null,
-        statedSource: (parsed.data.bandSource as BandSource | undefined) ?? null,
-      });
+  const bounds =
+    quote.kind === "band"
+      ? bandBounds({
+          category: { low: quote.low, high: quote.high },
+          stated: subBand
+            ? { slug: subBand.slug, low: subBand.low, high: subBand.high }
+            : null,
+          statedSource:
+            (parsed.data.bandSource as BandSource | undefined) ?? null,
+        })
+      : null;
 
   let floor: number | null = bounds ? bounds.low : null;
 
