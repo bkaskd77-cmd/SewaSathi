@@ -1936,6 +1936,10 @@
         "reviews": {
           "name": "Reviews on the homepage",
           "what": "Which published reviews are on the front page, and why one is not."
+        },
+        "enforcement": {
+          "name": "Professional standing",
+          "what": "The five published steps, who is under one, and the jobs in flight when somebody is suspended."
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}.",

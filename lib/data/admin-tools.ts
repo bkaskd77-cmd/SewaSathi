@@ -19,6 +19,7 @@
 export type AdminTool = {
   key:
     | "lookup"
+    | "enforcement"
     | "signals"
     | "areas"
     | "bands"
@@ -35,6 +36,26 @@ export type AdminTool = {
 
 export const ADMIN_TOOLS: AdminTool[] = [
   { key: "lookup", href: "/admin/lookup" },
+  /*
+   * BESIDE LOOKUP BECAUSE THEY ARE THE TWO HALVES OF ONE QUESTION, and because
+   * this screen's own header says customer suspension starts over there — the
+   * pair should be adjacent or somebody reads one and not the other.
+   *
+   * IT WAS REACHABLE ONLY BY TYPING THE URL, for the whole life of the
+   * enforcement ladder. The screen was built, `/providers/standards` publishes
+   * the five steps it applies, `check:deployed` walked it and proved it
+   * deploys and is guarded — and nothing anywhere linked to it, so the only
+   * response to a dangerous professional was still effectively hand-written
+   * SQL. `applyRedoRecovery`'s four-phase sin in the shape of a screen: every
+   * link built except the one somebody uses.
+   *
+   * NOT A QUEUE, and the distinction is `reviews`' exactly. A count of
+   * suspended professionals on the index would read as work outstanding, so
+   * somebody would clear it — and the way to clear "2 suspended" is to lift
+   * two suspensions, which is the opposite of a decision. Most listings are
+   * under no step, so nothing drains.
+   */
+  { key: "enforcement", href: "/admin/enforcement" },
   { key: "signals", href: "/admin/signals" },
   /*
    * The pair: signals says whether a band looks wrong, this is where it moves.

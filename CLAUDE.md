@@ -582,6 +582,26 @@ perfect. Every read records which path it took (`lib/data/source.ts`) and
 as the triage badge: dev, or the query param on any deployment. If you add a
 read to `lib/data/`, call `markDataSource` on both branches.
 
+**An admin screen nobody can click on is a screen nobody has, and
+`/admin/enforcement` was one for the whole life of the enforcement ladder.** The
+board was built, `/providers/standards` publishes the five steps it applies, the
+suspension writers and the in-flight job rescue were tested — and **nothing
+linked to it**. It was reachable only by typing the URL, so the real answer to a
+dangerous professional was still effectively hand-written SQL, which is the
+state the screen exists to end. Reported by the owner, who had built it and
+could not find it.
+**Every guard passed**, which is why it survived: `check:deployed` walks that
+route and proved it deploys and the guard is on, `check:keys` proved its copy
+exists, the db suite proved its writes are locked down. "Does it work" and "can
+anybody find it" are different questions and only the first had an answer.
+`tests/unit/admin-reachable.test.ts` reads the admin route DIRECTORY and
+compares it against `ADMIN_TOOLS` plus the queue hrefs — `coverageGaps`' rule,
+since a maintained list of screens-to-check has the same blind spot as the index
+itself. Four screens are exempted with a reason each, and **an exemption whose
+screen no longer exists fails too**, because a stale exemption silently covers
+whatever takes that path next. It is beside `lookup` on the index, since that
+screen is where a customer suspension starts and the pair reads as one question.
+
 **A trade can be opened and withdrawn by a person now, and `is_active` was a
 gate nothing could move.** It has been on `categories` since the first
 migration, read by the table's own policy AND by `getCategories`' query — so a
