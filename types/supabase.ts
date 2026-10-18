@@ -164,18 +164,28 @@ export type Database = {
           id: string;
           category_slug: string;
           decision: "approved" | "rejected";
+          /**
+           * Where the figures came from. On a `stated` row the five proposal
+           * columns below are all null — there was no proposal — and
+           * `category_price_revisions_shape` refuses either mixture.
+           */
+          source: "proposal" | "stated";
           /** The band published when the decision was taken, kept rather than joined. */
           old_min: number;
           old_max: number;
           /** Equal to old_* on a rejection: nothing was written. */
           new_min: number;
           new_max: number;
-          /** What the data asked for — what a rejection is about, and what suppression keys on. */
-          proposed_min: number;
-          proposed_max: number;
-          sample: number;
-          winsorised: number;
-          capped: boolean;
+          /**
+           * What the data asked for — what a rejection is about, and what
+           * suppression keys on. Null on a stated row, where null means "there
+           * was no proposal" and never "it proposed nothing".
+           */
+          proposed_min: number | null;
+          proposed_max: number | null;
+          sample: number | null;
+          winsorised: number | null;
+          capped: boolean | null;
           actor_id: string | null;
           reason: string;
           decided_at: string;
@@ -184,15 +194,16 @@ export type Database = {
           id?: string;
           category_slug: string;
           decision: "approved" | "rejected";
+          source?: "proposal" | "stated";
           old_min: number;
           old_max: number;
           new_min: number;
           new_max: number;
-          proposed_min: number;
-          proposed_max: number;
-          sample: number;
-          winsorised: number;
-          capped: boolean;
+          proposed_min?: number | null;
+          proposed_max?: number | null;
+          sample?: number | null;
+          winsorised?: number | null;
+          capped?: boolean | null;
           actor_id?: string | null;
           reason: string;
           decided_at?: string;

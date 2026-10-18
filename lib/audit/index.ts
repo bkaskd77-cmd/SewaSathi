@@ -160,6 +160,11 @@ export type SecurityEventKind =
    */
   | "pricing.bandApproved"
   | "pricing.bandRejected"
+  /* A band a person set directly, with no proposal behind it. Its own kind
+     rather than a flag on `bandApproved`: an approval is a verdict on a figure
+     our own settled jobs produced, and folding the two together would make a
+     band somebody typed indistinguishable from one the data asked for. */
+  | "pricing.bandStated"
   /**
    * A person took a published duration back down.
    *

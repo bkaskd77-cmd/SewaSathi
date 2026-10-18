@@ -1767,6 +1767,7 @@
       "unnamed": "an admin",
       "lastApproved": "Published by {who} on {when} — “{why}”",
       "lastRejected": "Last proposal turned down by {who} on {when} — “{why}”",
+      "lastStated": "Set by {who} on {when}, with no sample behind it — “{why}”",
       "sources": {
         "invented": "a guess — cannot launch",
         "researched": "researched",
@@ -1777,6 +1778,31 @@
         "unreadable": "We could not reach the database. Nothing has been changed.",
         "noCategory": "That trade no longer exists.",
         "noReason": "A reason is required — it is what a future reader has."
+      },
+      "state": {
+        "open": "Set the band yourself",
+        "lead": "For a trade we have mispriced, or one that has not been sold enough times for the data to say anything. There is no sample behind a band you set, and the record says so.",
+        "bound": "A figure more than {count, plural, one {{n} time} other {{n} times}} above or below the published one is refused. That is what catches a mistyped zero — if a change that big is right, set it in two steps.",
+        "width": "Whole rupees, and the ceiling at least Rs {gap} above the floor.",
+        "floor": "Floor (Rs)",
+        "ceiling": "Ceiling (Rs)",
+        "why": "Why (recorded)",
+        "publish": "Publish this band",
+        "working": "Publishing…",
+        "done": "Published. Bookings that already exist keep the band they were quoted at.",
+        "errors": {
+          "refused": "That did not save. Nothing has been changed.",
+          "unreadable": "We could not reach the database. Nothing has been changed.",
+          "noCategory": "That trade no longer exists.",
+          "noReason": "A reason is required — it is what a future reader has.",
+          "notAdmin": "You are no longer signed in as an admin.",
+          "surveyCategory": "This trade is quoted after a visit, so there is no band to publish.",
+          "notWholeRupees": "Both figures have to be a whole number of rupees.",
+          "notPositive": "Both figures have to be above zero.",
+          "tooNarrow": "The ceiling has to sit well above the floor. A single price is not a band.",
+          "tooBigAJump": "In one step that is too far from what is published. If it is right, set it in two — each one is recorded with its own reason.",
+          "noCurrentBand": "We could not read the band that is published now, so there is nothing to check this against. Nothing has been changed."
+        }
       }
     },
     "meta": {

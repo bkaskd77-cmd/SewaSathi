@@ -712,6 +712,65 @@ Where a change on one side cannot reach the other.
   `proposalSuppressedBy`, pure and beside `MIN_PROPOSAL_SAMPLE`, and it needs no
   tolerance constant: `proposeBand` rounds outward to Rs 100, so two proposals
   are either the same published pair or a hundred rupees apart.
+  **And a person can state a band, which is what made that screen usable on a
+  young catalogue.** `approveBand` can only ever publish a figure `proposeBand`
+  returned, and that function returns null below `MIN_PROPOSAL_SAMPLE` — 15 to 30
+  settled jobs. So the screen existed and the one case it was most needed for was
+  the one case it could not do: a trade we had mispriced and not yet sold fifteen
+  times was changeable only by editing the seed and running a migration, which is
+  the obstacle the screen was built to remove, surviving inside it.
+  **`mode: "correction"` was the designed answer and had no caller either** —
+  written, commented at length against `MAX_REVISION_MOVE`, passed by nothing. It
+  would not have closed the gap: lifting the cap still leaves the sample, and the
+  case it named is precisely the case with no sample. It is deleted rather than
+  wired, because a stated band subsumes it — `proposal.uncapped` is already on the
+  screen, so a person can read the figure the cap held back and state it. One human
+  path, not two.
+  **The bound is a typo guard and deliberately not `MAX_REVISION_MOVE`.** That cap
+  exists to stop a bad SAMPLE moving a price, and applying it here would reproduce
+  on the human path exactly the obstacle that path exists to clear.
+  `statedBandRefusal` is the rule — pure, beside the constant it departs from — and
+  it guards the slip instead: `STATED_BAND_MAX_FACTOR` (5) refuses a figure more
+  than five times above or below what is published, which sits below both
+  spellings of a misplaced zero. It **refuses rather than clamps**, because
+  `proposeBand` may clamp only since a person then reads the clamped number and
+  approves it, and here there is nobody left to read it; a larger correction is
+  stated in two steps, each with its own reason and its own row. Two steps of five
+  is twenty-five, so it is defeatable by anybody determined — which is fine, since
+  a typo does not happen twice with two different sentences typed beside it. The
+  bound is **printed above the boxes**, never discovered by tripping it:
+  `/providers/standards` settled that for professionals and the rule transfers.
+  **Five columns go null and `source` says which kind of row it is.**
+  `proposed_min = new_min` would record that the data asked for exactly this,
+  `sample = 0` that zero jobs were measured rather than that no measurement was
+  involved, and `capped = false` that the movement cap looked at the figure and let
+  it through — all three rule 6, on the table a disputed price is argued from.
+  `category_price_revisions_shape` refuses both mixtures, and it refuses a *stated
+  rejection* too: a rejection is a verdict on somebody else's proposal, and there is
+  nothing to reject about a band a person is stating — they state a different one.
+  **It leaves the provenance ladder where it is**, which took arguing and is honest
+  in both directions: `observed` means the figure came out of our own settled jobs,
+  so writing it for a number somebody typed is the dishonesty the column exists to
+  prevent — and there is nothing else to write, because a person restating a
+  `researched` band IS the researcher and a person stating one on an `invented`
+  category is still inventing. The one case it understates understates in the safe
+  direction, with `pricing_note` and `pricing_checked_at` carrying the evidence
+  that somebody looked.
+  **One writer underneath, three entry points.** `record()` in `lib/data/bands.ts`
+  takes the decision, the source and the proposal-or-null, so approve, reject and
+  state cannot drift apart in what they record — and it is the audit row that
+  mattered: `pricing.bandStated` is its own kind, because folding it into
+  `bandApproved` would make a band somebody typed indistinguishable from one the
+  data asked for.
+  **And `@/lib/data/bands` is a money module now, which it deliberately was not.**
+  The reason it was left off `MONEY_MODULES` still holds for approve and reject —
+  bounded figure, evidence screen, forward-only, reversible — and `stateBand` breaks
+  it: an arbitrary figure from a browser, and every booking taken before anybody
+  notices is frozen at it. So it carries `freshAdminActor()`'s fifteen minutes where
+  the other two keep the eight-hour window, all three are declared in
+  `lib/config/admin-money.ts` with the two `none` reasons written out, and
+  `tests/unit/admin-money-reauth.test.ts` reads the action source so the three
+  cannot be edited apart.
   **`bookings.band_revision_id` is the other half** — the decision a quote was
   framed by, frozen beside `band_min` by the same trigger, so a dispute can show
   which band was in force and who approved it. Null is "no revision on record",
@@ -1215,12 +1274,15 @@ Where a change on one side cannot reach the other.
   kind unsafe for two phases. A guarantee debt is deliberately outside the money
   account: it is published under *what is never a signal*, and it must not reach
   into the arrears figure that later pauses dispatch.
-- **The band editor proposes; a person approves.** `proposeBand` exists and has
-  no caller — it lands in the owner's surface after payouts, and **nothing
-  auto-applies a proposal**. Same posture as `/admin/triage-accuracy`, which
-  measures and does not tune, and as the refund screen, whose signals decide
-  nothing: a price band is a promise to customers and a professional's income
-  at once, and a statistic is not entitled to move either on its own.
+- **The band editor proposes; a person approves.** **This bullet said
+  `proposeBand` "has no caller" for several phases after it had one** — the
+  caller landed with `/admin/bands`, which the bands bullet above records in
+  detail, so one file carried both facts. The posture is what survives and it
+  is unchanged: **nothing auto-applies a proposal**. Same as
+  `/admin/triage-accuracy`, which measures and does not tune, and as the refund
+  screen, whose signals decide nothing — a price band is a promise to customers
+  and a professional's income at once, and a statistic is not entitled to move
+  either on its own.
   **And that rule 503'd the endpoint on every request ever made to it.**
   `session.config` was `unknown` "on purpose" and never varies, so a product with
   every customer-facing dependency green still answered `"ok":false`; an unset

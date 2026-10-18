@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_REVISION_MOVE,
   MIN_PROPOSAL_SAMPLE,
+  STATED_BAND_MAX_FACTOR,
   proposeBand,
+  statedBandRefusal,
 } from "@/lib/data/band-proposal";
 
 /**
@@ -146,22 +148,24 @@ describe("no single revision may leap", () => {
     expect(result.uncapped.high).toBeGreaterThan(result.high);
   });
 
-  it("does not cap a human correcting a band they know is wrong", () => {
+  it("caps every sample, and leaves the escape to the person", () => {
     /*
-     * THE CAP IS AGAINST A BAD SAMPLE, NOT AGAINST A PERSON. AC servicing was
-     * wrong at both ends by more than a fifth — floor above an ordinary
-     * service, ceiling below a gas refill — and making that take four approval
-     * cycles would be the guard working against the thing it exists for.
+     * THE CAP IS AGAINST A BAD SAMPLE, NOT AGAINST A PERSON — and this case used
+     * to prove that by passing `mode: "correction"`, a parameter nothing in the
+     * product ever passed. Asserting a dead branch is how a no-caller feature
+     * survives in a green suite, so the escape is asserted where it now lives:
+     * `proposeBand` caps unconditionally, `uncapped` is what the sample asked
+     * for, and `statedBandRefusal` is the path a person takes instead.
+     *
+     * AC servicing was wrong at both ends by more than a fifth — floor above an
+     * ordinary service, ceiling below a gas refill — which is still the case the
+     * escape exists for, and it is the case with no sample at all.
      */
     const amounts = Array.from({ length: 50 }, () => 45_000);
-
     const computed = proposeBand({ amounts, current: CURRENT })!;
-    const correction = proposeBand({ amounts, current: CURRENT, mode: "correction" })!;
 
     expect(computed.capped).toBe(true);
-    expect(correction.capped).toBe(false);
-    expect(correction.high).toBeGreaterThan(computed.high);
-    expect(correction.high).toBe(correction.uncapped.high);
+    expect(computed.uncapped.high).toBeGreaterThan(computed.high);
   });
 
   it("does not report a cap when the data agrees with the published band", () => {
@@ -195,5 +199,140 @@ describe("the proposal is always a usable band", () => {
 
     expect(result.low % 100).toBe(0);
     expect(result.high % 100).toBe(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * A band a person states
+ * ------------------------------------------------------------------ */
+
+describe("a band somebody states, with no sample behind it", () => {
+  it("lets through the correction MAX_REVISION_MOVE was holding back", () => {
+    /*
+     * THE CASE THE WHOLE PATH EXISTS FOR, and the one `mode: "correction"` named
+     * and could not serve. AC servicing was wrong at both ends by more than a
+     * fifth; a fifth is `MAX_REVISION_MOVE`, so this correction is refused by the
+     * computed path by construction, whatever the sample says.
+     */
+    const current = { low: 500, high: 12_000 };
+    const beyondTheCap = {
+      low: Math.round(current.low * (1 + MAX_REVISION_MOVE)) + 200,
+      high: Math.round(current.high * (1 + MAX_REVISION_MOVE)) + 2_000,
+    };
+
+    expect(statedBandRefusal(beyondTheCap, current)).toBeNull();
+  });
+
+  it("refuses an extra zero in either direction", () => {
+    /*
+     * THE WHOLE JOB OF THE BOUND. 1,500 typed as 15,000 is the slip
+     * `lib/payments/pricing.ts` names, and a missing zero is the same slip with
+     * the decimal the other way — a floor at a tenth of its value quotes every
+     * job in the category below cost.
+     */
+    const current = { low: 1_500, high: 6_000 };
+
+    expect(statedBandRefusal({ low: 15_000, high: 60_000 }, current)).toBe(
+      "tooBigAJump",
+    );
+    expect(statedBandRefusal({ low: 150, high: 600 }, current)).toBe(
+      "tooBigAJump",
+    );
+  });
+
+  it("measures each bound against its own published bound", () => {
+    /* A floor pushed up to the old ceiling is a different band, not a wider one,
+       and per-bound is what catches it — the pair as a whole still looks sane. */
+    const current = { low: 350, high: 5_000 };
+
+    expect(statedBandRefusal({ low: 4_000, high: 5_000 }, current)).toBe(
+      "tooBigAJump",
+    );
+  });
+
+  it("holds the bound at the factor rather than at a number", () => {
+    /*
+     * Written against the factor on purpose, which is the opposite of
+     * `ACTIVITY_FLOOR`'s lesson and correct here: what is being pinned is that
+     * the bound is MULTIPLICATIVE and symmetric, not where it happens to sit, so
+     * a case built from a literal would say nothing about a category priced ten
+     * times higher. The behaviour that must not drift — a zero is refused — is
+     * pinned by the case above, with literals.
+     */
+    const current = { low: 1_000, high: 10_000 };
+    const f = STATED_BAND_MAX_FACTOR;
+
+    expect(
+      statedBandRefusal({ low: 1_000 * f, high: 10_000 * f }, current),
+    ).toBeNull();
+    expect(
+      statedBandRefusal({ low: 1_000 * f + 1, high: 10_000 * f }, current),
+    ).toBe("tooBigAJump");
+    expect(
+      statedBandRefusal({ low: 1_000 / f, high: 10_000 / f }, current),
+    ).toBeNull();
+    expect(
+      statedBandRefusal({ low: 1_000 / f - 1, high: 10_000 / f }, current),
+    ).toBe("tooBigAJump");
+  });
+
+  it("refuses a floor that meets its ceiling", () => {
+    /* A fixed price is not a band: "inside the quoted band" would have measure
+       zero and `openPayment`'s three outcomes would collapse to two. That is a
+       product change, not a price change. */
+    const current = { low: 1_000, high: 4_000 };
+
+    expect(statedBandRefusal({ low: 2_000, high: 2_000 }, current)).toBe(
+      "tooNarrow",
+    );
+    expect(statedBandRefusal({ low: 2_000, high: 2_050 }, current)).toBe(
+      "tooNarrow",
+    );
+    expect(statedBandRefusal({ low: 2_000, high: 2_100 }, current)).toBeNull();
+  });
+
+  it("publishes the figure typed, rounded to nothing", () => {
+    /* The one deliberate departure from `proposeBand`, which rounds to Rs 100
+       because a band ending in 37 reads as a machine's output. A person typing
+       1,250 means 1,250, and publishing 1,300 instead would be the screen
+       showing one number and the catalogue carrying another. */
+    expect(
+      statedBandRefusal({ low: 1_250, high: 4_370 }, { low: 1_000, high: 4_000 }),
+    ).toBeNull();
+  });
+
+  it("refuses paisa and refuses nothing at all", () => {
+    const current = { low: 1_000, high: 4_000 };
+
+    expect(statedBandRefusal({ low: 1_200.5, high: 4_000 }, current)).toBe(
+      "notWholeRupees",
+    );
+    expect(statedBandRefusal({ low: Number.NaN, high: 4_000 }, current)).toBe(
+      "notWholeRupees",
+    );
+    expect(statedBandRefusal({ low: 0, high: 4_000 }, current)).toBe(
+      "notPositive",
+    );
+    expect(statedBandRefusal({ low: -1_200, high: 4_000 }, current)).toBe(
+      "notPositive",
+    );
+  });
+
+  it("refuses rather than skips when there is no band to measure against", () => {
+    /*
+     * RULE 6 FOR A GATE. With no usable published pair the typo guard cannot run,
+     * and a guard that cannot run must never read as a guard that passed.
+     * `capMove` returns the figure unchanged in this case because a person then
+     * reads it; nobody reads this one.
+     */
+    expect(statedBandRefusal({ low: 1_000, high: 4_000 }, { low: 0, high: 0 })).toBe(
+      "noCurrentBand",
+    );
+    expect(
+      statedBandRefusal(
+        { low: 1_000, high: 4_000 },
+        { low: 900, high: Number.NaN },
+      ),
+    ).toBe("noCurrentBand");
   });
 });

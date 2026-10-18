@@ -89,6 +89,34 @@ async function approve(low: number, high: number): Promise<string> {
   return rows[0].id as string;
 }
 
+/** A stated band, written the way `stateBand` writes it: no proposal columns. */
+async function state(low: number, high: number): Promise<string> {
+  const { rows: before } = await pg.admin.query(
+    "select base_price_min, base_price_max from public.categories where slug = 'plumbing'",
+  );
+
+  const { rows } = await pg.admin.query(
+    `insert into public.category_price_revisions
+       (category_slug, decision, source, old_min, old_max, new_min, new_max,
+        actor_id, reason)
+     values ('plumbing', 'approved', 'stated', $1, $2, $3, $4, $5,
+             'We had this trade mispriced at both ends')
+     returning id`,
+    [before[0].base_price_min, before[0].base_price_max, low, high, ADMIN],
+  );
+
+  /* No `pricing_source` write, which is the stated path's own rule: `observed`
+     would claim the figure came out of our settled jobs. */
+  await pg.admin.query(
+    `update public.categories
+        set base_price_min = $1, base_price_max = $2, pricing_checked_at = current_date
+      where slug = 'plumbing'`,
+    [low, high],
+  );
+
+  return rows[0].id as string;
+}
+
 beforeAll(async () => {
   pg = await startPostgres();
 
@@ -268,5 +296,150 @@ describe("who may read it", () => {
       "select count(*)::int as n from public.category_price_revisions",
     );
     expect(asCustomer.rows[0].n).toBe(0);
+  });
+});
+
+describe("a band a person states, with no sample behind it", () => {
+  /*
+   * THE RULE THAT MATTERS IS THE SAME RULE, AND IT IS ASSERTED RATHER THAN
+   * INHERITED. `freeze_booking_band()` keys on the booking and knows nothing about
+   * who moved the band, so the forward-only guarantee ought to hold here too —
+   * but "ought to" is what a comment says. A stated band is the one that can move
+   * a price a long way in one action, so it is the one where a leak would cost the
+   * most, and the computed path's green case says nothing about it.
+   */
+  it("leaves an existing quote alone, exactly as an approval does", async () => {
+    const before = await quote("SK-BANDS1");
+    await state(3000, 11_000);
+
+    const { rows } = await pg.admin.query(
+      "select band_min, quoted_max, band_revision_id from public.bookings where id = $1",
+      [before.id],
+    );
+
+    expect(rows[0].band_min).toBe(before.bandMin);
+    expect(rows[0].quoted_max).toBe(before.quotedMax);
+    expect(rows[0].band_revision_id).toBe(before.revision);
+  });
+
+  it("reaches the next booking, and names the stated decision behind it", async () => {
+    const revision = await state(2000, 9500);
+    const after = await quote("SK-BANDS2");
+
+    expect(after.bandMin).toBe(2000);
+    expect(after.revision).toBe(revision);
+
+    /* And the row it points at says there was no proposal — which is the whole
+       reason a dispute can tell the two kinds of decision apart. */
+    const { rows } = await pg.admin.query(
+      `select source, proposed_min, proposed_max, sample, winsorised, capped
+         from public.category_price_revisions where id = $1`,
+      [revision],
+    );
+    expect(rows[0].source).toBe("stated");
+    expect(rows[0].proposed_min).toBeNull();
+    expect(rows[0].proposed_max).toBeNull();
+    expect(rows[0].sample).toBeNull();
+    expect(rows[0].winsorised).toBeNull();
+    expect(rows[0].capped).toBeNull();
+  });
+
+  /*
+   * THE DEFAULT KEEPS THE TWO EXISTING WRITERS HONEST WITHOUT TOUCHING THEM.
+   * `approveBand` and `rejectBand` name no `source`, so a row they write has to
+   * land as `proposal` — if the default were `stated` the shape constraint would
+   * refuse every approval, and if there were no default at all the column would be
+   * null and mean nothing.
+   */
+  it("calls a row nobody labelled a proposal", async () => {
+    const revision = await approve(1800, 8000);
+
+    const { rows } = await pg.admin.query(
+      "select source from public.category_price_revisions where id = $1",
+      [revision],
+    );
+    expect(rows[0].source).toBe("proposal");
+  });
+
+  /*
+   * RULE 6 IN SQL, AND THE FOUR SHAPES THAT MUST NOT BE WRITABLE. This table is
+   * what a disputed price is argued from: a stated row carrying a sample claims
+   * data was consulted when it was not, and a proposal row without one is a
+   * decision nobody can audit afterwards. A CHECK constraint passes on null, so
+   * dropping the NOT NULLs is exactly when these have to be asserted.
+   */
+  it("refuses a stated row that claims a sample", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.category_price_revisions
+           (category_slug, decision, source, old_min, old_max, new_min, new_max,
+            proposed_min, proposed_max, sample, winsorised, capped, actor_id, reason)
+         values ('plumbing', 'approved', 'stated', 900, 4500, 1500, 6000,
+                 1500, 6000, 30, 0, false, $1, 'a sample that was not taken')`,
+        [ADMIN],
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("refuses a proposal row with no sample behind it", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.category_price_revisions
+           (category_slug, decision, source, old_min, old_max, new_min, new_max,
+            actor_id, reason)
+         values ('plumbing', 'approved', 'proposal', 900, 4500, 1500, 6000,
+                 $1, 'a proposal nobody computed')`,
+        [ADMIN],
+      ),
+    ).rejects.toThrow();
+  });
+
+  /*
+   * A rejection is a verdict on somebody else's proposal, so there is nothing to
+   * reject about a band a person is stating — they state a different one. Without
+   * this clause a `stated` row could carry `rejected` with `new_* = old_*`, which
+   * reads in the history as a decision that was taken and reversed.
+   */
+  it("refuses a stated rejection", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.category_price_revisions
+           (category_slug, decision, source, old_min, old_max, new_min, new_max,
+            actor_id, reason)
+         values ('plumbing', 'rejected', 'stated', 900, 4500, 900, 4500,
+                 $1, 'rejecting a band nobody proposed')`,
+        [ADMIN],
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("refuses a source nobody declared", async () => {
+    await expect(
+      pg.admin.query(
+        `insert into public.category_price_revisions
+           (category_slug, decision, source, old_min, old_max, new_min, new_max,
+            actor_id, reason)
+         values ('plumbing', 'approved', 'hunch', 900, 4500, 1500, 6000,
+                 $1, 'a fifth kind of evidence')`,
+        [ADMIN],
+      ),
+    ).rejects.toThrow();
+  });
+
+  /* A stated row is history like any other: it cannot be tidied away afterwards. */
+  it("cannot be rewritten either, for the service role too", async () => {
+    const revision = await state(2100, 9600);
+
+    await expect(
+      pg.admin.query(
+        "update public.category_price_revisions set new_min = 1 where id = $1",
+        [revision],
+      ),
+    ).rejects.toThrow();
+    await expect(
+      pg.admin.query("delete from public.category_price_revisions where id = $1", [
+        revision,
+      ]),
+    ).rejects.toThrow();
   });
 });

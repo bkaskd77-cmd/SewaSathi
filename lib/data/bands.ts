@@ -6,9 +6,11 @@ import {
   PROPOSAL_WINDOW_DAYS,
   proposalSuppressedBy,
   proposeBand,
+  statedBandRefusal,
   visitPriceIsMarketPrice,
   type BandConfidence,
   type BandProposal,
+  type StatedBandRefusal,
 } from "@/lib/data/band-proposal";
 import { unreadable, type Readable } from "@/lib/data/readable";
 import { describeError } from "@/lib/data/source";
@@ -58,11 +60,23 @@ export type BandSpread = {
 /** A decision somebody took, as the screen shows it back. */
 export type BandDecision = {
   decision: "approved" | "rejected";
+  /**
+   * Where the figures came from. `stated` is a person setting the band directly,
+   * which the computed path cannot do below `MIN_PROPOSAL_SAMPLE`.
+   */
+  source: "proposal" | "stated";
   low: number;
   high: number;
-  proposedLow: number;
-  proposedHigh: number;
-  sample: number;
+  /**
+   * What the data asked for, or null on a stated band — there was no proposal.
+   *
+   * NULL IS "NO PROPOSAL", NEVER "A PROPOSAL OF ZERO", and it is a nested object
+   * rather than three nullable siblings so that every reader has to open it: the
+   * three fields only ever mean anything together, and `proposalSuppressedBy`
+   * reads all three. Three separate nulls would let a caller take `sample` as 0
+   * and compute a suppression threshold off a sample nobody measured.
+   */
+  proposal: { low: number; high: number; sample: number } | null;
   reason: string;
   decidedAt: Date;
   /** Null when the profile was deleted, never "the system". */
@@ -171,7 +185,7 @@ export async function bandRows(): Promise<Readable<BandRow>> {
       db
         .from("category_price_revisions")
         .select(
-          "category_slug, decision, new_min, new_max, proposed_min, proposed_max, sample, reason, decided_at, profiles:actor_id (full_name)",
+          "category_slug, decision, source, new_min, new_max, proposed_min, proposed_max, sample, reason, decided_at, profiles:actor_id (full_name)",
         )
         .order("decided_at", { ascending: false }),
     ]);
@@ -217,11 +231,14 @@ export async function bandRows(): Promise<Readable<BandRow>> {
     type DecisionRow = {
       category_slug: string;
       decision: string;
+      source: string;
       new_min: number;
       new_max: number;
-      proposed_min: number;
-      proposed_max: number;
-      sample: number;
+      /* Null on a stated row. `category_price_revisions_shape` refuses the two
+         mixtures, so these three are null together or present together. */
+      proposed_min: number | null;
+      proposed_max: number | null;
+      sample: number | null;
       reason: string;
       decided_at: string;
       profiles: { full_name: string | null } | null;
@@ -232,11 +249,25 @@ export async function bandRows(): Promise<Readable<BandRow>> {
       const list = byCategory.get(row.category_slug) ?? [];
       list.push({
         decision: row.decision === "approved" ? "approved" : "rejected",
+        source: row.source === "stated" ? "stated" : "proposal",
         low: row.new_min,
         high: row.new_max,
-        proposedLow: row.proposed_min,
-        proposedHigh: row.proposed_max,
-        sample: row.sample,
+        /*
+         * READ AS A TRIPLE OR NOT AT ALL. The constraint already refuses a row
+         * with some of them, so a partial read here can only mean the select
+         * changed — and treating that as "sample 0" would hand
+         * `proposalSuppressedBy` a threshold of zero, which suppresses for ever.
+         */
+        proposal:
+          row.proposed_min !== null &&
+          row.proposed_max !== null &&
+          row.sample !== null
+            ? {
+                low: row.proposed_min,
+                high: row.proposed_max,
+                sample: row.sample,
+              }
+            : null,
         reason: row.reason,
         decidedAt: new Date(row.decided_at),
         actorName: row.profiles?.full_name ?? null,
@@ -270,15 +301,25 @@ export async function bandRows(): Promise<Readable<BandRow>> {
 
         const proposal = proposeBand({ amounts: sample, current, confidence });
         const history = byCategory.get(category.slug) ?? [];
-        const rejection = history.find((d) => d.decision === "rejected");
+        /*
+         * A REJECTION ALWAYS CARRIES WHAT IT REFUSED, and the filter says so
+         * rather than asserting it. `category_price_revisions_shape` makes a
+         * rejection without a proposal unwritable — only a stated row may have
+         * none, and a stated row is always `approved` — so this narrowing drops
+         * nothing a correct database can hold, and it is what stops a future
+         * read shape turning a null sample into a suppression that never lifts.
+         */
+        const rejection = history.find(
+          (d) => d.decision === "rejected" && d.proposal !== null,
+        );
 
         const suppressed =
-          proposal && rejection &&
+          proposal && rejection?.proposal &&
           proposalSuppressedBy(
             {
-              proposedLow: rejection.proposedLow,
-              proposedHigh: rejection.proposedHigh,
-              sample: rejection.sample,
+              proposedLow: rejection.proposal.low,
+              proposedHigh: rejection.proposal.high,
+              sample: rejection.proposal.sample,
             },
             proposal,
           )
@@ -320,10 +361,27 @@ export async function bandRows(): Promise<Readable<BandRow>> {
  * Deciding
  * ------------------------------------------------------------------ */
 
+/**
+ * Why a band could not be moved.
+ *
+ * ONE UNION FOR BOTH PATHS. The stated refusals cannot arise from an approval
+ * and the screen has a sentence for each anyway, so splitting the type would
+ * mean two error maps in the messages catalogue for one form — which is how two
+ * spellings of the same refusal come to say slightly different things.
+ */
+export type BandDecisionRefusal =
+  | "unreadable"
+  | "noCategory"
+  | "noReason"
+  | "refused"
+  | "surveyCategory"
+  | StatedBandRefusal;
+
 export type BandDecisionResult =
   | { ok: true }
-  | { ok: false; reason: "unreadable" | "noCategory" | "noReason" | "refused" };
+  | { ok: false; reason: BandDecisionRefusal };
 
+/** What an approval or a rejection is handed. */
 type DecisionInput = {
   slug: string;
   /** What the data proposed — recorded on both paths, since a rejection is about it. */
@@ -332,12 +390,45 @@ type DecisionInput = {
   reason: string;
 };
 
+/** What a person stating a band is handed. No proposal, because there was none. */
+type StateBandInput = {
+  slug: string;
+  low: number;
+  high: number;
+  actorId: string;
+  reason: string;
+};
+
+/** The band write, or null to leave `categories` alone (a rejection). */
+type Applied = {
+  low: number;
+  high: number;
+  /**
+   * Set on the computed path only, and ABSENT rather than null on the stated one.
+   *
+   * A STATED BAND LEAVES THE PROVENANCE LADDER WHERE IT IS, which is the honest
+   * answer in both directions and took some arguing. `observed` means the figure
+   * came out of our own settled jobs, so writing it for a number somebody typed
+   * would be exactly the dishonesty this column exists to prevent. Nor is there
+   * anything else to write: a person restating a `researched` band IS the
+   * researcher, and a person stating one on an `invented` category is still
+   * inventing, so the value already on the row is already correct. The one case
+   * it understates — real research on an invented category — understates in the
+   * safe direction, and `pricing_note` and `pricing_checked_at` carry the
+   * evidence that somebody looked.
+   */
+  pricingSource?: "observed";
+  /** What goes on the category as `pricing_note`. */
+  note: string;
+};
+
 /**
  * Write the revision row, and on an approval the band itself.
  *
- * ONE FUNCTION FOR BOTH DECISIONS, because the row is the same row and the only
- * difference is whether `categories` moves. Two functions would be two places to
- * forget the audit, and the thing worth keeping identical is exactly what gets
+ * ONE WRITER FOR ALL THREE DECISIONS — approve, reject, state — because the row
+ * is the same row and the only differences are whether `categories` moves and
+ * what the proposal columns hold. Three writers would be three places to forget
+ * the audit, and the thing worth keeping identical is exactly what gets
  * recorded.
  *
  * SERVICE ROLE, AND `categories` KEEPS NO UPDATE POLICY. RLS is row-level: an
@@ -350,11 +441,22 @@ type DecisionInput = {
  * fixable; the other order would move a published price with no record of who
  * moved it. Append-only means the first cannot be tidied away, which is the
  * property that makes this ordering the safe one.
+ *
+ * FORWARD-ONLY IS STRUCTURAL ON EVERY PATH. `bookings.band_min` and `quoted_max`
+ * are frozen per row by `freeze_booking_band()`, so no decision here can reach a
+ * quote that already exists. This module asserts that rather than arranging it,
+ * and `tests/db/band-approval.test.ts` proves it against a database.
  */
-async function decide(
-  input: DecisionInput,
-  decision: "approved" | "rejected",
-  applied: { low: number; high: number } | null,
+async function record(
+  input: {
+    slug: string;
+    actorId: string;
+    reason: string;
+    decision: "approved" | "rejected";
+    source: "proposal" | "stated";
+    proposal: DecisionInput["proposal"] | null;
+  },
+  applied: Applied | null,
 ): Promise<BandDecisionResult> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "unreadable" };
   if (input.reason.trim().length === 0) return { ok: false, reason: "noReason" };
@@ -383,16 +485,26 @@ async function decide(
       .from("category_price_revisions")
       .insert({
         category_slug: input.slug,
-        decision,
+        decision: input.decision,
+        source: input.source,
         old_min: category.base_price_min,
         old_max: category.base_price_max,
         new_min: next.low,
         new_max: next.high,
-        proposed_min: input.proposal.low,
-        proposed_max: input.proposal.high,
-        sample: input.proposal.sample,
-        winsorised: input.proposal.winsorised,
-        capped: input.proposal.capped,
+        /*
+         * NULL ON A STATED ROW, DELIBERATELY AND IN FIVE COLUMNS.
+         * `proposed_min = new_min` would record that the data asked for exactly
+         * this, `sample: 0` that zero jobs were measured rather than that no
+         * measurement was involved, and `capped: false` that the movement cap
+         * looked at this figure and let it through. All three are rule 6 on the
+         * table a disputed price is argued from, and
+         * `category_price_revisions_shape` refuses the mixture either way.
+         */
+        proposed_min: input.proposal?.low ?? null,
+        proposed_max: input.proposal?.high ?? null,
+        sample: input.proposal?.sample ?? null,
+        winsorised: input.proposal?.winsorised ?? null,
+        capped: input.proposal?.capped ?? null,
         actor_id: input.actorId,
         reason: input.reason.trim(),
       });
@@ -408,14 +520,11 @@ async function decide(
         .update({
           base_price_min: applied.low,
           base_price_max: applied.high,
-          /*
-           * `observed` is the third step of the provenance ladder and the one
-           * `check:blockers` is waiting for: the band now comes from our own
-           * settled jobs rather than from competitor research.
-           */
-          pricing_source: "observed",
+          ...(applied.pricingSource
+            ? { pricing_source: applied.pricingSource }
+            : {}),
           pricing_checked_at: new Date().toISOString().slice(0, 10),
-          pricing_note: `${input.proposal.sample} settled jobs, robust p25/p75. ${input.reason.trim()}`,
+          pricing_note: applied.note,
         })
         .eq("slug", input.slug);
 
@@ -426,7 +535,12 @@ async function decide(
     }
 
     await recordSecurityEvent({
-      kind: decision === "approved" ? "pricing.bandApproved" : "pricing.bandRejected",
+      kind:
+        input.source === "stated"
+          ? "pricing.bandStated"
+          : input.decision === "approved"
+            ? "pricing.bandApproved"
+            : "pricing.bandRejected",
       actorId: input.actorId,
       actorRole: "admin",
       subjectType: "category",
@@ -434,9 +548,18 @@ async function decide(
       detail: {
         from: `${category.base_price_min}-${category.base_price_max}`,
         to: `${next.low}-${next.high}`,
-        proposed: `${input.proposal.low}-${input.proposal.high}`,
-        sample: input.proposal.sample,
-        capped: input.proposal.capped,
+        /*
+         * THE EVIDENCE, OR THE ABSENCE OF IT, SAID RATHER THAN OMITTED. A stated
+         * row's audit entry names the source explicitly: a reader finding no
+         * `proposed` key could otherwise not tell "there was no proposal" from
+         * "an older row shape did not carry one".
+         */
+        source: input.source,
+        proposed: input.proposal
+          ? `${input.proposal.low}-${input.proposal.high}`
+          : null,
+        sample: input.proposal?.sample ?? null,
+        capped: input.proposal?.capped ?? null,
         reason: input.reason.trim(),
       },
     });
@@ -450,10 +573,20 @@ async function decide(
 
 /** Publish the proposed band. Forward only: no existing quote can change. */
 export async function approveBand(input: DecisionInput): Promise<BandDecisionResult> {
-  return decide(input, "approved", {
-    low: input.proposal.low,
-    high: input.proposal.high,
-  });
+  return record(
+    { ...input, decision: "approved", source: "proposal", proposal: input.proposal },
+    {
+      low: input.proposal.low,
+      high: input.proposal.high,
+      /*
+       * `observed` is the third step of the provenance ladder and the one
+       * `check:blockers` is waiting for: the band now comes from our own settled
+       * jobs rather than from competitor research.
+       */
+      pricingSource: "observed",
+      note: `${input.proposal.sample} settled jobs, robust p25/p75. ${input.reason.trim()}`,
+    },
+  );
 }
 
 /**
@@ -464,5 +597,113 @@ export async function approveBand(input: DecisionInput): Promise<BandDecisionRes
  * `proposed_*` and `sample` off this row.
  */
 export async function rejectBand(input: DecisionInput): Promise<BandDecisionResult> {
-  return decide(input, "rejected", null);
+  return record(
+    { ...input, decision: "rejected", source: "proposal", proposal: input.proposal },
+    null,
+  );
+}
+
+/**
+ * Publish a band a PERSON states, with no sample behind it.
+ *
+ * THE GAP THIS CLOSES, AND IT WAS THE WHOLE SCREEN'S BLIND SPOT. `approveBand`
+ * can only ever apply a figure `proposeBand` returned, and `proposeBand` returns
+ * null below `MIN_PROPOSAL_SAMPLE` — 15 to 30 settled jobs. So on day one, and on
+ * any category that has not been sold fifteen times, no band was changeable
+ * through the admin at all: `/admin/bands` existed and the one case it is most
+ * needed for was the one case it could not do, leaving a migration and a deploy
+ * as the only way to fix a mispriced trade.
+ *
+ * THE BOUND IS A TYPO GUARD AND IT IS NOT `MAX_REVISION_MOVE`.
+ * `statedBandRefusal` is the rule, pure and beside the constant it departs from:
+ * the twenty-percent cap exists to stop a bad SAMPLE moving a price, and applying
+ * it here would reproduce on the human path exactly the obstacle that path exists
+ * to clear. What is guarded instead is the slip — a zero too many or one too few
+ * — at `STATED_BAND_MAX_FACTOR`.
+ *
+ * A SURVEY CATEGORY IS REFUSED. `pricing_model = 'survey'` means the market
+ * quotes after a visit and we publish no range — the movers decision — so stating
+ * a band there is inventing the thing that category exists to refuse. `bandRows`
+ * already filters those out, which is why the form never renders for one; this
+ * refuses it anyway, because a server action is a public POST reachable by
+ * anybody who can reach the page.
+ */
+export async function stateBand(
+  input: StateBandInput,
+): Promise<BandDecisionResult> {
+  if (!hasSupabaseConfig()) return { ok: false, reason: "unreadable" };
+  if (input.reason.trim().length === 0) return { ok: false, reason: "noReason" };
+
+  try {
+    const db = createAdminClient();
+
+    const { data: category, error: readError } = await db
+      .from("categories")
+      .select("slug, base_price_min, base_price_max, pricing_model")
+      .eq("slug", input.slug)
+      .maybeSingle();
+
+    if (readError) {
+      console.error(`[bands] category read failed — ${describeError(readError)}`);
+      return { ok: false, reason: "unreadable" };
+    }
+    if (!category) return { ok: false, reason: "noCategory" };
+    if (category.pricing_model === "survey") {
+      return { ok: false, reason: "surveyCategory" };
+    }
+
+    /*
+     * THE GUARD RUNS AGAINST WHAT IS PUBLISHED NOW, READ HERE AND NOT SENT. The
+     * form carries the figures somebody typed, which is the point; it must not
+     * also carry the band they are being measured against, or the bound is the
+     * browser's to widen. `approveBandAction`'s comment makes the opposite trade
+     * for the proposal itself and says why — a decision has to record what was
+     * read — and the two are consistent: what a person saw is theirs to send,
+     * what a rule is enforced against is ours to look up.
+     */
+    const refusal = statedBandRefusal(
+      { low: input.low, high: input.high },
+      { low: category.base_price_min, high: category.base_price_max },
+    );
+    if (refusal) return { ok: false, reason: refusal };
+
+    return record(
+      {
+        slug: input.slug,
+        actorId: input.actorId,
+        reason: input.reason,
+        decision: "approved",
+        source: "stated",
+        proposal: null,
+      },
+      {
+        low: input.low,
+        high: input.high,
+        /*
+         * No `pricingSource`: see `Applied`.
+         *
+         * THE NOTE IS PROVENANCE AND DELIBERATELY NOT THE TYPED REASON.
+         * `pricing_note` is on the `Category` object every public surface reads
+         * — `lib/data/categories.ts` maps it, and only a narrow `CategoryOption`
+         * projection is what keeps it out of the browser today. Nothing renders
+         * it to a customer and the day somebody widens that projection it would
+         * be in the page source, so free text an admin typed about a price does
+         * not go in. It buys nothing either: the reason is already recorded in
+         * `category_price_revisions.reason` and in the audit row, both admin-only,
+         * and `/admin/bands` reads it back from there. The computed path above
+         * DOES append its reason here, which is the same latent exposure and is
+         * left alone rather than changed under this commit — it is noted in the
+         * handover with the same fix.
+         *
+         * "No sample" is the half that matters: this column is the one-line
+         * answer to "where did this number come from", and the honest answer is
+         * that a person said so.
+         */
+        note: `Set by an admin on ${new Date().toISOString().slice(0, 10)}. No sample.`,
+      },
+    );
+  } catch (thrown) {
+    console.error(`[bands] stated band threw — ${describeError(thrown)}`);
+    return { ok: false, reason: "refused" };
+  }
 }

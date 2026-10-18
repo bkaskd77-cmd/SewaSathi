@@ -601,6 +601,71 @@ the older text, silently dropping the survey branches and the `booking_band_boun
 read. The fingerprint check caught it, not a reading. Rebuild from the LAST
 definition.
 
+**And that screen could not move a price at all for the first fifteen jobs in a
+trade, which is the one case it was built for.** `approveBand` only ever publishes
+a figure `proposeBand` returned, and that function returns null below
+`MIN_PROPOSAL_SAMPLE` (15-30 settled jobs) — so on day one, and on any category not
+yet sold fifteen times, a band we had mispriced was changeable only by editing the
+seed and running a migration. The obstacle the screen exists to remove was still
+inside it. **`mode: "correction"` was the designed answer and had no caller
+either** — written, commented at length against `MAX_REVISION_MOVE`, passed by
+nothing — and it would not have closed the gap, because lifting the cap still
+leaves the sample and the case it named is precisely the case with no sample. It is
+deleted rather than wired: `proposal.uncapped` is already on the screen, so a
+person can read the figure the cap held back and state it. One human path, not two,
+and **the test that asserted that branch was asserting a parameter the product
+never passed** — which is how a no-caller feature survives in a green suite.
+`stateBand` is the path, `/admin/bands` carries it on every row behind a disclosure
+(the row with no sample is the row it is for), and it sits below the computed half
+because a band the data asked for, with its sample beside it, is better evidence
+than a band somebody remembers.
+**The bound is a typo guard and deliberately not `MAX_REVISION_MOVE`**, which
+would reproduce on the human path exactly the obstacle being cleared.
+`statedBandRefusal` is the rule, pure and beside the constant it departs from, and
+`STATED_BAND_MAX_FACTOR` is 5 — `lib/payments/pricing.ts`'s reasoning with a
+different number for a stated reason: there the band is the reference and assumed
+right, here the reference is what we may have got badly wrong. Five sits below both
+spellings of a misplaced zero. It **refuses rather than clamps**, because
+`proposeBand` may clamp only since a person then reads the clamped figure, and here
+nobody does; a larger correction is stated in two steps, each audited with its own
+reason. Two steps of five is twenty-five, so it is defeatable by anybody determined
+— fine, because a typo does not happen twice with two different sentences typed
+beside it. **The bound is printed above the boxes**, never found by tripping it,
+and the numbers come from the constants rather than from the sentence so a copy in
+the catalogue cannot go stale while rendering perfectly. **Nothing is rounded**,
+which is the one place it departs from a computed band: publishing 1,300 for a
+typed 1,250 would be the screen showing one number and the catalogue carrying
+another.
+**Five columns go null and `source` says which kind of row it is.**
+`proposed_min = new_min` would record that the data asked for exactly this,
+`sample = 0` that zero jobs were measured rather than that no measurement was
+involved, and `capped = false` that the cap looked at the figure and let it through
+— rule 6 three times over, on the table a disputed price is argued from.
+`category_price_revisions_shape` refuses both mixtures and refuses a **stated
+rejection** too: a rejection is a verdict on somebody else's proposal, and there is
+nothing to reject about a band a person is stating. The migration's own ordering is
+the `payouts` lesson — **the NOT NULLs come off last**, after the shape constraint
+is in place to replace them, so stopping anywhere leaves the table at least as
+closed as it started. **`pricing_source` is left alone**, which took arguing and is
+honest in both directions: `observed` would claim the figure came out of our settled
+jobs, and nothing else fits either, since a person restating a researched band IS
+the researcher and a person stating one on an invented category is still inventing.
+**`@/lib/data/bands` is a money module now and deliberately was not.** The recorded
+reason for leaving it off still holds for approve and reject — a bounded figure read
+off an evidence screen, forward-only through `freeze_booking_band`, reversible — and
+`stateBand` breaks it: an arbitrary figure a browser sent, with every booking taken
+before anybody notices frozen at it, so putting the right band back does not undo
+it. It takes `freshAdminActor()`'s fifteen minutes where the other two keep the
+eight-hour window; all three are declared in `lib/config/admin-money.ts`, the two
+`none` entries carrying the old paragraph's reasoning as their `why`, so the
+decision is mechanical rather than a comment. **The figures cross the wire and the
+band they are measured against does not** — `stateBand` re-reads
+`base_price_min`/`base_price_max` itself, because a bound enforced against a number
+the form supplied is a bound the browser can widen. That is consistent with
+`approveBandAction`'s opposite trade and the difference is worth stating: what a
+person SAW is theirs to send, because a decision has to record what was read; what
+a rule is ENFORCED against is ours to look up.
+
 **And "when may this be tuned?" is a number now rather than a judgement.**
 Three loops are deliberately unarmed — the ranking weights, rotation among
 near-ties, the triage prompt — each for the stated reason that a constant chosen

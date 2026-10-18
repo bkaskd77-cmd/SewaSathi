@@ -66,17 +66,36 @@ export const FENCE_IQR_MULTIPLIER = 1.5;
  * move a published price by more than a fifth on the strength of a sample, and
  * `winsorised` is the tell that sub-bands are the real answer.
  *
- * IT DOES NOT APPLY TO A HUMAN CORRECTION, and that distinction is the whole
- * point of `mode`. The cap exists to stop a bad SAMPLE moving a price, not to
- * stop a person fixing a price they already know is wrong. AC servicing was
+ * IT DOES NOT APPLY TO A BAND A PERSON STATES, and that is why the word COMPUTED
+ * is in the first line. The cap exists to stop a bad SAMPLE moving a price, not
+ * to stop a person fixing a price they already know is wrong: AC servicing was
  * wrong at both ends by more than a fifth — floor above an ordinary service,
- * ceiling below a gas refill — and making that take four approval cycles would
- * be the guard working against the thing it is for.
+ * ceiling below a gas refill — and making that take four approval cycles would be
+ * the guard working against the thing it is for.
+ *
+ * THAT DISTINCTION USED TO BE A `mode` PARAMETER ON `proposeBand` AND NOTHING EVER
+ * PASSED IT. It was written, commented at length against this constant, and had no
+ * caller anywhere — the no-caller sin, one module over from `applyRedoRecovery`.
+ * It would not have closed the gap either: lifting the cap still leaves
+ * `MIN_PROPOSAL_SAMPLE`, so with no settled jobs it returned null exactly as the
+ * routine path does, and the case it named — a band known to be wrong on day one —
+ * is precisely the case with no sample. `statedBandRefusal` below is the human
+ * path, and it is a different shape rather than a flag on this one: a stated band
+ * has no sample, no quartiles and no winsorised count, so there is nothing for
+ * `proposeBand` to return.
  */
 export const MAX_REVISION_MOVE = 0.2;
 
-/** Published prices are round. A band ending in 37 reads as a machine's output. */
-const ROUNDING = 100;
+/**
+ * Published prices are round. A band ending in 37 reads as a machine's output.
+ *
+ * EXPORTED BECAUSE IT IS ALSO THE MINIMUM WIDTH OF A BAND, which the screen has
+ * to be able to say out loud — see `statedBandRefusal`. A copy of the number in
+ * a message catalogue would be one list written twice, and it would go stale
+ * silently: the copy renders perfectly whatever this says.
+ */
+export const BAND_ROUNDING = 100;
+const ROUNDING = BAND_ROUNDING;
 
 export type BandProposal = {
   low: number;
@@ -134,11 +153,6 @@ export function proposeBand(input: {
   current: { low: number; high: number };
   /** Governs the minimum sample. Defaults to the strictest. */
   confidence?: BandConfidence;
-  /**
-   * `computed` is the routine path and is capped. `correction` is a person
-   * fixing a band they know is wrong, and is not — see `MAX_REVISION_MOVE`.
-   */
-  mode?: "computed" | "correction";
 }): BandProposal | null {
   const clean = input.amounts
     .filter((n) => Number.isFinite(n) && n > 0)
@@ -175,13 +189,10 @@ export function proposeBand(input: {
 
   const rounded = roundOut(quantile(fenced, 0.25), quantile(fenced, 0.75));
 
-  const correcting = input.mode === "correction";
-  const capped = correcting
-    ? rounded
-    : {
-        low: capMove(rounded.low, input.current.low),
-        high: capMove(rounded.high, input.current.high),
-      };
+  const capped = {
+    low: capMove(rounded.low, input.current.low),
+    high: capMove(rounded.high, input.current.high),
+  };
   const final = roundOut(capped.low, capped.high);
 
   return {
@@ -287,4 +298,103 @@ export function proposalSuppressedBy(
 export function visitPriceIsMarketPrice(verdict: string | null): boolean {
   if (verdict === null) return false;
   return verdict !== "sameFault";
+}
+
+/* ------------------------------------------------------------------ *
+ * A band a person states, with no sample behind it
+ * ------------------------------------------------------------------ */
+
+/**
+ * The most a STATED band may move either bound, as a multiple.
+ *
+ * WHY A BOUND AT ALL ON A FIGURE SOMEBODY TYPED ON PURPOSE. This is a typo
+ * guard and nothing else. `lib/payments/pricing.ts` is the precedent and says
+ * it plainly: 2x the quoted max is "chosen so an honest overrun fits and a
+ * mistyped extra zero — 1,500 becoming 15,000 — cannot. It is a customer
+ * protection, not a tuning knob." The dangerous slip on a band is the same one
+ * in both directions — a zero too many (10x) or one too few (a tenth) — and
+ * the band is what every future quote in the category is framed by, frozen onto
+ * each booking by `freeze_booking_band()` as it is taken. A wrong band caught a
+ * week later cannot be un-frozen off the bookings it quoted.
+ *
+ * FIVE RATHER THAN `pricing.ts`'s TWO, because the two numbers guard opposite
+ * situations. There, the band is the reference and is assumed right, so an
+ * overrun has to stay near it. Here the reference is a number we may have got
+ * badly wrong, and fixing that is the entire purpose: AC servicing's recorded
+ * case was wrong at both ends by more than a fifth, and a tight bound would
+ * reproduce `MAX_REVISION_MOVE`'s problem on the one path that exists to escape
+ * it. Five leaves the largest honest correction expressible while still sitting
+ * below both spellings of a misplaced zero.
+ *
+ * IT REFUSES; IT DOES NOT CLAMP. Clamping would publish a number nobody typed,
+ * which on a published price is worse than refusing — `proposeBand` may clamp
+ * because a person then reads the clamped figure and approves it, and here there
+ * is nobody left to read it. A correction larger than this is stated in two
+ * steps, each with its own reason and its own audited row. Two steps of five is
+ * twenty-five, so this is defeatable by anybody determined, and that is fine: a
+ * typo does not happen twice with two different sentences typed beside it.
+ */
+export const STATED_BAND_MAX_FACTOR = 5;
+
+/**
+ * Why a stated band cannot be published, or null when it can be.
+ *
+ * PURE, AND HERE RATHER THAN IN THE DATA LAYER, for the reason
+ * `visitPriceIsMarketPrice` above states and this project has now recorded six
+ * times: a judgement about money written inside a `server-only` module is one no
+ * unit test can reach.
+ *
+ * `noCurrentBand` IS A REFUSAL AND NOT A SKIP. With no usable published pair
+ * there is nothing to measure a correction against, so the typo guard cannot
+ * run — and a guard that cannot run must never read as a guard that passed,
+ * which is rule 6 in the shape it takes for a gate. `capMove` returns the
+ * proposal unchanged in that case because a person then reads it; nobody reads
+ * this one.
+ */
+export type StatedBandRefusal =
+  | "notWholeRupees"
+  | "notPositive"
+  | "tooNarrow"
+  | "tooBigAJump"
+  | "noCurrentBand";
+
+export function statedBandRefusal(
+  stated: { low: number; high: number },
+  current: { low: number; high: number },
+): StatedBandRefusal | null {
+  if (!Number.isInteger(stated.low) || !Number.isInteger(stated.high)) {
+    return "notWholeRupees";
+  }
+  if (stated.low <= 0 || stated.high <= 0) return "notPositive";
+
+  /*
+   * THE MINIMUM WIDTH IS `ROUNDING`, BORROWED DELIBERATELY. A band whose floor
+   * meets its ceiling is a fixed price rather than a band: "inside the quoted
+   * band" would have measure zero, so every job would land either exactly on the
+   * number or over it, and `lib/payments/pricing.ts`'s three outcomes would
+   * collapse to two. `proposeBand` already holds its own output one step apart
+   * for the same reason, and using the same constant is what stops the two paths
+   * publishing bands of different minimum width — which would make "inside the
+   * band" mean different things depending on who set it.
+   *
+   * NOTHING IS ROUNDED, THOUGH, which is the one place a stated band
+   * deliberately departs from a computed one. `proposeBand` rounds to Rs 100
+   * because a band ending in 37 reads as a machine's output; a person typing
+   * 1,250 means 1,250, and quietly publishing 1,200 or 1,300 instead would be
+   * the screen showing one number and the catalogue carrying another.
+   */
+  if (stated.high - stated.low < ROUNDING) return "tooNarrow";
+
+  const usable = (n: number) => Number.isFinite(n) && n > 0;
+  if (!usable(current.low) || !usable(current.high)) return "noCurrentBand";
+
+  const within = (next: number, now: number) =>
+    next <= now * STATED_BAND_MAX_FACTOR &&
+    next >= now / STATED_BAND_MAX_FACTOR;
+
+  if (!within(stated.low, current.low) || !within(stated.high, current.high)) {
+    return "tooBigAJump";
+  }
+
+  return null;
 }

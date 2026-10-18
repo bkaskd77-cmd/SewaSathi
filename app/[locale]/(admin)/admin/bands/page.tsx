@@ -3,19 +3,21 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
-import { BandActions } from "@/components/admin/band-actions";
+import { BandActions, StateBandForm } from "@/components/admin/band-actions";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { formatInstant } from "@/lib/booking";
 import {
+  BAND_ROUNDING,
   MAX_REVISION_MOVE,
   PROPOSAL_WINDOW_DAYS,
+  STATED_BAND_MAX_FACTOR,
 } from "@/lib/data/band-proposal";
 import { bandRows, type BandRow } from "@/lib/data/bands";
 import { formatNpr } from "@/lib/utils/format";
 
-import { approveBandAction, rejectBandAction } from "./actions";
+import { approveBandAction, rejectBandAction, stateBandAction } from "./actions";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -47,6 +49,14 @@ export const dynamic = "force-dynamic";
  * alike — the `/services` rule, on the screen that prices ten trades.
  *
  * A FAILED READ IS NOT AN EMPTY CATALOGUE, same rule again.
+ *
+ * AND A PERSON CAN STATE A BAND, WHICH IS WHAT MADE THIS SCREEN USABLE AT ALL.
+ * Every row carries `StateBandForm` behind a disclosure, regardless of whether
+ * there is a proposal — because the case that needs it most is the row with no
+ * sample, and for the first fifteen settled jobs in a trade that is every row.
+ * It sits BELOW the computed half on purpose: a band the data asked for, with
+ * its sample beside it, is better evidence than a band somebody remembers, so
+ * the proposal is what the eye lands on and this is always reachable.
  */
 export default async function BandsPage() {
   const locale = (await getLocale()) as Locale;
@@ -134,9 +144,19 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
       {row.lastDecision ? (
         <p className="mt-1 text-caption text-muted-foreground">
           {t(
-            row.lastDecision.decision === "approved"
-              ? "lastApproved"
-              : "lastRejected",
+            /*
+              THREE SENTENCES, NOT TWO. A stated band and an approved one are
+              different facts about where a published price came from, and
+              printing "approved" over a figure nobody proposed would hide the
+              one thing a later reader most needs to know — that there was no
+              sample behind it. `source` is read rather than inferred from a
+              null proposal, because the column is what the database refuses on.
+            */
+            row.lastDecision.source === "stated"
+              ? "lastStated"
+              : row.lastDecision.decision === "approved"
+                ? "lastApproved"
+                : "lastRejected",
             {
               who: row.lastDecision.actorName ?? t("unnamed"),
               when: formatInstant(
@@ -195,8 +215,8 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
           <p className="mt-1 text-body-sm">
             {t("suppressedBody", {
               band: band(
-                row.suppressed.proposedLow,
-                row.suppressed.proposedHigh,
+                row.suppressed.proposal?.low ?? row.suppressed.low,
+                row.suppressed.proposal?.high ?? row.suppressed.high,
               ),
               when: formatInstant(
                 row.suppressed.decidedAt.toISOString(),
@@ -205,11 +225,20 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
               why: row.suppressed.reason,
             })}
           </p>
-          <p className="mt-1 text-caption text-muted-foreground">
-            {t("suppressedReturns", {
-              n: String(Math.ceil(row.suppressed.sample * 1.5)),
-            })}
-          </p>
+          {/*
+            WHAT WOULD BRING IT BACK, and only when the sample is really known.
+            `bandRows` only ever suppresses on a rejection that carries its
+            proposal, so this is never absent in practice; the guard is here
+            because a `?? 0` would print "returns at 0 jobs", which reads as
+            "any moment now" about a proposal that is held indefinitely.
+          */}
+          {row.suppressed.proposal ? (
+            <p className="mt-1 text-caption text-muted-foreground">
+              {t("suppressedReturns", {
+                n: String(Math.ceil(row.suppressed.proposal.sample * 1.5)),
+              })}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="mt-4 border-t border-border pt-3">
@@ -261,6 +290,21 @@ async function Row({ row, locale }: { row: BandRow; locale: Locale }) {
           />
         </div>
       )}
+
+      {/*
+        ON EVERY ROW, including the ones with nothing to approve and the ones
+        holding a suppressed proposal. The row with no sample is the row this
+        exists for, and a suppressed proposal is a refusal of ONE computed pair —
+        it says nothing about a figure a person wants to state instead.
+      */}
+      <StateBandForm
+        slug={row.slug}
+        currentLow={row.current.low}
+        currentHigh={row.current.high}
+        maxFactor={STATED_BAND_MAX_FACTOR}
+        minWidth={BAND_ROUNDING}
+        state={stateBandAction}
+      />
     </>
   );
 }

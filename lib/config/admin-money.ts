@@ -37,18 +37,29 @@
  * code. An admin action importing from one of these is the trigger for the
  * question, never the answer to it.
  *
- * WHAT IS DELIBERATELY NOT HERE, said out loud so the omissions read as
- * decisions rather than as oversights. `@/lib/data/bands` publishes a price
- * band: it changes what a FUTURE quote is framed by, with its own evidence
- * screen and its own stored rejection, and it moves nothing on a booking that
- * has already been taken. `@/lib/data/recovery` and `@/lib/data/duration-loop`
- * do move money and have no admin caller at all — they run from the reconcile
- * cron, where `CRON_SECRET` is the gate and a second factor is meaningless.
- * Adding an admin screen over either one puts its module on this list in the
- * same commit.
+ * `@/lib/data/bands` WAS DELIBERATELY NOT HERE AND IS NOW, which is worth
+ * recording rather than quietly editing. The reason it was left off still holds
+ * for two of its three writers: an approval changes what a FUTURE quote is framed
+ * by, it has its own evidence screen and its own stored rejection, and
+ * `freeze_booking_band()` means it moves nothing on a booking already taken. What
+ * broke the argument is `stateBand`. An approval can only ever publish a figure
+ * `proposeBand` computed and `MAX_REVISION_MOVE` held inside a fifth of the
+ * published band, so the worst a walked-away session could do was nudge a price;
+ * a stated band is an arbitrary figure a browser sends, bounded only by a typo
+ * guard, and every booking taken before anybody notices is frozen at it. So the
+ * module joins the list and all three writers are declared — the two that need no
+ * second proof say so, with the old paragraph's reasoning kept as their `why`.
+ *
+ * WHAT IS STILL DELIBERATELY NOT HERE, said out loud so the omissions read as
+ * decisions rather than as oversights. `@/lib/data/recovery` and
+ * `@/lib/data/duration-loop` do move money and have no admin caller at all —
+ * they run from the reconcile cron, where `CRON_SECRET` is the gate and a second
+ * factor is meaningless. Adding an admin screen over either one puts its module
+ * on this list in the same commit.
  */
 export const MONEY_MODULES: readonly string[] = [
   "@/lib/data/ai-ceilings",
+  "@/lib/data/bands",
   "@/lib/data/claims",
   "@/lib/data/customer-risk",
   /*
@@ -94,6 +105,24 @@ export type AdminMoneyWrite = {
 };
 
 export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
+  {
+    fn: "stateBand",
+    module: "@/lib/data/bands",
+    proof: "fresh-actor",
+    why: "The one writer here that publishes a figure nothing computed: a floor and a ceiling typed into two boxes, bounded only by STATED_BAND_MAX_FACTOR. Every quote in the trade is framed by it and freeze_booking_band pins it onto each booking as it is taken, so a wrong band is not undone by putting the right one back.",
+  },
+  {
+    fn: "approveBand",
+    module: "@/lib/data/bands",
+    proof: "none",
+    why: "It publishes a figure proposeBand computed and MAX_REVISION_MOVE held inside a fifth of the band already published, read off an evidence screen beside the sample it came from. Forward only - freeze_booking_band froze every existing quote - and another approval reverses it. A code demanded for a write that cannot cost anybody anything is how people learn to tap through the ones that can.",
+  },
+  {
+    fn: "rejectBand",
+    module: "@/lib/data/bands",
+    proof: "none",
+    why: "It moves no price at all: new_min equals old_min and the row exists to suppress one proposed pair until the sample grows by half again. The worst a stolen session can do is make somebody look at the same proposal again, which is the opposite of a money loss.",
+  },
   {
     fn: "issueRefund",
     module: "@/lib/data/claims",

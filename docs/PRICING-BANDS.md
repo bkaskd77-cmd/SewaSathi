@@ -177,11 +177,17 @@ floors **down**.
 
 ---
 
-## 2. The admin band editor — design, not built
+## 2. The admin band editor — built
 
-One screen per category, reached from the admin panel when it exists. It
-answers: what do we publish, where did it come from, what does our own data say,
-and is there a proposal.
+**This heading read "design, not built" for several phases after it was built**,
+which is the shape this project keeps recording: `/admin/bands` is the screen,
+`lib/data/bands.ts` is the writer, and `category_price_revisions` is applied. What
+follows is the design as specified, with the two places the built thing differs
+marked.
+
+One row per category on one screen, reached from the admin panel. It answers: what
+do we publish, where did it come from, what does our own data say, and is there a
+proposal.
 
 ### What it shows
 
@@ -228,6 +234,40 @@ and is there a proposal.
 - **Approving shows what it will change**: this band is the floor of every new
   quote in the trade, so the screen states plainly that it does not touch any
   existing booking — `band_min` and `quoted_min` are frozen per row.
+- **A person may also STATE a band, which this design did not have and the screen
+  was unusable without.** Every rule above is about a proposal, and "no proposal
+  below the minimum sample" is the whole of what the screen said to a trade with
+  no settled jobs — so on day one, and on any category not yet sold fifteen times,
+  nothing on the screen could move a price and a mispriced trade needed a
+  migration and a deploy. That is the obstacle this screen exists to remove,
+  surviving inside it. A stated band writes the same revision row with `source =
+  'stated'` and all five proposal columns **null**: `proposed_min = new_min` would
+  record that the data asked for exactly this and `sample = 0` that zero jobs were
+  measured rather than that no measurement was involved, which is the one
+  dishonesty this table must not hold.
+  Four things differ from an approval, each for its own reason.
+  **The bound is not `MAX_REVISION_MOVE`** — that cap stops a bad SAMPLE moving a
+  price, and applying it here reproduces exactly the obstacle being cleared. What
+  is guarded is the slip: `STATED_BAND_MAX_FACTOR` refuses a figure more than five
+  times above or below what is published, which sits below both spellings of a
+  misplaced zero, and a larger correction is stated in two steps rather than
+  clamped to something nobody typed.
+  **Nothing is rounded.** `proposeBand` rounds to Rs 100 because a band ending in
+  37 reads as a machine's output; a person typing 1,250 means 1,250, and publishing
+  1,300 instead would be the screen showing one number and the catalogue carrying
+  another.
+  **`pricing_source` does not move.** `observed` means the figure came out of our
+  own settled jobs, and there is nothing else honest to write: a person restating a
+  researched band is the researcher, and a person stating one on an invented
+  category is still inventing.
+  **It needs a fresh second factor** where approve and reject do not — fifteen
+  minutes, not the batched eight-hour admin window — because an approval publishes a
+  figure the system computed and bounded, and this publishes one a browser sent.
+- **A survey category is refused.** `pricing_model = 'survey'` means the market
+  quotes after a visit and we publish no range — the movers decision — so stating a
+  band there would invent the thing that category exists to refuse. The screen
+  never offers the form for one and the writer refuses it anyway, because a server
+  action is a public POST.
 
 ### Access
 
