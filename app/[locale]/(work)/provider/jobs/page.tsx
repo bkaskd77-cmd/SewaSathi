@@ -26,7 +26,7 @@ import {
 } from "@/lib/booking";
 import { whatsappHref } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
-import { getCategory, getSubBands } from "@/lib/data/categories";
+import { getSubBands, labelCategory } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import {
   getMyProvider,
@@ -252,7 +252,7 @@ export default async function ProviderJobsPage() {
   // Component anyway.
   const named = await Promise.all(
     jobs.map(async (job) => {
-      const category = await getCategory(job.categorySlug);
+      const category = await labelCategory(job.categorySlug);
       return {
         job,
         categoryName: category

@@ -168,6 +168,9 @@ export type SecurityEventKind =
   /* Service areas. Opening and withdrawing a ward are both recorded, and
      reopening is its own kind rather than an absence — the history has to read
      as what happened, not as a row that was always live. */
+  | "category.opened"
+  | "category.retired"
+  | "category.reopened"
   | "area.opened"
   | "area.retired"
   | "area.reopened"
@@ -239,7 +242,7 @@ export type SecurityEvent = {
     | "profile"
     | "document"
     | "provider"
-    /** A category slug — the subject of a band decision. Not a person. */
+    /** A category slug — a band decision, or opening and withdrawing a trade. Not a person. */
     | "category"
     /** An area key — the subject of opening or withdrawing a ward. Not a person. */
     | "area"

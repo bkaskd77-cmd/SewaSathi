@@ -4,11 +4,24 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { CategoryEditor } from "@/components/admin/category-editor";
+import {
+  AddCategory,
+  CategoryStandingPanel,
+} from "@/components/admin/category-standing";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import { KEYWORD_RULES } from "@/lib/ai/mockTriage";
 import { adminGate } from "@/lib/auth/admin-gate";
-import { getCategories } from "@/lib/data/categories";
-import { readDataSources } from "@/lib/data/source";
+import { categoryReadiness } from "@/lib/config/category-readiness";
+import { CATEGORY_ICONS } from "@/lib/config/icons";
+import { categoryCopy } from "@/lib/config/services";
+import { allCategories, getSubBands } from "@/lib/data/categories";
+
+import {
+  addCategoryAction,
+  reopenCategoryAction,
+  retireCategoryAction,
+} from "./actions";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -29,6 +42,20 @@ export const dynamic = "force-dynamic";
  * like a working editor either.
  *
  * NO PRICES. The band is `/admin/bands`.
+ *
+ * AND WHETHER WE SELL IT AT ALL IS HERE TOO, which is new. `is_active` has been
+ * on this table since the first migration, read by its own policy AND by
+ * `getCategories`' query, and nothing in the product could ever write it — so
+ * withdrawing a trade meant a migration. One screen for "the trades we sell"
+ * rather than a second one listing the same ten: the words and the standing are
+ * two facts about one row, and splitting them would be two places to look.
+ *
+ * IT READS `allCategories`, NOT `getCategories`. A withdrawn trade has to stay
+ * on this screen or it could never be sold again — and that read exists for a
+ * second reason this screen found: `getCategory` misses a retired slug, and
+ * both `/bookings/[id]` and `/provider/jobs` then print the bare slug, so
+ * retiring a trade would have put `water-tank-cleaning` on a customer's own
+ * booking page.
  */
 export default async function CategoriesPage() {
   const locale = (await getLocale()) as Locale;
@@ -43,9 +70,41 @@ export default async function CategoriesPage() {
     redirect({ href: "/account/security?next=/admin/content/categories", locale });
   }
 
-  const [categories, messages] = await Promise.all([getCategories(), getMessages()]);
-  /* Read AFTER the query — `markDataSource` is what the query writes into. */
-  const reading = readDataSources().categories;
+  /* ONE WAVE — the standing latency rule, and none of the three depends on
+     another. `getSubBands` is here because `categoryReadiness` asks whether a
+     trade has products to narrow to, which is one of the gaps nobody can see
+     from the catalogue. */
+  const [categories, subBands, messages] = await Promise.all([
+    allCategories(),
+    getSubBands(),
+    getMessages(),
+  ]);
+
+  /*
+   * `allCategories` ANSWERS NULL ON A FAILED READ rather than falling back to
+   * the seed, which is what this screen needs: if the table was unreachable, an
+   * edit would write where nothing is reading from and appear to do nothing. An
+   * UNCONFIGURED clone gets the seed and is editable in name only — same
+   * sentence, because in both cases a form here would be theatre.
+   */
+  const editable = categories !== null;
+
+  /* The slugs the keyword matcher can actually return. `KEYWORD_RULES` is a
+     hand-written list, and that matcher is what answers on every fallback
+     path — so a trade missing from it is unreachable whenever the key is. */
+  const keywordSlugs = new Set(KEYWORD_RULES.map((rule) => rule.category));
+
+  const rows = (categories ?? []).map((category) => ({
+    category,
+    standing: {
+      /* `categoryReadiness` carries the slug, so it is spread first and the
+         fields below add to it rather than quietly overwriting one of them. */
+      ...categoryReadiness({ category, keywordSlugs, subBands }),
+      name: categoryCopy(category, locale).name,
+      retiredAt: category.retiredAt,
+      retiredReason: category.retiredReason,
+    },
+  }));
 
   return (
     <section className="mx-auto w-full max-w-5xl px-4 py-10">
@@ -60,19 +119,30 @@ export default async function CategoriesPage() {
         {t("lead")}
       </p>
 
-      {reading.source === "database" ? (
+      {editable ? (
         <NextIntlClientProvider locale={locale} messages={{ admin: messages.admin }}>
           <ul className="mt-8 space-y-4">
-            {categories.map((category, index) => (
+            {rows.map(({ category, standing }, index) => (
               <li
                 key={category.slug}
                 className="animate-rise rounded-lg border border-border p-4"
                 style={{ animationDelay: `${Math.min(index * 0.04, 0.25)}s` }}
               >
                 <CategoryEditor category={category} />
+                <CategoryStandingPanel
+                  category={standing}
+                  retire={retireCategoryAction}
+                  reopen={reopenCategoryAction}
+                />
               </li>
             ))}
           </ul>
+
+          {/* Below the ten, because opening a trade is the rarer act and the
+              list is what somebody came here for. */}
+          <div className="animate-rise mt-8">
+            <AddCategory add={addCategoryAction} icons={CATEGORY_ICONS} />
+          </div>
         </NextIntlClientProvider>
       ) : (
         <p

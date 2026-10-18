@@ -72,6 +72,26 @@ type CategoryRow = {
   sort_order: number;
 };
 
+/** A category as the admin screen needs it — the words plus its standing. */
+export type CategoryRecord = Category & {
+  /**
+   * When we stopped selling it, with why and who.
+   *
+   * NULL IS "WE STILL SELL IT", never "unknown" — `categories_retired_shape`
+   * refuses a partial triple and keeps `is_active` in step, so these are null
+   * together or set together.
+   */
+  retiredAt: string | null;
+  retiredReason: string | null;
+  retiredBy: string | null;
+};
+
+type RetirementRow = {
+  retired_at: string | null;
+  retired_reason: string | null;
+  retired_by: string | null;
+};
+
 function fromRow(row: CategoryRow): Category {
   return {
     slug: row.slug,
@@ -149,6 +169,10 @@ function unreadableCatalogue(reason: string): Category[] {
   return withoutBand(CATEGORY_SEED);
 }
 
+/** The catalogue columns. One list, two reads — see `allCategories`. */
+const COLUMNS =
+  "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order";
+
 export const getCategories = cache(async (): Promise<Category[]> => {
   if (!hasSupabaseConfig()) {
     /*
@@ -164,9 +188,7 @@ export const getCategories = cache(async (): Promise<Category[]> => {
   try {
     const { data, error } = await createPublicClient()
       .from("categories")
-      .select(
-        "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order",
-      )
+      .select(COLUMNS)
       .eq("is_active", true)
       .order("sort_order");
 
@@ -195,6 +217,117 @@ export const getCategories = cache(async (): Promise<Category[]> => {
 export async function getCategory(slug: string): Promise<Category | null> {
   const categories = await getCategories();
   return categories.find((category) => category.slug === slug) ?? null;
+}
+
+/**
+ * The same columns plus the retirement triple, SPELLED OUT rather than composed
+ * from `COLUMNS`.
+ *
+ * A template literal would be shorter and would cost the check that matters:
+ * `tests/db/column-manifest.test.ts` reads every `.select(…)` in the codebase
+ * and asserts each column against the live schema, and it cannot follow a
+ * string built from another binding — it reported this exact expression as one
+ * it could not read. A list it can verify beats a list it has to skip, which is
+ * the `check:secrets` rule one guard over: a scanner that quietly stops
+ * scanning is worse than no scanner.
+ */
+const ADMIN_COLUMNS =
+  "slug, name_en, name_ne, descriptor, descriptor_ne, description, description_ne, cta_label, cta_label_ne, base_price_min, base_price_max, pricing_source, pricing_checked_at, pricing_note, pricing_confidence, pricing_model, icon, sort_order, retired_at, retired_reason, retired_by";
+
+/**
+ * EVERY trade ever, retired included, in display order.
+ *
+ * TWO READS BECAUSE THEY ARE TWO QUESTIONS, exactly as `allAreas` and
+ * `bookableAreas` are for wards — and here the split was already needed and
+ * already broken. `getCategories` filters `is_active`, so the day somebody
+ * withdrew a trade, `getCategory(booking.categorySlug)` would miss and BOTH
+ * screens that label a booking fall back to the bare slug: a customer's own
+ * booking page and the professional's job card would have read
+ * `water-tank-cleaning`. A finished job has to be able to say what it was.
+ *
+ * So: `getCategories` is the SELLABLE read — the landing grid, `/services`,
+ * every category page, `/book`, the triage prompt — and this is the LABEL read,
+ * plus the admin screen that opens and withdraws them.
+ *
+ * `null` ON A FAILED READ, and the asymmetry with `allAreas` is deliberate.
+ * A place name does not go stale, so a label read of wards can honestly serve
+ * the seed; a category carries a published BAND, and `withoutBand` exists
+ * because serving the seed's figure is how a stale customer protection reached
+ * `createBooking`. The one screen that calls this is an editor — if the table
+ * was unreachable, an edit would write where nothing is reading from and appear
+ * to do nothing — so it says so rather than rendering a working-looking form
+ * over the seed.
+ */
+export const allCategories = cache(
+  async (): Promise<CategoryRecord[] | null> => {
+    if (!hasSupabaseConfig()) {
+      /*
+       * THE UNCONFIGURED CLONE GETS THE SEED, `getCategories`' own reasoning:
+       * with no keys the seed IS the data, there is no table to have moved on,
+       * and withholding here would break a fresh checkout to guard against
+       * nothing. Nothing in the seed is retired, because the file records no
+       * retirement — which is exactly why a FAILED read may not fall back to it.
+       */
+      markDataSource("categories", "seed", "no Supabase URL or anon key");
+      return CATEGORY_SEED.map((category) => ({
+        ...category,
+        retiredAt: null,
+        retiredReason: null,
+        retiredBy: null,
+      }));
+    }
+
+    try {
+      const { data, error } = await createPublicClient()
+        .from("categories")
+        .select(ADMIN_COLUMNS)
+        .order("sort_order");
+
+      if (error || !data || data.length === 0) {
+        markDataSource(
+          "categories",
+          "seed",
+          error ? describeError(error) : "query returned 0 rows",
+        );
+        return null;
+      }
+
+      markDataSource("categories", "database");
+      return (data as (CategoryRow & RetirementRow)[]).map((row) => ({
+        ...fromRow(row),
+        retiredAt: row.retired_at,
+        retiredReason: row.retired_reason,
+        retiredBy: row.retired_by,
+      }));
+    } catch (thrown) {
+      rethrowFrameworkSignal(thrown);
+      markDataSource("categories", "seed", describeError(thrown));
+      return null;
+    }
+  },
+);
+
+/**
+ * One trade by slug, retired included — for labelling a row that already names
+ * it.
+ *
+ * It is what `/bookings/[id]` and `/provider/jobs` should ask rather than
+ * `getCategory`, so a withdrawn trade still reads as words. A failed read
+ * answers null and those screens already print the slug in that case, which is
+ * the honest fallback: the string is at least what the booking actually holds.
+ */
+export async function labelCategory(
+  slug: string | null | undefined,
+): Promise<Category | null> {
+  if (!slug) return null;
+  const all = await allCategories();
+  if (all) return all.find((category) => category.slug === slug) ?? null;
+  /* The read failed. The seed still has every authored word, and `withoutBand`
+     is what keeps a band nobody can vouch for off the screen — a label is the
+     one thing the seed is always right about. */
+  return (
+    withoutBand(CATEGORY_SEED).find((category) => category.slug === slug) ?? null
+  );
 }
 
 /**

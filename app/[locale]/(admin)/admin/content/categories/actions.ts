@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { recordSecurityEvent } from "@/lib/audit";
-import { adminActor } from "@/lib/auth/admin-gate";
+import { adminActor, freshAdminActor } from "@/lib/auth/admin-gate";
+import {
+  addCategory,
+  reopenCategory,
+  retireCategory,
+  type CategoryWriteResult,
+} from "@/lib/data/categories-admin";
 import { setCategoryContent } from "@/lib/data/content";
 
 /**
@@ -94,5 +100,113 @@ export async function setCategoryAction(
     revalidatePath("/[locale]", "layout");
   }
 
+  return result;
+}
+
+/**
+ * What the three standing actions give the screen back.
+ *
+ * THE GATE'S OWN REASON IS PASSED THROUGH RATHER THAN CAST, `addAreaAction`'s
+ * note: `isReauthReason` keys on `reauthNeeded` to render `ReauthNotice` — one
+ * sentence with a link to the code — and flattening it to `refused` would print
+ * "that did not save" at somebody whose only problem was a fifteen-minute
+ * window, with no way to find the remedy.
+ */
+type StandingResult = CategoryWriteResult | { ok: false; reason: string };
+
+function field(data: FormData, name: string): string {
+  const raw = data.get(name);
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+/**
+ * Open a trade, withdraw one, or sell it again.
+ *
+ * A FRESH SECOND FACTOR ON ALL THREE, where `setCategoryAction` above keeps the
+ * eight-hour window — and the asymmetry on one screen is the point rather than
+ * an accident of what was written when. Editing a descriptor is reversible and
+ * costs nothing; withdrawing a trade stops every future booking in it, which is
+ * our revenue there and the work of every professional who offers it, and
+ * opening one starts taking bookings on a band nobody has researched. That is
+ * `stateBandAction`'s distinction, two rows over in `/admin/bands`.
+ *
+ * All three are declared in `lib/config/admin-money.ts` and
+ * `tests/unit/admin-money-reauth.test.ts` reads this file through the
+ * TypeScript AST, so the gate cannot be dropped from one of them quietly.
+ *
+ * `revalidatePath` WITH "layout", for the reason `setCategoryAction` already
+ * records at length: a trade reaches the landing grid, `/services`, its own
+ * page, the booking flow and the triage prompt, and `getCategories` is a
+ * per-request `cache` with no tag to expire.
+ */
+export async function addCategoryAction(
+  data: FormData,
+): Promise<StandingResult> {
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+
+  const model = field(data, "pricingModel") === "survey" ? "survey" : "band";
+
+  /*
+   * THE BAND IS PARSED, NEVER ROUNDED — the `rupees()` lesson from the stated
+   * band form. `Number("1200.50")` is 1200.5 and `Math.round` would make it
+   * 1201, a floor somebody did not type; `addCategory` refuses a non-integer
+   * and says so, and this only has to not hide it first. A blank becomes NaN,
+   * which is also refused.
+   */
+  const rupees = (name: string) => {
+    const raw = field(data, name);
+    return raw === "" ? Number.NaN : Number(raw);
+  };
+
+  const result = await addCategory({
+    slug: field(data, "slug"),
+    nameEn: field(data, "nameEn"),
+    nameNe: field(data, "nameNe"),
+    descriptor: field(data, "descriptor"),
+    descriptorNe: field(data, "descriptorNe"),
+    description: field(data, "description"),
+    descriptionNe: field(data, "descriptionNe"),
+    ctaLabel: field(data, "ctaLabel"),
+    ctaLabelNe: field(data, "ctaLabelNe"),
+    icon: field(data, "icon"),
+    pricingModel: model,
+    bandMin: rupees("bandMin"),
+    bandMax: rupees("bandMax"),
+    actorId: gate.profile.id,
+  });
+
+  if (result.ok) revalidatePath("/[locale]", "layout");
+  return result;
+}
+
+export async function retireCategoryAction(
+  data: FormData,
+): Promise<StandingResult> {
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+
+  const result = await retireCategory({
+    slug: field(data, "slug"),
+    reason: field(data, "reason"),
+    actorId: gate.profile.id,
+  });
+
+  if (result.ok) revalidatePath("/[locale]", "layout");
+  return result;
+}
+
+export async function reopenCategoryAction(
+  data: FormData,
+): Promise<StandingResult> {
+  const gate = await freshAdminActor();
+  if (!gate.ok) return { ok: false, reason: gate.reason };
+
+  const result = await reopenCategory({
+    slug: field(data, "slug"),
+    actorId: gate.profile.id,
+  });
+
+  if (result.ok) revalidatePath("/[locale]", "layout");
   return result;
 }

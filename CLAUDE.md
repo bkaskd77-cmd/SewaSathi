@@ -582,6 +582,65 @@ perfect. Every read records which path it took (`lib/data/source.ts`) and
 as the triage badge: dev, or the query param on any deployment. If you add a
 read to `lib/data/`, call `markDataSource` on both branches.
 
+**A trade can be opened and withdrawn by a person now, and `is_active` was a
+gate nothing could move.** It has been on `categories` since the first
+migration, read by the table's own policy AND by `getCategories`' query — so a
+trade could only be withdrawn by a migration, which is `applyRedoRecovery`'s
+four-phase sin in the shape of a column. `retired_at`, `retired_reason` and
+`retired_by` sit beside it, because a boolean records that we stopped and
+nothing else, and "why did we stop selling water tank cleaning" is exactly the
+question a withdrawal raises.
+**`categories_retired_shape` ties the pair**, which is the part worth knowing:
+`is_active` and `retired_at` are one fact in two columns — this file's
+most-repeated sin — and they cannot be collapsed, because the policy and the
+catalogue query both name `is_active` and making it GENERATED means dropping and
+re-adding it. So the database enforces `is_active = (retired_at is null)`, and
+the db cases are written against each half SEPARATELY: a constraint that only
+ever saw them move together would pass while permitting the state that breaks
+the catalogue.
+**And the policy reads every row now, which is a bug this work found rather than
+a widening for its own sake.** `using (is_active)` hid a withdrawn trade from
+`anon`, every booking ever taken holds a `category_slug` with no foreign key
+behind it, and `/bookings/[id]` and `/provider/jobs` BOTH print the bare slug
+when the lookup misses — so withdrawing a trade would have put
+`water-tank-cleaning` on a customer's own booking page. `labelCategory` is the
+label read and `getCategories` stays the sellable one, the `allAreas` /
+`bookableAreas` split one table over; which rows are SOLD is the query's filter,
+where it belongs. **The wiring is tested rather than the function**, in both
+directions — a label read on `/services/[slug]` or inside `createBooking` would
+be the inverse bug, selling a trade we stopped selling — because #18's lesson
+was a feature built whole with nothing asserting it was plugged in.
+**Opening a trade is not the same size of act as opening a ward, and the screen
+says what is missing.** A ward needs a name and a key and everything that reads
+it then works; a trade is named in places that are CODE — `KEYWORD_RULES` in
+`lib/ai/mockTriage.ts`, the keys of `GUARANTEE_WINDOWS` — so a row inserted into
+`categories` renders perfectly while the keyword matcher cannot reach it, which
+is what answers on every fallback path when the key is missing, rejected or
+slow. It also has no sub-bands, so the "which product is it?" question asks
+nothing and nothing in the trade teaches the duration loop. `categoryReadiness`
+(`lib/config/category-readiness.ts`) derives those gaps and **splits out the two
+only a commit can close**, since a list mixing them reads as four things
+somebody could go and do this afternoon. **Nothing is refused**: a trade we have
+decided to sell is better open and incomplete than blocked behind a commit, and
+`invented` already has its gate — `check:blockers` refuses a launch build while
+any published band is a guess. What was missing is that nobody could SEE it.
+**A typed band is written `invented` and there is no provenance field on the
+form**, deliberately: a dropdown there would let somebody declare their own
+guess `researched` and route around the one gate that reads the column.
+**The launch catalogue is the oracle for "ready"** rather than a fixture — every
+authored trade must come back with no gaps, so a rule that drifted fails in a
+test instead of printing a warning on all ten. **A survey trade is complete with
+no products and no band**, which is not an exemption but the same rule read
+correctly: movers publishes no range anywhere in the market, and
+`sub-band-ask.test.ts` already asserts it has exactly zero products.
+**All three writers take `freshAdminActor()`'s fifteen minutes where the words
+editor on the same screen keeps the eight-hour window** — a descriptor is
+reversible and costs nobody anything; withdrawing a trade stops every future
+booking in it and opening one starts taking them on a band nobody researched.
+That asymmetry on one screen is `stateBandAction`'s distinction, and
+`@/lib/data/categories-admin` is declared in `lib/config/admin-money.ts` so the
+AST test fails if the gate is dropped from one of them.
+
 **Service areas are a table now, retired and never deleted, and the read is
 SPLIT BY WHAT THE ANSWER IS FOR.** `lib/config/areas.ts` held fifteen wards as a
 constant imported at module scope by fifteen files, which made a list a person

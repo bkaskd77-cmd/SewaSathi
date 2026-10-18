@@ -1745,6 +1745,91 @@ from the seed, the table was unreachable, so an edit would write somewhere nothi
 is reading from and appear to do nothing. The screen says that instead — the
 `/services` rule, one surface across.
 
+### Which trades we sell, opened and withdrawn by a person
+
+`/admin/content/categories` was the words editor; it now also decides whether we
+sell the trade at all. One screen rather than a second one listing the same ten:
+the words and the standing are two facts about one row.
+
+**`is_active` was a gate nothing could move.** It has been on `categories` since
+the first migration, read by the table's own policy AND by `getCategories`'
+query — and no code in the product ever wrote it, so withdrawing a trade meant a
+migration. `retired_at`, `retired_reason` and `retired_by` are what make a
+withdrawal answerable: a boolean records that we stopped and nothing else.
+
+**`categories_retired_shape` ties the pair.** `is_active` and `retired_at` are
+one fact in two columns, and they cannot be collapsed into one — the policy and
+the catalogue query both name `is_active`, and making it a GENERATED column
+means dropping and re-adding it, which this transport refuses and which would
+take the policy with it. So the invariant is enforced instead:
+`is_active = (retired_at is null)`. The db cases are written against each half
+separately, because a constraint that only ever saw them move together would
+pass while permitting the state that breaks the catalogue.
+
+**And the policy reads every row, which is a bug this work found.**
+`using (is_active)` hid a withdrawn trade from `anon`; every booking ever taken
+holds a `category_slug` with no foreign key behind it, and `/bookings/[id]` and
+`/provider/jobs` both fall back to printing the bare slug when the lookup
+misses. Withdrawing a trade would therefore have put `water-tank-cleaning` on a
+customer's own booking page. `labelCategory` is the label read and
+`getCategories` stays the sellable one — the `allAreas` / `bookableAreas` split
+one table over — and which rows are SOLD is the query's filter, where it
+belongs.
+
+**`allCategories` answers null on a failed read where `allAreas` serves the
+seed**, and the asymmetry is deliberate: a place name does not go stale, where a
+category carries a published band and `withoutBand` exists because serving the
+seed's figure is how a stale customer protection reached `createBooking`. The
+one screen calling it is an editor, so if the table was unreachable an edit would
+write where nothing is reading from and appear to do nothing.
+
+**The wiring is tested, in both directions.**
+`tests/unit/category-label-read.test.ts` pins which of the two reads each file
+makes — because a label read on `/services/[slug]` or inside `createBooking`
+would be the inverse bug, selling a trade we stopped selling — and asserts that
+`getCategories` carries the `is_active` filter and `allCategories` does not,
+since a label read that grew one would break every label again with all six
+other cases still passing. #18's lesson: a feature built whole with nothing
+asserting it was plugged in.
+
+**Opening a trade is not the same size of act as opening a ward.** A ward needs a
+name and a key and everything that reads it then works. A trade is named in
+places that are CODE: `KEYWORD_RULES` in `lib/ai/mockTriage.ts` and the keys of
+`GUARANTEE_WINDOWS`. So a row inserted into `categories` renders perfectly on the
+landing grid while the keyword matcher cannot reach it — and that matcher is what
+answers on every fallback path, whenever the key is missing, rejected, slow or
+returns something the schema refuses. It has no sub-bands either, so the "which
+product is it?" question asks nothing and no job in the trade teaches the
+duration loop, the per-product bands or the span.
+
+`categoryReadiness` (`lib/config/category-readiness.ts`) derives those gaps and
+**splits out the two only a commit can close**, because a list that mixed them
+would read as four things somebody could go and do this afternoon. **Nothing is
+refused**: a trade we have decided to sell is better open and incomplete than
+blocked behind a commit, and `invented` already has the gate it needs —
+`check:blockers` refuses a launch build while any published band is a guess. What
+was missing is that nobody could SEE the gap; the screen said "ten trades" either
+way. It measures and does not grade — `/admin/signals`' posture.
+
+**The launch catalogue is the oracle for "ready"** rather than a fixture: every
+authored trade must come back with no gaps, so a rule that drifted from what the
+ten actually are fails in a test instead of printing a warning on all of them.
+A **survey** trade is complete with no products and no band, which is the same
+rule read correctly rather than an exemption — movers publishes no range anywhere
+in the market, and `sub-band-ask.test.ts` already asserts it has exactly zero
+products.
+
+**A typed band is written `invented` and the form has no provenance field.** A
+dropdown there would let somebody declare their own guess `researched` and route
+around the one gate that reads the column; `/admin/bands`' `stateBand` is where a
+researched figure replaces it, with a reason in an append-only table.
+
+**All three writers take the fifteen-minute window where the words editor beside
+them keeps the eight-hour one.** A descriptor is reversible and costs nobody
+anything; withdrawing a trade stops every future booking in it and opening one
+starts taking them on a band nobody researched. Two gates on one screen needs the
+heavier one to look different, which is what the typed reason is for.
+
 ### Service areas, opened and withdrawn by a person
 
 `/admin/areas` opens a ward and withdraws one. `lib/data/areas.ts` is the read,

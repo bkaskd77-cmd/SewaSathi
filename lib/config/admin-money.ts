@@ -71,6 +71,16 @@ export const MONEY_MODULES: readonly string[] = [
    */
   "@/lib/data/areas-admin",
   "@/lib/data/bands",
+  /*
+   * NOT OBVIOUSLY A MONEY MODULE EITHER, and listed for the reason one entry
+   * up is. `addCategory` publishes a price band — `invented`, and still the
+   * figure `createBooking` freezes as `quoted_max`, which is the ceiling
+   * `judgeFinalAmount` measures a 2x overcharge against — and
+   * `retireCategory` stops every future booking in a whole trade. The words
+   * editor beside them (`@/lib/data/content`) is deliberately NOT here: a
+   * descriptor is reversible and costs nobody anything.
+   */
+  "@/lib/data/categories-admin",
   "@/lib/data/claims",
   "@/lib/data/customer-risk",
   /*
@@ -133,6 +143,24 @@ export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
     module: "@/lib/data/areas-admin",
     proof: "fresh-actor",
     why: "The other direction of the same decision. Reopening from a session nobody proved is how a ward withdrawn for a real reason - no professional there, somewhere we cannot safely send anybody - quietly starts taking bookings again.",
+  },
+  {
+    fn: "addCategory",
+    module: "@/lib/data/categories-admin",
+    proof: "fresh-actor",
+    why: "Opens a trade across the whole product in one tap, carrying a price band nothing computed - two figures typed into two boxes, written `invented` and frozen onto every booking taken in that trade as `quoted_max`, which is the ceiling judgeFinalAmount measures a 2x overcharge against. stateBand's reasoning for a band that already exists, on one that did not.",
+  },
+  {
+    fn: "retireCategory",
+    module: "@/lib/data/categories-admin",
+    proof: "fresh-actor",
+    why: "Stops every future booking in a trade: our revenue there and the work of every professional who offers it. retireArea's argument with a trade in place of a ward - forward-only and reversible, and refused here anyway because the blast radius is a whole trade rather than one figure somebody read off a screen.",
+  },
+  {
+    fn: "reopenCategory",
+    module: "@/lib/data/categories-admin",
+    proof: "fresh-actor",
+    why: "The other direction of the same decision. Reopening from a session nobody proved is how a trade withdrawn for a real reason - nobody to do the work, a band we got badly wrong - quietly starts taking bookings again on the band it was withdrawn with.",
   },
   {
     fn: "stateBand",

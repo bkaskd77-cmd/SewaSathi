@@ -47,7 +47,7 @@ import { categoryCopy } from "@/lib/config/services";
 import { getAddress } from "@/lib/data/addresses";
 import { signBookingPhoto } from "@/lib/data/booking-photos";
 import { getBooking, listRefusals } from "@/lib/data/bookings";
-import { getCategory, getSubBands } from "@/lib/data/categories";
+import { getSubBands, labelCategory } from "@/lib/data/categories";
 import {
   claimEligibility,
   claimsForBooking,
@@ -143,7 +143,7 @@ export default async function BookingDetailPage(props: {
     review,
     refusalRows,
   ] = await Promise.all([
-    getCategory(booking.categorySlug),
+    labelCategory(booking.categorySlug),
     // For the price correction: the products this trade publishes, so a
     // slug can be named and its range shown. `cache()`d per request and
     // seed-backed like every other catalogue read, and it depends on

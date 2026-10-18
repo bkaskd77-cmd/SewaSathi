@@ -290,6 +290,29 @@ export function categoryCopy(category: Category, locale: Locale): CategoryCopy {
 export const CATEGORY_SEED = categorySeed as Category[];
 
 /**
+ * What a category slug has to look like: lowercase words joined by hyphens.
+ *
+ * THE SAME REASONING AS `AREA_KEY_SHAPE` AND A LONGER REACH. This string is
+ * `bookings.category_slug`, `provider_categories.category_slug`,
+ * `category_price_bands.category_slug`, `category_pricing_signals`,
+ * `category_price_revisions`, the keys of `GUARANTEE_WINDOWS`, the `category`
+ * on every `KEYWORD_RULES` entry, and the `/services/[slug]` URL — with no
+ * foreign key behind most of them. So a trade opened as "Water Tank Cleaning"
+ * would render correctly on the admin screen and match nothing at all.
+ *
+ * No trailing number, which is the one place it differs from an area key: a
+ * ward IS a number and a trade is not, so `plumbing-2` is a second trade
+ * somebody meant to name rather than a variant of the first.
+ *
+ * It lives here beside the pure helpers rather than in the `server-only`
+ * writer that enforces it, so both suites can reach it, and
+ * `tests/db/category-retirement.test.ts` compares it against the slug column's
+ * own constraint where one exists.
+ */
+export const CATEGORY_SLUG_SHAPE = /^[a-z]+(-[a-z]+)*$/;
+
+
+/**
  * The authored sub-bands. Seeds `category_price_bands` and answers when the
  * database is unconfigured or unreachable, exactly like `CATEGORY_SEED`.
  */

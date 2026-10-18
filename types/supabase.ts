@@ -131,7 +131,16 @@ export type Database = {
           pricing_model: string;
           icon: string;
           sort_order: number;
+          /**
+           * Whether we sell it. Kept in step with `retired_at` by
+           * `categories_retired_shape`, which refuses one without the other —
+           * two columns, one fact, enforced rather than remembered.
+           */
           is_active: boolean;
+          /** Null is "we still sell it", never "unknown". */
+          retired_at: string | null;
+          retired_reason: string | null;
+          retired_by: string | null;
           created_at: string;
         };
         Insert: {
@@ -154,6 +163,9 @@ export type Database = {
           icon: string;
           sort_order: number;
           is_active?: boolean;
+          retired_at?: string | null;
+          retired_reason?: string | null;
+          retired_by?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;

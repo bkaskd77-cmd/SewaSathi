@@ -11,7 +11,7 @@ import {
   chooseProvider,
   getBooking,
 } from "@/lib/data/bookings";
-import { getCategory } from "@/lib/data/categories";
+import { labelCategory } from "@/lib/data/categories";
 import {
   abandonPayment,
   approveFinalAmount,
@@ -69,7 +69,10 @@ export async function startPaymentAction(
 
   const booking = await getBooking(bookingId, { customerId: profile.id });
   if (!booking) return { ok: false, reason: "bookingNotFound" };
-  const category = await getCategory(booking.categorySlug);
+  /* LABEL, not catalogue: a booking in a trade we have since withdrawn is
+     still payable, and this string is what a customer staring at eSewa reads
+     to tell which job they are paying for. */
+  const category = await labelCategory(booking.categorySlug);
 
   const result = await startPayment({
     bookingId,
