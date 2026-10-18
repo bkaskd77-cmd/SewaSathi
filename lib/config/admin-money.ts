@@ -59,6 +59,17 @@
  */
 export const MONEY_MODULES: readonly string[] = [
   "@/lib/data/ai-ceilings",
+  /*
+   * NOT MONEY IN THE OBVIOUS SENSE, AND LISTED FOR THE SAME REASON
+   * `@/lib/data/enforcement` IS. Retiring a ward stops every future booking in
+   * it — all of our revenue there, and all of the work for every professional
+   * who covers it — in one tap, for everybody at once rather than one account
+   * at a time. The user's own rule groups removing an area with removing a
+   * category under the money rules, and listing it is what makes
+   * `tests/unit/admin-money-reauth.test.ts` fail on a future writer added here
+   * without the gate.
+   */
+  "@/lib/data/areas-admin",
   "@/lib/data/bands",
   "@/lib/data/claims",
   "@/lib/data/customer-risk",
@@ -105,6 +116,24 @@ export type AdminMoneyWrite = {
 };
 
 export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
+  {
+    fn: "addArea",
+    module: "@/lib/data/areas-admin",
+    proof: "fresh-actor",
+    why: "Opens a ward for booking across the whole product in one tap - the address picker, the application form and the catalogue filter all take it from the next request. A ward opened by mistake is bookings we cannot serve, and `areas_key_shape` bounds the key but nothing bounds how wrong the place is.",
+  },
+  {
+    fn: "retireArea",
+    module: "@/lib/data/areas-admin",
+    proof: "fresh-actor",
+    why: "Stops every future booking in a ward: all of our revenue there and all of the work for every professional who covers it. It is forward-only and reversible, which is the argument approveBand is excused on - and it is refused here because the blast radius is a whole ward of customers rather than one figure a person reads off a screen.",
+  },
+  {
+    fn: "reopenArea",
+    module: "@/lib/data/areas-admin",
+    proof: "fresh-actor",
+    why: "The other direction of the same decision. Reopening from a session nobody proved is how a ward withdrawn for a real reason - no professional there, somewhere we cannot safely send anybody - quietly starts taking bookings again.",
+  },
   {
     fn: "stateBand",
     module: "@/lib/data/bands",

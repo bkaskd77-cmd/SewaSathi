@@ -9,6 +9,7 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { areaShortLabel } from "@/lib/config/areas";
+import { allAreas } from "@/lib/data/areas";
 import { applicationForReview } from "@/lib/data/review";
 
 import { decideAction, openDocumentAction } from "./actions";
@@ -62,9 +63,12 @@ export default async function ApplicationReviewPage(props: {
   }
   const profile = gate.profile;
 
-  const [application, messages] = await Promise.all([
+  const [application, messages, areas] = await Promise.all([
     applicationForReview({ applicationId: params.id, adminId: profile.id }),
     getMessages(),
+    /* LABELLING, so every area ever — an applicant may have named a ward we
+       have since retired, and this screen still has to say which one. */
+    allAreas(),
   ]);
 
   if (!application) notFound();
@@ -115,7 +119,7 @@ export default async function ApplicationReviewPage(props: {
         <Pair
           label={tApply("areas.title")}
           value={application.serviceAreas
-            .map((key) => areaShortLabel(key, locale))
+            .map((key) => areaShortLabel(areas, key, locale))
             .join(", ")}
         />
         <Pair

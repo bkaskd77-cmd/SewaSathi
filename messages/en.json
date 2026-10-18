@@ -728,7 +728,8 @@
         "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again.",
         "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick.",
         "providerFull": "Somebody booked that time while you were filling this in. Pick another time, or let us choose.",
-        "pricesUnreadable": "Prices couldn't load, so this booking wasn't taken and nothing has been charged. Try again in a minute."
+        "pricesUnreadable": "Prices couldn't load, so this booking wasn't taken and nothing has been charged. Try again in a minute.",
+        "areasUnreadable": "We couldn't load the service areas — this is us, not you. Try again in a minute."
       },
       "cannotCome": {
         "reason": {
@@ -1198,7 +1199,8 @@
       "prefix": "Mobile numbers here start 97 or 98.",
       "tooShort": "Too short — a mobile number is 10 digits.",
       "tooLong": "Too long — a mobile number is 10 digits.",
-      "tooManyRequests": "That is a lot of applications at once. Wait a minute and try again."
+      "tooManyRequests": "That is a lot of applications at once. Wait a minute and try again.",
+      "areasUnreadable": "We couldn't load the service areas — this is us, not you. Try again in a minute."
     },
     "standards": "Before you join, read <link>how we handle under-reported jobs</link> — what we count, what we never count, and what each step costs.",
     "apply": {
@@ -1898,6 +1900,10 @@
         "signals": {
           "name": "Signals",
           "what": "Where our published prices are wrong, and how much is being paid in cash."
+        },
+        "areas": {
+          "name": "Service areas",
+          "what": "Open a ward or stop taking work in one. Retired, never deleted."
         },
         "bands": {
           "name": "Price bands",
@@ -2834,6 +2840,43 @@
       "cancelJob": "End it",
       "cancelReasonPlaceholder": "What the customer is told",
       "inProgressRing": "Work has started — somebody is in the customer's home. Ring them; this is not a button."
+    },
+    "areas": {
+      "title": "Service areas",
+      "lead": "The wards we take work in. Adding one opens it everywhere at once — the address picker, the application form and the catalogue filter.",
+      "neverDeleted": "A ward is retired, never deleted. Retiring stops new bookings and changes nothing that already happened: the jobs, the addresses and the quotes in that ward all stay exactly as they are.",
+      "ward": "Ward {n}",
+      "serving": "{count, plural, one {{n} ward} other {{n} wards}} we serve",
+      "notServing": "{count, plural, one {{n} retired ward} other {{n} retired wards}}",
+      "noCentroid": "No map centre for this ward yet, so distance ranking treats every address in it the same. Run the ward-centroid script to fix that.",
+      "retiredOn": "Retired {when} — “{why}”",
+      "retiredMeans": "No new bookings here. Everything already booked is untouched.",
+      "why": "Why (recorded)",
+      "retire": "Stop taking work here",
+      "reopen": "Serve this ward again",
+      "addTitle": "Open a ward",
+      "addLead": "All six fields, including both Nepali ones — a ward with no Nepali name shows the English on a Nepali page.",
+      "keyLabel": "Key",
+      "keyHelp": "City slug and ward number, lower case: kathmandu-4, lalitpur-10. This is the string every address and coverage list already uses, so it cannot be changed afterwards.",
+      "cityLabel": "City",
+      "cityNeLabel": "City (Nepali)",
+      "nameLabel": "Ward name",
+      "nameNeLabel": "Ward name (Nepali)",
+      "wardLabel": "Ward no.",
+      "add": "Open it",
+      "working": "Saving…",
+      "done": "Saved.",
+      "errors": {
+        "refused": "That did not save. Nothing has been changed.",
+        "unreadable": "We could not reach the database. Nothing has been changed.",
+        "noReason": "A reason is required — it is what a future reader has.",
+        "exists": "That ward is already on the list. If it is retired, reopen it below rather than adding it again.",
+        "notFound": "Nothing to change — that ward is already in the state you asked for.",
+        "badKey": "A key is a city slug and a ward number in lower case, like kathmandu-4.",
+        "badWard": "A ward number is a whole number above zero.",
+        "blank": "Every field is required, including both Nepali ones.",
+        "notAdmin": "You are no longer signed in as an admin."
+      }
     }
   },
   "offline": {

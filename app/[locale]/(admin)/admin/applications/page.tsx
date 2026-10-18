@@ -8,6 +8,7 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { areaShortLabel } from "@/lib/config/areas";
+import { allAreas } from "@/lib/data/areas";
 import { reviewQueue } from "@/lib/data/verification";
 
 export async function generateMetadata(props: {
@@ -59,7 +60,10 @@ export default async function ApplicationQueuePage() {
   // Route-level gating is not the boundary — every table below is admin-only
   // under RLS — but a non-admin should meet a 404 rather than a shell.
 
-  const queue = await reviewQueue();
+  /* ONE WAVE — the standing latency rule, and neither read depends on the
+     other. `allAreas` because this is LABELLING: an applicant may have named a
+     ward we have since retired, and the queue still has to say which one. */
+  const [queue, areas] = await Promise.all([reviewQueue(), allAreas()]);
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 py-10">
@@ -104,7 +108,7 @@ export default async function ApplicationQueuePage() {
                   {row.trades.join(", ") || "—"}
                   {row.serviceAreas.length > 0
                     ? ` · ${row.serviceAreas
-                        .map((key) => areaShortLabel(key, locale))
+                        .map((key) => areaShortLabel(areas, key, locale))
                         .join(", ")}`
                     : ""}
                 </p>

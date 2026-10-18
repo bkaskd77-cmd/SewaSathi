@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
-import { AREAS, areaShortLabel } from "@/lib/config/areas";
+import { areaShortLabel } from "@/lib/config/areas";
+import { bookableAreas } from "@/lib/data/areas";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import {
   APPLY_STEPS,
@@ -163,7 +164,9 @@ export default async function ApplyPage() {
   }
 
   /* ---- A draft in progress. ---- */
-  const [documents, references, messages] = await Promise.all([
+  const [applyAreas, documents, references, messages] = await Promise.all([
+    /* Live wards only: this is where somebody says which they will travel to. */
+    bookableAreas(),
     listApplicationDocuments(application.id),
     listReferences(application.id),
     getMessages(),
@@ -219,11 +222,15 @@ export default async function ApplyPage() {
             slug: category.slug,
             name: categoryCopy(category, locale).name,
           }))}
-          areas={AREAS.map((area) => ({
+          /* A CHOICE, so live wards only — somebody cannot offer to work in
+             one we have withdrawn. `?? []` on a failed read rather than the
+             seed's fifteen: an empty grid is visibly wrong, where a stale one
+             looks right and files coverage nobody can book. */
+          areas={(applyAreas ?? []).map((area) => ({
             key: area.key,
             // The short form: a checkbox grid of thirty wards is unreadable
             // with the full "Lalitpur · Ward 4 (Jhamsikhel)" on every line.
-            label: areaShortLabel(area.key, locale),
+            label: areaShortLabel(applyAreas ?? [], area.key, locale),
           }))}
           documents={wanted}
           references={references.map((reference) => ({

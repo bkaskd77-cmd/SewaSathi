@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
+import { areasByCity } from "@/lib/config/areas";
 import { categoryCopy, categoryQuote } from "@/lib/config/services";
+import { allAreas, bookableAreas } from "@/lib/data/areas";
 import { openGraphFor } from "@/lib/seo";
 import { getCategory, getSubBands } from "@/lib/data/categories";
 import { bandBounds, type BandSource } from "@/lib/booking";
@@ -163,6 +165,14 @@ export default async function CategoryPage(props: {
    */
   const quote = categoryQuote(category);
   const subBands = quote.kind === "band" ? await getSubBands() : [];
+  /*
+   * TWO READS, TWO QUESTIONS — the split `lib/data/areas.ts` is built around.
+   * `areaRows` LABELS the ward in the filter heading, so it includes retired
+   * ones: a shared link to a withdrawn ward still has to say which one it was.
+   * `bookable` is what the filter may OFFER, so it does not — filtering for a
+   * ward we withdrew searches for coverage we no longer have. One wave.
+   */
+  const [areaRows, bookable] = await Promise.all([allAreas(), bookableAreas()]);
   const statedBand =
     band && bandSource === "customer"
       ? (subBands.find(
@@ -229,7 +239,7 @@ export default async function CategoryPage(props: {
               {t("showingFor", {
                 category: copy.ctaLabel,
                 where: area
-                  ? t("inArea", { area: areaShortLabel(area, locale) })
+                  ? t("inArea", { area: areaShortLabel(areaRows, area, locale) })
                   : t("nearYou"),
               })}
             </span>
@@ -300,7 +310,14 @@ export default async function CategoryPage(props: {
           again: a failed read must not look like a measured answer.
         */}
         {quote.kind === "band" ? (
-          <ProviderFilters priceBand={{ low: quote.low, high: quote.high }} />
+          <ProviderFilters
+            priceBand={{ low: quote.low, high: quote.high }}
+            /* The filter offers LIVE wards: filtering for a ward we withdrew
+               would quietly search for coverage we no longer have. Labelling
+               elsewhere on this page uses `areaRows`, which includes retired
+               ones — two reads, two questions. */
+            areas={areasByCity(bookable ?? [], locale)}
+          />
         ) : null}
       </div>
 

@@ -8,6 +8,7 @@ import { Link, redirect } from "@/i18n/navigation";
 import { getSessionProfile } from "@/lib/auth/session";
 import type { Locale } from "@/i18n/routing";
 import { areaCity, areaName, areasByCity } from "@/lib/config/areas";
+import { bookableAreas } from "@/lib/data/areas";
 import { categoryCopy, SERVICE_CATEGORIES } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { joinAction } from "./actions";
@@ -66,7 +67,15 @@ export default async function JoinPage() {
     label: categoryCopy(category, locale).name,
   }));
 
-  const areas = areasByCity(locale).map((group) => ({
+  /*
+   * A CHOICE, SO THE LIVE LIST AND NOTHING ELSE. Somebody offering to work in a
+   * ward we have withdrawn would file a lead against a key no customer can
+   * book, so `bookableAreas()` is the read — and it answers null when it
+   * failed, which this page turns into an empty picker plus a sentence rather
+   * than the seed's fifteen.
+   */
+  const areaRows = await bookableAreas();
+  const areas = areasByCity(areaRows ?? [], locale).map((group) => ({
     city: group.city,
     options: group.areas.map((area) => ({
       value: area.key,

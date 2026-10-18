@@ -16,6 +16,7 @@ import {
 } from "@/lib/data/providers";
 import { sortProviders, type SortOption } from "@/lib/data/ranking";
 import { providerCapacity } from "@/lib/data/capacity";
+import { allAreas } from "@/lib/data/areas";
 import { hasRoom } from "@/lib/booking";
 import { jobFit, servingWhen, showsInList } from "@/lib/provider";
 
@@ -93,10 +94,16 @@ export async function ProviderList({
    * honest "as soon as possible", and the coarse answer is the right one here:
    * can they come at all. The booking flow asks the exact question later.
    */
-  const capacity = await providerCapacity(
-    providers.map((p) => p.id),
-    params.category,
-  );
+  /*
+   * ONE WAVE — the standing latency rule, and neither depends on the other.
+   * `allAreas` because every use of it here is LABELLING: a professional's
+   * coverage badge and the "covering Jhamsikhel" heading both have to name a
+   * ward we may since have retired rather than print its slug.
+   */
+  const [capacity, areas] = await Promise.all([
+    providerCapacity(providers.map((p) => p.id), params.category),
+    allAreas(),
+  ]);
   const when = servingWhen({ urgency: params.urgency });
 
   const ranked = sortProviders(providers, params.sort ?? "relevance", {
@@ -177,7 +184,7 @@ export async function ProviderList({
       );
     }
 
-    const area = params.area ? areaShortLabel(params.area, locale) : null;
+    const area = params.area ? areaShortLabel(areas, params.area, locale) : null;
 
     return (
       <EmptyState
@@ -208,7 +215,7 @@ export async function ProviderList({
           n: String(visible.length),
           where: params.area
             ? t("coveringArea", {
-                area: areaShortLabel(params.area, locale),
+                area: areaShortLabel(areas, params.area, locale),
               })
             : t("inTheValley"),
         })}
@@ -229,6 +236,7 @@ export async function ProviderList({
         {visible.map((provider, index) => (
           <li key={provider.id}>
             <ProviderCard
+              areas={areas}
               provider={provider}
               categorySlug={params.category}
               urgency={params.urgency}

@@ -2,7 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
-import { AREA_KEYS, findArea } from "@/lib/config/areas";
+import { findAreaIn } from "@/lib/config/areas";
+import { bookableAreas } from "@/lib/data/areas";
 import { isPoint } from "@/lib/geo";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -61,7 +62,15 @@ export type AddressInput = {
 
 const schema = z.object({
   label: z.string().trim().min(1).max(40).default("home"),
-  area: z.string().refine((v) => AREA_KEYS.includes(v)),
+  /*
+   * SHAPE ONLY HERE, and the area itself is checked against the live table
+   * after parsing — see `createAddress`. It read `AREA_KEYS.includes(v)` while
+   * areas were a file, and a zod `refine` is synchronous, so once a person can
+   * RETIRE a ward there is no way to ask the table from inside one. Leaving it
+   * reading the seed would have been worse than useless: it would have accepted
+   * a withdrawn ward and looked like a validation.
+   */
+  area: z.string().trim().min(1),
   tole: z.string().trim().min(2).max(80),
   landmark: z.string().trim().min(2).max(120),
   directionsNote: z.string().trim().max(300).optional(),
@@ -173,7 +182,25 @@ export async function createAddress(
   if (!check.ok) return { ok: false, errors: check.errors };
 
   const parsed = schema.parse(input);
-  const area = findArea(parsed.area);
+
+  /*
+   * THE AREA IS CHECKED AGAINST WHAT WE SERVE NOW, not against the seed.
+   *
+   * `bookableAreas()` returns live wards only and **null when the read failed**,
+   * which is the distinction that matters: the seed cannot know what somebody
+   * retired last week, so falling back to it here would accept an address in a
+   * ward we have withdrawn — and then take a booking there that no professional
+   * will travel to. A refusal is the honest answer, the same one `/book` gives
+   * for a price band it could not read.
+   *
+   * `pickArea` for an unknown or retired key and `areasUnreadable` for a failed
+   * read: two different sentences, because "that is not somewhere we work" is
+   * the customer's to act on and "we could not look" is ours.
+   */
+  const areas = await bookableAreas();
+  if (areas === null) return { ok: false, errors: { area: "areasUnreadable" } };
+
+  const area = findAreaIn(areas, parsed.area);
   if (!area) return { ok: false, errors: { area: "pickArea" } };
 
   if (!hasSupabaseConfig()) {

@@ -3,7 +3,8 @@ import "server-only";
 import { z } from "zod";
 
 import type { Locale } from "@/i18n/routing";
-import { AREA_KEYS } from "@/lib/config/areas";
+import { findAreaIn } from "@/lib/config/areas";
+import { bookableAreas } from "@/lib/data/areas";
 import { checkNepaliMobile } from "@/lib/auth";
 import { CATEGORY_SEED } from "@/lib/config/services";
 import { describeError } from "@/lib/data/source";
@@ -57,7 +58,10 @@ export function isDuplicateLead(error: { code?: string } | null): boolean {
 const schema = z.object({
   fullName: z.string().trim().min(2).max(80),
   category: z.string().refine((v) => CATEGORY_SLUGS.includes(v)),
-  area: z.string().refine((v) => AREA_KEYS.includes(v)),
+  /* Shape only; the ward is checked against the live table below, for the
+     reason `lib/data/addresses.ts` states — a zod refine is synchronous and
+     cannot ask which areas are retired. */
+  area: z.string().trim().min(1),
   years: z.coerce.number().int().min(0).max(60),
   note: z.string().trim().max(500).optional(),
 });
@@ -93,6 +97,20 @@ export async function submitProviderLead(
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   if (!parsed.success || !phone.ok) return { ok: false, errors };
+
+  /*
+   * A PROFESSIONAL MAY ONLY OFFER TO WORK SOMEWHERE WE SERVE. A withdrawn ward
+   * accepted here puts a key into `provider_leads.area_key` that no customer
+   * can ever book against, so the lead sits in the queue looking like coverage
+   * we do not have. Null is a failed read and gets its own sentence — telling
+   * somebody their ward is not served when we simply could not look is how a
+   * working product turns applicants away.
+   */
+  const areas = await bookableAreas();
+  if (areas === null) return { ok: false, errors: { area: "areasUnreadable" } };
+  if (!findAreaIn(areas, parsed.data.area)) {
+    return { ok: false, errors: { area: "pickArea" } };
+  }
 
   if (!hasSupabaseConfig()) {
     // A fresh clone with no keys should still be able to walk the form. The

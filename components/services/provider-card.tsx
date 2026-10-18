@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { areaShortLabel } from "@/lib/config/areas";
+import { areaShortLabel, type Area } from "@/lib/config/areas";
 import type { Provider } from "@/lib/data/providers";
 import type { Fit } from "@/lib/provider";
 import { isNewProvider } from "@/lib/data/ranking";
@@ -55,8 +55,17 @@ export function ProviderCard({
   q,
   index = 0,
   fit = { fit: "ok" },
+  areas,
 }: {
   provider: Provider;
+  /**
+   * Every area ever, for naming this professional's coverage.
+   *
+   * PASSED IN BECAUSE THIS IS A SYNC COMPONENT and areas are a table now;
+   * `ProviderList` reads them once per request and hands the same list to every
+   * card, which is one round trip rather than one per row.
+   */
+  areas: readonly Area[];
   categorySlug: string;
   urgency?: string | null;
   /** The product the triage named, carried from /services so /book keeps it. */
@@ -166,7 +175,7 @@ export function ProviderCard({
               <MapPin aria-hidden="true" className="size-3.5" />
               {provider.serviceAreas
                 .slice(0, 2)
-                .map((key) => areaShortLabel(key, locale))
+                .map((key) => areaShortLabel(areas, key, locale))
                 .join(" · ")}
             </span>
             {provider.serviceAreas.length > 2 ? (

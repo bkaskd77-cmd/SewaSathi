@@ -1745,6 +1745,93 @@ from the seed, the table was unreachable, so an edit would write somewhere nothi
 is reading from and appear to do nothing. The screen says that instead — the
 `/services` rule, one surface across.
 
+### Service areas, opened and withdrawn by a person
+
+`/admin/areas` opens a ward and withdraws one. `lib/data/areas.ts` is the read,
+`lib/data/areas-admin.ts` is the writer, and they are two files on purpose: the
+read is reached by the landing page, `/services`, the booking flow and
+`/providers/join` through the cookie-free anon client, and putting the
+service-role key in that module would place it on the import graph of every
+public page — which `check:secrets`' source pass is what would eventually say.
+
+**Two reads, because they are two questions whose failures cost different
+things.** This is the design and it is the thing to keep. `allAreas()` returns
+every ward ever, retired included, for turning a key already stored on a row into
+words — an old booking, a provider card, an application — and falls back to the
+seed, which is honest there: a place name does not go stale and the key is frozen
+on the row. `bookableAreas()` returns live wards only, for a choice somebody is
+about to make, and **returns null on a failed read** rather than the seed,
+because the seed cannot know what was retired last week and offering a withdrawn
+ward takes a booking no professional will travel to. It is `categoryQuote`'s
+lesson one table over, with the difference that here the same row is safe to
+label with and unsafe to offer.
+
+It composes `allAreas` rather than running a second query — one round trip, one
+`markDataSource` reading, and no way for the two to disagree about which wards
+exist — and asks that reading rather than a second query to tell a fallback from
+a hit, since `allAreas` deliberately cannot say through its return value. An
+UNCONFIGURED clone gets the seed on both, for the reason `getCategories` gives.
+
+**Retire, never delete, and forward-only structurally.** `addresses.area_key`,
+`provider_leads.area_key` and `providers.service_areas` all hold these keys with
+no foreign key behind any of them, so a delete orphans live bookings and leaves
+an old booking page unable to say where the job was. There is no delete path, no
+DELETE policy and no browser grant. Retiring changes nothing that already
+happened — the address, the quote, the professional and an accepted job's travel
+all stand — and changes every NEW choice, because `bookableAreas()` stops
+returning it and the address picker, the application form and the catalogue
+filter all drop it on the next request.
+
+**`areas_retired_shape` keeps the date, the reason and the actor null together or
+set together**, and the reason is required: six months on, "why did we stop
+serving ward 26" is exactly what gets asked, and a withdrawal recorded with no
+words is one nobody can answer. Both writes are guarded on the current state
+(`is("retired_at", null)` and its inverse), so a double submit is one retirement
+with one date rather than a second that re-dates the first. `reopenArea` exists
+so a ward withdrawn by mistake does not need a migration, and the audit log
+carries both moves — three kinds, `area.opened`, `area.retired`, `area.reopened`
+— so the history reads as what happened rather than as a row that was always
+live.
+
+**A zod `refine` cannot ask a table.** `addresses.ts` and `provider-leads.ts`
+validated the key against `AREA_KEYS.includes(…)` while areas were a file; a
+refine is synchronous, so once a person can retire a ward there is no way to ask
+the table from inside one. They check the SHAPE in the schema and the area
+against `bookableAreas()` after parsing, with two sentences out of it rather than
+one: `pickArea` for an unknown or retired key, which is the customer's to act on,
+and `areasUnreadable` for a failed read, which is ours.
+
+**`AREA_KEY_SHAPE` is one pattern written twice and is compared.** It lives in
+`lib/config/areas.ts` beside the pure helpers rather than in the `server-only`
+writer that enforces it — the mistake this file records four times — so a unit
+test can reach it, and `tests/db/service-areas.test.ts` reads `areas_key_shape`
+out of `pg_constraint` and asserts the two texts are identical. The constraint is
+what makes a bad key impossible; the copy is what turns the refusal into "a key
+looks like `kathmandu-4`" instead of a Postgres error. It is not cosmetic: the
+key is `addresses.area_key`, every entry of `providers.service_areas` and every
+key in `seed/area-centroids.json`, so a ward opened as "Kathmandu 4" renders
+perfectly and matches nothing — no centroid, no coverage array, and
+`provider_serves` quietly finding nobody.
+
+**The helpers take the list the caller read.** `findArea(key)` closed over the
+seed, so fifteen callers asked a constant believing they were asking the product;
+`findAreaIn(areas, key)`, `areaShortLabel(areas, …)` and `areasByCity(areas, …)`
+made the compiler name every one of them. `tests/unit/area-rules.test.ts` pins it
+with the case that catches the regression — a key genuinely in `AREA_SEED`, asked
+of a list that leaves it out, must answer null — so a helper that quietly reached
+for the file again goes red rather than passing on the seed happening to contain
+the key.
+
+**And the seed is compared against the table, column by column, because the
+bootstrap was wrong in production.** The migration generates its fifteen rows
+from `seed/areas.json`; the insert was then applied by retyping it into a SQL
+call, and nine of the fifteen carried place names written from memory — on the
+names a customer picks their own address from. Nothing could have caught it: no
+check compared the two, and a plausible Kathmandu ward name is invisible to
+review. The first case in the db suite is that comparison, and the standing rule
+is **apply the file's text, never retype it** — the same rule the schema notes
+already give for rebuilding a function from the tree rather than from `pg_proc`.
+
 ### Photo relevance — asked in the triage call, never a gate
 
 The model already looks at an attached photo to read the hazard. It now also says whether

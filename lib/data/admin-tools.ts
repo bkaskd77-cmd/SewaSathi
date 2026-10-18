@@ -20,6 +20,7 @@ export type AdminTool = {
   key:
     | "lookup"
     | "signals"
+    | "areas"
     | "bands"
     | "duration"
     | "revenue"
@@ -42,6 +43,14 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * categories have a proposal" would also be the wrong call to action: a
    * proposal is evidence to weigh, not work outstanding.
    */
+  /*
+   * Not a queue either, and for a reason worth distinguishing from the two
+   * below: there is nothing to decide here at all until somebody wants to open
+   * or close a ward. A count of the wards we serve would be a figure that never
+   * moves, which is `ACTIVITY_FLOOR`'s reasoning — a number that is true every
+   * day for a year stops being read.
+   */
+  { key: "areas", href: "/admin/areas" },
   { key: "bands", href: "/admin/bands" },
   /*
    * Also not a queue: there is no list and nothing drains. A count would be

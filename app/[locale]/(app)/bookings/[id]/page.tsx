@@ -39,7 +39,8 @@ import {
   formatSlotInstant,
 } from "@/lib/booking";
 import { customerCanCancel } from "@/lib/booking";
-import { areaLabel, findArea } from "@/lib/config/areas";
+import { areaLabel, findAreaIn } from "@/lib/config/areas";
+import { allAreas } from "@/lib/data/areas";
 import { guaranteeFor } from "@/lib/config/guarantee";
 import { site, whatsappHref } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
@@ -297,7 +298,9 @@ export default async function BookingDetailPage(props: {
       null,
     ) !== "first-refusal";
 
-  const area = address ? findArea(address.areaKey) : null;
+  /* LABELLING, so every area ever: a booking taken before we retired a ward
+     still has to say where it was. */
+  const area = address ? findAreaIn(await allAreas(), address.areaKey) : null;
   const ended =
     booking.status === "cancelled" || booking.status === "no_provider_found";
 

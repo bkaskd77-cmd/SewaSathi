@@ -235,12 +235,20 @@ export type ProximityEvidence = {
 };
 
 export async function proximityEvidence(): Promise<ProximityEvidence> {
-  const { AREAS } = await import("@/lib/config/areas");
+  const { allAreas } = await import("@/lib/data/areas");
   const { CENTROID_PROVENANCE } = await import("@/lib/geo");
+
+  /*
+   * THE LIVE COUNT, not the seed's fifteen. A ward added on `/admin/areas` has
+   * no centroid until `scripts/fetch-ward-centroids.mjs` is run, which is
+   * precisely the gap this figure is on the screen to show — reading the seed
+   * would have reported full coverage the moment anybody opened a new ward.
+   */
+  const areas = await allAreas();
 
   const base = {
     wardsWithCentre: CENTROID_PROVENANCE.known,
-    wardsTotal: AREAS.length,
+    wardsTotal: areas.length,
     centroidSource: CENTROID_PROVENANCE.source,
     centroidFetchedAt: CENTROID_PROVENANCE.fetchedAt,
   };

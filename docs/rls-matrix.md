@@ -26,6 +26,7 @@ default as a measurement.
 | `application_decisions` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_match_keys` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_references` | 0 | no data | no data | no data | no data | no data | no data |
+| `areas` | 15 | all | all | all | all | all | all |
 | `booking_arrivals` | 0 | no data | no data | no data | no data | no data | no data |
 | `booking_contact_attempts` | 0 | no data | no data | no data | no data | no data | no data |
 | `booking_days` | 0 | no data | no data | no data | no data | no data | no data |

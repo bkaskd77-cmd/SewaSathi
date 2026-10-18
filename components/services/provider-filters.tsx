@@ -8,7 +8,7 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { areasByCity } from "@/lib/config/areas";
+import type { Area } from "@/lib/config/areas";
 import { cn, formatNpr } from "@/lib/utils";
 
 /**
@@ -42,9 +42,21 @@ const selectClass =
 
 export function ProviderFilters({
   priceBand,
+  areas,
 }: {
   /** The category's published band — the price tiers are cut from it. */
   priceBand: { low: number; high: number };
+  /**
+   * The wards this filter may offer, grouped and already localised.
+   *
+   * PASSED IN RATHER THAN READ, and this is the only client component that ever
+   * read the areas file. Areas are a table now: a `"use client"` module cannot
+   * await one, and importing the seed here would have shipped fifteen wards to
+   * every browser AND gone on offering a ward somebody retired — the list would
+   * have looked right and filtered for coverage we no longer have. The server
+   * reads `bookableAreas()` and hands down the answer.
+   */
+  areas: Array<{ city: string; areas: Area[] }>;
 }) {
   const t = useTranslations("services.filters");
   const tWard = useTranslations("services");
@@ -140,7 +152,7 @@ export function ProviderFilters({
             onChange={(event) => set("area", event.target.value)}
           >
             <option value="">{t("anywhere")}</option>
-            {areasByCity(locale).map((group) => (
+            {areas.map((group) => (
               <optgroup key={group.city} label={group.city}>
                 {group.areas.map((area) => (
                   <option key={area.key} value={area.key}>

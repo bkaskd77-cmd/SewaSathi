@@ -8,8 +8,9 @@ import type { SavedAddress } from "@/components/booking/step-address";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { tripDebtNotice } from "@/lib/abuse";
-import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
+import { areaLabel, areasByCity, findAreaIn } from "@/lib/config/areas";
 import { categoryCopy, categoryQuote } from "@/lib/config/services";
+import { allAreas, bookableAreas } from "@/lib/data/areas";
 import { supportPhoneDisplay } from "@/lib/config/site";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
@@ -132,8 +133,16 @@ export default async function BookPage(props: {
       }
     : null;
 
+  /*
+   * A SAVED ADDRESS IS A LABEL, NOT A CHOICE — so every area ever, including a
+   * ward we have since retired. The customer already lives there; refusing to
+   * name it would make their own saved address unreadable, and they can still
+   * pick it for a booking because the ward was live when they saved it.
+   */
+  const labelAreaRows = await allAreas();
+
   const savedAddresses: SavedAddress[] = addresses.map((address) => {
-    const area = findArea(address.areaKey);
+    const area = findAreaIn(labelAreaRows, address.areaKey);
     return {
       id: address.id,
       label: address.label,
@@ -149,7 +158,15 @@ export default async function BookPage(props: {
     };
   });
 
-  const areas = areasByCity(locale).map((group) => ({
+  /*
+   * THE PICKER OFFERS LIVE WARDS ONLY, and `null` means we could not read them.
+   * A retired ward in this list is a booking nobody will travel to, so it is the
+   * same refusal the unreadable price band gets a few lines down — `areaRows`
+   * is checked there, in one place, rather than rendering a picker with nothing
+   * in it.
+   */
+  const areaRows = await bookableAreas();
+  const areas = areasByCity(areaRows ?? [], locale).map((group) => ({
     city: group.city,
     options: group.areas.map((area) => ({
       value: area.key,
@@ -199,7 +216,13 @@ export default async function BookPage(props: {
     (category) => categoryQuote(category).kind === "unreadable",
   );
 
-  if (bandsUnreadable) {
+  /*
+   * THE AREAS JOIN THE SAME REFUSAL, because the flow needs both to take a
+   * booking: a price to quote and a ward to send somebody to. One screen says
+   * one thing, so they share it rather than stacking two panels — and the
+   * sentence is about what failed on OUR side either way.
+   */
+  if (bandsUnreadable || areaRows === null) {
     return (
       <div className="mx-auto w-full max-w-2xl">
         <header className="animate-rise">

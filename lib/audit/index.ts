@@ -165,6 +165,12 @@ export type SecurityEventKind =
      our own settled jobs produced, and folding the two together would make a
      band somebody typed indistinguishable from one the data asked for. */
   | "pricing.bandStated"
+  /* Service areas. Opening and withdrawing a ward are both recorded, and
+     reopening is its own kind rather than an absence — the history has to read
+     as what happened, not as a row that was always live. */
+  | "area.opened"
+  | "area.retired"
+  | "area.reopened"
   /**
    * A person took a published duration back down.
    *
@@ -235,6 +241,8 @@ export type SecurityEvent = {
     | "provider"
     /** A category slug — the subject of a band decision. Not a person. */
     | "category"
+    /** An area key — the subject of opening or withdrawing a ward. Not a person. */
+    | "area"
     /**
      * One published review. The subject is the words, not their author — which
      * is why the detail never carries the customer.

@@ -33,6 +33,7 @@ export type DataReading = {
 };
 
 export type DataSourceKey =
+  | "areas"
   | "categories"
   | "subBands"
   | "providers"
@@ -41,6 +42,7 @@ export type DataSourceKey =
 export type DataSources = Record<DataSourceKey, DataReading>;
 
 const store = cache((): DataSources => ({
+  areas: { source: "unread" },
   categories: { source: "unread" },
   subBands: { source: "unread" },
   providers: { source: "unread" },
@@ -64,6 +66,7 @@ export function markDataSource(
 export function readDataSources(): DataSources {
   const current = store();
   return {
+    areas: { ...current.areas },
     categories: { ...current.categories },
     subBands: { ...current.subBands },
     providers: { ...current.providers },

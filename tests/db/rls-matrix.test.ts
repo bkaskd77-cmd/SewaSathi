@@ -76,6 +76,10 @@ type RoleKey = (typeof ROLES)[number]["key"];
 
 /** Readable by anybody on purpose: the catalogue and the public directory. */
 const PUBLIC_TO_ANON = new Set([
+  /* Service areas, retired ones included — see the longer note in
+     tests/db/booking-rls.test.ts. Place names and ward numbers; `/providers/join`
+     lists them before anybody has an account. */
+  "areas",
   "categories",
   "category_price_bands",
   "providers",

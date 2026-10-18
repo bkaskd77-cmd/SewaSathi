@@ -2109,6 +2109,15 @@ describe("a booking cannot be made at somebody else's address", () => {
 describe("RLS covers every table, including ones nobody has written a test for", () => {
   /** Readable by anybody, on purpose: the catalogue and the public directory. */
   const PUBLIC_TO_ANON = new Set([
+    /*
+     * SERVICE AREAS, and the retired ones come back too. `/providers/join` lists
+     * the wards before anybody has an account, so this has to be readable by a
+     * stranger exactly as `categories` is — and it carries place names and ward
+     * numbers, nothing personal. A RETIRED row stays visible on purpose: a
+     * public page may have to name the ward an old booking was in, and hiding
+     * the row would leave that page unable to say where the job was.
+     */
+    "areas",
     "categories",
     // Published price ranges, exactly like categories.base_price_min beside
     // them: shown on the category page, read by the triage prompt, and

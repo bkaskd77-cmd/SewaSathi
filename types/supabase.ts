@@ -212,6 +212,55 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      areas: {
+        Row: {
+          /** "lalitpur-4" — city slug and ward number. Every `addresses.area_key`,
+           *  `providers.service_areas` entry and `area-centroids.json` key is one
+           *  of these, with no foreign key behind it, which is why a row is
+           *  retired and never deleted. */
+          key: string;
+          city: string;
+          city_ne: string;
+          ward_number: number;
+          name: string;
+          name_ne: string;
+          sort_order: number;
+          /**
+           * Set when we stop taking NEW work in this ward; changes nothing that
+           * already happened. All three move together or none does —
+           * `areas_retired_shape`. Null is "we still serve it", never "unknown".
+           */
+          retired_at: string | null;
+          retired_reason: string | null;
+          retired_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          key: string;
+          city: string;
+          city_ne: string;
+          ward_number: number;
+          name: string;
+          name_ne: string;
+          sort_order?: number;
+          retired_at?: string | null;
+          retired_reason?: string | null;
+          retired_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          city?: string;
+          city_ne?: string;
+          ward_number?: number;
+          name?: string;
+          name_ne?: string;
+          sort_order?: number;
+          retired_at?: string | null;
+          retired_reason?: string | null;
+          retired_by?: string | null;
+        };
+        Relationships: [];
+      };
       addresses: {
         Row: {
           id: string;

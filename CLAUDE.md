@@ -582,6 +582,57 @@ perfect. Every read records which path it took (`lib/data/source.ts`) and
 as the triage badge: dev, or the query param on any deployment. If you add a
 read to `lib/data/`, call `markDataSource` on both branches.
 
+**Service areas are a table now, retired and never deleted, and the read is
+SPLIT BY WHAT THE ANSWER IS FOR.** `lib/config/areas.ts` held fifteen wards as a
+constant imported at module scope by fifteen files, which made a list a person
+can withdraw look like a fact — `/providers/join` would have gone on offering a
+ward somebody retired and nothing would have failed. `AREA_SEED` is named for
+what it is, every helper takes the list the caller read, and `lib/data/areas.ts`
+is the read with **two functions because they are two questions whose failures
+cost different things**: `allAreas()` returns every ward ever, retired included,
+for turning a key already stored on a row into words — and falls back to the
+seed, honestly, because a place name does not go stale and the key is frozen on
+the row. `bookableAreas()` returns live wards only, for a choice somebody is
+about to make, and **returns null on a failed read** rather than the seed, since
+the seed cannot know what was retired last week and offering a withdrawn ward
+takes a booking nobody will travel to. It composes `allAreas` and reads
+`markDataSource`'s own record rather than re-querying, so there is one round trip
+and the two cannot disagree about which wards exist. An UNCONFIGURED clone gets
+the seed on both, deliberately — `getCategories`' reasoning, since with no keys
+the seed IS the data.
+**Retiring is forward-only and structurally so**: a booking in that ward keeps
+its address, its quote and its professional, and an accepted job still travels.
+There is no delete path and there must never be one — `addresses.area_key`,
+`provider_leads.area_key` and `providers.service_areas` all hold these keys with
+**no foreign key behind them**, so a delete orphans live bookings and leaves an
+old booking page unable to say where the job was. `areas_retired_shape` keeps the
+date, the reason and the actor null together or set together, the reason is
+required because "why did we stop serving ward 26" is exactly what gets asked six
+months on, and `reopenArea` exists so a ward withdrawn by mistake does not need a
+migration.
+**A zod `refine` cannot ask a table**, which is why `addresses.ts` and
+`provider-leads.ts` validate the key's SHAPE in the schema and check the area
+against `bookableAreas()` after parsing. Leaving the refine reading the seed
+would have been worse than useless: it would have accepted a withdrawn ward and
+looked like a validation. Two sentences out of it, because they are two different
+facts — `pickArea` is the customer's to act on, `areasUnreadable` is ours.
+**The key's pattern is one list written twice and is compared**: `AREA_KEY_SHAPE`
+lives beside the pure helpers (not in the `server-only` writer that enforces it)
+so both suites can reach it, and `tests/db/service-areas.test.ts` reads
+`areas_key_shape` out of `pg_constraint` and asserts the two texts are identical.
+**And the seed is compared against the table, column by column, because I got it
+wrong.** The migration generates its fifteen rows from `seed/areas.json`
+correctly; I then applied the insert to production by RETYPING it into a SQL call
+and wrote ten place names from memory — Kalimati for Kalanki, Balaju for
+Swayambhu, Jorpati for Sinamangal, Dekocha for Kamalbinayak, a wrong Devanagari
+spelling of Kupondole. **Nine of fifteen wards were wrong in production**, on the
+names a customer picks their own address from, and nothing could have caught it:
+no check compared the two, and a plausible Kathmandu ward name is invisible to
+review. Fixed by generating the corrective UPDATE from the JSON programmatically
+and verifying with a SQL-computed comparison. The rule is **apply the file's
+text, never retype it** — the same rule the schema notes already state for
+rebuilding a function from the tree rather than from `pg_proc`.
+
 **The catalogue never asked whether anybody could do the job.** `canServeAt`,
 `hasRoom` and `providerCapacity` all existed and ran at claim time only, so the
 list could rank first somebody whose window was already sold — the customer taps
@@ -1075,8 +1126,11 @@ an explicit choice writes the `sajilokaam-locale` cookie and wins after that.
 - **Category and place names are data, not interface copy.** `categories`
   carries `descriptor_ne`, `description_ne`, `cta_label_ne` alongside the
   English; `categoryCopy(category, locale)` is the only thing that picks a
-  side. Areas live in `lib/data/seed/areas.json` with `cityNe` / `nameNe`; only
-  the word "Ward" comes from the catalogue.
+  side. Areas are a table with `city_ne` / `name_ne` (seeded from
+  `lib/data/seed/areas.json`, which is still the fallback); only the word "Ward"
+  comes from the catalogue, and `addArea` refuses a ward with an English name
+  and no Nepali one — that is the one missing field that renders Latin script
+  into a Nepali page and reads as a place somebody chose not to translate.
 - **Sentences that wrap a link use `t.rich`, not three fragments.** Nepali puts
   the verb last, so prefix/link/suffix has no shape that works in both.
 - **Provider bios and reviews stay as authored.** They are user-generated

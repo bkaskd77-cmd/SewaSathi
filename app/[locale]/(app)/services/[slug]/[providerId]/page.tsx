@@ -24,7 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { areaLabel, findArea } from "@/lib/config/areas";
+import { areaLabel, findAreaIn } from "@/lib/config/areas";
+import { allAreas } from "@/lib/data/areas";
 import { categoryCopy } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
 import { getCategories, getCategory } from "@/lib/data/categories";
@@ -89,10 +90,14 @@ export default async function ProviderProfilePage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const [provider, category, categories] = await Promise.all([
+  const [provider, category, categories, areaRows] = await Promise.all([
     getProvider(params.providerId),
     getCategory(params.slug),
     getCategories(),
+    /* LABELLING their coverage, so every area ever: a professional may still
+       list a ward we have retired, and the badge has to name it rather than
+       print a slug. One wave — the standing latency rule. */
+    allAreas(),
   ]);
 
   if (!provider || !category) notFound();
@@ -366,8 +371,8 @@ export default async function ProviderProfilePage(props: {
           {t("profile.whereTheyWork")}
         </h2>
         <ul className="mt-3 flex flex-wrap gap-2">
-          {provider.serviceAreas.map((key) => {
-            const area = findArea(key);
+          {provider.serviceAreas.map((key: string) => {
+            const area = findAreaIn(areaRows, key);
             return (
               <li key={key}>
                 <Badge variant="outline">
