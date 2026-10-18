@@ -138,3 +138,102 @@ describe("the catalogue fallback never publishes a price it cannot vouch for", (
     expect(found.filter((f) => !f.underConfigGuard)).toHaveLength(1);
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * What the customer actually sees
+ * ------------------------------------------------------------------ */
+
+const BOOK = "app/[locale]/(app)/book/page.tsx";
+const bookText = readFileSync(
+  fileURLToPath(new URL(`../../${BOOK}`, import.meta.url)),
+  "utf8",
+);
+
+/** The statements inside the `bandsUnreadable` branch, as source text. */
+function unreadableBranch(text: string): string {
+  const source = ts.createSourceFile(
+    BOOK,
+    text,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    ts.ScriptKind.TSX,
+  );
+
+  let found = "";
+  function visit(node: ts.Node) {
+    if (
+      ts.isIfStatement(node) &&
+      node.expression.getText(source).includes("bandsUnreadable")
+    ) {
+      found = node.thenStatement.getText(source);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return found;
+}
+
+describe("/book declines with a screen, never a blank or an error", () => {
+  const branch = unreadableBranch(bookText);
+
+  it("finds the branch at all", () => {
+    /* Without this, every assertion below passes over an empty string — which
+       is how a renamed condition reads as a clean result. */
+    expect(branch.length, "the bandsUnreadable branch in /book").toBeGreaterThan(
+      200,
+    );
+  });
+
+  it("returns a rendered page rather than a 404 or a redirect", () => {
+    /*
+     * THE THREE WRONG ANSWERS, NAMED. `notFound()` tells the customer the page
+     * does not exist, which is false and unactionable; `redirect()` bounces them
+     * somewhere they did not ask for; and `throw` is Next's error boundary,
+     * which on this route is a blank screen with "Something went wrong". All
+     * three read as a broken product for what is a transient read failure on our
+     * side — and the one thing the customer needs to know is that it is ours and
+     * worth retrying.
+     */
+    expect(branch).toContain("return (");
+    expect(branch).not.toContain("notFound(");
+    expect(branch).not.toContain("redirect(");
+    expect(branch).not.toContain("throw ");
+  });
+
+  it("says prices could not load, and says whose fault it is", () => {
+    expect(branch).toContain('t("pricesUnreadable")');
+    /* The heading stays, so the page still reads as the booking page it is
+       rather than as a bare sentence on a white background. */
+    expect(branch).toContain('t("title")');
+  });
+
+  it("offers something to press, because 'try again' with no button is a dead end", () => {
+    /*
+     * `components/shared/empty-state.tsx`'s standing rule, applied to a failure
+     * rather than an absence. The retry carries the intent the customer arrived
+     * with — category, professional, description — so trying again does not
+     * start them over.
+     */
+    expect(branch).toContain('t("tryAgain")');
+    expect(branch).toContain("/book?${back.toString()}");
+    expect(branch).toContain('t("browseInstead")');
+  });
+
+  it("still bites if the branch becomes a 404", () => {
+    /* The real analysis over a file shaped like the regression — a scanner that
+       has quietly stopped scanning prints the same tick as a clean file. */
+    const regressed = `
+      export default async function BookPage() {
+        const categories = await getCategories();
+        const bandsUnreadable = categories.some((c) => true);
+        if (bandsUnreadable) {
+          notFound();
+        }
+        return <div />;
+      }
+    `;
+    const found = unreadableBranch(regressed);
+    expect(found).toContain("notFound(");
+    expect(found).not.toContain("return (");
+  });
+});

@@ -24,7 +24,93 @@ const sources = {
     "utf8",
   ),
   bookings: readFileSync("app/[locale]/(app)/bookings/page.tsx", "utf8"),
+  account: readFileSync("app/[locale]/(app)/account/page.tsx", "utf8"),
+  providerPayouts: readFileSync(
+    "app/[locale]/(work)/provider/payouts/page.tsx",
+    "utf8",
+  ),
+  enforcementScreen: readFileSync(
+    "app/[locale]/(admin)/admin/enforcement/page.tsx",
+    "utf8",
+  ),
+  lookupScreen: readFileSync(
+    "app/[locale]/(admin)/admin/lookup/page.tsx",
+    "utf8",
+  ),
 };
+
+/*
+ * THE WIRING, WHICH IS THE HALF NOTHING ASSERTED.
+ *
+ * The cases below this block covered the writers, the copy and the notification
+ * kinds — everything except whether the in-flight list is actually ON the screen
+ * where somebody suspends an account, on BOTH sides. That is the half that is
+ * easy to leave at one caller: `inFlightBookings` takes
+ * `{ providerId } | { customerId }`, so a professional's jobs and a customer's
+ * upcoming bookings are one function and two call sites, and shipping one of
+ * them leaves the other looking done from the data layer.
+ *
+ * It is source text rather than a render, which is the honest limit: both pages
+ * are async Server Components reading through the service role, so there is no
+ * seam to render them without a database. What regresses is a call site being
+ * dropped or a prop going unpassed, and that is visible here.
+ */
+describe("a suspension shows the jobs already in flight, on both sides", () => {
+  it("reads all four screens it reasons about", () => {
+    /* The guard that stops every assertion below passing over an empty string,
+       which is how a moved file reads as a clean result. */
+    for (const [name, text] of Object.entries(sources)) {
+      expect(text.length, name).toBeGreaterThan(500);
+    }
+  });
+
+  it("lists a professional's open jobs in the same action that suspends them", () => {
+    const text = sources.enforcementScreen;
+    expect(text).toContain("inFlightBookings({ providerId:");
+    expect(text).toContain("InFlightJobs");
+    /* Inside the panel rather than beside it: `EnforcementPanel` takes the list
+       as a slot so the service-role read stays on the server. A list rendered
+       below the panel would be a second place to look while deciding. */
+    expect(text).toContain("inFlight=");
+  });
+
+  it("lists a customer's upcoming bookings the same way", () => {
+    const text = sources.lookupScreen;
+    expect(text).toContain("inFlightBookings({");
+    expect(text).toContain("customerId:");
+    expect(text).toContain("CustomerSuspension");
+    expect(text).toContain("InFlightJobs");
+  });
+
+  it("offers both outcomes on both screens, never only one", () => {
+    /*
+     * REASSIGN OR CANCEL, and a screen carrying one of them is the failure
+     * worth naming: release-only leaves a job nobody can end, and cancel-only
+     * makes "somebody else is coming" impossible, so the admin cancels a job
+     * the customer still needs — which is the bug `isRelease` was written for,
+     * one layer up.
+     */
+    for (const text of [sources.enforcementScreen, sources.lookupScreen]) {
+      expect(text).toContain("releaseAction=");
+      expect(text).toContain("cancelAction=");
+    }
+  });
+
+  it("shows a customer's bookings only once a decision has been taken", () => {
+    /* Not a browse of somebody's calendar. The list is gated on the account
+       actually being suspended, so an ordinary lookup does not print it. */
+    expect(sources.lookupScreen).toContain("result.risk.banned ? (");
+  });
+
+  it("says it could not read them rather than saying there are none", () => {
+    /* Rule 6 on the one screen where the absence does real damage: "no open
+       jobs" over a failed read is how a customer is left waiting at home. */
+    expect(sources.panel).toContain("rows === null");
+    expect(sources.panel).toContain("jobsUnreadable");
+    expect(sources.panel).toContain("rows.length === 0");
+    expect(sources.panel).toContain("noJobs");
+  });
+});
 
 describe("the customer is told, and told the truth", () => {
   /*
@@ -111,10 +197,26 @@ describe("the suspended person is told what changed", () => {
   });
 
   it("renders on the screens each audience actually opens", () => {
-    expect(sources.providerJobs).toContain("SuspensionNotice");
-    expect(sources.providerJobs).toContain('audience="provider"');
-    expect(sources.bookings).toContain("SuspensionNotice");
-    expect(sources.bookings).toContain('audience="customer"');
+    /*
+     * FOUR SCREENS, NOT TWO. `/bookings` and `/provider/jobs` shipped first and
+     * were the obvious ones; the two added after are where somebody goes to ask
+     * WHY. `/account` is the page headed with a customer's own details, so
+     * somebody who cannot book looks there rather than at a booking list; and
+     * `/provider/payouts` is where step 4 actually bites, since it holds
+     * earnings — a balance that will not move with no explanation anywhere is
+     * how a working process comes to feel arbitrary.
+     */
+    const forProvider = [sources.providerJobs, sources.providerPayouts];
+    const forCustomer = [sources.bookings, sources.account];
+
+    for (const text of forProvider) {
+      expect(text).toContain("SuspensionNotice");
+      expect(text).toContain('audience="provider"');
+    }
+    for (const text of forCustomer) {
+      expect(text).toContain("SuspensionNotice");
+      expect(text).toContain('audience="customer"');
+    }
   });
 
   /*
@@ -125,6 +227,8 @@ describe("the suspended person is told what changed", () => {
    */
   it("does not accuse somebody because a read failed", () => {
     expect(sources.providerJobs).toContain("standing?.step != null");
+    expect(sources.providerPayouts).toContain("standing?.step != null");
     expect(sources.bookings).toContain("standing?.suspended");
+    expect(sources.account).toContain("standing?.suspended");
   });
 });

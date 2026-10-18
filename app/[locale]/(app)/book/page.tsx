@@ -3,7 +3,9 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { BookingFlow } from "@/components/booking/booking-flow";
+import { Button } from "@/components/ui/button";
 import type { SavedAddress } from "@/components/booking/step-address";
+import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { tripDebtNotice } from "@/lib/abuse";
 import { areaLabel, areasByCity, findArea } from "@/lib/config/areas";
@@ -203,18 +205,43 @@ export default async function BookPage(props: {
         <header className="animate-rise">
           <h1 className="font-display text-display-md">{t("title")}</h1>
         </header>
-        <p className="animate-rise mt-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-body-md">
-          {t("pricesUnreadable")}
+
+        <div
+          className="animate-rise mt-6 rounded-lg border border-warning/40 bg-warning/5 p-4"
+          style={{ animationDelay: "60ms" }}
+        >
+          <p className="text-body-md">
+            {t("pricesUnreadable")}
+            {/*
+              THE NUMBER ONLY IF THERE IS ONE. `supportPhoneDisplay` is null
+              until a real line exists, and "ring null now" is worse than not
+              offering a call — `/provider/payouts` settled that and the rule
+              transfers. The sentence above stands on its own either way.
+            */}
+            {supportPhoneDisplay
+              ? ` ${t("pricesUnreadableCall", { phone: supportPhoneDisplay })}`
+              : ""}
+          </p>
+
           {/*
-            THE NUMBER ONLY IF THERE IS ONE. `supportPhoneDisplay` is null until
-            a real line exists, and "ring null now" is worse than not offering a
-            call — `/provider/payouts` settled that and the rule transfers. The
-            first sentence stands on its own either way.
+            AND SOMETHING TO PRESS, which is `components/shared/empty-state.tsx`'s
+            standing rule applied to a failure rather than to an absence: a
+            screen that says "try again in a minute" and offers no way to try is
+            the dead end that rule exists to refuse. The retry is a link to this
+            same URL carrying the same intent — a Server Component re-runs its
+            reads on navigation, so it genuinely retries rather than replaying a
+            cached render, and the customer does not lose the category,
+            professional or description they arrived with.
           */}
-          {supportPhoneDisplay
-            ? ` ${t("pricesUnreadableCall", { phone: supportPhoneDisplay })}`
-            : ""}
-        </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link href={`/book?${back.toString()}`}>{t("tryAgain")}</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/services">{t("browseInstead")}</Link>
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

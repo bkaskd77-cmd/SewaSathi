@@ -728,7 +728,7 @@
         "tooManyRequests": "That is a lot of bookings at once. Wait a minute and try again.",
         "providerBusyNow": "That professional is on another job and cannot come right now. Choose somebody who is free, or let us pick.",
         "providerFull": "Somebody booked that time while you were filling this in. Pick another time, or let us choose.",
-        "pricesUnreadable": "We could not read the price for this trade, so this booking was not taken. Nothing has been charged. Please try again in a few minutes."
+        "pricesUnreadable": "Prices couldn't load, so this booking wasn't taken and nothing has been charged. Try again in a minute."
       },
       "cannotCome": {
         "reason": {
@@ -742,8 +742,10 @@
         "freeFrom": "Free again from {when}.",
         "chooseAnother": "Choose somebody who is free"
       },
-      "pricesUnreadable": "We cannot read our prices just now, so we are not going to guess at one — this is us, not you. Please try again in a few minutes.",
-      "pricesUnreadableCall": "Need it now? Ring {phone}."
+      "pricesUnreadable": "Prices couldn't load — this is us, not you. Try again in a minute. We won't guess at a price.",
+      "pricesUnreadableCall": "Need it now? Ring {phone}.",
+      "tryAgain": "Try again",
+      "browseInstead": "Browse services"
     },
     "status": {
       "pending": "Finding a professional",
