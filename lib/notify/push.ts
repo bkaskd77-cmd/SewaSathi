@@ -8,6 +8,8 @@ import { readPreferredLanguage } from "@/lib/data/profile-prefs";
 import { serverEnv } from "@/lib/env/server";
 import { site } from "@/lib/config/site";
 
+import { notificationPath } from "./path";
+
 import type { DeliveryResult, Notification, NotificationChannel } from "./channel";
 
 /**
@@ -156,6 +158,19 @@ async function deliver(notification: Notification): Promise<PushFailure | null> 
             kind: notification.kind,
             bookingId: notification.bookingId,
             locale,
+            /*
+             * WHERE A TAP GOES, DECIDED HERE RATHER THAN IN THE WORKER. The
+             * worker derived it from `bookingId` alone and therefore always
+             * opened the customer's product — so `booking.assigned`, work being
+             * offered to a professional, 404ed on a route that reads with
+             * `{ customerId }`. The audience is the thing the worker cannot
+             * know and the sender always does.
+             */
+            path: notificationPath({
+              kind: notification.kind,
+              audience: notification.audience,
+              bookingId: notification.bookingId,
+            }),
           }),
           { TTL: 60 * 60 * 12 },
         );

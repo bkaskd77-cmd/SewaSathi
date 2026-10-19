@@ -421,6 +421,7 @@ export async function advanceJob(input: {
   if (kind) {
     await notify({
       recipientId: booking.customer_id as string,
+      audience: "customer",
       kind,
       params: { reference: booking.reference as string, provider: me.displayName },
       bookingId: input.bookingId,
@@ -576,6 +577,7 @@ export async function declineJob(input: {
 
   await notify({
     recipientId: booking.customer_id,
+    audience: "customer",
     kind: "booking.declined",
     params: { reference: booking.reference },
     bookingId: input.bookingId,
@@ -793,6 +795,7 @@ export async function claimJob(input: {
 
   await notify({
     recipientId: data![0].customer_id as string,
+    audience: "customer",
     kind: "booking.accepted",
     params: {
       reference: data![0].reference as string,
@@ -986,6 +989,7 @@ export async function recordOverbookMiss(input: {
 
   await notify({
     recipientId: booking.customer_id as string,
+    audience: "customer",
     kind: "booking.mayRunLate",
     params: { reference: booking.reference as string },
     bookingId: input.bookingId,
@@ -1069,6 +1073,7 @@ export async function proposeBandCorrection(input: {
 
   await notify({
     recipientId: booking.customer_id as string,
+    audience: "customer",
     kind: "booking.priceCorrected",
     params: { reference: booking.reference as string, provider: me.displayName },
     bookingId: input.bookingId,

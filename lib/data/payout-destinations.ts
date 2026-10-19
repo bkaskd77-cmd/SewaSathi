@@ -573,6 +573,7 @@ export async function changeDestination(input: {
 
     await notify({
       recipientId: input.profileId,
+      audience: "provider",
       kind: "payout.destinationChanged",
       params: {
         /*

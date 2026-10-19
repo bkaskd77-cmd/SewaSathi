@@ -185,9 +185,28 @@ export type NotificationKind =
    */
   | "payout.destinationChanged";
 
+import type { NotificationAudience } from "./path";
+
 export type Notification = {
   /** Who it is for. Their language is read at delivery, not passed in. */
   recipientId: string;
+  /**
+   * Which side of the job they are on, and therefore which product a tap opens.
+   *
+   * REQUIRED, AND THAT IS THE WHOLE POINT. Every push opened the customer's
+   * booking page because the service worker derived the path from `bookingId`
+   * alone — so `booking.assigned`, work being offered to a professional,
+   * landed them on a route that reads with `{ customerId }` and 404s. The kind
+   * cannot answer it: `booking.quoteExpired` is sent to the customer in one
+   * place and the professional in another. The CALLER always knows, because it
+   * is writing `recipientId: booking.customerId` or
+   * `recipientId: booking.providerId` on the line above — and making this
+   * required is what put the question in front of every call site rather than
+   * leaving it to be inferred wrongly in one place.
+   *
+   * See `notificationPath`.
+   */
+  audience: NotificationAudience;
   kind: NotificationKind;
   /** Placeholders for the catalogue entry: a reference, a name, an amount. */
   params: Record<string, string>;

@@ -28,9 +28,22 @@ export type UnreadMark = {
 /**
  * Unread notifications, grouped by the booking they are about.
  *
- * Notifications with no booking are ignored here rather than dropped — nothing
- * writes one yet, and inventing a place to show them before there is one would
- * be a screen with no content.
+ * READ THROUGH RLS, so it answers for whoever is asking — the policy is
+ * `profile_id = auth.uid()` and there is no admin policy on this table. That
+ * makes it the professional's read as much as the customer's, which is what
+ * `/provider/jobs` now uses it for.
+ *
+ * AND "NOTHING WRITES ONE YET" IS FALSE, which is worth correcting without
+ * changing what the code does. `payout.destinationChanged` is written with
+ * `bookingId: null`, so the `continue` below skips it — and that is right:
+ * `/provider/payouts` already carries that sentence off `payout_destinations`
+ * itself, with the date the account changed and a number to ring.
+ * `tests/unit/notification-copy.test.ts` pins the absent `LIST_NOTES` entry as
+ * a decision rather than an omission, so nobody adds copy "for completeness"
+ * and puts a professional's payout warning on a customer's booking list.
+ *
+ * What WAS broken is where its push landed, not whether it could be read — see
+ * `notificationPath`.
  */
 export async function unreadByBooking(): Promise<Map<string, UnreadMark>> {
   const marks = new Map<string, UnreadMark>();

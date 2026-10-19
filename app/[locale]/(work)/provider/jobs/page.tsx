@@ -28,6 +28,8 @@ import { whatsappHref } from "@/lib/config/site";
 import { categoryCopy } from "@/lib/config/services";
 import { getSubBands, labelCategory } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
+import { unreadByBooking } from "@/lib/data/notifications";
+import { listNoteKey } from "@/lib/notify/channel";
 import {
   getMyProvider,
   listOpenJobs,
@@ -65,6 +67,9 @@ export const dynamic = "force-dynamic";
 export default async function ProviderJobsPage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations("provider.jobs");
+  /* The same namespace the customer list reads, so one kind has one
+     sentence whichever side opens it. */
+  const tNote = await getTranslations("booking");
   const tServices = await getTranslations("services");
 
   const profile = await getSessionProfile();
@@ -114,10 +119,23 @@ export default async function ProviderJobsPage() {
    * another: three round trips in sequence is three, and this screen is opened
    * by somebody standing between two jobs.
    */
-  const [jobs, openJobs, subBands] = await Promise.all([
+  const [jobs, openJobs, subBands, unread] = await Promise.all([
     listProviderJobs(profile!.id),
     listOpenJobs(profile!.id),
     getSubBands(),
+    /*
+     * THE PROFESSIONAL'S OWN UNREAD NOTIFICATIONS, in the same wave because
+     * nothing here depends on them. `notify()` writes the in-app row for EVERY
+     * kind — "always, because it is the record" — and nothing in `(work)`
+     * rendered one, so every provider-bound kind was a record its subject could
+     * not read: a published review, a guarantee claim opened on their job, a
+     * price correction answered, a surveyed quote approved or declined.
+     *
+     * The read is `unreadByBooking`, the same function the customer list uses,
+     * because RLS scopes `notifications` to `profile_id = auth.uid()` — so it
+     * answers for whoever asks and there is no second query to keep in step.
+     */
+    unreadByBooking(),
   ]);
 
   /*
@@ -376,7 +394,37 @@ export default async function ProviderJobsPage() {
         >
           <div className="assemble mt-6 space-y-4">
             {named.map(({ job, categoryName, correction, nameBand }, i) => (
-              <div key={job.id} style={{ ["--i" as string]: i }}>
+              /*
+               * THE ANCHOR A PUSH NOTIFICATION LANDS ON. There is no
+               * `/provider/jobs/[id]` — a professional's jobs are one screen —
+               * so `notificationPath` sends a provider-bound notice here with
+               * the booking as a fragment, and this is the id it names. Without
+               * it the tap would open the top of the list and leave somebody
+               * scrolling for the job they were told about.
+               */
+              <div
+                key={job.id}
+                id={`job-${job.id}`}
+                style={{ ["--i" as string]: i }}
+                className="scroll-mt-24"
+              >
+                {/*
+                  WHAT HAS HAPPENED ON THIS JOB THAT THEY HAVE NOT READ. The
+                  in-app row is written for every kind and was rendered nowhere
+                  in `(work)`, so a review published, a guarantee claim opened
+                  or a correction answered was a record its own subject could
+                  not see. Same allow-list as the customer list, so an unmapped
+                  kind shows nothing rather than printing its dotted key path.
+                */}
+                {(() => {
+                  const mark = unread.get(job.id);
+                  const key = mark ? listNoteKey(mark.kind) : null;
+                  return key ? (
+                    <p className="animate-rise mb-1 text-caption text-primary">
+                      {tNote(`notifications.${key}`)}
+                    </p>
+                  ) : null;
+                })()}
                 <JobCard
                   correction={correction}
                   nameBand={nameBand}

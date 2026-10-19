@@ -254,7 +254,7 @@ self.addEventListener("push", (event) => {
      */
     tag: data.bookingId ? "booking-" + data.bookingId : undefined,
     renotify: Boolean(data.bookingId),
-    data: { kind: data.kind || null, bookingId: data.bookingId || null, locale: data.locale || "en" },
+    data: { kind: data.kind || null, bookingId: data.bookingId || null, locale: data.locale || "en", path: data.path || null },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -273,8 +273,28 @@ self.addEventListener("notificationclick", (event) => {
 
   const data = event.notification.data || {};
   const prefix = data.locale === "ne" ? "/ne" : "";
-  const path = data.bookingId ? prefix + "/bookings/" + data.bookingId : prefix + "/bookings";
-  const url = new URL(path, self.location.origin).href;
+  /*
+   * THE SENDER DECIDES WHERE THIS GOES, because only it knows which side of the
+   * job the reader is on. This used to be derived here from the booking id
+   * alone, which meant every notification opened the CUSTOMER's product: a
+   * professional tapping "you have a new job" reached the customer booking
+   * page, which reads scoped to the customer and then answers 404, and the
+   * payout warning — which carries no booking — opened a customer's job list.
+   *
+   * THE FALLBACK IS FOR A PAYLOAD IN FLIGHT, not a default. A notification
+   * delivered by the previous build carries no path, and the old behaviour is
+   * right for the customer kinds that are most of them; it is wrong for a
+   * professional in exactly the way described above, which is why it is a
+   * migration window rather than a branch worth keeping.
+   *
+   * NO BACKTICKS IN HERE: this whole file is one template literal, so a
+   * backtick in a comment closes the worker source. It cost a syntax error
+   * on the first draft of this very note.
+   */
+  const path =
+    data.path ||
+    (data.bookingId ? "/bookings/" + data.bookingId : "/bookings");
+  const url = new URL(prefix + path, self.location.origin).href;
 
   event.waitUntil(
     self.clients

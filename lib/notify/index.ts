@@ -108,6 +108,9 @@ export async function notifyAll(
   await Promise.all(notifications.map(notify));
 }
 
+export type { NotificationAudience } from "./path";
+export { notificationPath } from "./path";
+
 export type {
   DeliveryResult,
   Notification,

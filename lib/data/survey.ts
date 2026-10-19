@@ -217,6 +217,7 @@ export async function recordSurveyQuote(input: {
    */
   await notify({
     recipientId: booking.customerId,
+    audience: "customer",
     kind: "booking.quoteReady",
     params: { reference: booking.reference },
     bookingId: input.bookingId,
@@ -290,6 +291,7 @@ export async function respondToQuote(input: {
   if (booking.providerId) {
     await notify({
       recipientId: booking.providerId,
+      audience: "provider",
       kind:
         input.decision === "approve"
           ? "booking.quoteApproved"
@@ -386,6 +388,7 @@ export async function expireStaleQuotes(
 
     await notify({
       recipientId: row.customer_id,
+      audience: "customer",
       kind: "booking.quoteExpired",
       params: { reference: row.reference },
       bookingId: row.id,
@@ -399,6 +402,7 @@ export async function expireStaleQuotes(
     if (row.provider_id) {
       await notify({
         recipientId: row.provider_id,
+        audience: "provider",
         kind: "booking.quoteExpired",
         params: { reference: row.reference },
         bookingId: row.id,

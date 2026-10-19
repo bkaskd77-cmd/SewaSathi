@@ -112,6 +112,7 @@ export async function applyDispatch(
 
     await notify({
       recipientId: row.customer_id,
+      audience: "customer",
       kind: "booking.noProviderFound",
       params: { reference: row.reference },
       bookingId: row.id,
@@ -141,6 +142,7 @@ export async function applyDispatch(
 
   await notify({
     recipientId: row.customer_id,
+    audience: "customer",
     kind: "booking.widened",
     params: { reference: row.reference },
     bookingId: row.id,

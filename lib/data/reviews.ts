@@ -344,6 +344,7 @@ async function publishIfReady(bookingId: string, now: Date): Promise<void> {
     if (providerId) {
       await notify({
         recipientId: providerId,
+        audience: "provider",
         kind: "review.published",
         params: { reference: bookingId.slice(0, 8) },
         bookingId,

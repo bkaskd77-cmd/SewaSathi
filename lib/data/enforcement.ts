@@ -575,6 +575,7 @@ export async function releaseSuspendedBooking(input: {
 
   await notify({
     recipientId: booking.customer_id as string,
+    audience: "customer",
     kind: "booking.providerUnavailable",
     params: { reference: (booking.reference as string) ?? "" },
     bookingId: input.bookingId,
@@ -641,6 +642,7 @@ export async function cancelSuspendedBooking(input: {
 
   await notify({
     recipientId: booking.customer_id as string,
+    audience: "customer",
     kind: "booking.cancelled",
     params: { reference: (booking.reference as string) ?? "" },
     bookingId: input.bookingId,

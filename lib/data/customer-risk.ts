@@ -347,6 +347,7 @@ export async function recordArrival(input: {
    */
   await notify({
     recipientId: booking.customer_id as string,
+    audience: "customer",
     kind: "booking.providerArrived",
     params: { reference: booking.reference as string },
     bookingId: input.bookingId,

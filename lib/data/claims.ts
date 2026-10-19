@@ -800,6 +800,7 @@ export async function recordVerdict(input: {
 
     await notify({
       recipientId: claim.customer_id as string,
+      audience: "customer",
       kind: "claim.resolved",
       params: { verdict: input.verdict },
       bookingId: claim.booking_id as string,
@@ -973,6 +974,7 @@ async function notifyProvider(
 
     await notify({
       recipientId: profileId,
+      audience: "provider",
       kind: input.kind,
       params: input.params,
       bookingId: input.bookingId,
@@ -1959,6 +1961,7 @@ async function notifyCustomer(
 
     await notify({
       recipientId: customerId,
+      audience: "customer",
       kind: input.kind,
       params: input.params,
       bookingId,

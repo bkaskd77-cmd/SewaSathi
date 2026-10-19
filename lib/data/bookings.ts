@@ -1061,6 +1061,7 @@ export async function chooseProvider(input: {
   if (profileId) {
     await notify({
       recipientId: profileId,
+      audience: "provider",
       kind: "booking.assigned",
       params: { reference: booking.reference },
       bookingId: input.bookingId,
@@ -1125,6 +1126,7 @@ async function notifyProviderOfCancellation(
 
   await notify({
     recipientId: profileId,
+    audience: "provider",
     kind: "booking.cancelled",
     params: { reference },
     bookingId,
@@ -1413,6 +1415,7 @@ export async function answerBandCorrection(input: {
   if (booking.provider_id) {
     await notify({
       recipientId: booking.provider_id as string,
+      audience: "provider",
       kind: input.agreed
         ? "booking.priceCorrectionApproved"
         : "booking.priceCorrectionDeclined",

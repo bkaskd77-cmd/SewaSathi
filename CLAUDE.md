@@ -596,6 +596,51 @@ perfect. Every read records which path it took (`lib/data/source.ts`) and
 as the triage badge: dev, or the query param on any deployment. If you add a
 read to `lib/data/`, call `markDataSource` on both branches.
 
+**Every push in this product opened the CUSTOMER's booking page, and three kinds
+that wake a phone go to a professional.** The service worker derived the path
+from `bookingId` alone, so `booking.assigned` — work being offered — landed a
+professional on `/bookings/{id}`, which reads with `{ customerId }` and then
+calls `notFound()`: **a 404 on the notification whose whole purpose is getting a
+job accepted.** `booking.quoteExpired` goes to both sides and the provider half
+did the same; `payout.destinationChanged` carries no booking at all, so it
+opened `/bookings`, a customer's job list, on the account-takeover control.
+**The kind cannot decide this and the audience can.** `booking.quoteExpired` is
+sent to the customer in one place and the professional in another, so any
+per-kind table would be wrong for one of them whichever way it was written.
+`Notification.audience` is required, which is what put the question in front of
+all twenty-eight senders — the compiler found three in `lib/data/payments.ts`
+that a grep for `recipientId:` had missed, because a receipt goes to **both**
+sides from one list and a flat `string[]` could not say which was which.
+`notificationPath` is the one rule, the payload carries the path, and the worker
+reads it rather than deriving a second copy. **A provider-bound notice lands on
+`/provider/jobs#job-{id}`** — there is no `/provider/jobs/[id]`, and inventing a
+URL the product does not serve would be a 404 of a different shape.
+**The test asserts the WIRING**, not the function: every `audience` is compared
+against its own `recipientId` expression, so a later sender claiming the wrong
+side is named. The count is asserted first, since a pattern that stopped
+matching would pass over nothing.
+**AND THE IN-APP HALF WAS ALREADY FINE, which this phase claimed otherwise and
+then corrected.** The first draft read "the warning reached the professional
+nowhere at all" and built `unreadWithoutBooking` plus a card on
+`/provider/payouts` to fix it — and `tests/unit/notification-copy.test.ts`
+failed, because it pins the absent `LIST_NOTES` entry as a DECISION: that screen
+already carries the sentence off `payout_destinations`, with the date the
+account changed and a number to ring. The existing test was right and the
+finding was overstated; the card, the reader and the copy key were all reverted,
+because two surfaces answering one question is what this file refuses
+everywhere else. **What was actually broken is only where the tap landed.** The
+lesson is the one already recorded for stale prose, pointing the other way: a
+test that says "on purpose" is evidence, and the thing to do with it is read the
+reason before overriding it.
+**The booking-scoped provider kinds are a real gap and a smaller one.** Nothing
+in `(work)` rendered an in-app row, so a published review, a guarantee claim
+opened on their job or a correction answered was a record its own subject could
+not read — the dashboard moves an aggregate rating and count, which says
+something happened and never which job. `/provider/jobs` reads
+`unreadByBooking` now: the SAME function the customer list uses, because RLS
+scopes `notifications` to `profile_id = auth.uid()`, so it answers for whoever
+asks and there is no second query to keep in step.
+
 **An admin screen nobody can click on is a screen nobody has, and
 `/admin/enforcement` was one for the whole life of the enforcement ladder.** The
 board was built, `/providers/standards` publishes the five steps it applies, the

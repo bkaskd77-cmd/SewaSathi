@@ -19,6 +19,7 @@ import {
 } from "@/lib/payments";
 import { recordSecurityEvent } from "@/lib/audit";
 import { notifyAll } from "@/lib/notify";
+import type { NotificationAudience } from "@/lib/notify";
 import type { PaymentMixRow } from "@/lib/data/payment-mix";
 import type { PricingSignal } from "@/lib/data/pricing-signals";
 import {
@@ -965,6 +966,20 @@ async function settlePaid(
  * channel and changing nothing here. Notifications never throw: the money has
  * already moved, and a dead gateway must not roll that back.
  */
+/**
+ * A notification going to both parties, each tagged with their own side.
+ *
+ * ONE KIND, TWO PRODUCTS, AND A `string[]` COULD NOT SAY WHICH WAS WHICH. A
+ * receipt, a disputed cash figure and its resolution all go to the customer AND
+ * the professional, so a tap has to open the right product — the side travels
+ * with the id rather than being inferred downstream, which is what every push
+ * here was doing wrongly. See `notificationPath`.
+ */
+type BothSides = Array<{
+  recipientId: string;
+  audience: NotificationAudience;
+}>;
+
 async function sendReceipts(
   settled: Payment,
   booking: { reference: string; customer_id: string; provider_id: string | null } | null,
@@ -977,7 +992,9 @@ async function sendReceipts(
     method: settled.method,
   };
 
-  const recipients: string[] = [booking.customer_id];
+  const recipients: BothSides = [
+    { recipientId: booking.customer_id, audience: "customer" },
+  ];
 
   if (booking.provider_id) {
     const { data } = await createAdminClient()
@@ -986,12 +1003,14 @@ async function sendReceipts(
       .eq("id", booking.provider_id)
       .maybeSingle();
     const profileId = (data?.profile_id as string | null) ?? null;
-    if (profileId) recipients.push(profileId);
+    if (profileId) {
+      recipients.push({ recipientId: profileId, audience: "provider" });
+    }
   }
 
   await notifyAll(
-    recipients.map((recipientId) => ({
-      recipientId,
+    recipients.map((who) => ({
+      ...who,
       kind: "payment.receipt" as const,
       params,
       bookingId: settled.bookingId,
@@ -1124,7 +1143,9 @@ async function flagAmountMismatch(input: {
     reported: String(input.reported),
   };
 
-  const recipients = [input.booking.customer_id];
+  const recipients: BothSides = [
+    { recipientId: input.booking.customer_id, audience: "customer" },
+  ];
   if (input.booking.provider_id) {
     const { data } = await supabase
       .from("providers")
@@ -1132,12 +1153,14 @@ async function flagAmountMismatch(input: {
       .eq("id", input.booking.provider_id)
       .maybeSingle();
     const profileId = (data?.profile_id as string | null) ?? null;
-    if (profileId) recipients.push(profileId);
+    if (profileId) {
+      recipients.push({ recipientId: profileId, audience: "provider" });
+    }
   }
 
   await notifyAll(
-    recipients.map((recipientId) => ({
-      recipientId,
+    recipients.map((who) => ({
+      ...who,
       kind: "payment.mismatch" as const,
       params,
       bookingId: input.booking.id,
@@ -1832,7 +1855,9 @@ export async function resolveAmountMismatch(input: {
     note: `amount settled at ${ruling.amount} (${ruling.source}) — professional recorded ${booking.final_amount}, customer reported ${booking.customer_reported_amount ?? "nothing"}${ruling.note ? `; ${ruling.note}` : ""}`,
   });
 
-  const recipients = [booking.customer_id];
+  const recipients: BothSides = [
+    { recipientId: booking.customer_id, audience: "customer" },
+  ];
   if (booking.provider_id) {
     const { data } = await supabase
       .from("providers")
@@ -1840,12 +1865,14 @@ export async function resolveAmountMismatch(input: {
       .eq("id", booking.provider_id)
       .maybeSingle();
     const profileId = (data?.profile_id as string | null) ?? null;
-    if (profileId) recipients.push(profileId);
+    if (profileId) {
+      recipients.push({ recipientId: profileId, audience: "provider" });
+    }
   }
 
   await notifyAll(
-    recipients.map((recipientId) => ({
-      recipientId,
+    recipients.map((who) => ({
+      ...who,
       kind: "payment.mismatchResolved" as const,
       params: { reference: booking.reference, amount: String(ruling.amount) },
       bookingId: booking.id,
