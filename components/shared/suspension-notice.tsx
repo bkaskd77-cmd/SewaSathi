@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { ShieldAlert } from "lucide-react";
 
+import { Link } from "@/i18n/navigation";
 import { site, supportPhoneDisplay, whatsappHref } from "@/lib/config/site";
 
 /**
@@ -13,6 +14,16 @@ import { site, supportPhoneDisplay, whatsappHref } from "@/lib/config/site";
  * telling them what changed is one they can only understand by experiment,
  * which is the trap `/providers/standards` exists to refuse — stated there for
  * thresholds and true here for consequences.
+ *
+ * AND THIS CARD NOW LINKS THAT PAGE, which is the half the paragraph above
+ * described and the card did not do. It named the trap in a comment while
+ * offering a professional a phone number and no way to read the five steps,
+ * what triggered one, or how it lifts — so the sentence they were owed existed,
+ * published, in both languages, and was unreachable from the one screen where
+ * they needed it. The only link to it in the product was `/providers/join`,
+ * read once before signing up. **Provider only**: the ladder is about
+ * professional conduct, and offering it to a suspended customer would point
+ * them at rules that are not theirs.
  *
  * PLAIN, AND NOT ALARMING. No warning colour on the card itself: this is
  * information, and a person reading it is already having a bad day. The icon
@@ -60,6 +71,23 @@ export async function SuspensionNotice({
       {reason ? (
         <p className="mt-3 max-w-prose text-body-sm text-foreground">
           {t("because", { reason })}
+        </p>
+      ) : null}
+
+      {/*
+        THE RULE FIRST, THEN THE APPEAL. Somebody reading this wants to know
+        what happened before they want to know who to ring — and an appeal made
+        without having read the step is an appeal against something the person
+        is guessing at.
+      */}
+      {audience === "provider" ? (
+        <p className="mt-4 max-w-prose text-body-sm">
+          <Link
+            href="/providers/standards"
+            className="text-primary underline underline-offset-2"
+          >
+            {t("readStandards")}
+          </Link>
         </p>
       ) : null}
 

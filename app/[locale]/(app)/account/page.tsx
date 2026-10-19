@@ -15,7 +15,7 @@ import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SuspensionNotice } from "@/components/shared/suspension-notice";
-import { redirect } from "@/i18n/navigation";
+import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import { tripDebtNotice } from "@/lib/abuse";
@@ -179,6 +179,29 @@ export default async function AccountPage() {
             </span>
           </div>
         ))}
+      </Card>
+
+      {/*
+        THE DOOR TO THEIR OWN SECURITY PAGE, which this screen did not have.
+        `/account/security` carries a comment reading "DELIBERATELY NOT BEHIND
+        THE ADMIN GATE" — it is where any signed-in person enrols an
+        authenticator — and the only links to it in the entire product were
+        `components/admin/reauth-notice.tsx` and a `?next=` redirect, both of
+        which only an admin ever meets. So a screen written for customers and
+        professionals could be found by neither, and a professional holding
+        money had no way to add a second factor to the account it is paid into.
+      */}
+      <Card className="animate-rise mt-8 p-5" style={{ animationDelay: "120ms" }}>
+        <h2 className="text-heading-sm font-display">{t("securityTitle")}</h2>
+        <p className="mt-1 max-w-prose text-body-sm text-muted-foreground">
+          {t("securityBody")}
+        </p>
+        <Link
+          href="/account/security"
+          className="mt-3 inline-block text-body-sm text-primary underline underline-offset-2"
+        >
+          {t("securityLink")}
+        </Link>
       </Card>
 
       <p

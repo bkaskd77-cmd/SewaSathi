@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { WorkHeader } from "@/components/provider/work-header";
+import { Link } from "@/i18n/navigation";
 import { SupportContact } from "@/components/shared/support-contact";
 import { getSessionProfile } from "@/lib/auth/session";
 
@@ -23,6 +24,16 @@ import { getSessionProfile } from "@/lib/auth/session";
  * us. Everything else that was down there — services, careers, the legal pages
  * — is for somebody deciding whether to buy, which is not what this surface is
  * for.
+ *
+ * `/providers/standards` IS THE ONE EXCEPTION, and by that same argument rather
+ * than against it: the five published steps are the rules governing THIS
+ * person's work and their money, not a page for somebody deciding whether to
+ * buy. **The only link to it in the whole product was `/providers/join`** — the
+ * recruitment page, read once before signing up — so a working professional
+ * could not re-read the ladder they are measured against, and a SUSPENDED one
+ * got a phone number and no way to see what the step was or how it lifts. That
+ * is "deterrence nobody can read", which is the trap that page exists to
+ * refuse, reproduced one layer out by never linking it.
  */
 export default async function WorkLayout({
   children,
@@ -52,6 +63,12 @@ export default async function WorkLayout({
           <p className="text-caption text-muted-foreground">
             {t("footerNote")}
           </p>
+          <Link
+            href="/providers/standards"
+            className="text-caption text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            {t("footerStandards")}
+          </Link>
           {/* The number and WhatsApp from one component, so a professional who
               cannot reach us one way has the other without this footer knowing
               which constants exist. */}

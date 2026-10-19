@@ -63,6 +63,20 @@ never seen the repo.
   happened four times before anybody said so. Write the file into
   `supabase/migrations/` first — it is still the source of truth and the db
   suite runs it — then apply that same text, then check the objects exist.
+- **Data is generated from its source file in code, never retyped from memory.**
+  Ward names, prices, category lists, seed rows — anything with an authored
+  source gets written to its destination by a script or by the migration file's
+  own text, read programmatically. **I broke this and it reached production**:
+  the areas migration generated its fifteen wards from `seed/areas.json`
+  correctly, and I then applied the insert by retyping it into a SQL call and
+  wrote ten place names from memory — nine of fifteen were wrong, on the names a
+  customer picks their own address from. A plausible Kathmandu ward name is
+  invisible to review, so nothing caught it until the table was compared against
+  the file. The same rule already existed one object type over, for rebuilding a
+  function from the tree rather than from `pg_proc`; it is one rule and it is
+  this: **apply the file's text.** If a value has an authored home, the way it
+  gets anywhere else is a program reading that home — and where the two can
+  drift, a test compares them.
 - **Be brief.** Short answers, copy-pasteable steps, no walls of text.
 
 ### Architecture — standing law
@@ -594,13 +608,41 @@ could not find it.
 route and proved it deploys and the guard is on, `check:keys` proved its copy
 exists, the db suite proved its writes are locked down. "Does it work" and "can
 anybody find it" are different questions and only the first had an answer.
-`tests/unit/admin-reachable.test.ts` reads the admin route DIRECTORY and
-compares it against `ADMIN_TOOLS` plus the queue hrefs — `coverageGaps`' rule,
-since a maintained list of screens-to-check has the same blind spot as the index
-itself. Four screens are exempted with a reason each, and **an exemption whose
-screen no longer exists fails too**, because a stale exemption silently covers
-whatever takes that path next. It is beside `lookup` on the index, since that
-screen is where a customer suspension starts and the pair reads as one question.
+`tests/unit/routes-reachable.test.ts` reads each route DIRECTORY and compares it
+against that role's own navigation — `coverageGaps`' rule, since a maintained
+list of screens-to-check has the same blind spot as the navigation itself.
+Screens are exempted with a reason each, and **an exemption whose screen no
+longer exists fails too**, because a stale exemption silently covers whatever
+takes that path next. `/admin/enforcement` sits beside `lookup` on the index,
+since that screen is where a customer suspension starts and the pair reads as
+one question.
+
+**REACHABILITY IS PER ROLE, which is what widening that guard past `(admin)`
+found.** A single product-wide set of hrefs would have called both of these
+reachable:
+`/account/security` carries a comment reading "DELIBERATELY NOT BEHIND THE ADMIN
+GATE" — it is where any signed-in person enrols an authenticator — and the only
+links to it in the product were `components/admin/reauth-notice.tsx` and a
+`?next=` redirect, both of which only an admin ever meets. So a screen written
+for customers and professionals could be found by neither, and a professional
+holding money had no way to add a second factor to the account it is paid into.
+`/account` is the door now.
+**And `/providers/standards` was linked only from `/providers/join`** — the
+recruitment page, read once before signing up. A working professional could not
+re-read the ladder they are measured against, and a SUSPENDED one got a phone
+number and no way to see what the step was or how it lifts. That is "deterrence
+nobody can read", which is the trap that page exists to refuse, reproduced one
+layer out by never linking it. The professional's own frame carries it on every
+screen now, and the suspension card carries it above the appeal — **the rule
+before the phone number**, because an appeal made without having read the step
+is an appeal against something the person is guessing at. Provider only: the
+ladder is professional conduct, and pointing a suspended customer at it would
+show them rules that are not theirs.
+**The guard structurally cannot see that second one**, and the limit is written
+down rather than engineered around: it asks whether every screen in a group is
+reachable from that group's navigation, which is the right question for a group
+— and `/providers/standards` lives in `(app)` while the person it is written for
+works in `(work)`. So those two links are pinned as behaviour instead.
 
 **A trade can be opened and withdrawn by a person now, and `is_active` was a
 gate nothing could move.** It has been on `categories` since the first

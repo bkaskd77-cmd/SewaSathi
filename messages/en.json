@@ -537,7 +537,10 @@
       "tripDebtDisputeLabel": "Tell us why this is not yours",
       "tripDebtDisputePlaceholder": "What happened that day",
       "tripDebtDisputeSubmit": "Dispute this charge",
-      "tripDebtDisputeOpen": "We have your objection. Nothing is added to your bills while somebody looks at it, and you do not need to do anything else."
+      "tripDebtDisputeOpen": "We have your objection. Nothing is added to your bills while somebody looks at it, and you do not need to do anything else.",
+      "securityTitle": "Signing in",
+      "securityBody": "Add an authenticator app for a second step when you sign in. Your phone number stays how you get your code.",
+      "securityLink": "Set up a second step"
     },
     "flow": {
       "title": "Book a professional",
@@ -1655,7 +1658,8 @@
       "logOut": "Log out",
       "unnamed": "your listing",
       "footerNote": "Something wrong on a job? Ring us.",
-      "home": "Main site"
+      "home": "Main site",
+      "footerStandards": "How we measure your work"
     },
     "payouts": {
       "title": "Where you are paid",
@@ -3049,6 +3053,7 @@
     "appealLead": "A person will look at this again if you ask. Tell us what you think we have got wrong — the same people who decided it read the reply.",
     "appealWhatsapp": "Appeal on WhatsApp",
     "appealPhone": "Or ring {number}",
-    "appealMessage": "Hello — I would like to appeal a restriction on my SajiloKaam account."
+    "appealMessage": "Hello — I would like to appeal a restriction on my SajiloKaam account.",
+    "readStandards": "Read the five steps, what sets one off and how it lifts"
   }
 }
