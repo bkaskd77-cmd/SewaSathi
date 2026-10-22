@@ -13,6 +13,7 @@ import {
   MIX_BASELINE_MINIMUM_JOBS,
   hasBaseline,
   mixByCategory,
+  mixByMonth,
   mixByWard,
   overallMix,
 } from "@/lib/data/payment-mix";
@@ -580,6 +581,27 @@ export default async function SignalsPage() {
           <MixGroup
             title={t("mix.byWard")}
             rows={mixByWard(mix.rows)}
+            label={(key) => key}
+            valueLabel={t("mix.byValue")}
+            countLabel={t("mix.byCount")}
+            pct={(n) => t("mix.pct", { pct: String(Math.round(n)) })}
+          />
+          {/*
+            BY MONTH, AND IT HAD NO CALLER FOR THE LIFE OF THIS SCREEN.
+            `mixByMonth` was written, tested and described in the standing notes
+            as one of the three breakdowns — "by category, by ward and by
+            month" — while this page rendered two. The `applyRedoRecovery`
+            shape, small: every link built except the one somebody reads.
+
+            It is the breakdown with the most to say, because the other two
+            answer "where is the cash" and this one answers "is it moving". A
+            share that is 70% and falling is a different decision from 70% and
+            flat, and the incentives in `payout.ts` are the thing it measures.
+            Costs nothing: the same `mix.rows` the two above already read.
+          */}
+          <MixGroup
+            title={t("mix.byMonth")}
+            rows={mixByMonth(mix.rows)}
             label={(key) => key}
             valueLabel={t("mix.byValue")}
             countLabel={t("mix.byCount")}

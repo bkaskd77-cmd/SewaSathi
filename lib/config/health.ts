@@ -51,6 +51,21 @@ function isFailing(state: HealthState): boolean {
   return state !== "ok" && state !== "skipped";
 }
 
+/**
+ * Is every check either passing or deliberately skipped?
+ *
+ * TWELVE COMMENTS IN `app/api/health/route.ts` NAME THIS FUNCTION AS THE RULE
+ * DECIDING 200 AGAINST 503, AND NOTHING CALLED IT. `healthVerdict` arrived with
+ * the acknowledgement mechanism and computed `clean` as
+ * `failing.length === 0` — the same rule, inlined — so this became the repo's
+ * most-named sin on the one surface that keeps relearning it: one rule written
+ * twice, with a caller on one copy. The two agreed only because both read
+ * `isFailing`; a reader following those comments here would have found a
+ * function nothing calls, and a change made to it would have changed nothing.
+ *
+ * `healthVerdict` composes it now, so the comments are true again and there is
+ * one definition of "nothing is wrong".
+ */
 export function servesCustomers(
   checks: readonly Pick<HealthCheck, "state">[],
 ): boolean {
@@ -224,7 +239,10 @@ export function healthVerdict(
 
   return {
     ok: unacknowledged.length === 0,
-    clean: failing.length === 0,
+    /* `servesCustomers`, composed rather than re-derived — see its own note.
+       `failing.length === 0` was the same rule inlined, which left twelve
+       comments in the route naming a function nothing called. */
+    clean: servesCustomers(checks),
     failing,
     acknowledged,
     unacknowledged,

@@ -2224,6 +2224,7 @@
         "everything": "Everything",
         "byTrade": "By trade",
         "byWard": "By ward",
+        "byMonth": "By month",
         "byValue": "of the money",
         "byCount": "of the jobs",
         "settled": "Settled jobs",

@@ -1917,6 +1917,40 @@ review. The first case in the db suite is that comparison, and the standing rule
 is **apply the file's text, never retype it** — the same rule the schema notes
 already give for rebuilding a function from the tree rather than from `pg_proc`.
 
+### A function nothing calls fails a test
+
+`tests/unit/no-caller.test.ts` scans every exported function in `lib/` and fails
+on one that no production file names, with comments stripped — because naming a
+function in order to explain it is documentation, and this repository's comments
+cross-reference everything.
+
+**It exists because the failure is a pattern rather than bad luck.**
+`applyRedoRecovery`, `proposeBand`, `mode: "correction"`, `setCategoryContent`,
+`publishDocument`, `documentVersions`, `dispatchPauseFor`, `logTriage` returning
+void — eight, each found by a person reading months later. A function nothing
+calls is not merely dead: it reads as a feature, gets cited in comments and in
+the standing notes as though it were in force, and the promise it appears to keep
+is the thing that turns out to be false.
+
+**A test is not a caller.** `mode: "correction"` had a test asserting a parameter
+the product never passed, and `applyRedoRecovery` had tests through all four
+phases it had no caller. So test files are excluded from the scan and a waiver
+has to say why nothing in the PRODUCT needs the function.
+
+`NO_CALLER_EXPECTED` is the exceptions list — `routes-reachable`'s arrangement,
+and the same answer to the same objection: a maintained list of things to check
+has the blind spot it is meant to close, so the list holds the exceptions and the
+scan finds the rest. Four cases: the export count is asserted first; an
+undeclared orphan fails; **a waiver whose function has gained a caller fails
+too**, since the reason it was written has stopped being true and a stale waiver
+covers whatever takes that name next; and a reason under 80 characters is not a
+reason, which caught one of the first sixteen.
+
+The waivers fall into four honest kinds, and each entry says which: in-process
+state only a test can reset; an accessor over a list the product reads whole; a
+second spelling of a rule whose callers want the other form; and a branch stated
+beside its sibling for a screen that does not exist yet.
+
 ### The unarmed levers, declared and tested
 
 Three constants in this product are null because nobody has chosen a number:

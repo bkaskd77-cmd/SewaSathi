@@ -1003,6 +1003,37 @@ the form supplied is a bound the browser can widen. That is consistent with
 person SAW is theirs to send, because a decision has to record what was read; what
 a rule is ENFORCED against is ours to look up.
 
+**And a function nothing calls fails a test now, which is the sin this file
+records more often than any other.** The list is a pattern, not bad luck:
+`applyRedoRecovery` (four phases, while `/providers/standards` promised a
+balance "you can watch going down" that only ever went up), `proposeBand`,
+`mode: "correction"` on it (whose test asserted a parameter the product never
+passed), `setCategoryContent`/`publishDocument`/`documentVersions`,
+`dispatchPauseFor`, `logTriage` returning void. Every one found by a person
+reading, months later. `tests/unit/no-caller.test.ts` scans every exported
+function in `lib/` and fails on one no production file names, comments stripped
+— **a test is not a caller**, which is the whole point, since two of those
+orphans had tests and the tests passed. `NO_CALLER_EXPECTED` is the exceptions
+list with a reason each, `routes-reachable`'s arrangement, and a waiver whose
+function has GAINED a caller fails too, because the reason it was written has
+stopped being true. 16 waivers at 698 exports; the count is asserted first.
+**It found two real ones on its first run.** `servesCustomers` is named by
+twelve comments in `/api/health` as the rule deciding 200 against 503 and had
+no caller: `healthVerdict` arrived with the acknowledgements and inlined the
+same rule as `clean`, so the two agreed only because both read `isFailing`, and
+a change made to the named function would have changed nothing. It is composed
+now. And **`mixByMonth` was on no screen** — `/admin/signals` rendered by trade
+and by ward while this file said "by category, by ward and by month", and the
+month is the breakdown with the most to say, because the other two answer
+"where is the cash" and that one answers "is it moving". Rendered, off the rows
+the other two already read. `findAreaRow` was dead in the strongest sense — no
+reader anywhere, not even a test — and is deleted.
+**One stale comment went the other way, which is the same cost mirrored.**
+`EARLY_DELETION` read "PHASE 10 MUST HONOUR THIS at the point of approval" long
+after `approveApplication` did exactly that. A comment describing an obligation
+as outstanding when the code meets it sends the next reader looking for work
+that is done.
+
 **And the levers that are null because nobody picked a number are declared and
 tested now, because "nothing reads it" had already been false once.**
 `dispatchPauseFor` sat beside `arrearsPauseRupees` with no caller anywhere and a

@@ -171,11 +171,3 @@ export async function bookableAreas(): Promise<AreaRow[] | null> {
   return rows.filter((area) => area.retiredAt === null);
 }
 
-/** One area by key, retired included — for labelling a row that already names it. */
-export async function findAreaRow(
-  key: string | null | undefined,
-): Promise<AreaRow | null> {
-  if (!key) return null;
-  const rows = await allAreas();
-  return rows.find((area) => area.key === key) ?? null;
-}

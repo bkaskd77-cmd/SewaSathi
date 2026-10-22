@@ -292,9 +292,18 @@ export type RetentionKey = keyof typeof RETENTION;
  * citizenship certificate once the new application has been approved. The
  * moment it is, the rejected set goes.
  *
- * PHASE 10 MUST HONOUR THIS at the point of approval. It is a named obligation
- * rather than a comment precisely because it is the kind of thing that gets
- * left to the sweep, and the sweep is ninety days late.
+ * IT IS HONOURED, AND THIS COMMENT SAID IT WAS STILL OWED. It read "PHASE 10
+ * MUST HONOUR THIS at the point of approval" long after `approveApplication`
+ * in `lib/data/review.ts` did exactly that — it finds the person's earlier
+ * REJECTED applications, removes their documents from the private bucket,
+ * marks the rows `expired` and writes `documents.deletedOnReapproval` to the
+ * audit log. A comment describing an obligation as outstanding when the code
+ * meets it is the mirror image of one describing behaviour the code lacks, and
+ * it costs the same thing: the next reader goes looking for work that is done.
+ *
+ * It stays a named obligation rather than only an implementation, because it is
+ * the kind of thing that gets left to the sweep — and the sweep is ninety days
+ * late. The constant is what a future approval path has to read.
  */
 export const EARLY_DELETION: Partial<Record<RetentionKey, string>> = {
   rejectedDocuments:
