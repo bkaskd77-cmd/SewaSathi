@@ -224,6 +224,58 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      announcements: {
+        Row: {
+          id: string;
+          /** Both languages or nothing — rule 5, and both columns are NOT NULL.
+           *  A banner in English on a Nepali page is the one place a missing
+           *  translation is invisible: the reader assumes it was meant. */
+          body_en: string;
+          body_ne: string;
+          /** 'customer' | 'provider' | 'everyone'. `notificationPath`'s lesson
+           *  one surface over — a banner shown to the wrong half is noise or a
+           *  disclosure. `everyone` is a choice, never a default. */
+          audience: string;
+          /** 'notice' | 'urgent'. Two levels on purpose: every extra one that
+           *  renders in a warning colour makes the real one quieter. */
+          tone: string;
+          starts_at: string;
+          /** Null is "until somebody takes it down", never "for ever by
+           *  accident" — /admin/announcements prints that in those words. */
+          ends_at: string | null;
+          /** The kill switch, deliberately separate from the window: a banner
+           *  switched off inside its window is a real state. */
+          enabled: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_by: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          body_en: string;
+          body_ne: string;
+          audience: string;
+          tone?: string;
+          starts_at?: string;
+          ends_at?: string | null;
+          enabled?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_by?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          body_en?: string;
+          body_ne?: string;
+          tone?: string;
+          ends_at?: string | null;
+          enabled?: boolean;
+          updated_by?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       areas: {
         Row: {
           /** "lalitpur-4" — city slug and ward number. Every `addresses.area_key`,

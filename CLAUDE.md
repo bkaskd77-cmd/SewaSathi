@@ -799,6 +799,71 @@ and verifying with a SQL-computed comparison. The rule is **apply the file's
 text, never retype it** — the same rule the schema notes already state for
 rebuilding a function from the tree rather than from `pg_proc`.
 
+**A sentence can go above every page without a deploy now.** "We are closed for
+Dashain", "payouts are a day late this week", "do not use the gas line in
+Baneshwor until Friday" — every one of those is published copy with a start and
+an end, and the only way to say any of them was a commit. `announcements` is the
+table, `/admin/announcements` the screen, `lib/config/announcements.ts` the whole
+rule, pure, because the banner, the admin list and the tests all need it and a
+`now()` in a policy would be a second copy that could disagree — RLS is a floor,
+not a filter.
+**Audience is a column**, `notificationPath`'s lesson one surface over: a payout
+delay shown to customers is a disclosure rather than a notice, and `everyone` is
+the third value rather than the default. The VIEWER is named by the mount,
+because that is the one thing only the call site knows — three mounts, since the
+landing page is the locale root's own page and no frame wraps it.
+**The window and the switch are different facts, deliberately, where
+`categories` needed them tied.** There `is_active` and `retired_at` are one fact
+in two columns; here `starts_at`/`ends_at` is when somebody MEANT it to show and
+`enabled` is somebody taking it down now, and a banner switched off inside its
+window is a real state. The db case asserts the pair is NOT constrained, because
+the next reader's reflex will be to tie it. **Null `ends_at` is "until somebody
+takes it down"** and the screen says it in those words.
+**No client JavaScript, so no dismissal** — and the feature's shape is what makes
+that right rather than a compromise: `ends_at` is the dismissal and it is ours,
+which is the honest arrangement for "we are closed on Sunday". `bannerFor`
+returns ONE in a stated order (urgent, then newest, then id so the answer cannot
+depend on a database's row order), `attentionFor`'s rule at the top of every
+screen.
+**A failed read renders nothing, and this is the one place that is honest.**
+Nobody came to a page for a banner, so an error strip above the whole product
+whenever a query hiccupped would be noise — and the two are told apart in the
+two places somebody IS asking: `?debug=data` prints `announcements: unread`
+(the only key on that badge with no seed behind it, which is exactly why it
+belongs there), and `allAnnouncements()` returns **null** so the admin screen
+says so rather than printing "no announcements" over a broken query, which is
+how a second copy of a live banner gets published. `markDataSource` is called
+OUTSIDE the `unstable_cache`, because inside it only runs on a miss and the
+badge would read `unread` on every hit after.
+**One minute of cache, not fifteen, plus the tag.** `updateTag` makes a publish
+instant; the minute bounds the two changes no action fires — a banner scheduled
+for 09:00, whose window opens with nobody touching anything, and a failed read.
+**The boxes are Nepal time and the server is UTC**: a `datetime-local` sends no
+zone and Vercel runs with `TZ` unset, so `Date.parse` would have read 09:00 as
+14:45 Kathmandu. `nepalStampToIso` is the one place that knows, the label says
+so, and the test pins the figure rather than deriving it from
+`NEPAL_UTC_OFFSET_MINUTES` — which would assert the constant equals itself.
+**The eight-hour window, not the fifteen minutes**: `adminActor()` is the words
+gate, a banner moves no rupee and is reversible in one tap, and a code demanded
+before "we are closed for Dashain" can go up at seven in the morning is how a
+product comes to have nothing to say. The omission is declared in
+`lib/config/admin-money.ts` with the condition that ends it.
+**No history table**, because `security_events` already carries every publish,
+edit, withdrawal and restoration with the words in both languages — four kinds,
+since `restored` is a thing that happened rather than the absence of a
+withdrawal — and nothing here is ever deleted, which is what keeps those rows
+pointing at something.
+**The banner's own words are the first customer-facing Nepali no check can
+reach.** They are rows, not message keys and not `lib/content/` documents, so
+`check:messages` and `ne:review` are blind to them; what covers it is that both
+body columns are NOT NULL with a non-blank check and the form requires both —
+rule 5 enforced by the schema instead of by a reviewer, in the one place a
+missing translation is invisible. `admin.announcements` is in the staff review
+tier for the two labels that do have a failure mode.
+**The browser gets the eight columns it reads, not the table** — `profiles`'
+lesson taken before it was a finding, since a plain grant would have put
+`created_by` on the open internet for no reason.
+
 **The catalogue never asked whether anybody could do the job.** `canServeAt`,
 `hasRoom` and `providerCapacity` all existed and ran at claim time only, so the
 list could rank first somebody whose window was already sold — the customer taps

@@ -9,6 +9,7 @@ import {
   Timer,
 } from "lucide-react";
 
+import { AnnouncementBanner } from "@/components/shared/announcement-banner";
 import { ActivityStrip } from "@/components/marketing/activity-strip";
 import { PromiseStrip } from "@/components/marketing/promise-strip";
 import { ReviewWall } from "@/components/marketing/review-wall";
@@ -134,6 +135,15 @@ export default async function Home() {
   return (
     <>
       <SiteHeader {...identity} />
+
+      {/*
+        THE BANNER MOUNTS HERE AND NOT IN A LAYOUT, because this page is not
+        inside `(app)` — it is the locale root's own page, so the customer frame
+        never wraps it. Three mounts in all (here, `(app)`, `(work)`), each
+        naming its own viewer, which is the one thing only the call site knows.
+        Usually renders nothing at all.
+      */}
+      <AnnouncementBanner viewer="customer" />
 
       <main id="main">
         {/* ---------------- hero ---------------- */}

@@ -56,6 +56,20 @@
  * they run from the reconcile cron, where `CRON_SECRET` is the gate and a second
  * factor is meaningless. Adding an admin screen over either one puts its module
  * on this list in the same commit.
+ *
+ * `@/lib/data/announcements-admin` IS NOT HERE EITHER, and it is the closest
+ * call on the list because what it writes reaches every visitor on every page.
+ * It is off for the reason `@/lib/data/content` is off and `categories-admin`
+ * is on: a banner moves no rupee, publishes no band, stops no booking and
+ * reveals nobody's data, and it is reversible in one tap by the switch
+ * `enabled` exists to be — where `retireCategory` ends a whole trade and
+ * `addCategory` freezes a guessed ceiling onto every quote taken under it. It
+ * is also the one surface whose entire value is being able to say something
+ * TODAY, and a second factor before "we are closed for Dashain" can go up at
+ * seven in the morning is how a product comes to have nothing to say on the
+ * day it matters. If a banner ever carries a figure somebody can act on — a
+ * fee change, a rate — that argument is gone and the module joins the list in
+ * the same commit.
  */
 export const MONEY_MODULES: readonly string[] = [
   "@/lib/data/ai-ceilings",

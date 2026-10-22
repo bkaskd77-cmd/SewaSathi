@@ -2145,6 +2145,24 @@ describe("RLS covers every table, including ones nobody has written a test for",
     "content_strings",
     "content_documents",
     "content_document_versions",
+    /*
+     * THE BANNER, and it belongs beside `content_strings` for the same reason:
+     * it is what the product SAYS, on a page a stranger opens with no session
+     * at all. A row holds two sentences, an audience, a tone and a window — no
+     * person, no amount, no id of anything private.
+     *
+     * READABLE EVEN WHEN IT IS NOT SHOWING, and that is deliberate rather than
+     * loose. `showingNow` is the filter and it runs in TypeScript, because the
+     * admin screen, the banner and the tests all need the same rule and a
+     * `now()` in a policy would be a second copy of it that could disagree —
+     * RLS is a floor, not a filter. A withdrawn or future banner being readable
+     * costs nothing: it is copy we wrote and chose not to show yet.
+     *
+     * `created_by` and `updated_by` ARE staff ids and no read in the
+     * application selects them — the boundary `content_strings.updated_by`
+     * already draws one table over.
+     */
+    "announcements",
   ]);
 
   /** The one table a stranger may write to: the "join us" form. */

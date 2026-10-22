@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
+import { AnnouncementBanner } from "@/components/shared/announcement-banner";
 import { WorkHeader } from "@/components/provider/work-header";
 import { Link } from "@/i18n/navigation";
 import { SupportContact } from "@/components/shared/support-contact";
@@ -53,6 +54,12 @@ export default async function WorkLayout({
       <WorkHeader
         name={profile?.providerName ?? profile?.fullName ?? t("unnamed")}
       />
+
+      {/* `provider` or `everyone`, never `customer` — "payouts are a day late
+          this week" is for this surface and a customer has no business reading
+          that we are behind on paying people. The audience column is what makes
+          that a stored decision rather than a guess per mount. */}
+      <AnnouncementBanner viewer="provider" />
 
       <main id="main" className="container flex-1 py-8 sm:py-10">
         {children}

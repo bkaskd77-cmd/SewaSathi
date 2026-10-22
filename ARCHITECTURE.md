@@ -1917,6 +1917,126 @@ review. The first case in the db suite is that comparison, and the standing rule
 is **apply the file's text, never retype it** — the same rule the schema notes
 already give for rebuilding a function from the tree rather than from `pg_proc`.
 
+### Announcements — one sentence above every page, without a deploy
+
+"We are closed for Dashain", "payouts are a day late this week", "do not use
+the gas line in Baneshwor until Friday" — every one of those is published copy
+with a start and an end, and until now the only way to say any of them was a
+commit. A product that cannot tell its customers something today is one that
+says nothing on the day it matters most. `/admin/announcements` is the screen,
+`announcements` the table, and the whole rule is pure in
+`lib/config/announcements.ts`.
+
+**Audience is a stored column, which is `notificationPath`'s lesson one surface
+over.** "Payouts are late" is for professionals and "we are closed" is for
+customers, and a banner shown to the wrong half is either noise or a disclosure
+— a customer does not need to read that we are behind on paying people.
+`everyone` is the third value rather than the default, so the question is
+answered rather than skipped. The VIEWER is the caller's to name, because it is
+the one thing only the mount knows: `(work)` is a professional, `(app)` and the
+landing page are a customer, and a signed-in professional reading `/services` is
+shopping.
+
+**Three mounts and not one.** The banner would sit in a single layout if there
+were one — there is not: the landing page is the locale root's own page, so the
+customer frame never wraps it. `(auth)` has no layout at all and gets nothing,
+and `(admin)` deliberately does not mount it: an admin publishing a banner does
+not need it shown back to them, and the screen already lists what is up.
+
+**The window and the switch are different facts, deliberately, where
+`categories` needed them tied.** There `is_active` and `retired_at` are one fact
+in two columns and `categories_retired_shape` refuses them out of step. Here
+they are genuinely two: `starts_at`/`ends_at` is when somebody MEANT it to show,
+`enabled` is somebody taking it down now, and a banner switched off inside its
+window is a real state — the outage ended early, or the sentence was wrong.
+Collapsing them would lose which happened, so the db case asserts that the pair
+is NOT constrained, because the next reader's reflex will be to tie it.
+`announcements_window` refuses only an end at or before its start.
+
+**Null `ends_at` is "until somebody takes it down", never "for ever by
+accident", and the screen says it in those words.** The difference between a
+banner that stops by itself and one somebody has to remember is the difference
+between a note and a thing that quietly becomes part of the product —
+`offTopicConsequence`' rule that a threshold people can only find by tripping it
+is a trap rather than a deterrent.
+
+**The banner ships no client JavaScript, and that decides the design.** It
+renders above every page including the landing page, whose bundle budget is the
+tightest in the repository. A dismiss button would be a Client Component plus
+`localStorage` plus a hydration boundary on a strip that is usually absent — so
+there is no dismissal, and the shape of the feature is what makes that right
+rather than a compromise: `ends_at` is the dismissal, and it is ours rather than
+each visitor's, which is the honest arrangement for "we are closed on Sunday".
+It is not a live region either: static markup present before first paint is an
+ordinary labelled region, and nothing in this product claims to be live but the
+booking channel.
+
+**`bannerFor` returns ONE, in a stated order.** `urgent` before `notice`, then
+the most recently started, then by id so the answer cannot depend on the row
+order a database happened to return. Tone first because an urgent banner is the
+one somebody must act on today; recency second because the newer sentence is the
+one that knows about the older situation. Two stacked above a page is two things
+nobody reads — `attentionFor`'s rule for `/bookings` and `instead`'s for the
+triage card, at the top of every screen.
+
+**One minute of cache, not the fifteen `contentOverrides` uses, and a tag.**
+`updateTag(ANNOUNCEMENTS_TAG)` makes a publish or a take-down instant, so the
+window never delays a sentence somebody just wrote. What the minute bounds is
+the two changes no action fires: a banner SCHEDULED for 09:00, whose window
+opens with nobody touching anything, and a failed read. One query a minute per
+instance is not a cost worth weighing against a banner being on time.
+
+**A failed read renders nothing, and that is the one place that is honest.**
+`/services` can say "we can't load professionals right now — this is us, not
+you" because the reader came for professionals. Nobody came for a banner: its
+absence is the common case on every page, and a sentence in its place would be
+an error strip above the whole product whenever a query hiccupped. The two are
+told apart in the two places somebody IS asking — `?debug=data` prints
+`announcements: unread`, which is the only reason that key is on the badge with
+no seed behind it, and `allAnnouncements()` returns **null** so the admin screen
+says so rather than showing "no announcements" over a broken query, which is how
+a person publishes a second copy of a banner already up.
+
+**The boxes are Nepal time and the server is UTC.** `<input
+type="datetime-local">` submits a zone-less string and Vercel runs with `TZ`
+unset, so `Date.parse` would have read an admin's 09:00 as 09:00 UTC — 14:45 in
+Kathmandu, late by exactly the amount nobody checks. `nepalStampToIso` and
+`isoToNepalStamp` are the pair, the label says "Nepal time", and the test pins
+the figure (`2026-10-25T09:00` → `2026-10-25T03:15:00.000Z`) rather than
+deriving it from `NEPAL_UTC_OFFSET_MINUTES`, which would assert that the
+constant equals itself. It round-trips the parse rather than trusting
+`Date.UTC`, which rolls month 13 and day 40 over into a date somebody did not
+type.
+
+**The eight-hour window, not the fifteen minutes.** `adminActor()` is the words
+gate — what the string editor and `setCategoryContent` take — where `stateBand`,
+`retireCategory` and `retireArea` take `freshAdminActor()`. A banner moves no
+rupee, publishes no band, stops no booking and reveals nobody's data, and it is
+reversible in one tap by the switch `enabled` exists to be. It is also the one
+surface whose entire value is saying something TODAY. The omission is written
+into `lib/config/admin-money.ts` beside the others, with the condition that
+would end it: a banner carrying a figure somebody can act on puts the module on
+that list in the same commit.
+
+**No history table, and that is a decision.** A band revision is append-only
+because a disputed price is argued from it; a banner is read and gone.
+`security_events` records every publish, edit, withdrawal and restoration with
+the words in both languages — four kinds, because `withdrawn` and `restored` are
+two things that happened rather than one and its absence. Nothing is deleted
+here and there is no delete path, which is what keeps those rows pointing at
+something.
+
+**The banner's own words are the first customer-facing Nepali in this product
+that no check can reach.** They are rows, not message keys and not
+`lib/content/` documents, so `check:messages` and `ne:review` are both blind to
+them. What covers it is that `body_en` and `body_ne` are each NOT NULL with a
+non-blank check and the form requires both — rule 5 enforced by the schema
+rather than by a reviewer, in the one place a missing translation is invisible
+because a Nepali reader meeting an English banner assumes it was meant that way.
+`admin.announcements` is in the staff review tier for the two labels that do
+have a failure mode: `windowHelp`, misread as "it will expire on its own", and
+`audienceHelp`, misread into publishing a payout delay to customers.
+
 ### Photo relevance — asked in the triage call, never a gate
 
 The model already looks at an attached photo to read the hazard. It now also says whether

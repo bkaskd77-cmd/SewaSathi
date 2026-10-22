@@ -21,6 +21,7 @@ default as a measurement.
 | `ai_account_state` | 0 | no data | no data | no data | no data | no data | no data |
 | `ai_limits` | 1 | none | none | none | none | none | all |
 | `ai_spend` | 0 | no data | no data | no data | no data | no data | no data |
+| `announcements` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_assessments` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_consents` | 0 | no data | no data | no data | no data | no data | no data |
 | `application_decisions` | 0 | no data | no data | no data | no data | no data | no data |

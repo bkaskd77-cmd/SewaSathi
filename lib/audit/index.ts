@@ -175,6 +175,28 @@ export type SecurityEventKind =
   | "area.retired"
   | "area.reopened"
   /**
+   * A sentence somebody put above every page in the product, and took down.
+   *
+   * FOUR KINDS BECAUSE A BANNER HAS FOUR DECISIONS IN IT and three of them
+   * would otherwise be invisible. `announcements` has no history table — that
+   * is a decision rather than an omission, since a band revision is
+   * append-only because a disputed price is argued from it and a banner is read
+   * and gone — so these rows ARE the history, which is why the detail carries
+   * the words in both languages. A log saying only "a banner was published"
+   * answers none of the questions a banner raises later: what did it say, who
+   * was it for, how long was it up.
+   *
+   * `withdrawn` AND `restored` ARE SEPARATE, the `area.reopened` reasoning: a
+   * banner switched back on is a thing that happened, not the absence of a
+   * withdrawal, and a history that reads as a row which was always live is a
+   * history nobody can argue from. No personal data is involved — published
+   * copy, an audience and a window.
+   */
+  | "announcement.published"
+  | "announcement.edited"
+  | "announcement.withdrawn"
+  | "announcement.restored"
+  /**
    * A person took a published duration back down.
    *
    * THE ONE PLACE A HUMAN OVERRULES A LOOP THAT ACTS UNATTENDED. The duration
@@ -246,6 +268,8 @@ export type SecurityEvent = {
     | "category"
     /** An area key — the subject of opening or withdrawing a ward. Not a person. */
     | "area"
+    /** One banner's id. The subject is the sentence, not anybody who read it. */
+    | "announcement"
     /**
      * One published review. The subject is the words, not their author — which
      * is why the detail never carries the customer.

@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
+import { AnnouncementBanner } from "@/components/shared/announcement-banner";
 import { SiteFooter } from "@/components/marketing/footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { headerIdentity } from "@/lib/auth";
@@ -51,6 +52,11 @@ export default async function AppLayout({
         that would take them nowhere new.
       */}
       <SiteHeader {...identity} />
+
+      {/* A customer frame, so a `customer` or `everyone` banner. It does its
+          own cached read rather than joining the wave above — one query a
+          minute for every visitor of the whole product. */}
+      <AnnouncementBanner viewer="customer" />
 
       <main id="main" className="container flex-1 py-10 sm:py-14">
         {children}

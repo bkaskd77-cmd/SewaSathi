@@ -1929,6 +1929,10 @@
           "name": "Words",
           "what": "Change what the product says, in both languages, without a deploy."
         },
+        "announcements": {
+          "name": "Announcements",
+          "what": "One sentence above every page, with a start and an end — no deploy."
+        },
         "aiLimits": {
           "name": "AI ceilings",
           "what": "What the AI may cost in a day, and what one person may ask. Today's spend is on it."
@@ -2936,6 +2940,65 @@
         "blank": "Every field is required, including both Nepali ones.",
         "notAdmin": "You are no longer signed in as an admin."
       }
+    },
+    "announcements": {
+      "title": "Announcements",
+      "lead": "One sentence above every page, with a start and an end. This is how we say “we are closed for Dashain” or “payouts are a day late this week” without a deploy.",
+      "historyNote": "Nothing here is deleted. Every publish, edit, take-down and restoration is in the audit log with the words, so a banner can always be read back.",
+      "publishTitle": "Put a banner up",
+      "publishLead": "Both languages, one audience, one tone. It appears on every page that audience sees, within a minute.",
+      "publish": "Put it up",
+      "save": "Save the change",
+      "working": "Saving…",
+      "done": "Saved.",
+      "bodyEn": "The sentence",
+      "bodyNe": "The sentence (Nepali)",
+      "bothLanguages": "Both are required, up to {count, plural, one {{n} character} other {{n} characters}} each — this sits above the page on a phone, and anything longer belongs on a page with a link to it. A banner in English on a Nepali page reads as something we chose not to translate.",
+      "audience": "Who sees it",
+      "audienceHelp": "“Payouts are late” is for professionals; a customer has no business reading that we are behind on paying people. Pick the half it is for, or everyone.",
+      "audiences": {
+        "customer": "Customers",
+        "provider": "Professionals",
+        "everyone": "Everyone"
+      },
+      "tone": "How loud",
+      "tones": {
+        "notice": "Ordinary notice",
+        "urgent": "Urgent"
+      },
+      "startsAt": "From (optional)",
+      "endsAt": "Until (optional)",
+      "windowHelp": "Nepal time. Leave “from” empty to start now. Leave “until” empty and it stays up until somebody takes it down — there is no date that will stop it.",
+      "fromUntil": "{from} to {to}",
+      "fromUntilTakenDown": "From {from}, until somebody takes it down.",
+      "takenDown": "Taken down by hand, inside its own window.",
+      "takeDown": "Take it down",
+      "putBack": "Put it back up",
+      "editTitle": "Fix the words",
+      "editLead": "Changes the sentence, the tone and the end date of this banner. Who it is for and when it started cannot change — that would be a different banner, and the people who read this one cannot un-read it.",
+      "standings": {
+        "showing": "Showing now",
+        "scheduled": "Not started yet",
+        "over": "Finished"
+      },
+      "groups": {
+        "showing": "{count, plural, one {{n} banner} other {{n} banners}} showing now",
+        "scheduled": "{count, plural, one {{n} banner} other {{n} banners}} not started yet",
+        "over": "{count, plural, one {{n} finished banner} other {{n} finished banners}}"
+      },
+      "unreadable": "We could not read the announcements. This is us, not you — do not publish anything until this screen loads, or you may put up a second copy of a banner that is already showing.",
+      "none": "Nothing has ever been announced. Most days that is the right state.",
+      "errors": {
+        "refused": "That did not save. Nothing has been changed.",
+        "unreadable": "We could not reach the database. Nothing has been changed.",
+        "notFound": "Nothing to change — that banner is already in the state you asked for.",
+        "blank": "Both sentences are required.",
+        "tooLong": "That is too long for a banner. Shorten it, or put it on a page and link to it.",
+        "badAudience": "Pick who it is for.",
+        "badTone": "Pick how loud it is.",
+        "badWindow": "Check the dates: the end has to be after the start, and both have to be real times.",
+        "notAdmin": "You are no longer signed in as an admin."
+      }
     }
   },
   "offline": {
@@ -3055,5 +3118,9 @@
     "appealPhone": "Or ring {number}",
     "appealMessage": "Hello — I would like to appeal a restriction on my SajiloKaam account.",
     "readStandards": "Read the five steps, what sets one off and how it lifts"
+  },
+  "announcement": {
+    "label": "Announcement",
+    "urgentLabel": "Important"
   }
 }

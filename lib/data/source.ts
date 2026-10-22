@@ -37,7 +37,20 @@ export type DataSourceKey =
   | "categories"
   | "subBands"
   | "providers"
-  | "reviews";
+  | "reviews"
+  /**
+   * The banner, and it is the one key here with no seed behind it.
+   *
+   * Every other read in `lib/data` can fall back to the seed JSON, which is
+   * what makes this badge necessary: the two hold the same rows, so a broken
+   * query renders a perfect-looking page. `liveAnnouncements` has no fallback
+   * at all — it returns nothing and the banner renders nothing — and that is
+   * exactly why it belongs here. "No banner today" and "we could not read the
+   * banners" are byte-identical on every page of the product, and this is the
+   * only place they are told apart. So it reads `database` or `unread`, never
+   * `seed`.
+   */
+  | "announcements";
 
 export type DataSources = Record<DataSourceKey, DataReading>;
 
@@ -47,6 +60,7 @@ const store = cache((): DataSources => ({
   subBands: { source: "unread" },
   providers: { source: "unread" },
   reviews: { source: "unread" },
+  announcements: { source: "unread" },
 }));
 
 export function markDataSource(
@@ -71,6 +85,7 @@ export function readDataSources(): DataSources {
     subBands: { ...current.subBands },
     providers: { ...current.providers },
     reviews: { ...current.reviews },
+    announcements: { ...current.announcements },
   };
 }
 

@@ -26,6 +26,7 @@ export type AdminTool = {
     | "duration"
     | "revenue"
     | "content"
+    | "announcements"
     | "reviews"
     | "triageAccuracy"
     | "aiLimits"
@@ -120,5 +121,19 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * outstanding when it is simply how many words the product contains.
    */
   { key: "content", href: "/admin/content" },
+  /*
+   * BESIDE `content` BECAUSE THEY ARE THE SAME QUESTION ON TWO CLOCKS: what the
+   * product says in public. The string editor changes a sentence that is part
+   * of the product for ever; this one puts up a sentence with a start and an
+   * end. Somebody who has just failed to find a way to say "we are closed on
+   * Sunday" in the catalogue is one row away from the screen that can.
+   *
+   * NOT A QUEUE, and here the distinction has teeth. A count of live banners on
+   * the index would read as work outstanding, and the way to clear "1 showing"
+   * is to take a banner down — which is the opposite of a decision, and the
+   * banner is up precisely because somebody decided it should be. Nothing
+   * drains: most days there is nothing here at all.
+   */
+  { key: "announcements", href: "/admin/announcements" },
   { key: "audit", href: "/admin/audit" },
 ];
