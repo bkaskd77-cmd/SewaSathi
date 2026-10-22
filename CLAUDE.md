@@ -1003,6 +1003,56 @@ the form supplied is a bound the browser can widen. That is consistent with
 person SAW is theirs to send, because a decision has to record what was read; what
 a rule is ENFORCED against is ours to look up.
 
+**`npm audit` is one feed and it was eight days late on a critical RCE, so the
+dependency gate no longer rests on it.** Measured on 2026-10-22:
+GHSA-2464-fhr4-w9xw — unauthenticated RCE in the Next image optimiser, CVSS 9.5
+— was published 2026-10-14, the same day `next@16.4.1` was published to fix it,
+and CI's advisories job passed on the 15th, 16th, 17th, 18th and 19th on a
+known-affected `next@16.3.8`. It went red between runs 339 and 340, eighteen
+minutes apart, on commits containing a markdown file and a test — so the change
+was in npm's feed, not in this repository. **And the feed is incomplete as well
+as late**: `next@16.4.1`'s release notes name THREE advisories it fixes and npm
+carries two; GHSA-673q-mjm6-r5xr, also a critical RCE, is absent from
+`npm audit` nine days on. Asking npm would never have found it.
+`scripts/dependency-floors.mjs` is the answer — a minimum version per package
+with the GHSAs that set it, read from the **lockfile** because that is what
+`npm ci` installs, and **needing no network**, so it cannot lag, cannot be
+incomplete and cannot answer differently on two days from one lockfile. A
+prerelease sorts BELOW its release, because a canary carrying the version number
+of a fix is not the fix, and an unreadable version fails naming which side it
+could not read — the first draft printed the installed version while the FLOOR
+was the bad one, found by break-testing and reading the output.
+**The floors run FIRST, before the audit**, so a registry outage cannot stop
+them being answered — the failure that already produced one false green in that
+file.
+**And `advisories` blocks the deploy now, where `CANNOT_PASS` waved it past.**
+That exemption was right when written: a critical Next 14 advisory fixable only
+by the Next 16 major upgrade had left nine days of everything-else-unrun, and
+freezing production on top would have been the same incident with a worse blast
+radius. What changed is that the job CAN pass again — `ACCEPTED` went empty with
+the upgrade, and the script does not fail on a DECIDED advisory — so red now
+means "nobody has decided", which is a statement about whether this commit is
+safe to ship. The cost of the old behaviour was measured: run 341 failed on the
+CVSS 9.5 RCE, the gate waved it past, and the build deployed. **The nine-day
+escape still exists and is better than a waiver** — `ACCEPTED` plus a
+`LAUNCH-BLOCKERS.md` entry, a decision somebody wrote down rather than a blanket
+pass nobody justified per advisory. `CANNOT_PASS` **stays, empty**, because the
+argument for it is the kind that gets re-made under pressure.
+**Install-time code is declared now too.** `preinstall`/`install`/`postinstall`
+run with the privileges of whoever typed `npm ci` — on CI a token that can push
+here and a hook that can deploy — and `npm audit` says nothing about it.
+`scripts/install-scripts.mjs` names all five with what pulls each in; a sixth
+fails until somebody decides, a stale entry fails too (it would waive whatever
+takes that name next), and one moving from the dev tree to the production tree
+is named separately. **Nothing is removable and that is the honest answer**:
+`@parcel/watcher` is required outright by `next-intl`, and `esbuild` and
+`unrs-resolver` are what make `npm run test` and `npm run lint` run at all —
+which is why `ignore-scripts` was weighed and refused.
+**Every GitHub Action is pinned by commit SHA with its tag in a comment.** A tag
+is a pointer somebody else can move, and these steps hold that push token. The
+SHA is what makes it safe; the comment is what makes the diff reviewable, since
+forty hex characters cannot be told from a downgrade.
+
 **And a function nothing calls fails a test now, which is the sin this file
 records more often than any other.** The list is a pattern, not bad luck:
 `applyRedoRecovery` (four phases, while `/providers/standards` promised a

@@ -172,6 +172,89 @@ Phase 7 way to record a final amount before the provider screen existed. The
 screen exists now, so this was a second door into the most money-critical
 function in the product, with no caller.
 
+### The dependency gate, and why one feed is not a gate
+
+**`npm audit` was the whole gate and it was eight days behind a critical
+unauthenticated RCE.** Measured 2026-10-22. GHSA-2464-fhr4-w9xw — RCE in the
+Next image optimiser when SVG files are used, CVSS 9.5 — was published
+2026-10-14, the same day `next@16.4.1` and `next@15.5.28` were published to fix
+it. This product sat on `next@16.3.8`; CI's advisories job ran on the 15th,
+16th, 17th, 18th and 19th and passed every time. It began failing between runs
+339 and 340, eighteen minutes apart, on a markdown file and a test — so what
+changed was npm's feed.
+
+**It is also incomplete.** `next@16.4.1`'s release notes name three advisories;
+npm's feed carries two. GHSA-673q-mjm6-r5xr, an unauthenticated RCE in
+`use cache` functions returning typed arrays, is absent from `npm audit` nine
+days after publication. No amount of asking npm finds it.
+
+**The image-optimiser one is not theoretical for this product.** Customers
+upload a photograph of the problem; professionals upload arrival photographs for
+a no-show claim and evidence for a guarantee claim. All of it goes through that
+path, which is why `lib/security/image.ts` reads magic bytes rather than a
+content type. The Server Actions denial of service is in how every write here is
+made.
+
+So the gate is three passes, and the two that need no network run first:
+
+| Pass | Question | Source |
+| --- | --- | --- |
+| Floors | is the installed version at or above the one a named advisory says is safe | `scripts/dependency-floors.mjs` against `package-lock.json` — no network |
+| Install scripts | which dependencies may run code at `npm ci` time | `scripts/install-scripts.mjs` against the lockfile — no network |
+| Audit | is there an advisory nobody here has heard of | `npm audit --omit=dev` |
+
+A floor is a fact somebody read and wrote down, so it cannot lag and cannot be
+incomplete. It is read from the **lockfile**, because `npm ci` installs the
+lockfile and a caret range would let the gate pass on a version nobody has. A
+prerelease sorts below its release — a canary carrying the version number of a
+fix is not the fix — and an unreadable version fails rather than passing, naming
+which side it could not read.
+
+**`advisories` blocks the deploy now.** `CANNOT_PASS` held it, for a reason that
+was sound and expired: a critical Next 14 advisory fixable only by the Next 16
+major upgrade had left nine days of every other check unrun, and freezing
+production as well would have been the same incident with a worse blast radius.
+The job can pass again — `ACCEPTED` went empty with the upgrade and the script
+does not fail on a decided advisory — so red means "nobody has decided", which
+is a statement about this commit. The old behaviour was measured costing
+something: run 341 failed on the CVSS 9.5 RCE and the build deployed anyway. The
+escape for an unfixable advisory is `ACCEPTED` plus a `LAUNCH-BLOCKERS.md`
+entry, which is a decision on the record rather than a blanket pass.
+
+### Install-time code, and the actions that run it
+
+**An install script is the shortest path from a compromised package to our
+deploy.** `preinstall`, `install` and `postinstall` run with the privileges of
+whoever typed `npm ci` — a developer's machine, or a CI runner holding a token
+that can push to this repository and a hook that can put a build into
+production. It runs before anybody has read a line of the package, and
+`npm audit` says nothing about it.
+
+Five packages run one. Each is declared in `scripts/install-scripts.mjs` with
+what pulls it in, and **none is removable**:
+
+| Package | Tree | Pulled by | Why it stays |
+| --- | --- | --- | --- |
+| `@parcel/watcher` | **prod** | `next-intl`, non-optionally | The only install script in the production tree. `next-intl` is the whole i18n layer, so removing it is a product decision. Its `install` compiles only when no prebuilt binary matches; the lockfile carries prebuilds for all twelve platforms, so on CI and on Vercel it resolves to a download |
+| `esbuild` | dev | `vite`, via `vitest` | Its `postinstall` fetches the binary esbuild *is*. Without it `npm run test` does not start — this is the entry that makes a blanket `ignore-scripts` unusable |
+| `unrs-resolver` | dev | `eslint-import-resolver-typescript` | Fetches the native resolver that lets `no-restricted-imports` resolve `@/` paths — the rule enforcing every module boundary in ARCHITECTURE.md |
+| `fsevents` | dev | `chokidar`, via `vite` | Flagged as having a script and has none; darwin-only and optional, so never installed on a runner. Listed rather than filtered, because "npm says it has one and it does not" is worth a line |
+| `@swc/core` | prod | `next-intl` | Same: flagged, declares none. Kept so the count matches the lockfile rather than a filter |
+
+`ignore-scripts` was weighed and refused: it would leave the test runner and the
+linter unable to start, and a gate nobody can run is worse than a gate that
+names its risk. What would change the answer is a package appearing here that
+nothing needs — which is what the undeclared-script case fails on.
+
+**Every GitHub Action is pinned by commit SHA**, with its tag in a trailing
+comment. A tag is a pointer its owner can move, and these steps hold the push
+token and the deploy hook; an upstream account takeover cannot change what
+already runs here. The comment is what keeps the diff reviewable, since forty
+hex characters cannot be told from a downgrade. **CI installs with `npm ci`
+only** — `npm install` is free to resolve inside a caret range and rewrite the
+lockfile, so what CI tested would not be what the lockfile says.
+`tests/unit/supply-chain.test.ts` is what fails if any of the three slips.
+
 ### The four claims, and where each is proved
 
 - *A customer cannot read or act on another customer's booking, address,

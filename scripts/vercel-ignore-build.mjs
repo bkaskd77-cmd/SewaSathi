@@ -66,15 +66,41 @@ export const SKIP = 0;
  */
 
 /*
- * CANNOT PASS, WHATEVER THIS COMMIT IS. `.github/workflows/ci.yml` puts the dependency
- * advisories in a job of their own precisely so a check that CANNOT pass is unable to
- * silence the checks that can. On 2026-09-10 a CRITICAL advisory landed in Next 14 that
- * only the Next 16 major upgrade could fix, and for nine days every other check went
- * unrun. Letting that same red job also freeze production would put the incident back
- * with a worse blast radius — nothing would ship for nine days either, and an advisory
- * nobody can act on is not a statement about whether this commit is good.
+ * CANNOT PASS, WHATEVER THIS COMMIT IS — AND IT IS EMPTY NOW.
+ *
+ * IT HELD `advisories`, FOR A REASON THAT WAS SOUND AND HAS EXPIRED.
+ * `.github/workflows/ci.yml` puts the dependency advisories in a job of their own
+ * precisely so a check that CANNOT pass is unable to silence the checks that can. On
+ * 2026-09-10 a CRITICAL advisory landed in Next 14 that only the Next 16 major upgrade
+ * could fix, and for nine days every other check went unrun. Letting that same red job
+ * freeze production would have put the incident back with a worse blast radius —
+ * nothing shipping for nine days either — and an advisory nobody can act on is not a
+ * statement about whether this commit is good.
+ *
+ * WHAT CHANGED IS THAT THE JOB CAN PASS AGAIN, in two steps. The Next 16 upgrade landed
+ * and `ACCEPTED` in `check-advisories.mjs` went empty; and that script does not fail on
+ * an advisory that has been DECIDED — an accepted one prints as `known` and exits 0. So
+ * a red advisories job no longer means "something nobody can fix". It means something
+ * nobody has decided about, which is exactly a statement about whether this commit is
+ * safe to ship.
+ *
+ * AND THE COST OF THE EXEMPTION WAS MEASURED ON 2026-10-22. Run 341 failed its
+ * advisories job on a critical unauthenticated RCE in the Next image optimiser
+ * (GHSA-2464-fhr4-w9xw, CVSS 9.5), this gate waved it past, and the build deployed. The
+ * exemption written to stop one incident was quietly permitting another.
+ *
+ * THE NINE-DAY ESCAPE STILL EXISTS AND IS BETTER THAN A WAIVER. An advisory with no fix
+ * goes in `ACCEPTED` with a reason and an entry in `LAUNCH-BLOCKERS.md`; the job then
+ * passes and production ships. That is a decision somebody wrote down, where this set
+ * was a blanket wave-past nobody had to justify per advisory — the
+ * `ACKNOWLEDGED_FAILURES` distinction, one gate over.
+ *
+ * THE SET STAYS, EMPTY, rather than being deleted along with its reasoning. The argument
+ * for it is the kind that gets re-made from scratch under pressure, and an empty named
+ * set with the history attached is what stops the next reader re-adding the name without
+ * reading why it left.
  */
-export const CANNOT_PASS = new Set(["advisories"]);
+export const CANNOT_PASS = new Set([]);
 
 /*
  * ABOUT A DEPLOYMENT RATHER THAN ABOUT THE COMMIT, which is the structural exemption and

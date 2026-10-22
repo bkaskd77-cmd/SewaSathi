@@ -67,14 +67,28 @@ describe("the deploy gate", () => {
   });
 
   /*
-   * THE PAIR THAT MATTERS MOST, and nothing could have caught it before these cases.
-   * `ci.yml` splits the advisories into their own job so a check that cannot pass is
-   * unable to silence the checks that can — a CRITICAL advisory in Next 14, fixable only
-   * by the Next 16 upgrade, left nine days of everything-else-unrun. If a red advisory
-   * also froze production, that incident comes back with nothing shipping for nine days
-   * on top of it. It must wave past; a red `verify` beside it must not.
+   * A RED ADVISORIES JOB NOW STOPS THE DEPLOY, AND THIS CASE USED TO ASSERT THE
+   * OPPOSITE. It read "builds when only the advisories are red, and says so", for a
+   * reason that was sound when it was written: `ci.yml` splits the advisories into a job
+   * of their own so a check that CANNOT pass is unable to silence the ones that can, and
+   * a critical Next 14 advisory fixable only by the Next 16 major upgrade had already
+   * left nine days of everything-else-unrun. Freezing production on top of that would
+   * have been the same incident with a worse blast radius.
+   *
+   * WHAT CHANGED IS THAT THE JOB CAN PASS AGAIN. `ACCEPTED` went empty with the Next 16
+   * upgrade, and `check-advisories.mjs` does not fail on a DECIDED advisory — it prints
+   * it as `known` and exits 0. So red no longer means "nobody can fix this"; it means
+   * nobody has decided, which is a statement about whether this commit is safe to ship.
+   *
+   * AND THE OLD BEHAVIOUR WAS MEASURED COSTING SOMETHING ON 2026-10-22: run 341's
+   * advisories job failed on a critical unauthenticated RCE in the Next image optimiser
+   * (GHSA-2464-fhr4-w9xw, CVSS 9.5), this gate waved it past, and the build deployed.
+   *
+   * THE ESCAPE FOR AN UNFIXABLE ADVISORY IS `ACCEPTED` PLUS A LAUNCH-BLOCKERS ENTRY,
+   * which is a decision somebody wrote down rather than a blanket exemption nobody had
+   * to justify per advisory.
    */
-  it("builds when only the advisories are red, and says so", () => {
+  it("skips when the advisories are red, even with everything else green", () => {
     const decision = decideFromRuns(
       [
         { name: "verify", status: "completed", conclusion: "success" },
@@ -82,10 +96,8 @@ describe("the deploy gate", () => {
       ],
       SHA,
     );
-    expect(decision.code).toBe(BUILD);
-    expect(decision.message).toContain("advisories is failure and does not block");
-    // Named as the one check that had to pass, so the waved job is not mistaken for one.
-    expect(decision.message).toContain("— verify.");
+    expect(decision.code).toBe(SKIP);
+    expect(decision.message).toContain("advisories");
   });
 
   it("still skips when the advisories are red and verify is too", () => {
@@ -125,19 +137,19 @@ describe("the deploy gate", () => {
 
   it("waves past nothing but the named jobs", () => {
     /*
-     * PINNED AS TWO SETS, because the reasons are not interchangeable: `advisories` cannot
-     * pass whatever this commit is, and the other three are answers about a deployment.
-     * A single list would let the next reader move a name between them without noticing
-     * that it also changes the argument for exempting it.
+     * PINNED AS TWO SETS, because the reasons are not interchangeable: one was about a
+     * check that could not pass whatever the commit was, and the other three are answers
+     * about a deployment. A single list would let the next reader move a name between
+     * them without noticing that it also changes the argument for exempting it.
+     *
+     * `CANNOT_PASS` IS EMPTY AND IS ASSERTED EMPTY. It held `advisories` and no longer
+     * does — see the case above for why, and why the set survives its own emptiness: the
+     * argument for it is the kind that gets re-made under pressure, so the name leaving
+     * has to be visible rather than silent.
      */
-    expect([...CANNOT_PASS]).toEqual(["advisories"]);
+    expect([...CANNOT_PASS]).toEqual([]);
     expect([...ABOUT_A_DEPLOYMENT]).toEqual(["deploy", "fingerprints", "deployed"]);
-    expect([...NON_BLOCKING]).toEqual([
-      "advisories",
-      "deploy",
-      "fingerprints",
-      "deployed",
-    ]);
+    expect([...NON_BLOCKING]).toEqual(["deploy", "fingerprints", "deployed"]);
 
     const decision = decideFromRuns(
       [
@@ -193,8 +205,11 @@ describe("the deploy gate", () => {
     expect(decision.code).toBe(BUILD);
     /* Loud, not silent: a red drift tick deploying without a word is its own fault. */
     expect(decision.message).toContain("fingerprints is failure and does not block");
-    /* And `verify` is still the thing that had to pass. */
-    expect(decision.message).toContain("— verify.");
+    /* And the checks that had to pass are named. `advisories` is among them now that it
+       is no longer waved past, which is what makes the green one in this fixture
+       load-bearing rather than decoration. */
+    expect(decision.message).toContain("advisories");
+    expect(decision.message).toContain("verify");
   });
 
   it("still skips when a post-deploy check is red and verify is too", () => {

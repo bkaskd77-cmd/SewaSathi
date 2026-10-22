@@ -22,9 +22,44 @@
  * WHEN NEXT 16 LANDS, delete the entries below. An accepted advisory that no
  * longer applies is a hole left open on purpose, so the list failing closed
  * matters: an id here that npm no longer reports is reported as stale.
+ *
+ * THREE PASSES NOW, AND THE AUDIT IS THE LAST OF THEM, because asking npm turned
+ * out to be the weakest of the three. On 2026-10-22 this script was measured
+ * against the thing it exists to catch and it had missed it by eight days:
+ * GHSA-2464-fhr4-w9xw, an unauthenticated RCE in the Next image optimiser,
+ * critical, published 2026-10-14 alongside the `next@16.4.1` that fixes it,
+ * while CI's advisories job passed on the 15th, 16th, 17th, 18th and 19th on a
+ * known-affected `next@16.3.8`. And `next@16.4.1`'s release notes name THREE
+ * advisories where npm's feed carries two — GHSA-673q-mjm6-r5xr, also a
+ * critical RCE, is absent from `npm audit` to this day. So the feed is late and
+ * the feed is incomplete, and a gate resting on it alone is a gate that reports
+ * clean while a critical hole is open.
+ *
+ *   1. FLOORS       `scripts/dependency-floors.mjs` — the minimum version per
+ *                   package, with the advisories that say so, read from the
+ *                   lockfile. No network, so it cannot lag and cannot be
+ *                   incomplete.
+ *   2. INSTALL      `scripts/install-scripts.mjs` — every dependency allowed to
+ *      SCRIPTS      run code at install time, declared with its reason. The
+ *                   shortest path from a compromised package to our deploy, and
+ *                   a thing `npm audit` says nothing about.
+ *   3. AUDIT        npm's own feed, which is what finds the advisories nobody
+ *                   here has heard of. Still worth asking; no longer trusted
+ *                   on its own.
+ *
+ * THE ORDER IS THE POINT. The two free passes run FIRST, so a registry outage
+ * or an HTTP envelope in place of a report cannot stop them being answered —
+ * the failure mode that already produced one false green in this file.
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import process from "node:process";
+
+import { installedVersions, judgeFloors } from "./dependency-floors.mjs";
+import {
+  INSTALL_SCRIPTS_EXPECTED,
+  judgeInstallScripts,
+} from "./install-scripts.mjs";
 
 /**
  * Advisories this project has looked at and decided to live with, for now.
@@ -42,6 +77,91 @@ import process from "node:process";
  * list nobody maintains.
  */
 const ACCEPTED = {};
+
+/*
+ * THE LOCKFILE, READ ONCE FOR BOTH FREE PASSES.
+ *
+ * AN UNREADABLE LOCKFILE IS NOT A PASS, which is this file's own standing rule
+ * for npm returning nothing: "we did not look" must never read as "nothing
+ * found". Exit 2 is what `check:deployed` and `check:drift` use for the same
+ * meaning, so a monitor can tell "could not look" from "found something".
+ */
+let lock;
+try {
+  lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+} catch (error) {
+  console.error("\nDependency advisories");
+  console.error(`  Could not read package-lock.json — ${error.message}`);
+  console.error("  This is NOT a pass. The floors and the install-script");
+  console.error("  inventory are both read from it.\n");
+  process.exit(2);
+}
+
+/* Collected rather than exited on, so one run reports every pass. A gate that
+   stops at the first failure makes the second one cost another round trip. */
+const failures = [];
+
+console.log("\nDependency floors");
+
+const floors = judgeFloors(installedVersions(lock));
+for (const row of floors) {
+  if (row.verdict === "ok") {
+    console.log(`  ok     ${row.package} ${row.version} >= ${row.minimum}`);
+    continue;
+  }
+  failures.push(`${row.package} floor`);
+  if (row.verdict === "below") {
+    console.error(
+      `  BELOW  ${row.package} ${row.version} is under the floor of ${row.minimum}`,
+    );
+  } else {
+    console.error(`  UNREAD ${row.package} — ${row.detail}`);
+  }
+  console.error(`         ${row.advisories.join(", ")}`);
+  console.error(`         ${row.why}`);
+}
+if (failures.length === 0) {
+  console.log(
+    `  ${floors.length} floors hold. npm's feed is late and incomplete — see the`,
+  );
+  console.log("  header; this pass is what does not depend on it.");
+}
+
+console.log("\nInstall scripts");
+
+const scripts = judgeInstallScripts(lock);
+for (const one of scripts.actual) {
+  const known = INSTALL_SCRIPTS_EXPECTED[one.name];
+  if (known && known.scope === one.scope) {
+    console.log(`  ok     ${one.name} (${one.scope}) — via ${known.pulledBy}`);
+  }
+}
+for (const one of scripts.undeclared) {
+  failures.push(`${one.name} install script`);
+  console.error(
+    `  NEW    ${one.name} (${one.scope}) runs code at install time and nobody`,
+  );
+  console.error("         has decided about it. It runs with the privileges of");
+  console.error("         whoever typed `npm ci` — on CI that is a token that can");
+  console.error("         push here and a hook that can deploy. Declare it in");
+  console.error("         scripts/install-scripts.mjs with what pulls it in, or");
+  console.error("         remove the dependency.");
+}
+for (const one of scripts.misclassified) {
+  failures.push(`${one.name} install script scope`);
+  console.error(
+    `  MOVED  ${one.name} is declared ${INSTALL_SCRIPTS_EXPECTED[one.name].scope}` +
+      ` and is now ${one.scope}.`,
+  );
+  console.error("         A dev install script reaching the production tree is a");
+  console.error("         different decision from the one that was made.");
+}
+for (const name of scripts.stale) {
+  failures.push(`${name} install-script entry`);
+  console.error(`  STALE  ${name} is declared and the lockfile no longer runs a`);
+  console.error("         script for it. Remove the entry — it would otherwise");
+  console.error("         waive whatever takes that package's name next.");
+}
 
 function audit() {
   try {
@@ -140,10 +260,20 @@ if (unexpected.length === 0) {
   console.log(
     `  ${accepted.length} accepted, nothing new.${
       stale.length > 0 ? ` ${stale.length} stale entry to remove.` : ""
-    }\n`,
+    }`,
   );
   // A stale entry is a note to tidy, not a reason to stop a phase.
-  process.exit(0);
+  if (failures.length === 0) {
+    console.log("");
+    process.exit(0);
+  }
+  /* The audit found nothing and a free pass did. That combination is exactly
+     what the floors exist for — npm reported clean on a known-affected `next`
+     for eight days — so it has to fail loudly rather than inherit this pass. */
+  console.error(`\n  ${failures.length} failing: ${failures.join(", ")}.`);
+  console.error("  npm audit found nothing new, which is not the same as nothing");
+  console.error("  being wrong — see the header.\n");
+  process.exit(1);
 }
 
 console.error("");
@@ -157,5 +287,9 @@ for (const row of unexpected) {
 console.error(
   "\n  Decide it: fix it, or add it to ACCEPTED in scripts/check-advisories.mjs",
 );
-console.error("  with a reason and an entry in LAUNCH-BLOCKERS.md.\n");
+console.error("  with a reason and an entry in LAUNCH-BLOCKERS.md.");
+if (failures.length > 0) {
+  console.error(`  Also failing: ${failures.join(", ")}.`);
+}
+console.error("");
 process.exit(1);
