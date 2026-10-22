@@ -1917,6 +1917,41 @@ review. The first case in the db suite is that comparison, and the standing rule
 is **apply the file's text, never retype it** — the same rule the schema notes
 already give for rebuilding a function from the tree rather than from `pg_proc`.
 
+### The unarmed levers, declared and tested
+
+Three constants in this product are null because nobody has chosen a number:
+`PAYOUT_RUN.arrearsPauseRupees`, `TRIP_COMPENSATION.maxPaidClaimsPerPeriod` and
+`maxFailedChecksPerPeriod`. Each says in prose that it is unarmed and that
+nothing reads it, and that claim had already been false once in the expensive
+way: `dispatchPauseFor` sat beside the first with no caller anywhere and a
+comment asserting a test that did not exist.
+
+`lib/config/unarmed-levers.ts` is the inventory and
+`tests/unit/unarmed-levers.test.ts` is what makes it hold. Four cases: the
+sources are scanned for a module-level `number | null = null` in either spelling
+the repo uses and **an undeclared one fails**, with the count asserted first; the
+live value is read through the import, because the text and the value can
+disagree; nothing outside the declaring module names the binding, comments
+stripped, which is the `dispatchPauseFor` shape caught before it ships; and the
+`blockedBy` kind is pinned as a set, so a fourth kind cannot slip past the two
+cases that check one.
+
+**`blockedBy` is a closed set because "pick a number" is never the whole
+answer** — the finding that produced this file. `published-copy-contradicts`
+holds for `arrearsPauseRupees`: `/providers/standards` publishes that carrying a
+balance does not move you down the list, so arming it rewrites a promise, and
+the test asserts that sentence is still on the page while the constant is null —
+the pair cannot drift in either direction. `nothing-to-count` holds for
+`maxFailedChecksPerPeriod`: a refused photograph leaves no row, by
+`guarantee_claim_photos`' own design, so there is no count for a figure to be
+read against, and the test reads that migration's own sentence. `no-published-rule`
+holds for `maxPaidClaimsPerPeriod`, which would be the first rule here refusing
+a professional money automatically.
+
+It arms nothing and proposes no figure, which is `tuning-floors.ts`' posture:
+reaching a floor is permission to start the argument rather than its conclusion.
+What changed is that the inertness is provable instead of asserted.
+
 ### Announcements — one sentence above every page, without a deploy
 
 "We are closed for Dashain", "payouts are a day late this week", "do not use

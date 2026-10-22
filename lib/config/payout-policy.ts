@@ -105,8 +105,23 @@ export const PAYOUT_RUN = {
    * no such test existed, so the safety the sentence described was never
    * exercised. The function is gone; the constant stays, because it is the
    * written record of a decision and two other comments cite it as the shape an
-   * unarmed lever takes. Arming it means writing the rule, its caller and its
-   * test in one commit, with the figure in the professional's terms first.
+   * unarmed lever takes. `tests/unit/unarmed-levers.test.ts` asserts the
+   * no-reader claim now rather than leaving it as this sentence.
+   *
+   * **AND "WITH THE FIGURE IN THE TERMS FIRST" UNDERSTATED IT.** This line used
+   * to end there, as though arming were a number plus a paragraph.
+   * `/providers/standards` publishes, under *What is never a signal*, that
+   * carrying a guarantee balance "does not move you down the list, it is not one
+   * of the five steps below, and no part of this page is triggered by it". A
+   * figure here stops offering somebody work, so the two cannot both hold:
+   * arming this REWRITES a promise made to every professional, which is a copy
+   * decision with a constant attached rather than the reverse. The published
+   * version is also the better one on its own terms — the balance comes off
+   * future earnings at a quarter of each payout, so withholding work as well
+   * removes the only mechanism that clears it, which is the backward-recovery
+   * trap this file already refuses. The pair is tied in
+   * `lib/config/unarmed-levers.ts`, so arming the constant while that sentence
+   * is still on the page fails a test rather than a professional.
    */
   arrearsPauseRupees: null as number | null,
 

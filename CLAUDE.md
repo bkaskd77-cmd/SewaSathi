@@ -1003,6 +1003,43 @@ the form supplied is a bound the browser can widen. That is consistent with
 person SAW is theirs to send, because a decision has to record what was read; what
 a rule is ENFORCED against is ours to look up.
 
+**And the levers that are null because nobody picked a number are declared and
+tested now, because "nothing reads it" had already been false once.**
+`dispatchPauseFor` sat beside `arrearsPauseRupees` with no caller anywhere and a
+comment reading "the test asserts that a professional owing a fortune is still
+dispatched" — no such test existed, so the safety the sentence described was
+never exercised, on a lever deciding whether somebody gets work.
+`lib/config/unarmed-levers.ts` is the inventory — `money-assertions.ts`' shape
+for a constant instead of a column — and
+`tests/unit/unarmed-levers.test.ts` asserts per entry that the live value really
+is null, that nothing outside the declaring module reads the binding, and that
+the stated blocker still holds; it **fails on a fourth unarmed lever nobody
+declared**, which is the half that matters, since a list of three goes stale on
+the first new constant. The count is asserted first, and comments are stripped
+before the reader scan — naming a constant to explain why it is unarmed is
+documentation, which is `provider-money-one-source`'s own distinction.
+**"PICK A NUMBER" WAS NEVER THE WHOLE BLOCKER, AND ALL THREE COMMENTS IMPLIED IT
+WAS.** That is the finding. `arrearsPauseRupees` would stop offering somebody
+work, and `/providers/standards` publishes under *What is never a signal* that
+carrying a guarantee balance "does not move you down the list… and no part of
+this page is triggered by it" — so arming it rewrites a promise to every
+professional, a copy decision with a constant attached rather than the reverse,
+and the published version is the better one anyway because the balance clears
+out of future earnings and withholding work removes the only mechanism that
+clears it. The pair is tied by a test, so arming the constant while that
+sentence is still on the page fails a run rather than a professional.
+`maxFailedChecksPerPeriod` would be read against a count that **does not exist
+and by design cannot** — the three answers meaning "this is not evidence" are
+unstorable on `guarantee_claim_photos`, so a refused photograph leaves no row —
+while its own comment read "the count is kept and shown", a comment describing
+behaviour the code does not have, on a lever that would gate a payment. The
+likelier arming is to count the DOUBTS, which are stored. And
+`maxPaidClaimsPerPeriod` would be the first rule here refusing a professional
+money automatically, which needs the ladder's published treatment first, so
+there is no one-line arming there either. **Nothing was armed**: three guesses
+avoided is the right outcome, and what changed is that the claim is now provable
+instead of asserted.
+
 **And "when may this be tuned?" is a number now rather than a judgement.**
 Three loops are deliberately unarmed — the ranking weights, rotation among
 near-ties, the triage prompt — each for the stated reason that a constant chosen

@@ -75,7 +75,12 @@ export const TRIP_COMPENSATION = {
    *
    * A cap would also be the first rule here that refuses a professional money
    * automatically, so it needs the enforcement ladder's treatment — published,
-   * with what triggers it and how it lifts — before it is switched on.
+   * with what triggers it and how it lifts — before it is switched on. Which
+   * means there is no one-line arming here either: a published paragraph, the
+   * rule, its caller in `settleNoShowClaim` and its test, in one commit.
+   * Declared in `lib/config/unarmed-levers.ts`, where a test asserts that
+   * nothing reads this while it is null — the `dispatchPauseFor` shape, caught
+   * before it ships rather than after.
    */
   maxPaidClaimsPerPeriod: null as number | null,
 } as const;

@@ -249,7 +249,15 @@ describe("the numbers, stated rather than implied", () => {
   it("leaves the repeat-pattern rule unarmed", () => {
     /* `maxPaidClaimsPerPeriod`'s shape. Two claims exist in the whole history of this
        product and no photograph has ever been refused, so a number here would freeze a
-       guess into the codebase as a standard. */
+       guess into the codebase as a standard.
+
+       THE REST OF THE CLAIM IS IN `tests/unit/unarmed-levers.test.ts`, which is the
+       only place that asserts it, rather than here as well: that nothing on the live
+       path reads this while it is null, and that `guarantee_claim_photos` still cannot
+       store a refusal — so there is no count for a figure to be read against, which is
+       what this constant's own comment used to deny. This case stays because the
+       unarmed state belongs in the evidence suite's own list of numbers; it does not
+       restate the reasons. */
     expect(maxFailedChecksPerPeriod).toBeNull();
   });
 

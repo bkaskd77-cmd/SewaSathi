@@ -69,7 +69,22 @@ export const MAX_CLAIM_PHOTOS = 3;
  * claims exist in the whole history of this product and no photograph has ever been
  * refused, so any number here would be a guess frozen into the codebase as a standard —
  * and guessing low means a customer whose phone clock is wrong gets treated as a
- * fraudster. The count is kept and shown; nothing acts on it until somebody sets this.
+ * fraudster.
+ *
+ * AND THERE IS NOTHING TO COUNT, WHICH THIS COMMENT USED TO DENY. It read "the count is
+ * kept and shown; nothing acts on it until somebody sets this" — a comment describing
+ * behaviour the code does not have, on the lever that would gate a payment, which is
+ * this repository's most-repeated failure. **A refused photograph leaves no row.** That
+ * is `guarantee_claim_photos`' own design and the right one: the three answers meaning
+ * "this is not evidence" are unstorable there, so the file is declined at upload and
+ * nothing about it is kept anywhere. So arming this starts one step earlier than picking
+ * a figure — somebody has to decide whether to record a fact about a photograph we
+ * deliberately refuse to keep, and the likelier answer is to count the DOUBTS, which
+ * ARE stored (a stale clock, a near-duplicate, a picture matching the booking's own).
+ * Those are shown to the person deciding, per claim; nothing aggregates them per
+ * account. Declared in `lib/config/unarmed-levers.ts`, where a test asserts that
+ * `guarantee_claim_photos` still cannot store a refusal — so the day a migration starts
+ * recording them, this paragraph is re-read rather than left standing.
  */
 export const maxFailedChecksPerPeriod: number | null = null;
 
