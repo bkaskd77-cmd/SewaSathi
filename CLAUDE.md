@@ -1053,6 +1053,63 @@ is a pointer somebody else can move, and these steps hold that push token. The
 SHA is what makes it safe; the comment is what makes the diff reviewable, since
 forty hex characters cannot be told from a downgrade.
 
+**The dev tree was invisible and held two criticals, and `--omit=dev` is gone.**
+`tinypool` (prototype-pollution gadget to RCE in worker options) and `vitest`
+both ran on a CI runner holding a token that can push here and a hook that can
+deploy, while the gate printed "nothing new" over them. Cleared by
+**`vitest@4.1.12`**, chosen over npm's suggested `5.0.5` because 4.1.12 is the
+MINIMUM that clears all three findings and accepts `@types/node@^20`, where 5.x
+demands `^22 || >=24` and would have pulled a types-against-Node-20 skew behind
+it — npm's `fixAvailable` names the latest, not the smallest, which is the same
+"don't take one feed's word" lesson one field over. **`poolOptions` is gone in
+vitest 4 and `npm run typecheck` is what caught it**: the key is simply not in
+the config type, so vitest would have accepted the object and ignored it, and
+the db suite would have gone parallel against one Postgres cluster with nothing
+saying so — a unit-only run stays green through that, which is why the whole
+gate is the gate. `fileParallelism: false` is the replacement.
+**The audit reads both trees and prints them separately**, because a build-time
+DoS in a watcher and an unauthenticated RCE in the image path are different
+risks and one list would either flatten that or bury the production line under
+eleven watcher findings. Eleven dev findings are declared with a reason each and
+**printed by name on every run**, which answers "never invisible again" better
+than failing on them would: an acceptance is for **one severity in one tree**,
+so a dev-only DoS accepted as unreachable by a customer fails the moment the
+package appears in the production tree. The two deferred majors have blocker
+entries — `eslint-9-flat-config` (the config carrying `no-restricted-imports`,
+so the migration means re-proving every boundary rule bites) and `tailwind-4`
+(`styles/globals.css` is the token source of truth with a contrast pass riding
+on it).
+**`sharp` has its own floor at 0.35.5, and the chain is the advisories' own
+words.** `GHSA-2464-fhr4-w9xw` says "a memory-related vulnerability has been
+discovered in an upstream library used for Image Optimization", carries
+CWE-1395, references CVE-2026-96889 and gives as its WORKAROUND "ensure the
+version of `sharp` used by Next.js is >= 0.35.5" — so librsvg → sharp → next,
+each link sourced. It is listed separately from `next` because `sharp` is an
+OPTIONAL dependency at `^0.35.5`: that range can resolve anywhere a future
+lockfile puts it, and the Next version alone would not say whether the library
+carrying the bug had moved.
+**And `GHSA-673q-mjm6-r5xr` does NOT name React as upstream**, which is what it
+was expected to do. It is Next's own CWE-502 deserialization bug in App Router
+with Cache Components, referencing nothing but the Next advisory, commit and
+release. Neither Next critical mentions React or RSC; the React advisory names
+only the three `react-server-dom-*` packages, which this product does not
+depend on; and `16.4.2` carries no React bump. So the vendored runtime's 2
+October canary is an **open question recorded as one**, not a settled fact —
+writing an unsupported attribution into `SECURITY.md` as evidence is the
+failure that document exists to prevent.
+**Three of four install-script descriptions were wrong, and the command is
+checked now.** `@swc/core` and `fsevents` were both written up as "npm flags a
+script and the package declares none" — both declare one, and `@swc/core`'s is a
+native fetch in the PRODUCTION tree. The claim came from reading a path that
+does not exist (both copies are nested), getting an exception, and writing the
+lockfile's bare `hasInstallScript` flag up as harmless. `@parcel/watcher` was
+then described from npm 11's warning text rather than from its manifest. The
+guard only ever asked whether a package was DECLARED, never whether the
+declaration was true; `script` is compared against each package's own
+`package.json` now, and an unreadable copy reads as **unreadable, never as
+"declares none"** — rule 6, which is the confusion that produced the false
+claims.
+
 **And a function nothing calls fails a test now, which is the sin this file
 records more often than any other.** The list is a pattern, not bad luck:
 `applyRedoRecovery` (four phases, while `/providers/standards` promised a

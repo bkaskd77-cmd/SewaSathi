@@ -76,7 +76,88 @@ import {
  * and they usually resolve with a single upgrade — listing them individually would be a
  * list nobody maintains.
  */
-const ACCEPTED = {};
+const ACCEPTED = {
+  /*
+   * THE ESLINT 9 GROUP. `eslint-config-next@14.2.35` sits in a Next 16 project,
+   * and the fix npm names is `eslint-config-next@16.4.2`, which peers on
+   * `eslint >=9`. We are on eslint 8 with a `.eslintrc.json`, so taking it
+   * means the flat-config migration — and that config is what carries
+   * `no-restricted-imports`, the rule enforcing every module boundary in
+   * ARCHITECTURE.md. Porting it is a phase with its own break-tests, not a
+   * dependency bump, so it is a decision rather than an omission:
+   * LAUNCH-BLOCKERS.md § eslint-9-flat-config.
+   *
+   * All three are DEV-ONLY and none is reachable by a customer: a quadratic
+   * brace expansion and a `glob` CLI flag nothing in this repository invokes.
+   */
+  "@next/eslint-plugin-next": {
+    tree: "dev",
+    severity: "high",
+    why: "ESLint 9 flat-config migration — LAUNCH-BLOCKERS § eslint-9-flat-config. Dev-only, DoS class.",
+  },
+  "eslint-config-next": {
+    tree: "dev",
+    severity: "high",
+    why: "Same bump, same migration. Dev-only.",
+  },
+  glob: {
+    tree: "dev",
+    severity: "high",
+    why: "Command injection via the glob CLI's -c/--cmd flag, which nothing here runs; it arrives under eslint-config-next and leaves with it. Dev-only.",
+  },
+
+  /*
+   * THE TAILWIND 4 GROUP. `tailwindcss@3.4.x` and its watcher chain. The fix is
+   * Tailwind 4, which changes the CSS pipeline — and `styles/globals.css` is
+   * the single source of truth for every design token in this product, with a
+   * contrast pass per component riding on it. That is a phase:
+   * LAUNCH-BLOCKERS.md § tailwind-4.
+   *
+   * Every one is a stack-exhaustion or quadratic-time DoS in a BUILD-TIME file
+   * watcher or CSS parser, reachable only by whoever already controls the
+   * source tree. Dev-only, and `tailwindcss` is a devDependency.
+   */
+  tailwindcss: {
+    tree: "dev",
+    severity: "high",
+    why: "Tailwind 4 migration — LAUNCH-BLOCKERS § tailwind-4. Dev-only, build-time DoS.",
+  },
+  "tailwindcss-animate": {
+    tree: "dev",
+    severity: "moderate",
+    why: "Rides on tailwindcss; leaves with the same migration.",
+  },
+  braces: {
+    tree: "dev",
+    severity: "high",
+    why: "Stack exhaustion on deeply nested patterns, in Tailwind 3's file watcher. No fix published at any version; it leaves with Tailwind 4.",
+  },
+  micromatch: {
+    tree: "dev",
+    severity: "high",
+    why: "Same watcher chain as braces, same exit.",
+  },
+  "fast-glob": {
+    tree: "dev",
+    severity: "high",
+    why: "Same watcher chain.",
+  },
+  chokidar: {
+    tree: "dev",
+    severity: "high",
+    why: "Tailwind 3's watcher itself. No fix at any 3.x; it leaves with Tailwind 4.",
+  },
+  "postcss-nested": {
+    tree: "dev",
+    severity: "moderate",
+    why: "Tailwind 3's PostCSS plugin chain.",
+  },
+  "postcss-selector-parser": {
+    tree: "dev",
+    severity: "moderate",
+    why: "Same chain. No fix published; it leaves with Tailwind 4.",
+  },
+};
 
 /*
  * THE LOCKFILE, READ ONCE FOR BOTH FREE PASSES.
@@ -163,11 +244,11 @@ for (const name of scripts.stale) {
   console.error("         waive whatever takes that package's name next.");
 }
 
-function audit() {
+function audit(args) {
   try {
     // Exits non-zero whenever anything is found, which is the normal case
     // here — the output is what matters, not the code.
-    return execFileSync("npm", ["audit", "--json", "--omit=dev"], {
+    return execFileSync("npm", ["audit", "--json", ...args], {
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
     });
@@ -179,9 +260,28 @@ function audit() {
   }
 }
 
+/*
+ * BOTH TREES, AND `--omit=dev` IS GONE FROM THE ONLY CALL THAT HAD IT.
+ *
+ * It was there for a defensible reason — a build-time DoS in a file watcher is
+ * not the same risk as an unauthenticated RCE in the image optimiser — and the
+ * cost was that the dev tree was INVISIBLE. On 2026-10-22 that meant two
+ * CRITICAL advisories nobody here could see: `tinypool` (prototype-pollution
+ * gadget to RCE in worker options) and `vitest`, both reachable on a CI runner
+ * holding a token that can push to this repository and a hook that can deploy.
+ * The gate reported "0 accepted, nothing new" over them.
+ *
+ * So the dev tree is read too, and reported SEPARATELY rather than merged: the
+ * two really are different risks, and a flat list would either make every
+ * watcher DoS look like a customer-facing RCE or teach somebody to skim the
+ * section where the RCE will appear. Separate sections, both failing, each
+ * acceptable on its own terms.
+ */
 let report;
+let prodReport;
 try {
-  report = JSON.parse(audit());
+  report = JSON.parse(audit([]));
+  prodReport = JSON.parse(audit(["--omit=dev"]));
 } catch (error) {
   /*
    * NO ANSWER IS NOT A PASS. An unreachable registry or an unparseable report
@@ -210,33 +310,61 @@ try {
  * right; it just only covered JSON that would not parse. Parsing fine and
  * meaning nothing is the same event, so it gets the same answer.
  */
-if (!report || typeof report !== "object" || !("vulnerabilities" in report)) {
+/* BOTH reports, because an envelope for one tree and a result for the other
+   would read as "that tree is clean" — which is the same false green with half
+   the coverage. */
+for (const [which, candidate] of [
+  ["both trees", report],
+  ["the production tree", prodReport],
+]) {
+  if (candidate && typeof candidate === "object" && "vulnerabilities" in candidate) {
+    continue;
+  }
   const why =
-    typeof report?.message === "string" && report.message
-      ? report.message
-      : `npm returned ${report?.statusCode ?? "no findings and no error"}`;
+    typeof candidate?.message === "string" && candidate.message
+      ? candidate.message
+      : `npm returned ${candidate?.statusCode ?? "no findings and no error"}`;
   console.error("\nDependency advisories");
-  console.error(`  npm audit did not return a report — ${why}`);
+  console.error(`  npm audit did not return a report for ${which} — ${why}`);
   console.error("  This is NOT a pass. Fix the tree and run it again.\n");
   process.exit(2);
 }
 
 const found = report.vulnerabilities ?? {};
+const inProd = new Set(Object.keys(prodReport.vulnerabilities ?? {}));
+
+/*
+ * WHICH TREE A FINDING IS IN IS THE `--omit=dev` RUN'S OWN ANSWER, not a guess
+ * from the lockfile's `dev` flags. A package reachable both ways is production,
+ * which is what the prod run reporting it means.
+ */
+const treeOf = (name) => (inProd.has(name) ? "prod" : "dev");
+
 const unexpected = [];
 const accepted = [];
 
 for (const [name, entry] of Object.entries(found)) {
   const known = ACCEPTED[name];
-  if (known && known.severity === entry.severity) {
-    accepted.push({ name, severity: entry.severity, why: known.why });
+  const tree = treeOf(name);
+  /*
+   * AN ACCEPTANCE IS FOR ONE SEVERITY IN ONE TREE. The severity clause was
+   * already here — a decision is about a severity, not a package name — and the
+   * tree clause is the same rule for the move that matters more: a dev-only
+   * build-time DoS accepted with "nothing a customer can reach" stops being
+   * true the moment that package appears in the production tree, and nothing
+   * else would have said so. `ACKNOWLEDGED_FAILURES`' rule, one gate over: an
+   * entry for one thing must not forgive another.
+   */
+  if (known && known.severity === entry.severity && known.tree === tree) {
+    accepted.push({ name, tree, severity: entry.severity, why: known.why });
   } else {
     unexpected.push({
       name,
+      tree,
       severity: entry.severity,
-      // A known package whose severity has gone UP is not an accepted
-      // advisory any more. The decision was made about a severity, not about
-      // a package name.
-      escalated: Boolean(known),
+      escalated: Boolean(known) && known.severity !== entry.severity,
+      moved: Boolean(known) && known.severity === entry.severity && known.tree !== tree,
+      declaredTree: known?.tree ?? null,
     });
   }
 }
@@ -245,8 +373,23 @@ const stale = Object.keys(ACCEPTED).filter((name) => !(name in found));
 
 console.log("\nDependency advisories");
 
-for (const row of accepted) {
-  console.log(`  known  ${row.name} (${row.severity}) — ${row.why}`);
+/*
+ * THE TWO TREES ARE PRINTED SEPARATELY AND IN THIS ORDER. A production finding
+ * is what can reach a customer; a dev one reaches a CI runner holding a push
+ * token, which is serious and is not the same thing. One merged list would
+ * either flatten that or bury the production line under eleven watcher DoSes.
+ */
+for (const tree of ["prod", "dev"]) {
+  const rows = accepted.filter((row) => row.tree === tree);
+  if (rows.length === 0) continue;
+  console.log(
+    tree === "prod"
+      ? "  production tree — accepted:"
+      : "  dev tree (CI runners and developer machines) — accepted:",
+  );
+  for (const row of rows) {
+    console.log(`    known  ${row.name} (${row.severity}) — ${row.why}`);
+  }
 }
 
 for (const name of stale) {
@@ -257,10 +400,12 @@ for (const name of stale) {
 }
 
 if (unexpected.length === 0) {
+  const prodCount = accepted.filter((row) => row.tree === "prod").length;
   console.log(
-    `  ${accepted.length} accepted, nothing new.${
-      stale.length > 0 ? ` ${stale.length} stale entry to remove.` : ""
-    }`,
+    `  ${accepted.length} accepted (${prodCount} production, ` +
+      `${accepted.length - prodCount} dev), nothing new.${
+        stale.length > 0 ? ` ${stale.length} stale entry to remove.` : ""
+      }`,
   );
   // A stale entry is a note to tidy, not a reason to stop a phase.
   if (failures.length === 0) {
@@ -278,11 +423,22 @@ if (unexpected.length === 0) {
 
 console.error("");
 for (const row of unexpected) {
-  console.error(
-    row.escalated
-      ? `  ESCALATED  ${row.name} is now ${row.severity}, above what was accepted.`
-      : `  NEW  ${row.name} (${row.severity}) — nobody has decided about this one.`,
-  );
+  const where = row.tree === "prod" ? "PRODUCTION tree" : "dev tree";
+  if (row.escalated) {
+    console.error(
+      `  ESCALATED  ${row.name} is now ${row.severity} in the ${where}, above what was accepted.`,
+    );
+  } else if (row.moved) {
+    /* The move that matters: a build-time DoS accepted as unreachable by a
+       customer, now in the tree a customer's request runs through. */
+    console.error(
+      `  MOVED      ${row.name} was accepted in the ${row.declaredTree} tree and is now in the ${where}.`,
+    );
+  } else {
+    console.error(
+      `  NEW        ${row.name} (${row.severity}) in the ${where} — nobody has decided about this one.`,
+    );
+  }
 }
 console.error(
   "\n  Decide it: fix it, or add it to ACCEPTED in scripts/check-advisories.mjs",

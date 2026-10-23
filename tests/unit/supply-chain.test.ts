@@ -260,14 +260,42 @@ describe("install scripts are declared, not discovered later", () => {
     for (const [name, entry] of Object.entries(
       INSTALL_SCRIPTS_EXPECTED as Record<
         string,
-        { scope: string; pulledBy: string; why: string }
+        { scope: string; script: string; pulledBy: string; why: string }
       >,
     )) {
       expect(["dev", "prod"]).toContain(entry.scope);
       expect(entry.pulledBy.length, `${name}.pulledBy`).toBeGreaterThan(3);
       /* "a helper" is not a reason; what needs it and what breaks without it is. */
       expect(entry.why.length, `${name}.why`).toBeGreaterThan(80);
+      /* The command, so the claim is checkable against disk below. */
+      expect(entry.script.length, `${name}.script`).toBeGreaterThan(0);
     }
+  });
+
+  it("describes the command each one actually runs", () => {
+    /*
+     * THE CASE THAT WOULD HAVE CAUGHT THREE WRONG DESCRIPTIONS. `@swc/core` and
+     * `fsevents` were both written up as "npm flags a script and the package
+     * declares none" — and both declare one; the false claim came from reading a
+     * path that does not exist, getting an exception, and writing the lockfile's
+     * bare `hasInstallScript` flag up as harmless. `@parcel/watcher` was then
+     * described from npm 11's warning text (`node-gyp rebuild`) rather than from
+     * its manifest (`node scripts/build-from-source.js`).
+     *
+     * The reasons were prose, so nothing could check them. This compares the
+     * declared command against the package's own `package.json`, which turns the
+     * claim into a fact a run can refuse. A copy that is not installed on this
+     * platform is skipped rather than failed — `fsevents` is darwin-only, and
+     * failing on it would make the guard unrunnable on every Linux runner.
+     */
+    const { misdescribed } = judgeInstallScripts(LOCK);
+    expect(
+      misdescribed.map(
+        (one: { name: string; script: string }) =>
+          `${one.name}: disk says ${JSON.stringify(one.script)}`,
+      ),
+      "Update `script` in scripts/install-scripts.mjs to what the package declares.",
+    ).toEqual([]);
   });
 
   it("reports a nested copy under its own package name", () => {
@@ -285,7 +313,9 @@ describe("install scripts are declared, not discovered later", () => {
       },
       { b: { scope: "dev", pulledBy: "a", why: "x" } } as never,
     );
-    expect(rows.actual).toEqual([{ name: "b", scope: "dev" }]);
+    /* `script` is null because the synthetic lock names no package on disk —
+       unreadable, which this deliberately does not read as "declares none". */
+    expect(rows.actual).toEqual([{ name: "b", scope: "dev", script: null }]);
     expect(rows.undeclared).toEqual([]);
   });
 
@@ -301,7 +331,7 @@ describe("install scripts are declared, not discovered later", () => {
       },
       { x: { scope: "prod", pulledBy: "y", why: "x" } } as never,
     );
-    expect(rows.actual).toEqual([{ name: "x", scope: "prod" }]);
+    expect(rows.actual).toEqual([{ name: "x", scope: "prod", script: null }]);
     expect(rows.misclassified).toEqual([]);
   });
 });

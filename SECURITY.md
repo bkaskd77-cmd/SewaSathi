@@ -201,7 +201,27 @@ So the gate is three passes, and the two that need no network run first:
 | --- | --- | --- |
 | Floors | is the installed version at or above the one a named advisory says is safe | `scripts/dependency-floors.mjs` against `package-lock.json` — no network |
 | Install scripts | which dependencies may run code at `npm ci` time | `scripts/install-scripts.mjs` against the lockfile — no network |
-| Audit | is there an advisory nobody here has heard of | `npm audit --omit=dev` |
+| Audit | is there an advisory nobody here has heard of | `npm audit`, **both trees**, reported separately |
+
+**And the dev tree is no longer invisible.** `--omit=dev` was defensible — a
+build-time DoS in a file watcher is not an unauthenticated RCE in the image
+optimiser — and the cost was that on 2026-10-22 two **criticals** sat in that
+tree with the gate reporting "nothing new" over them: `tinypool`
+(prototype-pollution gadget to RCE in worker options) and `vitest`, both running
+on a CI runner that holds a token able to push here and a hook able to deploy.
+Both were cleared on 2026-10-23 by **`vitest@4.1.12`** — chosen over npm's
+suggested `vitest@5.0.5` because 4.1.12 is the *minimum* that clears all three
+findings (the vitest advisory ends at `<4.1.11`, tinypool's at `<2.1.2`) and
+accepts `@types/node@^20`, where 5.x demands `^22 || >=24` and so would have
+pulled a types/runtime skew against CI's Node 20 behind it.
+The audit now reads **both trees and prints them separately**, because the two
+really are different risks: one merged list would either flatten that or bury
+the production line under eleven watcher DoSes. Eleven dev findings are
+declared in `ACCEPTED` with a reason each and **printed by name on every run**,
+which is a stronger answer to "never invisible again" than failing on them would
+be. An acceptance is for **one severity in one tree** — a dev-only DoS accepted
+as unreachable by a customer stops being true the moment that package appears in
+the production tree, and nothing else would have said so.
 
 A floor is a fact somebody read and wrote down, so it cannot lag and cannot be
 incomplete. It is read from the **lockfile**, because `npm ci` installs the
@@ -221,6 +241,64 @@ something: run 341 failed on the CVSS 9.5 RCE and the build deployed anyway. The
 escape for an unfixable advisory is `ACCEPTED` plus a `LAUNCH-BLOCKERS.md`
 entry, which is a decision on the record rather than a blanket pass.
 
+### The image RCE's upstream chain, named by the advisories themselves
+
+The Next critical that caught us on 2026-10-22 is not a Next bug.
+`GHSA-2464-fhr4-w9xw` says so in its own words — "a memory-related
+vulnerability has been discovered in an **upstream library** used for Image
+Optimization" — carries **CWE-1395**, *Dependency on Vulnerable Third-Party
+Component*, references **CVE-2026-96889**, and gives as its workaround:
+"Ensure the version of `sharp` used by Next.js is greater than or equal to
+**0.35.5**."
+
+That is the whole chain, each link from a primary source:
+
+| Link | Advisory | Fixed at |
+| --- | --- | --- |
+| librsvg (use-after-free) | CVE-2026-96889 | — |
+| `sharp` | `GHSA-wq5f-xc86-pv6w`, high | **0.35.5** |
+| `next` | `GHSA-2464-fhr4-w9xw`, critical, CVSS 9.5 | **16.4.1** |
+
+**Verified in this lockfile**: `sharp` resolves to **0.35.5**, which satisfies
+Next's own stated workaround and clears every sharp advisory published — five
+historically, zero affecting it. **It has its own floor rather than riding on
+`next`'s**, because `sharp` is an *optional* dependency of Next at `^0.35.5`:
+that range can resolve anywhere a future lockfile puts it, and the Next version
+alone would not say whether the library carrying the bug had moved. It is also
+not an abstract concern here — customers upload photographs of a problem and
+professionals upload arrival and claim evidence, all through that path, which is
+why `lib/security/image.ts` reads magic bytes rather than a content type.
+
+**The React question is NOT settled by `GHSA-673q-mjm6-r5xr`, and that was the
+expectation going in.** That advisory is the third thing `next@16.4.1` fixes —
+critical, CVSS 9.5, `>=16.0.0 <=16.4.0` — and it names no upstream at all: its
+description is "a vulnerability in applications using App router with Cache
+Component can lead to remote code execution", its only weakness is **CWE-502,
+Deserialization of Untrusted Data**, and its references point to the Next
+advisory, commit and release and nothing else. It mentions neither React nor
+React Server Components. Read before being recorded, because writing an
+unsupported attribution into this file as *evidence* is the failure this
+document exists to prevent.
+
+So what is actually known about the vendored React, stated as the limit it is:
+
+- `GHSA-xqc2-xf4c-x3h3` (React, critical, 14 Oct) lists **only**
+  `react-server-dom-webpack`, `-parcel` and `-turbopack` as affected. This
+  project depends on none of the three directly.
+- **Neither** Next critical mentions React or RSC. All three advisories
+  `next@16.4.1` fixes are Next's own bugs.
+- `next@16.4.2`'s release notes are Turbopack and docs backports — no advisory,
+  no React bump.
+- `next@16.4.2` vendors a React runtime reporting `19.3.0-canary-278794d7-20261002`,
+  a 2 October build.
+
+No primary source claims Next was exposed through the RSC path, and none claims
+it was fixed either. That is not the same as "safe", and it is recorded as an
+open question rather than closed: a bundled dependency whose version string
+predates an upstream critical, with no vendor statement either way, is something
+only Vercel can answer. Our direct `react`/`react-dom` are on 19.3.1, the
+release train that carries the fix.
+
 ### Install-time code, and the actions that run it
 
 **An install script is the shortest path from a compromised package to our
@@ -236,15 +314,28 @@ what pulls it in, and **none is removable**:
 | Package | Tree | Pulled by | Why it stays |
 | --- | --- | --- | --- |
 | `@parcel/watcher` | **prod** | `next-intl`, non-optionally | The only install script in the production tree. `next-intl` is the whole i18n layer, so removing it is a product decision. Its `install` compiles only when no prebuilt binary matches; the lockfile carries prebuilds for all twelve platforms, so on CI and on Vercel it resolves to a download |
-| `esbuild` | dev | `vite`, via `vitest` | Its `postinstall` fetches the binary esbuild *is*. Without it `npm run test` does not start — this is the entry that makes a blanket `ignore-scripts` unusable |
-| `unrs-resolver` | dev | `eslint-import-resolver-typescript` | Fetches the native resolver that lets `no-restricted-imports` resolve `@/` paths — the rule enforcing every module boundary in ARCHITECTURE.md |
-| `fsevents` | dev | `chokidar`, via `vite` | Flagged as having a script and has none; darwin-only and optional, so never installed on a runner. Listed rather than filtered, because "npm says it has one and it does not" is worth a line |
-| `@swc/core` | prod | `next-intl` | Same: flagged, declares none. Kept so the count matches the lockfile rather than a filter |
+| `@swc/core` | **prod** | `next-intl` | `postinstall: node postinstall.js`, a native binary fetch. The second install script in the production tree, required by next-intl the same way the watcher is |
+| `unrs-resolver` | dev | `eslint-import-resolver-typescript` | `postinstall: node postinstall.js`. Fetches the native resolver that lets `no-restricted-imports` resolve `@/` paths — the rule enforcing every module boundary in ARCHITECTURE.md. This is the entry that makes a blanket `ignore-scripts` unusable |
+| `fsevents` | dev | `chokidar`, via `tailwindcss` | `install: node-gyp rebuild`. Harmless because it is `os: ["darwin"]` and optional — never installed on a Linux runner or a Vercel build, so the compile can only happen on a developer's Mac |
 
-`ignore-scripts` was weighed and refused: it would leave the test runner and the
-linter unable to start, and a gate nobody can run is worse than a gate that
-names its risk. What would change the answer is a package appearing here that
-nothing needs — which is what the undeclared-script case fails on.
+`ignore-scripts` was weighed and refused: it would leave the linter unable to
+start, and a gate nobody can run is worse than a gate that names its risk. What
+would change the answer is a package appearing here that nothing needs — which
+is what the undeclared-script case fails on.
+
+**THREE OF THESE FOUR DESCRIPTIONS WERE WRONG, AND THE COMMAND IS CHECKED NOW.**
+`@swc/core` and `fsevents` were both written up as "npm flags a script and the
+package declares none": the claim came from reading a path that does not exist
+(both copies are nested), getting an exception, and writing the lockfile's bare
+`hasInstallScript` flag up as harmless. Both declare a real script, one of them
+a native compile in the production tree. `@parcel/watcher` was then described
+from npm 11's warning text (`node-gyp rebuild`) rather than from its manifest
+(`node scripts/build-from-source.js`). The reasons were prose, so nothing could
+check them — the guard only ever asked whether a package was *declared*, never
+whether the declaration was true. `script` is compared against each package's
+own `package.json` on disk now. A copy not installed on this platform reads as
+**unreadable and is skipped, never as "declares none"** — which is the rule 6
+confusion that produced the false claim in the first place.
 
 **Every GitHub Action is pinned by commit SHA**, with its tag in a trailing
 comment. A tag is a pointer its owner can move, and these steps hold the push

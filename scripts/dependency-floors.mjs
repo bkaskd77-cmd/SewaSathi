@@ -67,6 +67,31 @@ export const DEPENDENCY_FLOORS = [
       "how every write in this product is made.",
   },
   {
+    package: "sharp",
+    minimum: "0.35.5",
+    advisories: ["GHSA-wq5f-xc86-pv6w", "GHSA-2464-fhr4-w9xw"],
+    why:
+      "THE FLOOR THAT ACTUALLY FIXES THE IMAGE RCE, where the `next` floor " +
+      "above only carries the version that bundles it. The chain is on the " +
+      "record in both advisories rather than inferred: librsvg's " +
+      "CVE-2026-96889 (use-after-free) reaches us through sharp, so " +
+      "GHSA-wq5f-xc86-pv6w is `sharp <0.35.5`; and GHSA-2464-fhr4-w9xw, the " +
+      "Next critical, says in its own words that \"a memory-related " +
+      "vulnerability has been discovered in an upstream library used for " +
+      "Image Optimization\", carries CWE-1395 (dependency on a vulnerable " +
+      "third-party component), references that same CVE, and gives as its " +
+      "WORKAROUND: \"Ensure the version of `sharp` used by Next.js is greater " +
+      "than or equal to 0.35.5.\" " +
+      "SO IT IS LISTED SEPARATELY FROM `next` ON PURPOSE. sharp is an " +
+      "OPTIONAL dependency of next (`^0.35.5`), which means the range can " +
+      "resolve anywhere a future lockfile puts it, and the Next version alone " +
+      "would not say whether the library carrying the bug had moved. 0.35.5 " +
+      "also clears every sharp advisory there is — five historically, zero " +
+      "affecting it. This matters here beyond the framework: customers upload " +
+      "photographs of a problem and professionals upload arrival and claim " +
+      "evidence, all of it through that path.",
+  },
+  {
     package: "react",
     minimum: "19.3.1",
     advisories: ["GHSA-xqc2-xf4c-x3h3"],
