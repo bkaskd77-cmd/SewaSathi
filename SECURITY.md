@@ -216,12 +216,22 @@ accepts `@types/node@^20`, where 5.x demands `^22 || >=24` and so would have
 pulled a types/runtime skew against CI's Node 20 behind it.
 The audit now reads **both trees and prints them separately**, because the two
 really are different risks: one merged list would either flatten that or bury
-the production line under eleven watcher DoSes. Eleven dev findings are
+the production line under a pile of watcher DoSes. Every dev finding is
 declared in `ACCEPTED` with a reason each and **printed by name on every run**,
 which is a stronger answer to "never invisible again" than failing on them would
 be. An acceptance is for **one severity in one tree** — a dev-only DoS accepted
 as unreachable by a customer stops being true the moment that package appears in
 the production tree, and nothing else would have said so.
+
+**The count of dev findings is deliberately not recorded in this file.** It was
+written as "eleven" in five places, and on 2026-10-23 it was seven — off an
+**unchanged `package-lock.json`**. `npm audit` stopped reporting `braces`,
+`micromatch`, `fast-glob` and `chokidar` and re-routed `tailwindcss`' finding
+through `postcss-selector-parser` (GHSA-rj75-hqrm-r3gf) alone, moving it from
+high to moderate. This product's exposure did not change; what one feed says
+about it did, in both directions in one night. That is the second measured
+instance of the behaviour the floors pass exists for, and the reason the figure
+lives in the gate's output rather than here.
 
 A floor is a fact somebody read and wrote down, so it cannot lag and cannot be
 incomplete. It is read from the **lockfile**, because `npm ci` installs the
@@ -269,35 +279,85 @@ not an abstract concern here — customers upload photographs of a problem and
 professionals upload arrival and claim evidence, all through that path, which is
 why `lib/security/image.ts` reads magic bytes rather than a content type.
 
-**The React question is NOT settled by `GHSA-673q-mjm6-r5xr`, and that was the
-expectation going in.** That advisory is the third thing `next@16.4.1` fixes —
-critical, CVSS 9.5, `>=16.0.0 <=16.4.0` — and it names no upstream at all: its
+**The React question is CLOSED, and it was closed by reading the bytes we ship
+rather than an advisory page.** The expectation going in was that
+`GHSA-673q-mjm6-r5xr` would name React as upstream, and it does not: its
 description is "a vulnerability in applications using App router with Cache
-Component can lead to remote code execution", its only weakness is **CWE-502,
-Deserialization of Untrusted Data**, and its references point to the Next
-advisory, commit and release and nothing else. It mentions neither React nor
-React Server Components. Read before being recorded, because writing an
-unsupported attribution into this file as *evidence* is the failure this
-document exists to prevent.
+Component can lead to remote code execution", its references point to the Next
+advisory, commit and release and nothing else, and it mentions neither React nor
+React Server Components. `GHSA-xqc2-xf4c-x3h3` (React, critical, 14 Oct) names
+**only** `react-server-dom-webpack`, `-parcel` and `-turbopack`, and this
+project depends on none of the three directly. So neither page can say whether
+our *vendored* copy was exposed.
 
-So what is actually known about the vendored React, stated as the limit it is:
+**The vendor statement that links them is
+`nextjs.org/blog/nextjs-security-update-october-14-2026`**, which lists
+`GHSA-xqc2-xf4c-x3h3` as the related upstream advisory for
+`GHSA-673q-mjm6-r5xr` and states 16.4.1 addresses it. That page cannot be read
+from the agent sandbox — the proxy answers 403 to `CONNECT nextjs.org:443`,
+measured — so it is recorded as the source and **verified independently from the
+registry tarballs instead**, which is the better evidence anyway: it is about the
+code in this product's own tree rather than about a sentence describing it.
 
-- `GHSA-xqc2-xf4c-x3h3` (React, critical, 14 Oct) lists **only**
-  `react-server-dom-webpack`, `-parcel` and `-turbopack` as affected. This
-  project depends on none of the three directly.
-- **Neither** Next critical mentions React or RSC. All three advisories
-  `next@16.4.1` fixes are Next's own bugs.
-- `next@16.4.2`'s release notes are Turbopack and docs backports — no advisory,
-  no React bump.
-- `next@16.4.2` vendors a React runtime reporting `19.3.0-canary-278794d7-20261002`,
-  a 2 October build.
+**And the earlier reading's mistake was the weight it put on a version string.**
+It recorded "16.4.2 carries no React bump" as evidence, which was the wrong
+comparison asked of the wrong artefact. `dist/compiled/` holds *rebuilt bundles*,
+so a backported patch changes the code and not the version string — and the pair
+to compare is the upgrade this product actually took, not 16.4.1 against 16.4.2.
 
-No primary source claims Next was exposed through the RSC path, and none claims
-it was fixed either. That is not the same as "safe", and it is recorded as an
-open question rather than closed: a bundled dependency whose version string
-predates an upstream critical, with no vendor statement either way, is something
-only Vercel can answer. Our direct `react`/`react-dom` are on 19.3.1, the
-release train that carries the fix.
+Unpacking all three tarballs and comparing `dist/compiled/`:
+
+| Step | Vendored React canary | Vendored files changed | Typed-array guard |
+| --- | --- | --- | --- |
+| `next@16.3.8` | `19.3.0-canary-cbb046ab-20260731` | — | absent |
+| → `16.4.0` | `19.3.0-canary-278794d7-20261002` | 109 | absent |
+| → `16.4.1` | `19.3.0-canary-278794d7-20261002` (unchanged) | **50, every one of them `react-server-dom-*`** | **present** |
+
+So the routine canary sync is 16.4.0's and the security change is 16.4.1's, and
+16.4.1 touched **nothing but the four vendored RSC packages** — webpack and
+turbopack, stable and experimental — while leaving the version string identical.
+That is the version-string argument settled in both directions by one
+measurement.
+
+The change itself is legible. `emitTypedArrayChunk` in **16.3.8 and 16.4.0**
+enqueues a live view into the caller's buffer:
+
+```js
+typedArray = new Uint8Array(
+  typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
+```
+
+In **16.4.1** that view is copied whenever it is not the whole buffer:
+
+```js
+if (4096 < typedArray.byteLength) {
+  if (0 !== typedArray.byteOffset ||
+      typedArray.byteLength !== typedArray.buffer.byteLength ||
+      typedArray.buffer.resizable) { typedArray = debug.slice(); break a; }
+  if (!supportsArrayBufferDetached) { typedArray = debug.slice(); break a; }
+}
+```
+
+`resizable` and `supportsArrayBufferDetached` appear nowhere in the 16.4.0 copy.
+**Several typed arrays over one shared `ArrayBuffer` is exactly what
+`GHSA-673q`'s own title describes** — "`use cache` functions returning typed
+arrays" — and the pre-fix code pushed *references* into a buffer the application
+can still mutate, detach or resize between enqueue and flush, which is how
+adjacent memory reaches a response; `use cache` is what keeps those arrays alive
+long enough for it to matter. The commit was not read, so the attribution is
+from the advisory's description and the release it landed in rather than from a
+patch header — stated as what it is.
+
+**Conclusion, and what holds it.** The typed-array fix is in the vendored RSC
+runtime this product ships; the two advisories are one defect reported twice,
+once against Next's vendored copy and once against the standalone packages; and
+`next >= 16.4.1` is what closes it here. Our direct `react`/`react-dom` are on
+19.3.1 with floors of their own. `tests/unit/supply-chain.test.ts` asserts the
+guard is present in **every** installed bundle that defines
+`emitTypedArrayChunk` (24 of 24 on `next@16.4.2`), so a downgrade, or a future
+`next` that dropped the backport, fails a run rather than a customer — which is
+what turns "16.4.1 fixes it" from a sentence in a release note into a fact about
+this tree.
 
 ### Install-time code, and the actions that run it
 

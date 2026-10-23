@@ -107,45 +107,37 @@ const ACCEPTED = {
   },
 
   /*
-   * THE TAILWIND 4 GROUP. `tailwindcss@3.4.x` and its watcher chain. The fix is
+   * THE TAILWIND 4 GROUP. `tailwindcss@3.4.x` and its PostCSS chain. The fix is
    * Tailwind 4, which changes the CSS pipeline — and `styles/globals.css` is
    * the single source of truth for every design token in this product, with a
    * contrast pass per component riding on it. That is a phase:
    * LAUNCH-BLOCKERS.md § tailwind-4.
    *
-   * Every one is a stack-exhaustion or quadratic-time DoS in a BUILD-TIME file
-   * watcher or CSS parser, reachable only by whoever already controls the
-   * source tree. Dev-only, and `tailwindcss` is a devDependency.
+   * Every one is a quadratic-time DoS in a BUILD-TIME CSS parser, reachable
+   * only by whoever already controls the source tree. Dev-only, and
+   * `tailwindcss` is a devDependency.
+   *
+   * THIS GROUP WAS SEVEN ENTRIES AND IS THREE, OFF AN UNCHANGED LOCKFILE —
+   * which is the second measured instance of npm's feed moving under a static
+   * tree, and the reason the floors pass exists. On 2026-10-23 `npm audit`
+   * stopped reporting `braces`, `micromatch`, `fast-glob` and `chokidar` — the
+   * Tailwind 3 file-watcher chain — and began routing `tailwindcss`' finding
+   * through `postcss-selector-parser` (GHSA-rj75-hqrm-r3gf) alone, taking it
+   * from high to moderate. `git status` on `package-lock.json` was clean
+   * across it. Nothing about this product's exposure changed; what changed is
+   * what one feed says about it, in both directions at once. The four were
+   * removed rather than kept "just in case", because a stale acceptance is a
+   * hole propped open for whatever takes that package's name next.
    */
   tailwindcss: {
     tree: "dev",
-    severity: "high",
-    why: "Tailwind 4 migration — LAUNCH-BLOCKERS § tailwind-4. Dev-only, build-time DoS.",
+    severity: "moderate",
+    why: "Tailwind 4 migration — LAUNCH-BLOCKERS § tailwind-4. Dev-only, build-time DoS. Reported high until 2026-10-23 and moderate since, off an unchanged lockfile: it now carries only the postcss chain below, the watcher findings having left npm's feed.",
   },
   "tailwindcss-animate": {
     tree: "dev",
     severity: "moderate",
     why: "Rides on tailwindcss; leaves with the same migration.",
-  },
-  braces: {
-    tree: "dev",
-    severity: "high",
-    why: "Stack exhaustion on deeply nested patterns, in Tailwind 3's file watcher. No fix published at any version; it leaves with Tailwind 4.",
-  },
-  micromatch: {
-    tree: "dev",
-    severity: "high",
-    why: "Same watcher chain as braces, same exit.",
-  },
-  "fast-glob": {
-    tree: "dev",
-    severity: "high",
-    why: "Same watcher chain.",
-  },
-  chokidar: {
-    tree: "dev",
-    severity: "high",
-    why: "Tailwind 3's watcher itself. No fix at any 3.x; it leaves with Tailwind 4.",
   },
   "postcss-nested": {
     tree: "dev",
@@ -362,7 +354,8 @@ for (const [name, entry] of Object.entries(found)) {
       name,
       tree,
       severity: entry.severity,
-      escalated: Boolean(known) && known.severity !== entry.severity,
+      reseverity: Boolean(known) && known.severity !== entry.severity,
+      acceptedSeverity: known?.severity ?? null,
       moved: Boolean(known) && known.severity === entry.severity && known.tree !== tree,
       declaredTree: known?.tree ?? null,
     });
@@ -377,7 +370,7 @@ console.log("\nDependency advisories");
  * THE TWO TREES ARE PRINTED SEPARATELY AND IN THIS ORDER. A production finding
  * is what can reach a customer; a dev one reaches a CI runner holding a push
  * token, which is serious and is not the same thing. One merged list would
- * either flatten that or bury the production line under eleven watcher DoSes.
+ * either flatten that or bury the production line under the watcher DoSes.
  */
 for (const tree of ["prod", "dev"]) {
   const rows = accepted.filter((row) => row.tree === tree);
@@ -424,9 +417,26 @@ if (unexpected.length === 0) {
 console.error("");
 for (const row of unexpected) {
   const where = row.tree === "prod" ? "PRODUCTION tree" : "dev tree";
-  if (row.escalated) {
+  if (row.reseverity) {
+    /*
+     * THE DIRECTION IS NAMED, because this said "above what was accepted" for a
+     * severity that had gone DOWN — `tailwindcss` accepted at high and reported
+     * moderate — which sends the reader looking for a worsening that did not
+     * happen. The `dependency-floors` unreadable-side fix is the same lesson: a
+     * diagnostic naming the wrong value costs exactly what the check saved.
+     *
+     * EITHER DIRECTION STILL FAILS, deliberately. An acceptance is a decision
+     * about one severity, and npm re-scoping a finding means the chain it came
+     * through has changed — which is the thing worth re-reading, whichever way
+     * the label moved.
+     */
+    const rank = ["info", "low", "moderate", "high", "critical"];
+    const now = rank.indexOf(row.severity);
+    const was = rank.indexOf(row.acceptedSeverity);
+    const direction = now > was ? "up from" : now < was ? "down from" : "changed from";
     console.error(
-      `  ESCALATED  ${row.name} is now ${row.severity} in the ${where}, above what was accepted.`,
+      `  SEVERITY   ${row.name} is now ${row.severity} in the ${where}, ` +
+        `${direction} the ${row.acceptedSeverity} that was accepted.`,
     );
   } else if (row.moved) {
     /* The move that matters: a build-time DoS accepted as unreachable by a

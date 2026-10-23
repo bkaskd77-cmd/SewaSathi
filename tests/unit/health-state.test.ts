@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { parseEntries } from "../../scripts/check-launch-blockers.mjs";
+
 import {
   FALLBACK_FIRING_STATE,
   FALLBACK_UNREADABLE_STATE,
@@ -675,5 +677,65 @@ describe("a slow database reading cannot 503 a working product", () => {
     // The one sentence that is false at 81ms must not appear in this branch.
     const slowDetail = slowBranch.slice(0, slowBranch.indexOf("\n}"));
     expect(slowDetail).not.toContain("a continent away");
+  });
+});
+
+/**
+ * Every acknowledgement names a launch-blocker entry that exists and is open.
+ *
+ * THE CLAIM AN ACKNOWLEDGEMENT MAKES IS NOT ONLY "IGNORE THIS". It is "this
+ * failure is known, it is ordered, and it is tracked over there" — so the `blocker`
+ * id is load-bearing, and it was `sms-gateway` against a register whose entry is
+ * `sms-gateway-unverified`. Nothing compared the two, so the pointer went nowhere
+ * and anybody following it would have concluded the failure was untracked.
+ *
+ * ONE LIST WRITTEN TWICE, so a test compares them — and it reuses
+ * `check-launch-blockers.mjs`' own parser rather than writing a second one,
+ * because two readers of one markdown format is the same bug one level down.
+ *
+ * AND THE STATUS IS ASSERTED TOO, in the direction that matters: an
+ * acknowledgement over a RESOLVED entry is forgiving a failure whose cause is
+ * recorded as fixed, which is `routes-reachable`'s stale-exemption rule — it
+ * would silently forgive that check's next, unrelated failure.
+ */
+describe("the acknowledgements and the launch-blocker register agree", () => {
+  const entries = parseEntries(readFileSync("LAUNCH-BLOCKERS.md", "utf8"));
+
+  it("parses the register, so an id comparison cannot pass over nothing", () => {
+    /* The count first: a changed heading format would empty this list and make
+       every case below vacuous — `no-caller`'s and `drift-token`'s rule. */
+    expect(entries.length).toBeGreaterThan(20);
+    expect(entries.map((e) => e.id)).toContain("sms-gateway-unverified");
+  });
+
+  it("points each acknowledgement at an entry that exists", () => {
+    const ids = new Set(entries.map((e) => e.id));
+    const dangling = ACKNOWLEDGED_FAILURES.filter(
+      (ack) => ack.blocker && !ids.has(ack.blocker),
+    ).map((ack) => `${ack.check} -> ${ack.blocker}`);
+
+    expect(
+      dangling,
+      `These acknowledgements cite a launch-blocker id that is not in ` +
+        `LAUNCH-BLOCKERS.md:\n  ${dangling.join("\n  ")}\n\n` +
+        `An acknowledgement claims the failure is tracked there. If the id is ` +
+        `wrong the claim is unfollowable, which is worse than no id at all.`,
+    ).toEqual([]);
+  });
+
+  it("does not forgive a check whose blocker is already resolved", () => {
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    const settled = ACKNOWLEDGED_FAILURES.filter(
+      (ack) => ack.blocker && byId.get(ack.blocker)?.status === "resolved",
+    ).map((ack) => `${ack.check} -> ${ack.blocker}`);
+
+    expect(
+      settled,
+      `These acknowledgements forgive a check whose launch blocker is marked ` +
+        `resolved:\n  ${settled.join("\n  ")}\n\n` +
+        `The cause is recorded as fixed, so the acknowledgement is now ` +
+        `forgiving that check's NEXT failure — a different fault, unread. ` +
+        `Delete the acknowledgement in the commit that resolves the entry.`,
+    ).toEqual([]);
   });
 });

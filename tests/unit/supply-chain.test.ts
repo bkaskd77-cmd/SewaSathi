@@ -335,3 +335,101 @@ describe("install scripts are declared, not discovered later", () => {
     expect(rows.misclassified).toEqual([]);
   });
 });
+
+/**
+ * The typed-array fix is present in the vendored RSC runtime we actually ship.
+ *
+ * WHY THIS IS A TEST AND NOT A SENTENCE IN `SECURITY.md`. `GHSA-673q-mjm6-r5xr`
+ * — unauthenticated RCE in `use cache` functions returning typed arrays — is
+ * fixed in `next@16.4.1`, and nothing in this repository could say which BYTES
+ * make that true. The floor says `16.4.1` because a release note says so, and a
+ * floor is a number somebody read; this is the fix itself, in the tree.
+ *
+ * IT ALSO SETTLES THE ARGUMENT A VERSION STRING COULD NOT. The vendored copies
+ * live in `next/dist/compiled/` and are rebuilt bundles, so the backport changed
+ * the code and left the version string alone: `16.4.0` and `16.4.1` both report
+ * `19.3.0-canary-278794d7-20261002`, 16.4.1 changed 50 files and every one of
+ * them is a `react-server-dom-*` bundle, and the guard below appears only in the
+ * later one. An earlier reading of this question recorded "no React bump" as
+ * evidence of absence, which is exactly the inference this case refuses.
+ *
+ * KEYED ON THE FUNCTION, NEVER A FILE LIST. Every bundle that defines
+ * `emitTypedArrayChunk` is a serializer that can emit a typed array, so each one
+ * must carry the guard — 24 of 24 on `next@16.4.2`. A filename list would go
+ * stale the first time Next renamed a bundle, and would pass over the renamed
+ * one in silence.
+ */
+describe("the vendored React Server Components runtime carries the typed-array fix", () => {
+  const VENDORED = "node_modules/next/dist/compiled";
+
+  function rscBundles(): { file: string; text: string }[] {
+    const out: { file: string; text: string }[] = [];
+    for (const dir of readdirSync(VENDORED)) {
+      if (!dir.startsWith("react-server-dom-")) continue;
+      const cjs = path.join(VENDORED, dir, "cjs");
+      for (const f of readdirSync(cjs)) {
+        if (!f.endsWith(".js")) continue;
+        const file = path.join(cjs, f);
+        const text = readFileSync(file, "utf8");
+        if (text.includes("function emitTypedArrayChunk")) out.push({ file, text });
+      }
+    }
+    return out;
+  }
+
+  it("finds the serializers, so a moved path fails rather than passing over nothing", () => {
+    /*
+     * THE COUNT FIRST, `no-caller`'s and `drift-token`'s rule. If Next ever
+     * moves `dist/compiled/` or renames the packages, this reads zero bundles
+     * and every assertion below passes over an empty list — a scanner that has
+     * stopped scanning printing the same tick as one that found nothing wrong.
+     * Failing here is correct: a moved path means the question needs asking
+     * again, not assuming.
+     */
+    expect(rscBundles().length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("copies a typed array that is a view into a larger buffer, in every one", () => {
+    /*
+     * The three conditions are the defect: several typed arrays over ONE shared
+     * `ArrayBuffer` is what the advisory's title describes, and before the fix
+     * `emitTypedArrayChunk` enqueued a live view into that buffer rather than a
+     * copy — mutable, detachable and resizable between enqueue and flush.
+     *
+     * Asserted as behaviour-bearing SOURCE rather than by running it: these are
+     * minified bundles with no export anybody can call, so the text is the only
+     * reachable evidence. That is the same trade `check:secrets`' source pass
+     * makes, and the count case above is what keeps it honest.
+     */
+    const missing = rscBundles()
+      .filter(
+        ({ text }) =>
+          !text.includes("typedArray.buffer.resizable") ||
+          !text.includes("typedArray.byteLength !== typedArray.buffer.byteLength") ||
+          !text.includes("supportsArrayBufferDetached"),
+      )
+      .map(({ file }) => file);
+
+    expect(
+      missing,
+      `These vendored React Server Components serializers emit a typed array ` +
+        `without copying a view into a larger buffer first:\n  ` +
+        `${missing.join("\n  ")}\n\n` +
+        `That is GHSA-673q-mjm6-r5xr — unauthenticated RCE in \`use cache\` ` +
+        `functions returning typed arrays — which \`next@16.4.1\` fixed by ` +
+        `backporting into these bundles WITHOUT changing the React canary ` +
+        `version they report. So a version string cannot tell you whether the ` +
+        `fix is here and this case can. Check what moved \`next\` before ` +
+        `touching this test.`,
+    ).toEqual([]);
+  });
+
+  it("holds `next` at or above the release that carries it", () => {
+    /* The floor and this case are two halves of one claim: the floor says which
+       version, this says which bytes. Pinned together so a lowered floor cannot
+       quietly outlive the reason it exists. */
+    const floor = DEPENDENCY_FLOORS.find((one) => one.package === "next");
+    expect(floor?.advisories).toContain("GHSA-673q-mjm6-r5xr");
+    expect(compareVersions(floor?.minimum, "16.4.1")).toBeGreaterThanOrEqual(0);
+  });
+});

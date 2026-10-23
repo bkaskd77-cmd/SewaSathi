@@ -146,7 +146,25 @@ function stripFences(markdown) {
   return markdown.replace(/^```[\s\S]*?^```/gm, "");
 }
 
-function parseEntries(markdown) {
+/**
+ * The register's entries, by id.
+ *
+ * EXPORTED SO NOTHING WRITES A SECOND PARSER. `ACKNOWLEDGED_FAILURES` in
+ * `lib/config/health.ts` cites an entry id per acknowledgement, and that is one
+ * list written twice — the shape this repository keeps paying for. The id was
+ * `sms-gateway` against a register that says `sms-gateway-unverified`, so the
+ * acknowledgement's whole claim (known, ordered, tracked over there) pointed at
+ * nothing, and nobody following it would have found the entry.
+ *
+ * TYPED IN JSDOC BECAUSE A CONSUMER IS TypeScript. Without it `tsc` infers
+ * `any[]` here and the test's callbacks become implicit `any` — which vitest
+ * runs happily and `npm run typecheck` refuses, the exact green-under-vitest,
+ * red-under-tsc split this repo already stepped in over `fs.globSync`.
+ *
+ * @param {string} markdown
+ * @returns {{ id: string, status: string | null, claims: string | null, livesIn: string | null, replacedBy: string | null }[]}
+ */
+export function parseEntries(markdown) {
   const body = stripFences(markdown);
   const blocks = body.split(/^### BLOCKER: /gm).slice(1);
 

@@ -136,7 +136,7 @@ export const ACKNOWLEDGED_FAILURES: readonly Acknowledgement[] = [
       "is still AC + thirty-two zeros, so no real handset can sign in. Known, " +
       "ordered, and the reason every walkthrough runs on test numbers.",
     until: "2026-12-31",
-    blocker: "sms-gateway",
+    blocker: "sms-gateway-unverified",
   },
 ];
 

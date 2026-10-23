@@ -1070,11 +1070,26 @@ gate is the gate. `fileParallelism: false` is the replacement.
 **The audit reads both trees and prints them separately**, because a build-time
 DoS in a watcher and an unauthenticated RCE in the image path are different
 risks and one list would either flatten that or bury the production line under
-eleven watcher findings. Eleven dev findings are declared with a reason each and
+a pile of watcher findings. Every dev finding is declared with a reason each and
 **printed by name on every run**, which answers "never invisible again" better
 than failing on them would: an acceptance is for **one severity in one tree**,
 so a dev-only DoS accepted as unreachable by a customer fails the moment the
-package appears in the production tree. The two deferred majors have blocker
+package appears in the production tree.
+**THE COUNT IS NOT WRITTEN DOWN HERE, AND IT USED TO BE.** Five places said
+"eleven dev findings"; on 2026-10-23 it was seven, off an **unchanged
+lockfile** — npm stopped reporting the four Tailwind 3 watcher packages and
+re-routed `tailwindcss`' own finding through the postcss chain, taking it high
+to moderate. That is the second measured instance of this feed moving under a
+static tree, and a count in standing notes is a count nobody re-measures, so
+the gate prints it and this says only which way it leans. **The gate caught
+all five changes and asked for a decision on each**, which is what it is for:
+the four stale acceptances were deleted rather than kept, since a stale one
+props a hole open for whatever takes that package's name next.
+**Its own diagnostic was wrong in the same run** — a severity that had gone
+DOWN printed as "above what was accepted", sending the reader after a worsening
+that had not happened. Either direction still fails, deliberately: an
+acceptance is a decision about one severity, and a re-scope means the chain it
+arrived through has changed. The two deferred majors have blocker
 entries — `eslint-9-flat-config` (the config carrying `no-restricted-imports`,
 so the migration means re-proving every boundary rule bites) and `tailwind-4`
 (`styles/globals.css` is the token source of truth with a contrast pass riding
@@ -1088,15 +1103,31 @@ each link sourced. It is listed separately from `next` because `sharp` is an
 OPTIONAL dependency at `^0.35.5`: that range can resolve anywhere a future
 lockfile puts it, and the Next version alone would not say whether the library
 carrying the bug had moved.
-**And `GHSA-673q-mjm6-r5xr` does NOT name React as upstream**, which is what it
-was expected to do. It is Next's own CWE-502 deserialization bug in App Router
-with Cache Components, referencing nothing but the Next advisory, commit and
-release. Neither Next critical mentions React or RSC; the React advisory names
-only the three `react-server-dom-*` packages, which this product does not
-depend on; and `16.4.2` carries no React bump. So the vendored runtime's 2
-October canary is an **open question recorded as one**, not a settled fact —
-writing an unsupported attribution into `SECURITY.md` as evidence is the
-failure that document exists to prevent.
+**And the vendored-React question is CLOSED, by reading the bytes rather than an
+advisory page — which is also where a "no React bump" reading went wrong.**
+`GHSA-673q-mjm6-r5xr` does not name React as upstream, which is what it was
+expected to do: it is Next's own App Router / Cache Component RCE, referencing
+nothing but the Next advisory, commit and release, and the React advisory names
+only the three `react-server-dom-*` packages this product does not depend on. So
+neither page can speak to the copy we actually run, and the link is in Vercel's
+own announcement (`nextjs.org/blog/nextjs-security-update-october-14-2026`),
+which this sandbox cannot read — the proxy answers 403 to `CONNECT nextjs.org`.
+**The earlier reading treated `16.4.2`'s unchanged React version as evidence of
+absence, and `dist/compiled/` is a REBUILT BUNDLE**, so a backport changes the
+code and not the version string; the pair to compare was also the upgrade we
+took, never 16.4.1 against 16.4.2. Measured from the three registry tarballs:
+16.3.8 → 16.4.0 is the routine canary sync (`20260731` → `20261002`, 109 files,
+no guard), and **16.4.0 → 16.4.1 leaves the canary string identical, changes 50
+files and every single one is a `react-server-dom-*` bundle** — in which
+`emitTypedArrayChunk` stops enqueuing a live view into the caller's buffer and
+copies it whenever `byteOffset !== 0`, `byteLength !== buffer.byteLength` or
+`buffer.resizable`. Several typed arrays over one shared `ArrayBuffer` is
+`GHSA-673q`'s own title, so the two advisories are one defect reported twice.
+**It is a test rather than a paragraph**: `supply-chain` asserts the guard in
+every installed bundle defining that function (24 of 24), keyed on the function
+and never a filename list, with the count asserted first — break-tested by
+swapping 16.4.0's real pre-fix bundle in and watching it name the file. A floor
+says which version somebody read; this says which bytes are here.
 **Three of four install-script descriptions were wrong, and the command is
 checked now.** `@swc/core` and `fsevents` were both written up as "npm flags a
 script and the package declares none" — both declare one, and `@swc/core`'s is a

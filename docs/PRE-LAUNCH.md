@@ -36,9 +36,11 @@ Item 1 can be built today.
 
 **Items 4 and 5 are new in this reading and they are dev-tooling only.** Both
 arrived as `LAUNCH-BLOCKERS.md` entries on 2026-10-23 when
-`check:advisories` stopped running `--omit=dev`: eleven dev findings, every one
-a stack-exhaustion or quadratic-time DoS in a build-time file watcher, CSS
-parser or linter, four with no fix published at any version. None is in the
+`check:advisories` stopped running `--omit=dev`: a handful of dev findings, every
+one a stack-exhaustion or quadratic-time DoS in a build-time file watcher, CSS
+parser or linter, several with no fix published at any version. **The count is
+not quoted here on purpose** — it was eleven on 2026-10-22 and seven on the
+23rd, off an unchanged lockfile, so `npm run check:advisories` is what says. None is in the
 production tree, so nothing a customer requests runs through them — but they run
 on a CI runner holding a token that can push here, which is why they are
 recorded rather than shrugged at. They are now declared with a reason each and
@@ -145,7 +147,7 @@ gateway arrives rather than after.
 ### Needs a dependency migration, dev-only (2)
 
 - **`eslint-9-flat-config`** and **`tailwind-4`** — items 4 and 5 above. Clearing
-  eleven dev advisories, zero of them in the production tree. The pair of
+  every outstanding dev advisory, zero of them in the production tree. The pair of
   **criticals** that were in that tree (`vitest` and `tinypool`, a
   prototype-pollution gadget to RCE in worker options, on a runner holding a
   push token) were cleared on 2026-10-23 by `vitest@4.1.12`.
@@ -196,7 +198,7 @@ payment mix as "by category, by ward and by month". `findAreaRow` was dead with
 no reader anywhere, not even a test, and is deleted.
 
 **Dependencies.** `npm audit` over **both trees**: **zero** findings in the
-production tree, eleven in the dev tree, all declared. Four packages may run
+production tree, every dev-tree finding declared with a reason. Four packages may run
 code at install time, each declared with the command it runs, compared against
 its own `package.json`. Every GitHub Action is pinned by commit SHA. Four
 version floors (`next`, `sharp`, `react`, `react-dom`) hold, read from the
