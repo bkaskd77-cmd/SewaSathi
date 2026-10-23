@@ -1,6 +1,6 @@
 # Pre-launch report — what is left, and who can close it
 
-Read on 2026-10-22, against `39299e1`. Measured, not remembered: every count
+Read on 2026-10-23, against `358a315`. Measured, not remembered: every count
 here comes from a command named beside it, and anything that could not be
 checked from the agent sandbox says so.
 
@@ -10,26 +10,39 @@ credential or a transfer** — because mixing the two is how a list gets read as
 "still a lot of building to do" when almost none of it is.
 
 ```
-npm run check:blockers  →  12 unresolved, 11 resolved
-npm run verify          →  VERIFY PASSED — 14 steps in 289.1s
-unit + db suite         →  2,279 tests, 160 files
+npm run check:blockers  →  14 unresolved, 11 resolved
+npm run verify          →  VERIFY PASSED — 14 steps in 290.3s
+unit + db suite         →  3,255 tests, 209 files
 ```
 
 ---
 
 ## The short answer
 
-**Three code items remain, and only one of them is a build.**
+**Five code items remain. One is a product build, two wait on something else,
+and two are dependency migrations that touch no product code.**
 
 | | What | Size | Blocked on |
 | --- | --- | --- | --- |
 | 1 | A recorded history of the contact phone number, so the payout-destination notice can reach the number as it stood **before** a change | one migration, one writer, one reader | nothing — this is ours to do |
 | 2 | `lib/content/pages/contact.ts` — the "By phone" section currently says we have no published line | one paragraph, both languages | `NEXT_PUBLIC_SUPPORT_PHONE` being set |
 | 3 | `draft: true` removed from the three legal documents (six places, both languages) | one line each | a Nepali lawyer's review |
+| 4 | **ESLint 9 flat config** — `eslint-config-next@16.4.2` peers on `eslint >=9` | a phase: `.eslintrc.json` carries `no-restricted-imports` and four `overrides`, each of which has to be re-proven to bite | nothing — ours to do, and not urgent |
+| 5 | **Tailwind 4** — the fix for eight dev advisories in the watcher and PostCSS chain | a phase: `styles/globals.css` is the token source of truth, so the 4.5:1 contrast pass goes again in both themes | nothing — ours to do, and not urgent |
 
 Items 2 and 3 are one commit each and must land **with** the thing that
 unblocks them — a number in the variable, a reviewed document — never before.
 Item 1 can be built today.
+
+**Items 4 and 5 are new in this reading and they are dev-tooling only.** Both
+arrived as `LAUNCH-BLOCKERS.md` entries on 2026-10-23 when
+`check:advisories` stopped running `--omit=dev`: eleven dev findings, every one
+a stack-exhaustion or quadratic-time DoS in a build-time file watcher, CSS
+parser or linter, four with no fix published at any version. None is in the
+production tree, so nothing a customer requests runs through them — but they run
+on a CI runner holding a token that can push here, which is why they are
+recorded rather than shrugged at. They are now declared with a reason each and
+**printed by name on every run of the gate**, so the count cannot quietly grow.
 
 Everything else open is outside this repository: a gateway credential, a
 dashboard deletion, an accountant, a native reader, a lawyer, a bank transfer,
@@ -129,6 +142,14 @@ gateway arrives rather than after.
   than by a comment. `spansDays` holds every job to one day until a span has
   real provenance.
 
+### Needs a dependency migration, dev-only (2)
+
+- **`eslint-9-flat-config`** and **`tailwind-4`** — items 4 and 5 above. Clearing
+  eleven dev advisories, zero of them in the production tree. The pair of
+  **criticals** that were in that tree (`vitest` and `tinypool`, a
+  prototype-pollution gadget to RCE in worker options, on a runner holding a
+  push token) were cleared on 2026-10-23 by `vitest@4.1.12`.
+
 ### Needs a transfer somebody makes by hand (1)
 
 - **`payouts-unbuilt`** — the run exists: `lib/data/payouts.ts` drafts one net
@@ -174,10 +195,22 @@ rule deciding 200 against 503 while `healthVerdict` inlined the same rule, and
 payment mix as "by category, by ward and by month". `findAreaRow` was dead with
 no reader anywhere, not even a test, and is deleted.
 
+**Dependencies.** `npm audit` over **both trees**: **zero** findings in the
+production tree, eleven in the dev tree, all declared. Four packages may run
+code at install time, each declared with the command it runs, compared against
+its own `package.json`. Every GitHub Action is pinned by commit SHA. Four
+version floors (`next`, `sharp`, `react`, `react-dom`) hold, read from the
+lockfile and needing no network — because npm's advisory feed was measured
+**eight days late** on a critical RCE and is still missing another.
+
 **Stale prose.** `EARLY_DELETION` read "PHASE 10 MUST HONOUR THIS at the point of
 approval" long after `approveApplication` did exactly that. A comment calling an
 obligation outstanding when the code meets it costs the same as one describing
 behaviour the code lacks: the next reader goes looking for work that is done.
+Three install-script descriptions in `SECURITY.md` were false in the other
+direction — "npm flags a script and the package declares none", of packages that
+declare one — and the command is checked against disk now rather than asserted
+in prose.
 
 ---
 
@@ -187,10 +220,9 @@ Said plainly rather than left to be discovered. Outbound HTTPS to
 `*.vercel.app` is blocked by policy in the agent sandbox and the proxy answers
 403, so:
 
-- **`npm run check:deployed` was not run.** CI's `deploy` job and the
-  `After a production deploy` workflow both ran it against `729eeef` and
-  `e35818a` and both passed, which is the live evidence for those two commits.
-  `39299e1`'s run was still going when this was written.
+- **`npm run check:deployed` was not run from here.** CI's `deploy` job and the
+  `After a production deploy` workflow both ran it against `358a315` and both
+  passed, which is the live evidence that production serves this commit.
 - **`/api/health` was not read live.** Its last recorded reading is in
   `LAUNCH-BLOCKERS.md`: `auth.sms: down` with the Twilio placeholder named, and
   `triage.model: ok — claude-sonnet-4-6 answered in 1374ms`.
