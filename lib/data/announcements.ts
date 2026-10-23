@@ -134,7 +134,7 @@ export async function liveAnnouncements(): Promise<Announcement[]> {
 
   markDataSource(
     "announcements",
-    read.failed === null ? "database" : "unread",
+    read.failed === null ? "database" : "failed",
     read.failed ?? undefined,
   );
 

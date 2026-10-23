@@ -24,7 +24,26 @@ import { cache } from "react";
  * other's readings.
  */
 
-export type DataSource = "database" | "seed" | "unread";
+/**
+ * `unread` AND `failed` ARE DIFFERENT FACTS, and they were one value.
+ *
+ * `unread` is the initial state of every key: this page made no such read. It
+ * is why `DataSourceBadge` filters those keys out — printing ten `unread` lines
+ * on a page that reads two of them is noise.
+ *
+ * Which meant a read that ATTEMPTED and FAILED was invisible there, because it
+ * marked `unread` too and was filtered out with the rest. That is rule 6 inside
+ * the one component built to tell a failure from a success: for the two keys
+ * with no seed behind them — `announcements` and `launchScope` — "we could not
+ * read it" and "nobody asked" rendered identically, as nothing at all. The
+ * standing notes claimed `?debug=data` prints `announcements: unread`, which is
+ * a comment describing behaviour this module did not have.
+ *
+ * `seed` stays its own value rather than a flavour of `failed`: falling back to
+ * the seed is a SUCCESSFUL read of stale-but-honest data on the keys that have
+ * one, and collapsing it would lose the distinction the badge was built for.
+ */
+export type DataSource = "database" | "seed" | "unread" | "failed";
 
 export type DataReading = {
   source: DataSource;
@@ -50,7 +69,19 @@ export type DataSourceKey =
    * only place they are told apart. So it reads `database` or `unread`, never
    * `seed`.
    */
-  | "announcements";
+  | "announcements"
+  /**
+   * The soft-launch scope, and it is the second key with no seed behind it.
+   *
+   * It belongs here for a sharper version of `announcements`' reason. A scope
+   * that cannot be read makes `openAreas()` and `openCategories()` return null,
+   * so the catalogue says "we can't load this right now" — which is also what
+   * an unreadable CATALOGUE says. Two different faults, one sentence, and this
+   * badge is the only place they are told apart. `database` or `unread`, never
+   * `seed`: an unconfigured clone is marked `database` deliberately, because
+   * with no keys `SCOPE_OFF` is the answer rather than a fallback to one.
+   */
+  | "launchScope";
 
 export type DataSources = Record<DataSourceKey, DataReading>;
 
@@ -61,6 +92,7 @@ const store = cache((): DataSources => ({
   providers: { source: "unread" },
   reviews: { source: "unread" },
   announcements: { source: "unread" },
+  launchScope: { source: "unread" },
 }));
 
 export function markDataSource(
@@ -75,6 +107,9 @@ export function markDataSource(
   if (source === "seed" && detail) {
     console.error(`[data] ${key} fell back to seed — ${detail}`);
   }
+  if (source === "failed" && detail) {
+    console.error(`[data] ${key} could not be read — ${detail}`);
+  }
 }
 
 export function readDataSources(): DataSources {
@@ -86,6 +121,7 @@ export function readDataSources(): DataSources {
     providers: { ...current.providers },
     reviews: { ...current.reviews },
     announcements: { ...current.announcements },
+    launchScope: { ...current.launchScope },
   };
 }
 

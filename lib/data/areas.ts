@@ -1,6 +1,8 @@
 import { cache } from "react";
 
 import { AREA_SEED, type Area } from "@/lib/config/areas";
+import { scopeAllows } from "@/lib/config/launch-scope";
+import { launchScope } from "@/lib/data/launch-scope";
 import {
   describeError,
   markDataSource,
@@ -171,3 +173,40 @@ export async function bookableAreas(): Promise<AreaRow[] | null> {
   return rows.filter((area) => area.retiredAt === null);
 }
 
+
+/**
+ * The areas a CUSTOMER may choose right now — live, and inside the launch scope.
+ *
+ * A THIRD READ, because "who is choosing" is a third question and the answer
+ * differs. `bookableAreas()` is every live ward and is what `/providers/join`
+ * and `/admin/areas` want: you have to be able to RECRUIT in a ward before you
+ * can open it, so narrowing that read would make a soft launch stop the one
+ * activity that ends it. This read is for the customer's own choice — the
+ * address on a booking — and it is the one the scope applies to.
+ *
+ * So the three reads are three questions, and the top of this file is the map:
+ *
+ *   `allAreas()`       — turning a stored key into words. Never narrowed.
+ *   `bookableAreas()`  — anybody's choice among wards we still serve.
+ *   `openAreas()`      — a customer's choice, during a soft launch.
+ *
+ * NULL FOR EITHER FAILURE, and the caller cannot tell them apart from the
+ * return value — deliberately, because the screen's sentence is the same either
+ * way ("we can't load this right now — this is us, not you") and a caller that
+ * had to branch would be two sentences where one is honest. `?debug=data` tells
+ * them apart, which is the one place somebody IS asking: `areas: seed` is a
+ * failed catalogue read, `launchScope: failed` is a failed scope read.
+ */
+export async function openAreas(): Promise<AreaRow[] | null> {
+  const [rows, scope] = await Promise.all([bookableAreas(), launchScope()]);
+
+  /*
+   * EITHER FAILURE REFUSES. An unreadable scope must not open everything: with
+   * the scope narrowed to two wards, reading a hiccup as "no scope" would put
+   * all fifteen back on the address picker and take bookings where we have
+   * nobody to send. `lib/data/launch-scope.ts` argues that choice in full.
+   */
+  if (rows === null || scope === null) return null;
+
+  return rows.filter((area) => scopeAllows(scope, "area", area.key));
+}

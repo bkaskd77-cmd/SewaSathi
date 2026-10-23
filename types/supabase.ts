@@ -276,6 +276,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      launch_scope: {
+        Row: {
+          /** Always `true`. `launch_scope_singleton` is `check (id)`, so the
+           *  table holds exactly one row and no caller needs to know an id. */
+          id: boolean;
+          /** FALSE is "no scope, everything live is open" and is the normal
+           *  state. Deliberately NOT derived from the arrays: an empty array
+           *  must never be readable as "everything", or a truncated write opens
+           *  the whole country. */
+          enabled: boolean;
+          /** Open wards while `enabled`, as `areas.key` spells them. No foreign
+           *  key, like every other holder of these keys — a scope naming a
+           *  retired ward narrows to nothing rather than resurrecting it. */
+          area_keys: string[];
+          category_slugs: string[];
+          /** Why we are starting here. Optional, unlike `retired_reason`: a
+           *  withdrawal raises that question months later, a soft launch is a
+           *  plan somebody is executing and the log carries each change. */
+          note: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          enabled?: boolean;
+          area_keys?: string[];
+          category_slugs?: string[];
+          note?: string | null;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          enabled?: boolean;
+          area_keys?: string[];
+          category_slugs?: string[];
+          note?: string | null;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       areas: {
         Row: {
           /** "lalitpur-4" — city slug and ward number. Every `addresses.area_key`,

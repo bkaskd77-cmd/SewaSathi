@@ -22,6 +22,7 @@ export type AdminTool = {
     | "enforcement"
     | "signals"
     | "areas"
+    | "launchScope"
     | "bands"
     | "duration"
     | "revenue"
@@ -73,6 +74,25 @@ export const ADMIN_TOOLS: AdminTool[] = [
    * day for a year stops being read.
    */
   { key: "areas", href: "/admin/areas" },
+  /*
+   * BESIDE AREAS BECAUSE IT IS THE SAME QUESTION ONE AXIS OVER: that screen
+   * decides which wards exist, this one decides which of them are open to
+   * customers today. The pair should be adjacent or somebody narrows a soft
+   * launch on one screen and wonders why a retired ward is still listed on the
+   * other.
+   *
+   * ON THE INDEX AT ALL BECAUSE `/admin/enforcement` was not, for the whole
+   * life of the enforcement ladder — built, deployed, guarded, walked by
+   * `check:deployed`, and reachable only by typing the URL.
+   * `tests/unit/routes-reachable.test.ts` is what makes that a failure now,
+   * and this entry is what satisfies it.
+   *
+   * NOT A QUEUE, `areas`' own reasoning: there is nothing to decide until
+   * somebody wants to widen, and a count of open wards is a figure that does
+   * not move for weeks — `ACTIVITY_FLOOR`'s rule, a number true every day for
+   * a year stops being read.
+   */
+  { key: "launchScope", href: "/admin/launch-scope" },
   { key: "bands", href: "/admin/bands" },
   /*
    * Also not a queue: there is no list and nothing drains. A count would be

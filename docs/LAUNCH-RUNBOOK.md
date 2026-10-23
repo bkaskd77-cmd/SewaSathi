@@ -184,10 +184,31 @@ register that exists to prevent lies. A band moves afterwards through
 `/admin/bands`, with evidence, a stored rejection and an audit row — never a
 migration.
 
-**What is left is a decision, and it is which trades and wards to open.** That
-is step 6's `soft launch` setting: a chosen subset of the ten trades and fifteen
-wards, editable in `/admin/launch-scope`, widened later without a deploy. Pick
-the subset here and set it there.
+**What is left is a decision, and it is which trades and wards to open.**
+`/admin/launch-scope` is where it is made: tick the subset of the ten trades and
+fifteen wards you are ready to serve, and widen later without a deploy. It is
+**not** the same act as retiring a ward or a trade — retiring records that we
+stopped, with a reason, and this records that we have not started yet — and it
+takes effect on the next page load.
+
+The screen says what the ticks will do before they are saved. **Either list
+empty means the product takes no bookings at all**, because a booking needs both
+a ward and a trade, so `scopeStanding` calls that `closed` rather than
+`narrowed` and the panel says so in those words. **Professionals are
+deliberately not narrowed**: `/providers/join` keeps offering every live ward,
+because you need people in a ward before you can open it.
+
+**Verify the scope itself** in the Supabase SQL editor or through the screen:
+
+```sql
+select enabled, area_keys, category_slugs, note, updated_at
+  from public.launch_scope;
+```
+
+It is seeded `enabled = false` with both lists empty, which is "no scope,
+everything live is open" — the product's normal state and what it is today.
+**Roll back by unticking, or by turning the switch off**; both are one tap, and
+neither touches a booking already placed.
 
 **Do.** For each trade you intend to open, confirm on `/admin/bands` that the
 published band is the one you want to quote, and read `/admin/content/categories` for

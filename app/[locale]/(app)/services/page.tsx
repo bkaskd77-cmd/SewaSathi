@@ -18,7 +18,7 @@ import {
   categoryQuote,
 } from "@/lib/config/services";
 import { openGraphFor } from "@/lib/seo";
-import { getCategories } from "@/lib/data/categories";
+import { getCategories, openCategories } from "@/lib/data/categories";
 import { getCategoryCounts } from "@/lib/data/providers";
 import { matchCategories } from "@/lib/data/synonyms";
 import { formatNpr } from "@/lib/utils";
@@ -57,7 +57,14 @@ export default async function ServicesPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const [all, counts, locale, t] = await Promise.all([
-    getCategories(),
+    /*
+     * SCOPED, and an unreadable scope falls back to the whole sellable
+     * catalogue rather than to nothing — the landing grid's asymmetry and its
+     * reason: this page takes no booking, so showing more trades than are open
+     * is a worse-informed visitor where an empty catalogue is a broken product.
+     * `/book` and `createBooking` refuse, which is where it costs something.
+     */
+    openCategories().then(async (open) => open ?? (await getCategories())),
     getCategoryCounts(),
     getLocale() as Promise<Locale>,
     getTranslations("services"),

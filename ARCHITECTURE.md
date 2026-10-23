@@ -1832,6 +1832,18 @@ heavier one to look different, which is what the typed reason is for.
 
 ### Service areas, opened and withdrawn by a person
 
+`/admin/launch-scope` decides which of the live wards and trades are open to
+CUSTOMERS — the soft launch. `launch_scope` is the table (one row),
+`lib/config/launch-scope.ts` the pure rule, `lib/data/launch-scope.ts` the cached
+read and `lib/data/launch-scope-admin.ts` the only writer, split for the reason
+the pair below is split: the read is reached by the landing page and the booking
+flow through the anon client, and the writer holds the service-role key.
+**It is not retirement.** Retiring records that we stopped, with a reason;
+this records that we have not started yet. The reads are a third pair —
+`openAreas()` and `openCategories()` — because a professional naming where they
+work and nine admin screens getting a trade ready must both keep seeing
+everything live, and only a customer's own choice is narrowed.
+
 `/admin/areas` opens a ward and withdraws one. `lib/data/areas.ts` is the read,
 `lib/data/areas-admin.ts` is the writer, and they are two files on purpose: the
 read is reached by the landing page, `/services`, the booking flow and
@@ -2061,10 +2073,22 @@ you" because the reader came for professionals. Nobody came for a banner: its
 absence is the common case on every page, and a sentence in its place would be
 an error strip above the whole product whenever a query hiccupped. The two are
 told apart in the two places somebody IS asking — `?debug=data` prints
-`announcements: unread`, which is the only reason that key is on the badge with
+`announcements: failed`, which is the only reason that key is on the badge with
 no seed behind it, and `allAnnouncements()` returns **null** so the admin screen
 says so rather than showing "no announcements" over a broken query, which is how
 a person publishes a second copy of a banner already up.
+
+**That sentence read `announcements: unread` and the badge could not print it**,
+which is a comment describing behaviour the code did not have — the class these
+notes keep recording. `DataSource` had ONE value for "this page made no such
+read" and "we asked and it broke", and `DataSourceBadge` filters the first out,
+correctly, because ten `unread` lines on a page that reads two of them is noise.
+So on the two keys with no seed behind them — `announcements` and, later,
+`launchScope` — a failure rendered as nothing at all, inside the one component
+built to tell a failure from a success. `failed` is a fourth value now, it
+colours the badge, and it logs its own line; `seed` stays separate rather than
+becoming a flavour of it, because falling back to the seed is a SUCCESSFUL read
+of stale-but-honest data on the keys that have one.
 
 **The boxes are Nepal time and the server is UTC.** `<input
 type="datetime-local">` submits a zone-less string and Vercel runs with `TZ`

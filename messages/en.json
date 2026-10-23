@@ -749,7 +749,8 @@
       "pricesUnreadable": "Prices couldn't load — this is us, not you. Try again in a minute. We won't guess at a price.",
       "pricesUnreadableCall": "Need it now? Ring {phone}.",
       "tryAgain": "Try again",
-      "browseInstead": "Browse services"
+      "browseInstead": "Browse services",
+      "notOpenYet": "We are not taking bookings here just yet. We are starting in a few areas and adding more every week — browse the services and we will say when we reach you."
     },
     "status": {
       "pending": "Finding a professional",
@@ -1948,6 +1949,10 @@
         "enforcement": {
           "name": "Professional standing",
           "what": "The five published steps, who is under one, and the jobs in flight when somebody is suspended."
+        },
+        "launchScope": {
+          "name": "Soft launch",
+          "what": "Open only chosen wards and trades, and widen without a deploy"
         }
       },
       "oldestWaited": "Oldest has waited {count, plural, =0 {less than a day} one {{n} day} other {{n} days}}.",
@@ -3000,6 +3005,33 @@
         "badWindow": "Check the dates: the end has to be after the start, and both have to be real times.",
         "notAdmin": "You are no longer signed in as an admin."
       }
+    },
+    "launchScope": {
+      "title": "Soft launch",
+      "lead": "Open only the wards and trades you are ready to serve. Widen whenever you like — it takes effect on the next page load, with no deploy.",
+      "notRetirement": "This is not the same as retiring a ward or a trade. Retiring records that we stopped, with a reason; this records that we have not started yet.",
+      "providersUnaffected": "Professionals are not affected. They can still apply and name any ward they work in — you need people in a ward before you can open it.",
+      "unreadable": "We couldn't read the launch scope, so this form is not safe to show — saving it would write over a scope we cannot see. Try again in a minute.",
+      "enable": "Only serve the wards and trades ticked below",
+      "enableWhat": "Leave this off and everything live is open, which is the normal state.",
+      "standing": {
+        "off": "Off. Every live ward and trade is open to customers.",
+        "open": "On, but nothing is held back — every live ward and trade is ticked.",
+        "narrowed": "On. Only the ticked wards and trades are open to customers.",
+        "closed": "Nothing is open. A booking needs both a ward and a trade, so with either list empty the product takes no bookings at all."
+      },
+      "wards": "Wards open to customers",
+      "wardsWhat": "Where a customer may book a job.",
+      "trades": "Trades open to customers",
+      "tradesWhat": "What a customer may book.",
+      "retired": "(retired)",
+      "note": "Why you are starting here",
+      "noteWhat": "Optional, and for us. Every change is recorded either way, with what it was before.",
+      "save": "Save the scope",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "notSaved": "That did not save. Try again.",
+      "unknownKey": "We do not recognise: {keys}"
     }
   },
   "offline": {

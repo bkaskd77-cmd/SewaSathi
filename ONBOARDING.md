@@ -172,7 +172,7 @@ the branch is the Vercel production branch, so a push is a deploy.
 | `check:blockers` | Refuses a `LAUNCH=true` production build while any launch blocker is unresolved |
 | `check:contacts` | Placeholder phone numbers and emails in user-facing copy, judged by shape |
 | `check:duration` | Duration provenance |
-| `check:advisories` | `npm audit` against a reasoned accepted list |
+| `check:advisories` | Three passes, and the first two need no network so a registry outage cannot stop them answering. **Version floors** read from the lockfile with the GHSAs that set them — because npm's feed was measured **eight days late** on a critical unauthenticated RCE and still missing another; **install scripts**, every package allowed to run code at `npm ci` time, with its command compared against its own `package.json`; then `npm audit` over **both trees** against a reasoned accepted list, where an acceptance is for one severity in one tree |
 | `check:deployed` | **Not in `verify`** — it tests what the build produces. Asks the live site which commit it serves, walks every public route, walks every guarded route unauthenticated (proving it is deployed *and* guarded *and* redirects in the right language), and walks every cron target |
 
 Several of these **self-test on every run** — `check:contacts`, `check:secrets`,

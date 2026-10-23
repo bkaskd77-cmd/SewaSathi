@@ -2163,6 +2163,27 @@ describe("RLS covers every table, including ones nobody has written a test for",
      * already draws one table over.
      */
     "announcements",
+    /*
+     * THE PRODUCT'S OWN REACH during a soft launch: one row holding a switch
+     * and two lists of public identifiers. Beside `announcements` and
+     * `content_strings` for the same reason — it is what the product SAYS it
+     * will do, read as `anon` by the landing grid, `/services`, every category
+     * page and the booking flow, none of which has a session.
+     *
+     * NOTHING IS DISCLOSED BY IT. The open wards and trades are exactly what
+     * those pages render, so the lists are inferable from the catalogue they
+     * filter. The two columns that would be a disclosure are not in the grant:
+     * `note` is an internal plan ("starting in Patan while we recruit") and
+     * `updated_by` is a staff profile id — the boundary
+     * `content_strings.updated_by` draws one table over, taken here before it
+     * could become a finding, and `tests/db/launch-scope.test.ts` pins the
+     * three-column grant exactly.
+     *
+     * THE LOCK ON THIS TABLE IS THE ABSENT WRITE GRANT, not a narrow read. A
+     * browser that could update this row could open every ward in the country
+     * or stop the product taking bookings at all.
+     */
+    "launch_scope",
   ]);
 
   /** The one table a stranger may write to: the "join us" form. */

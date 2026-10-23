@@ -128,6 +128,7 @@ export const GUARDED_ROUTES = [
   "/admin/content",
   "/admin/content/categories",
   "/admin/content/documents",
+  "/admin/launch-scope",
   "/admin/lookup",
   "/admin/mismatches",
   "/admin/payout-destinations",

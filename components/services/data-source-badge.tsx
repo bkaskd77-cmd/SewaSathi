@@ -47,14 +47,25 @@ export function DataSourceBadge({ enabled }: { enabled: boolean }) {
     );
   }
 
-  const anySeed = rows.some((key) => sources[key].source === "seed");
+  /*
+   * A FAILED READ COLOURS THE BADGE TOO, and it used to be invisible here.
+   * `markDataSource` had one value for "nobody asked" and "we asked and it
+   * broke", and the filter above drops the first — correctly, since ten
+   * `unread` lines on a page that reads two of them is noise. So the two keys
+   * with no seed behind them, `announcements` and `launchScope`, rendered a
+   * failure as nothing at all, inside the one component built to tell a
+   * failure from a success.
+   */
+  const anyProblem = rows.some(
+    (key) => sources[key].source === "seed" || sources[key].source === "failed",
+  );
 
   return (
     <div
       data-testid="data-source"
       className={cn(
         "animate-pop-in mt-8 border-t border-dashed border-border pt-3 text-caption",
-        anySeed ? "text-warning-ink" : "text-muted-foreground",
+        anyProblem ? "text-warning-ink" : "text-muted-foreground",
       )}
     >
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1">

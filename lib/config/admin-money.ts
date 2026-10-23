@@ -95,6 +95,7 @@ export const MONEY_MODULES: readonly string[] = [
    * descriptor is reversible and costs nobody anything.
    */
   "@/lib/data/categories-admin",
+  "@/lib/data/launch-scope-admin",
   "@/lib/data/claims",
   "@/lib/data/customer-risk",
   /*
@@ -157,6 +158,12 @@ export const ADMIN_MONEY_WRITES: readonly AdminMoneyWrite[] = [
     module: "@/lib/data/areas-admin",
     proof: "fresh-actor",
     why: "The other direction of the same decision. Reopening from a session nobody proved is how a ward withdrawn for a real reason - no professional there, somewhere we cannot safely send anybody - quietly starts taking bookings again.",
+  },
+  {
+    fn: "setLaunchScope",
+    module: "@/lib/data/launch-scope-admin",
+    proof: "fresh-actor",
+    why: "Turning the soft-launch scope off opens every ward and every trade at once, and turning it on with the wrong boxes ticked stops the product taking bookings anywhere - a booking needs both a ward and a trade, so either list being empty closes the shop. retireArea's argument with the whole product's reach behind it rather than one ward, and it moves no rupee only in the sense that it decides whether any rupee moves at all.",
   },
   {
     fn: "addCategory",

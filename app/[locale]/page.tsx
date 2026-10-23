@@ -34,10 +34,11 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getSessionProfile } from "@/lib/auth/session";
 import {
+  asCards,
   categoryCopy,
   categoryQuote,
-  SERVICE_CATEGORIES,
 } from "@/lib/config/services";
+import { getCategories, openCategories } from "@/lib/data/categories";
 import {
   categoryBookingCounts,
   recentActivity,
@@ -101,7 +102,17 @@ export async function generateMetadata(props: {
 export default async function Home() {
   // One wave, per the latency rule: these do not depend on each other, and the
   // booking counts are a cached aggregate so most renders pay nothing for them.
-  const [profile, locale, t, tNav, stats, bookingCounts, activity, reviews] =
+  const [
+    profile,
+    locale,
+    t,
+    tNav,
+    stats,
+    bookingCounts,
+    categories,
+    activity,
+    reviews,
+  ] =
     await Promise.all([
       getSessionProfile(),
       getLocale() as Promise<Locale>,
@@ -111,6 +122,21 @@ export default async function Home() {
       // number when the evidence is thin. See `platformStats`.
       platformStats(),
       categoryBookingCounts(),
+      /*
+       * THE TABLE, SCOPED — AND IT USED TO BE THE SEED CONSTANT. See `asCards`.
+       * This grid rendered `SERVICE_CATEGORIES` while every other catalogue
+       * surface read `categories`, so a withdrawn trade stayed advertised on
+       * the first screen anybody sees and a band moved on `/admin/bands` never
+       * reached it.
+       *
+       * NULL FALLS BACK TO THE UNSCOPED CATALOGUE rather than to nothing, and
+       * that asymmetry with `/book` is deliberate. The scope is enforced where
+       * being wrong costs something — the pickers, the address, `createBooking`
+       * — and this grid takes no booking, so an unreadable scope showing more
+       * trades than are open is a worse-informed visitor where an empty front
+       * page is a broken product. `?debug=data` prints `launchScope: failed`.
+       */
+      openCategories().then(async (open) => open ?? (await getCategories())),
       // Both of these are cached across visitors rather than per request, so
       // most renders pay nothing for either. One wave, per the latency rule —
       // nothing here depends on anything else here.
@@ -280,11 +306,11 @@ export default async function Home() {
             the trailing card full-width so nothing is left half-orphaned.
           */}
           <ul className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-12">
-            {SERVICE_CATEGORIES.map((category, i) => {
+            {asCards(categories).map((category, i) => {
               const { slug, Icon } = category;
               const copy = categoryCopy(category, locale);
               const featured = FEATURED_SLUGS.includes(slug);
-              const last = i === SERVICE_CATEGORIES.length - 1;
+              const last = i === categories.length - 1;
               /*
                 A RESEARCHED FLOOR, NOT AN INVENTED COUNT. This line used to
                 read "312 booked this week" against 14 real bookings across

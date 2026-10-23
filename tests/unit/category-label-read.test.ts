@@ -66,9 +66,21 @@ describe("a screen that labels a booking asks the label read", () => {
 
 describe("a screen that decides whether we sell it asks the catalogue read", () => {
   for (const path of CATALOGUE) {
-    it(`${path} resolves the trade with getCategory`, () => {
+    it(`${path} resolves the trade with the catalogue read`, () => {
       const source = code(path);
-      expect(source, "calls getCategory").toMatch(/\bgetCategory\(/);
+      /*
+       * `getCategory` OR `openCategory`, because the soft-launch scope made the
+       * sellable read a pair. `openCategory` composes `openCategories`, which
+       * composes `getCategories` — so it carries the `is_active` filter this
+       * file exists to insist on, and narrows it further to the wards and
+       * trades open to customers today. The assertion is deliberately NOT
+       * widened to "any function with Category in the name": what it refuses is
+       * `labelCategory`, which returns a withdrawn trade, and that refusal is
+       * the case below.
+       */
+      expect(source, "calls getCategory or openCategory").toMatch(
+        /\b(?:get|open)Category\(/,
+      );
       expect(
         /labelCategory\(/.test(source),
         "calls labelCategory, which returns a withdrawn trade — so this " +

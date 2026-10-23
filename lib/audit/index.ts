@@ -175,6 +175,21 @@ export type SecurityEventKind =
   | "area.retired"
   | "area.reopened"
   /**
+   * The soft-launch scope: which wards and trades are open to customers.
+   *
+   * THREE KINDS, `area.reopened`'s rule. Turning the scope ON is the soft
+   * launch beginning and turning it OFF is the product opening everywhere;
+   * both change what this business IS, and folding them into one
+   * `scopeChanged` beside a Tuesday widening would make them unfindable in the
+   * only history this feature has. `launch_scope` deliberately has no history
+   * table — `announcements`' reasoning — so these rows ARE the record, and the
+   * detail carries the whole scope before and after, because "when did we open
+   * ward 12" is a diff or it is nothing.
+   */
+  | "launch.scopeEnabled"
+  | "launch.scopeDisabled"
+  | "launch.scopeChanged"
+  /**
    * A sentence somebody put above every page in the product, and took down.
    *
    * FOUR KINDS BECAUSE A BANNER HAS FOUR DECISIONS IN IT and three of them
@@ -268,6 +283,12 @@ export type SecurityEvent = {
     | "category"
     /** An area key — the subject of opening or withdrawing a ward. Not a person. */
     | "area"
+    /**
+     * The one `launch_scope` row. The subject is the product's own reach —
+     * which wards and trades are open to customers — so the id is the table's
+     * name rather than anything identifying.
+     */
+    | "launch_scope"
     /** One banner's id. The subject is the sentence, not anybody who read it. */
     | "announcement"
     /**

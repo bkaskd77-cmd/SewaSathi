@@ -799,6 +799,90 @@ and verifying with a SQL-computed comparison. The rule is **apply the file's
 text, never retype it** — the same rule the schema notes already state for
 rebuilding a function from the tree rather than from `pg_proc`.
 
+**The product can open a few wards and a few trades first, and widen without a
+deploy.** `launch_scope` is the table, `/admin/launch-scope` the screen,
+`lib/config/launch-scope.ts` the whole rule, pure, because four surfaces need it
+— two reads, `createBooking`'s refusal and the screen that renders the result of
+a tap before it is saved.
+**NOT YET OPENED IS A THIRD STATE, AND RETIREMENT IS NOT IT.** The mechanism
+already here was `areas.retired_at` and `categories.retired_at`, which record
+that we STOPPED, with a reason, an actor and an `area.retired` row.
+Soft-launching thirteen wards through that would demand thirteen reasons for a
+thing nobody withdrew and write a history saying we pulled out of most of
+Kathmandu and went back in. It is `providers.closed_at` against `removed_at` one
+table over: writing one for the other puts a false accusation into every future
+report.
+**The switch is separate from the lists and is never derived from them**, which
+is the one load-bearing invariant. `enabled` says which question is being asked;
+the arrays only ever answer the narrow one. Reading an empty array as
+"everything" makes a truncated write open the whole country, and reading it as
+"nothing" closes the product on the same accident — rule 6, where the default
+and the measurement must not be the same value. Both directions are tested,
+because one case passes under either mistake. **Enabled with nothing open is a
+real state** and is not refused: `scopeStanding` calls it `closed` and the screen
+says it in those words, because a booking needs a ward AND a trade, so either
+list being empty shuts the shop however full the other is.
+**A FAILED READ REFUSES RATHER THAN OPENING EVERYTHING**, which is
+`bookableAreas()`' own choice and reason: with the scope narrowed to two wards, a
+hiccup read as "no scope" puts all fifteen back on the address picker and takes
+bookings where we have nobody to send. An UNCONFIGURED clone gets `SCOPE_OFF`
+instead — `getCategories`' reasoning, since with no keys there is no row to be
+stale against — and **zero rows is a failed read**, which is why the migration
+seeds the row as its last statement. Stopping anywhere before that leaves the
+catalogue unreadable, the closed direction.
+**WHO IS CHOOSING is what decides where it applies**, and the asymmetry is the
+feature rather than an inconsistency. `openAreas()` and `openCategories()` are
+third reads beside `allAreas`/`bookableAreas` and `getCategories`, because
+`/providers/join` must keep offering every live ward — you need professionals in
+a ward before you can open it, so a soft launch that narrowed recruitment would
+prevent the thing that ends it — and nine admin screens read `getCategories()`
+to get a trade ready. Narrowing either shared read would hide a trade from
+exactly the people whose job is to open it. The customer's own address
+(`lib/data/addresses.ts`), the booking flow and `createBooking` are what narrow.
+**The wiring is tested in both directions**, which is `labelCategory`'s lesson:
+the rule was never the risky part, the risk is a later read reaching for the
+unscoped function because the file next door does.
+**`/book` refuses and the landing grid does not**, stated because it looks like
+an inconsistency. The scope is enforced where being wrong costs something — the
+pickers, the address, the write — and the landing grid and `/services` take no
+booking, so an unreadable scope there shows more trades than are open rather
+than rendering an empty front page. `?debug=data` prints `launchScope: failed`.
+**AND THAT SAME AUDIT FOUND THE LANDING GRID READING THE SEED, NOT THE TABLE.**
+These notes have said for phases that "`categories` is the single source of
+truth — the landing grid, `/services`, the category pages and the price bands in
+the triage prompt all read from it, so repricing happens once". The first screen
+anybody sees rendered `SERVICE_CATEGORIES`, a module-level constant built from
+`CATEGORY_SEED` at import. So a band moved on `/admin/bands`, a descriptor edited
+on `/admin/content/categories` and a trade withdrawn through `retireCategory` all
+changed every other catalogue surface and left the front page exactly as it was —
+a withdrawn trade still advertised there, linking to a page that `notFound()`s.
+`asCards` is the mapping and the constant stays for the six callers that are
+right to want the authored list: three label reads (`footer`, `activity-strip`,
+`review-wall`, which is `labelCategory`'s job) and the two professional trade
+pickers. Pinned as behaviour, because the page looks perfect either way.
+**Three audit kinds, not one** — `launch.scopeEnabled`, `scopeDisabled`,
+`scopeChanged` — which is `area.reopened`'s rule: turning the scope on is the
+soft launch beginning and turning it off is the product opening everywhere, and
+folding those into a Tuesday widening makes them unfindable. There is **no
+history table**, `announcements`' decision, so those rows ARE the record and the
+detail carries the whole scope before and after; "when did we open ward 12" is a
+diff or it is nothing.
+**The figures cross the wire and the keys are looked up**, `stateBand`'s split:
+what a person SAW is theirs to send, what a rule is ENFORCED against is ours.
+Keys are validated against every ward and trade we have EVER had rather than the
+live ones — a ward retired while somebody had the screen open is still a real
+key, the reads intersect it away, and refusing the whole save over it is a lost
+edit for no gain.
+**`freshAdminActor()`'s fifteen minutes**, declared in `lib/config/admin-money.ts`
+so the AST test fails if it is dropped: `retireArea`'s argument with the whole
+product's reach behind it rather than one ward.
+**The triage card is the stated gap.** `lib/ai/price-bands.ts` feeds both the
+prompt and the price clamp, and the clamp must keep working when the catalogue
+read fails — so the matcher can still name a closed trade on a fallback path.
+Nothing unsafe follows: `/book` declines the flow and `createBooking` refuses, so
+the dead end is a wasted tap rather than a booking we cannot serve. Narrowing the
+clamp's source is a safety-adjacent edit and wants its own change.
+
 **A sentence can go above every page without a deploy now.** "We are closed for
 Dashain", "payouts are a day late this week", "do not use the gas line in
 Baneshwor until Friday" — every one of those is published copy with a start and
@@ -828,13 +912,24 @@ screen.
 **A failed read renders nothing, and this is the one place that is honest.**
 Nobody came to a page for a banner, so an error strip above the whole product
 whenever a query hiccupped would be noise — and the two are told apart in the
-two places somebody IS asking: `?debug=data` prints `announcements: unread`
-(the only key on that badge with no seed behind it, which is exactly why it
+two places somebody IS asking: `?debug=data` prints `announcements: failed`
+(one of two keys on that badge with no seed behind it, which is exactly why it
 belongs there), and `allAnnouncements()` returns **null** so the admin screen
 says so rather than printing "no announcements" over a broken query, which is
 how a second copy of a live banner gets published. `markDataSource` is called
 OUTSIDE the `unstable_cache`, because inside it only runs on a miss and the
-badge would read `unread` on every hit after.
+badge would read stale on every hit after.
+**THAT SENTENCE SAID `unread` AND THE BADGE COULD NOT PRINT IT** — a comment
+describing behaviour the code did not have, found while giving the launch scope
+the same treatment. `DataSource` had ONE value for "this page made no such read"
+and "we asked and it broke", and `DataSourceBadge` filters the first out,
+rightly, because ten `unread` lines on a page that reads two of them is noise —
+so on the two keys with no seed behind them a FAILURE rendered as nothing at
+all, inside the one component built to tell a failure from a success. `failed`
+is a fourth value now and colours the badge. `seed` stays its own value rather
+than a flavour of it: falling back to the seed is a successful read of
+stale-but-honest data on the keys that have one, and collapsing them would lose
+the distinction the badge exists for.
 **One minute of cache, not fifteen, plus the tag.** `updateTag` makes a publish
 instant; the minute bounds the two changes no action fires — a banner scheduled
 for 09:00, whose window opens with nobody touching anything, and a failed read.

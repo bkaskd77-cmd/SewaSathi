@@ -16,9 +16,9 @@ import type { Locale } from "@/i18n/routing";
 import { areaShortLabel } from "@/lib/config/areas";
 import { areasByCity } from "@/lib/config/areas";
 import { categoryCopy, categoryQuote } from "@/lib/config/services";
-import { allAreas, bookableAreas } from "@/lib/data/areas";
+import { allAreas, bookableAreas, openAreas } from "@/lib/data/areas";
 import { openGraphFor } from "@/lib/seo";
-import { getCategory, getSubBands } from "@/lib/data/categories";
+import { getSubBands, openCategory } from "@/lib/data/categories";
 import { bandBounds, type BandSource } from "@/lib/booking";
 import type { SortOption } from "@/lib/data/ranking";
 import { formatNpr } from "@/lib/utils";
@@ -54,7 +54,7 @@ export async function generateMetadata(props: {
   const params = await props.params;
   const locale = params.locale as Locale;
   const t = await getTranslations({ locale, namespace: "meta" });
-  const category = await getCategory(params.slug);
+  const category = await openCategory(params.slug);
   if (!category) return { title: t("categoryNotFound") };
 
   const copy = categoryCopy(category, locale);
@@ -102,7 +102,7 @@ export default async function CategoryPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const category = await getCategory(params.slug);
+  const category = await openCategory(params.slug);
   if (!category) notFound();
 
   const locale = (await getLocale()) as Locale;
@@ -172,7 +172,15 @@ export default async function CategoryPage(props: {
    * `bookable` is what the filter may OFFER, so it does not — filtering for a
    * ward we withdrew searches for coverage we no longer have. One wave.
    */
-  const [areaRows, bookable] = await Promise.all([allAreas(), bookableAreas()]);
+  const [areaRows, open] = await Promise.all([allAreas(), openAreas()]);
+  /*
+   * AN UNREADABLE SCOPE FALLS BACK TO EVERY LIVE WARD, because this is a filter
+   * rather than a booking: `openAreas()` already returns null when the AREA
+   * read failed too, and `bookableAreas()` would return null for that same
+   * failure, so the fallback cannot widen past what we serve. `/book` is where
+   * refusing is right.
+   */
+  const bookable = open ?? (await bookableAreas());
   const statedBand =
     band && bandSource === "customer"
       ? (subBands.find(

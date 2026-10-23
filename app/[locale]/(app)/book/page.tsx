@@ -10,12 +10,12 @@ import type { Locale } from "@/i18n/routing";
 import { tripDebtNotice } from "@/lib/abuse";
 import { areaLabel, areasByCity, findAreaIn } from "@/lib/config/areas";
 import { categoryCopy, categoryQuote } from "@/lib/config/services";
-import { allAreas, bookableAreas } from "@/lib/data/areas";
+import { allAreas, openAreas } from "@/lib/data/areas";
 import { supportPhoneDisplay } from "@/lib/config/site";
 import { getSessionProfile } from "@/lib/auth/session";
 import { listAddresses } from "@/lib/data/addresses";
 import { customerHistory } from "@/lib/data/customer-risk";
-import { getCategories, getSubBands } from "@/lib/data/categories";
+import { getSubBands, openCategories } from "@/lib/data/categories";
 import { providerCapacity } from "@/lib/data/capacity";
 import { getProvider } from "@/lib/data/providers";
 import { TRIAGE_PARAM } from "@/lib/routes/booking";
@@ -82,8 +82,16 @@ export default async function BookPage(props: {
    */
   const messages = await getMessages();
 
-  const [categories, subBands, addresses, provider, risk] = await Promise.all([
-    getCategories(),
+  const [openCats, subBands, addresses, provider, risk] = await Promise.all([
+    /*
+     * THE SCOPED LIST, AND NULL REFUSES HERE rather than falling back to the
+     * whole catalogue the way the landing grid and `/services` do. This is the
+     * flow that takes the booking, so an unreadable scope is the same kind of
+     * fault as an unreadable band: we do not know which trades are open, and
+     * collecting a description, an address and a time before finding out is the
+     * dead end `bandsUnreadable` already refuses a few lines down.
+     */
+    openCategories(),
     getSubBands(),
     profile ? listAddresses() : Promise.resolve([]),
     providerId ? getProvider(providerId) : Promise.resolve(null),
@@ -165,7 +173,16 @@ export default async function BookPage(props: {
    * is checked there, in one place, rather than rendering a picker with nothing
    * in it.
    */
-  const areaRows = await bookableAreas();
+  const areaRows = await openAreas();
+  /*
+   * `[]` SO THE REST OF THE PAGE HAS A LIST, with the refusal below reading the
+   * flag rather than the length — `categories.length === 0` is a REAL state
+   * during a soft launch (nothing open in this trade yet) and must not be
+   * confused with "we could not read it", which is rule 6 on the one screen
+   * that decides whether to take somebody's money.
+   */
+  const scopeUnreadable = openCats === null;
+  const categories = openCats ?? [];
   const areas = areasByCity(areaRows ?? [], locale).map((group) => ({
     city: group.city,
     options: group.areas.map((area) => ({
@@ -222,7 +239,7 @@ export default async function BookPage(props: {
    * one thing, so they share it rather than stacking two panels — and the
    * sentence is about what failed on OUR side either way.
    */
-  if (bandsUnreadable || areaRows === null) {
+  if (bandsUnreadable || areaRows === null || scopeUnreadable) {
     return (
       <div className="mx-auto w-full max-w-2xl">
         <header className="animate-rise">
@@ -260,6 +277,46 @@ export default async function BookPage(props: {
             <Button asChild size="sm">
               <Link href={`/book?${back.toString()}`}>{t("tryAgain")}</Link>
             </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/services">{t("browseInstead")}</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * NOTHING OPEN YET, WHICH IS A DIFFERENT SENTENCE FROM "WE COULD NOT READ IT".
+   *
+   * During a soft launch the scope may be narrowed to a handful of wards and
+   * trades, and `scopeStanding` calls the both-ends-empty case `closed` for the
+   * reason this branch exists: a booking needs a ward AND a trade, so either
+   * list being empty means the product takes no bookings, however full the
+   * other one is.
+   *
+   * IT IS NOT A FAULT AND MUST NOT WEAR THE FAULT'S COPY. The panel above says
+   * "this is us, not you" with a phone number, because something broke; this is
+   * a decision we made, so it says we are starting in a few areas and will
+   * widen — no warning colour, no apology for a malfunction, and the same
+   * `empty-state` rule that there is always something to press. It is checked
+   * SECOND so the two cannot stack: an unreadable scope means we do not know
+   * whether we are open, and `instead`'s rule is that one screen says one thing.
+   */
+  if (categories.length === 0 || areaRows.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-2xl">
+        <header className="animate-rise">
+          <h1 className="font-display text-display-md">{t("title")}</h1>
+        </header>
+
+        <div
+          className="animate-rise mt-6 rounded-lg border border-border bg-muted/40 p-4"
+          style={{ animationDelay: "60ms" }}
+        >
+          <p className="text-body-md">{t("notOpenYet")}</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href="/services">{t("browseInstead")}</Link>
             </Button>

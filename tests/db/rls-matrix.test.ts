@@ -86,6 +86,23 @@ const PUBLIC_TO_ANON = new Set([
   "provider_categories",
   "provider_reviews",
   "provider_stats",
+  /*
+   * Published copy and the product's own reach. Neither holds a person, an
+   * amount or the id of anything private: `announcements` is a sentence
+   * somebody put above every page, and `launch_scope` is a switch plus two
+   * lists of public identifiers that the catalogue it filters would reveal
+   * anyway. Both grant COLUMNS rather than the table, which is pinned in their
+   * own db tests — `created_by` and `note` are not in either grant.
+   *
+   * `announcements` WAS PASSING THE CASE BELOW FOR THE WRONG REASON, which is
+   * worth naming: that case only flags a table with rows in it (`total > 0`),
+   * and no fixture here publishes a banner. So it was invisible to the guard
+   * rather than permitted by it — the `ACTIVITY_FLOOR` shape, a test that
+   * passes because the fixture is empty. `launch_scope` seeds its one row in
+   * the migration, which is what made the question get asked at all.
+   */
+  "announcements",
+  "launch_scope",
 ]);
 
 let pg: Harness;
@@ -372,6 +389,14 @@ describe("what each role can read", () => {
       // Every booking and its history: what support exists to look at.
       "booking_status_history",
       "bookings",
+      /*
+       * `launch_scope` IS DELIBERATELY NOT HERE, and the reason is worth a
+       * line. It reads in full for an admin — but through the same
+       * `using (true)` policy that answers a stranger, so it is in
+       * `PUBLIC_TO_ANON` above and this list excludes those by construction.
+       * "An admin can read all of it" is only interesting about a table where
+       * somebody else cannot, which is what this assertion is for.
+       */
       // Money. Read-only — RLS grants nobody an insert or update on it.
       "payments",
       // Every customer's and every professional's phone number. The reason

@@ -11,9 +11,10 @@ import {
   judgeCancellation,
   type BookingStatus,
 } from "@/lib/booking";
+import { openAreas } from "@/lib/data/areas";
 import { providerCapacity } from "@/lib/data/capacity";
 import { categoryQuote } from "@/lib/config/services";
-import { getCategory, getSubBands } from "@/lib/data/categories";
+import { getSubBands, openCategory } from "@/lib/data/categories";
 import { liveTermsVersion } from "@/lib/content/documents";
 import { armConfirmation } from "@/lib/data/customer-risk";
 import { getProvider } from "@/lib/data/providers";
@@ -433,9 +434,24 @@ export async function createBooking(
     return { ok: false, errors: { form: "accountSuspended" } };
   }
 
-  // Is this still something we sell? The category could have been retired
-  // between the triage that suggested it and the confirm button.
-  const category = await getCategory(parsed.data.category);
+  /*
+   * Is this still something we sell, HERE, NOW? The category could have been
+   * retired between the triage that suggested it and the confirm button — and
+   * during a soft launch it could be a trade that is live and not yet open.
+   *
+   * `openCategory` answers all three (unknown, retired, out of scope) and
+   * `categoryUnavailable` already reads "we are not taking bookings for that
+   * service right now", which is true of each. It also returns null when the
+   * SCOPE could not be read, and refusing there is the right direction for the
+   * reason `customerIsSuspended` gives above: a booking refused during a
+   * database blip is recoverable, and a booking taken in a trade we are not
+   * serving is a customer waiting for somebody who is never sent.
+   *
+   * A SERVER ACTION IS A PUBLIC POST, which is why this is here and not only on
+   * `/book`: the page declining to render the flow is the courtesy, and this is
+   * the enforcement.
+   */
+  const category = await openCategory(parsed.data.category);
   if (!category) return { ok: false, errors: { category: "categoryUnavailable" } };
 
   /*
@@ -673,11 +689,33 @@ export async function createBooking(
    */
   const { data: address } = await supabase
     .from("addresses")
-    .select("id")
+    .select("id, area_key")
     .eq("id", parsed.data.addressId)
     .maybeSingle();
 
   if (!address) return { ok: false, errors: { address: "pickAddress" } };
+
+  /*
+   * AND THE WARD, because a SAVED address predates the scope.
+   *
+   * `lib/data/addresses.ts` checks the ward when an address is created, which
+   * covers a new one and nothing else: somebody who saved their address in
+   * March can book against it in April, in a ward we have not opened. The
+   * trade is checked above by composition; this one has to be asked, because
+   * the booking names an address id and the ward is a column on it.
+   *
+   * `openAreas()` is null for an unreadable scope or an unreadable area list,
+   * and both refuse here — the same direction as the trade, for the same
+   * reason. `pickArea` rather than a new key: the customer's action is to
+   * choose somewhere else, which is what that sentence asks.
+   */
+  const open = await openAreas();
+  if (open === null) {
+    return { ok: false, errors: { address: "areasUnreadable" } };
+  }
+  if (!open.some((area) => area.key === address.area_key)) {
+    return { ok: false, errors: { address: "pickArea" } };
+  }
 
   /* Once, outside the retry loop: a reference clash is not a reason to ask again. */
   const termsVersion = await liveTermsVersion();

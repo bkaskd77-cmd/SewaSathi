@@ -51,6 +51,7 @@ default as a measurement.
 | `duration_reverts` | 0 | no data | no data | no data | no data | no data | no data |
 | `guarantee_claim_photos` | 0 | no data | no data | no data | no data | no data | no data |
 | `guarantee_claims` | 0 | no data | no data | no data | no data | no data | no data |
+| `launch_scope` | 1 | all | all | all | all | all | all |
 | `no_show_claims` | 0 | no data | no data | no data | no data | no data | no data |
 | `notifications` | 2 | none | some | some | none | none | none |
 | `payments` | 2 | none | some | some | some | none | all |

@@ -337,6 +337,31 @@ export type ServiceCategoryCard = Category & { Icon: LucideIcon };
  * hand it to `categoryCopy` with the reader's locale instead of reaching back
  * into the seed for the Nepali half.
  */
-export const SERVICE_CATEGORIES: ServiceCategoryCard[] = [...CATEGORY_SEED]
-  .sort((a, b) => a.sortOrder - b.sortOrder)
-  .map((category) => ({ ...category, Icon: categoryIcon(category.icon) }));
+export const SERVICE_CATEGORIES: ServiceCategoryCard[] = asCards(CATEGORY_SEED);
+
+/**
+ * Any list of categories as the grid's cards.
+ *
+ * WHY THIS EXISTS: THE LANDING GRID WAS READING THE SEED, NOT THE TABLE. The
+ * standing notes said "`categories` is the single source of truth — the landing
+ * grid, `/services`, the category pages and the price bands in the triage
+ * prompt all read from it, so repricing happens once", and the first screen
+ * anybody sees rendered `SERVICE_CATEGORIES`, a module-level constant built
+ * from `CATEGORY_SEED`. So a band moved on `/admin/bands`, a descriptor edited
+ * on `/admin/content/categories` and a trade withdrawn through `retireCategory`
+ * all changed `/services` and every category page and left the front page
+ * exactly as it was — a withdrawn trade still advertised there, linking to a
+ * page that `notFound()`s.
+ *
+ * `SERVICE_CATEGORIES` stays, because six other callers want the full authored
+ * list and are right to: `components/marketing/footer.tsx`,
+ * `activity-strip.tsx` and `review-wall.tsx` turn a stored slug into words and
+ * an icon, which is `labelCategory`'s job and must keep working for a trade we
+ * stopped selling, and `providers/join` and `providers/apply` ask a
+ * professional which trades they do.
+ */
+export function asCards(categories: readonly Category[]): ServiceCategoryCard[] {
+  return [...categories]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((category) => ({ ...category, Icon: categoryIcon(category.icon) }));
+}

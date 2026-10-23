@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { findAreaIn } from "@/lib/config/areas";
-import { bookableAreas } from "@/lib/data/areas";
+import { openAreas } from "@/lib/data/areas";
 import { isPoint } from "@/lib/geo";
 import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -196,8 +196,19 @@ export async function createAddress(
    * `pickArea` for an unknown or retired key and `areasUnreadable` for a failed
    * read: two different sentences, because "that is not somewhere we work" is
    * the customer's to act on and "we could not look" is ours.
+   *
+   * `openAreas()` RATHER THAN `bookableAreas()`, because this is a CUSTOMER
+   * saying where the job is. During a soft launch a ward can be live and not
+   * yet open, and an address stored in one is a booking we cannot serve — so
+   * the scope belongs here, where `lib/data/provider-leads.ts` deliberately
+   * keeps the unscoped read: a professional naming where they work has to be
+   * able to name a ward we have not opened, or nothing could ever open.
+   * `openAreas()` returns null for an unreadable scope as well as an unreadable
+   * area list, and `areasUnreadable` is the honest answer to both — the reader
+   * cannot act on which of the two it was, and `?debug=data` tells them apart
+   * where somebody is asking.
    */
-  const areas = await bookableAreas();
+  const areas = await openAreas();
   if (areas === null) return { ok: false, errors: { area: "areasUnreadable" } };
 
   const area = findAreaIn(areas, parsed.area);

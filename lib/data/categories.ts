@@ -8,6 +8,8 @@ import {
   type Category,
   type SubBand,
 } from "@/lib/config/services";
+import { scopeAllows } from "@/lib/config/launch-scope";
+import { launchScope } from "@/lib/data/launch-scope";
 import {
   describeError,
   markDataSource,
@@ -421,3 +423,53 @@ export const getSubBands = cache(async (): Promise<SubBand[]> => {
 });
 
 export { categoryCopy } from "@/lib/config/services";
+
+/**
+ * The trades a CUSTOMER may book right now — sellable, and inside the launch scope.
+ *
+ * `getCategories()` IS NOT NARROWED AND THAT IS THE POINT. Nine admin screens
+ * read it — `/admin/duration`, `/admin/signals`, `/admin/lookup`,
+ * `/admin/guarantee-claims`, `/admin/mismatches`, `/admin/survey-fees`,
+ * `/admin/appeals` and the content editor among them — and an admin managing a
+ * trade we have not opened yet still has to see it. Narrowing the shared read
+ * would hide a trade from exactly the people whose job is to get it ready,
+ * which is the opposite of what a soft launch needs. `openAreas()` makes the
+ * same split one table over, and for the same reason: who is choosing.
+ *
+ * NULL MEANS THE SCOPE WAS UNREADABLE, never that the catalogue was. Those are
+ * two different faults and only one of them is new: an unreadable catalogue
+ * already has an answer — `unreadableCatalogue` blanks the bands, `categoryQuote`
+ * returns `unreadable`, and `createBooking` refuses rather than quoting the seed
+ * — so this read leaves that machinery exactly as it is and adds the one case it
+ * cannot express. Guessing "no scope" on a failed scope read would open every
+ * trade during the week we most wanted two.
+ */
+export async function openCategories(): Promise<Category[] | null> {
+  const [categories, scope] = await Promise.all([
+    getCategories(),
+    launchScope(),
+  ]);
+
+  if (scope === null) return null;
+
+  return categories.filter((category) =>
+    scopeAllows(scope, "category", category.slug),
+  );
+}
+
+/**
+ * One trade, if a customer may book it right now.
+ *
+ * NULL FOR ALL THREE REASONS — no such slug, withdrawn, or outside the launch
+ * scope — and `/services/[slug]` calls `notFound()` on it, which is what
+ * retirement already does. A 404 for a trade we genuinely intend to sell next
+ * month is not a lovely screen; it is the honest cheap one, and nothing links
+ * there while the trade is closed, because the landing grid and `/services`
+ * both read the scoped list. The alternative — render the page, print the band,
+ * then refuse at the booking — is the dead end this product refuses everywhere
+ * else.
+ */
+export async function openCategory(slug: string): Promise<Category | null> {
+  const categories = await openCategories();
+  return categories?.find((category) => category.slug === slug) ?? null;
+}
