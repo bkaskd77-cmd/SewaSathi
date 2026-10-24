@@ -3,6 +3,7 @@ import "server-only";
 import { updateTag } from "next/cache";
 
 import { recordSecurityEvent } from "@/lib/audit";
+import { tradeOpenable } from "@/lib/config/launch-readiness";
 import { type LaunchScope } from "@/lib/config/launch-scope";
 import { allAreas } from "@/lib/data/areas";
 import { allCategories } from "@/lib/data/categories";
@@ -49,9 +50,20 @@ export type ScopeWriteResult =
         | "unreadable"
         | "refused"
         /** A key or slug that is not a ward or trade we have ever had. */
-        | "unknownKey";
+        | "unknownKey"
+        /**
+         * A trade whose typical product needs a span we have not measured.
+         *
+         * `sub-band-durations` and `multi-day-scheduling` gate `launch_scope`
+         * rather than a launch build, and this refusal is what makes that true
+         * rather than hoped for — a classification whose enforcement lives
+         * nowhere is the no-caller sin this repository records most often.
+         */
+        | "spanUnmeasured";
       /** Which ones, so the screen can say rather than just refuse. */
       unknown?: string[];
+      /** Which trades, same reason. */
+      closed?: string[];
     };
 
 export type ScopeWrite = LaunchScope & {
@@ -95,6 +107,25 @@ export async function setLaunchScope(
   ];
   if (unknown.length > 0) {
     return { ok: false, reason: "unknownKey", unknown };
+  }
+
+  /*
+   * A TRADE WE CANNOT HONESTLY SELL YET IS REFUSED, not warned about.
+   * `tradeOpenable` is the rule and `lib/config/launch-readiness.ts` argues it:
+   * painting's typical product is authored at two days or more and no span in
+   * that trade has ever been measured, so opening it reserves one day of a
+   * professional's week for a job we have told the customer nothing about.
+   *
+   * ONLY WHEN THE SCOPE IS ON. With `enabled: false` the arrays are a parked
+   * plan rather than what the product serves — the reads ignore them entirely —
+   * so refusing a save that changes nothing a customer can see would make the
+   * plan unwritable while the switch is off.
+   */
+  if (input.enabled) {
+    const closed = input.categorySlugs.filter((slug) => !tradeOpenable(slug));
+    if (closed.length > 0) {
+      return { ok: false, reason: "spanUnmeasured", closed: [...closed].sort() };
+    }
   }
 
   /*

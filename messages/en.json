@@ -2579,6 +2579,9 @@
         "destinationChanged": "The account changed after this was drafted. This payout cannot be sent.",
         "notFound": "That payout is no longer there.",
         "generic": "That did not go through. Try again."
+      },
+      "runRefused": {
+        "withholding-unconfirmed": "No payouts are being drafted. The tax withheld at source has not been confirmed by an accountant, so the run refuses to draft rather than paying against a rate nobody has checked. Zero is a valid answer — what is missing is somebody confirming it."
       }
     },
     "content": {
@@ -3031,7 +3034,9 @@
       "saving": "Saving…",
       "saved": "Saved",
       "notSaved": "That did not save. Try again.",
-      "unknownKey": "We do not recognise: {keys}"
+      "unknownKey": "We do not recognise: {keys}",
+      "spanUnmeasured": "Closed until measured: {count, plural, one {# of its products takes} other {# of its products take}} up to {days} days, and no span in this trade has been measured.",
+      "spanRefused": "Not saved. These trades cannot be opened until their spans are measured: {trades}"
     }
   },
   "offline": {

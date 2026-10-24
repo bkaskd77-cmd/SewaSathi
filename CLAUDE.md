@@ -883,6 +883,83 @@ Nothing unsafe follows: `/book` declines the flow and `createBooking` refuses, s
 the dead end is a wasted tap rather than a booking we cannot serve. Narrowing the
 clamp's source is a safety-adjacent edit and wants its own change.
 
+**And `LAUNCH=true` is reachable now, which it was not: every open blocker
+refused a launch build, so the flag could not be set at all.** A Play Store
+listing deliberately sequenced after launch, two dev-only dependency migrations
+and a count waiting on customers we have not had yet all held the same veto as
+"nobody can sign in". **A gate that cannot pass is a gate somebody eventually
+routes around, and the routing-around is never written down** — which is the
+same failure as `CANNOT_PASS` waving the advisories job past, arrived at from
+the other direction.
+**`Gates:` on every unresolved entry is the answer, and `BLOCKING_TIERS` is the
+precedent** one system over: money, safety and legal Nepali strings refuse a
+launch while the staff strings are counted, printed and do not. The discipline
+comes with it — **reclassifying is not the same as doing** — so every open entry
+is still counted and printed on every run whatever it gates, and
+`check:blockers` prints both numbers ("14 unresolved, 6 of them gating a
+launch") because a number that stops being said out loud is one nobody closes.
+**FIVE REFUSE A LAUNCH**: the SMS gateway, the support number, the test-account
+cleanup, the legal review and the Nepali native read.
+**FOUR MOVED TO GATES THAT BITE SOMEWHERE REAL**, which is the whole difference
+between this and a waiver, and each one is asserted by
+`tests/unit/launch-gates.test.ts` reading the source — a classification whose
+enforcement lives nowhere is `applyRedoRecovery` wearing a new hat.
+`withholding-tax-unconfirmed` is `payout-run`: `payoutRunRefusal()` makes the
+run draft nothing, which it asks BEFORE the bookings read so a refusal cannot
+read as a run that looked at the work and found none.
+`sub-band-durations` and `multi-day-scheduling` are `launch-scope`:
+`setLaunchScope` refuses to open the trade. `payouts-unbuilt` is `post-launch`,
+a dated step in the runbook, because one confirmed payout reaching one real
+professional needs settled work and cannot precede a launch.
+**ZERO IS NOT AN ANSWER, which is why the withholding gate could exist at all.**
+`withholdingTaxBps` has read 0 since the run was written and reads the same
+whether an accountant confirmed zero or nobody ever looked — rule 6 at its most
+expensive, on the one path that moves somebody's week of earnings. So the
+confirmation is its own column (`withholdingTaxConfirmedAt`, null) and **zero
+counts once confirmed**: arming it is a date and nothing else, never a number
+somebody feels obliged to make non-zero to prove they looked.
+**The span rule is the MEDIAN product and every alternative was a guess.** Three
+trades carry an authored multi-day span and all of those spans are `invented`:
+painting (1, 2, 4, 7), electrical (1, 1, 1, 1, 2), carpentry (1, 1, 1, 2). "Any
+multi-day product closes the trade" would close electrical, which is what the
+safety floor points at for gas and live wires, over one sub-band; "more than
+half" is a threshold nobody measured. The median is this product's own statistic
+— `proposeDuration`, `server.region` and the Lighthouse rule all use it — and it
+states something checkable: *the typical way to buy this trade needs a span we
+cannot promise.* It isolates painting, and **it clears itself** when a span moves
+off `invented`, researched by hand or promoted by the duration loop.
+**A LAUNCH MAY GO AHEAD ENGLISH-ONLY, and the gate reads the variable that
+actually hides the locale.** `NEXT_PUBLIC_ENGLISH_ONLY=true` makes
+`routing.locales` `["en"]`, so `/ne/...` 404s and the toggle does not render —
+unread money and safety copy cannot mislead a reader who is never served it, and
+serving one language is a product that is **smaller rather than one that is
+wrong**. `lib/config/locales.ts` is the switch and `check:blockers` reads the
+same name, so the gate cannot forgive copy somebody is still being shown; unset
+it and the entry gates again from that build, which is the honest coupling
+rather than a flag somebody forgets.
+**`Locale` STAYS BOTH LANGUAGES and `stripLocale` keeps iterating ALL of them**,
+which are the two traps. `Locale` was `(typeof routing.locales)[number]`, the
+same thing until a deployment could serve one language — narrowing it would make
+hiding Nepali a type-level deletion of `messages/ne.json`, `categoryCopy` and
+every `locale === "ne"` branch. And route guards match the unprefixed path, so a
+`stripLocale` over the SERVED list would leave `/ne/account` stripping to
+`/ne/account`, which is not in `PROTECTED_ROUTES` — a hidden locale must 404 at
+the router, never become a way past the middleware. The default is OFF, so CI,
+the paint check and the booking walk keep exercising both languages: a switch
+that changed the default would quietly stop testing the language it is about.
+**`payout-notice-undeliverable` is `launch` because nobody has classified it**,
+and that is deliberate rather than a decision — an unclassified entry must not
+fall through to `none`, which is rule 6's shape for a gate. `Gates:` is required
+while an entry is unresolved and optional once resolved, so flipping one back
+fails the guard until somebody answers.
+**And importing that script used to RUN it.** `main()` sat at module scope while
+`GATES`, `blocksLaunch` and `parseEntries` are exported for two test files, so an
+import printed the whole blocker report into unrelated output and, on a malformed
+register, called `process.exit(1)` from inside the import — vitest reports that
+as "no tests" with the failure attributed to the import rather than to a case.
+Found by break-testing the missing-gate guard and watching the script refuse
+correctly while the test that should have refused with it died instead.
+
 **A sentence can go above every page without a deploy now.** "We are closed for
 Dashain", "payouts are a day late this week", "do not use the gas line in
 Baneshwor until Friday" — every one of those is published copy with a start and
@@ -1189,6 +1266,19 @@ entries — `eslint-9-flat-config` (the config carrying `no-restricted-imports`,
 so the migration means re-proving every boundary rule bites) and `tailwind-4`
 (`styles/globals.css` is the token source of truth with a contrast pass riding
 on it).
+**And the THIRD measured feed move brought the first production-tree finding
+these floors have ever seen.** On 2026-10-24, off an unchanged lockfile again:
+`zod` high, CVSS 7.5, `GHSA-mrhx-c7xc-m3w5` — memory exhaustion validating
+oversized constrained collections, CWE-770, fixed in 4.6.6. **Not accepted and
+not deferred, because of where it sits**: every server action in this product
+parses its input with zod and `createBooking` is a public POST a signed-out
+browser can reach, so the attacker-controlled side is the side that validates,
+and a constrained collection is exactly what those schemas are made of. Upgraded
+to 4.6.7 with a floor in the same commit — a minor bump inside 4.x with no API
+change, which is what an accepted entry would have been deferring for no reason.
+The dev-tree entries are where "decide and record" belongs; a reachable
+production high is where it does not.
+
 **`sharp` has its own floor at 0.35.5, and the chain is the advisories' own
 words.** `GHSA-2464-fhr4-w9xw` says "a memory-related vulnerability has been
 discovered in an upstream library used for Image Optimization", carries

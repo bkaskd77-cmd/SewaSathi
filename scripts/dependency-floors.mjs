@@ -92,6 +92,22 @@ export const DEPENDENCY_FLOORS = [
       "evidence, all of it through that path.",
   },
   {
+    package: "zod",
+    minimum: "4.6.6",
+    advisories: ["GHSA-mrhx-c7xc-m3w5"],
+    why:
+      "Memory exhaustion validating oversized constrained collections (high, " +
+      "CVSS 7.5, CWE-770 — allocation without limits), fixed in 4.6.6. THE ONE " +
+      "PRODUCTION-TREE FINDING TO ARRIVE SINCE THESE FLOORS EXISTED, and it is " +
+      "reachable the way nothing else here is: every server action in this " +
+      "product parses its input with zod, and `createBooking` is a public POST " +
+      "that a signed-out browser can reach. A constrained collection is exactly " +
+      "what those schemas are made of — `z.string().max()`, `z.array().max()` " +
+      "on a description, an address, a photo list — so the attacker-controlled " +
+      "side is the side that validates. Not accepted and not deferred: the fix " +
+      "is a minor bump inside 4.x with no API change.",
+  },
+  {
     package: "react",
     minimum: "19.3.1",
     advisories: ["GHSA-xqc2-xf4c-x3h3"],

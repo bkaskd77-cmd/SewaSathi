@@ -169,7 +169,7 @@ the branch is the Vercel production branch, so a push is a deploy.
 | `check:transitions` | The TS and SQL transition tables agree, comparing against the **last** definition across all migrations |
 | `check:paint` | Every front door records a first-contentful-paint in real Chromium. Catches content hidden behind an entrance animation — has happened twice |
 | `check:flows` | The booking funnel in a browser, including logged-out → login → resume |
-| `check:blockers` | Refuses a `LAUNCH=true` production build while any launch blocker is unresolved |
+| `check:blockers` | Refuses a `LAUNCH=true` production build while any blocker **gated `launch`** is unresolved. Every open entry carries a `Gates:` field since 2026-10-24, because the old rule — any open entry refuses — made the flag unreachable; the narrower gates (`payout-run`, `launch-scope`, `post-launch`) each bite somewhere real and `tests/unit/launch-gates.test.ts` asserts they do. Both counts are printed on every run, so reclassifying cannot read as finishing |
 | `check:contacts` | Placeholder phone numbers and emails in user-facing copy, judged by shape |
 | `check:duration` | Duration provenance |
 | `check:advisories` | Three passes, and the first two need no network so a registry outage cannot stop them answering. **Version floors** read from the lockfile with the GHSAs that set them — because npm's feed was measured **eight days late** on a critical unauthenticated RCE and still missing another; **install scripts**, every package allowed to run code at `npm ci` time, with its command compared against its own `package.json`; then `npm audit` over **both trees** against a reasoned accepted list, where an acceptance is for one severity in one tree |

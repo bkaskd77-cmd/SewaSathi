@@ -22,11 +22,65 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import { backlog } from "./ne-review-scope.mjs";
 
 const FILE = "LAUNCH-BLOCKERS.md";
 const VALID_STATUS = new Set(["unresolved", "resolved"]);
+
+/**
+ * What an unresolved entry gates, and why this is a vocabulary rather than a boolean.
+ *
+ * UNTIL 2026-10-24 EVERY OPEN ENTRY REFUSED A LAUNCH BUILD, which made
+ * `LAUNCH=true` unreachable: a Play Store listing deliberately sequenced after
+ * launch, two dev-only dependency migrations and a count waiting on customers we
+ * have not had yet all held the same veto as "nobody can sign in". A gate that
+ * cannot pass is a gate somebody eventually routes around, and the
+ * routing-around is never written down.
+ *
+ * THE PRECEDENT IS `BLOCKING_TIERS` one system over — money, safety and legal
+ * Nepali strings refuse a launch while 424 staff strings are counted, printed
+ * and do not — and so is the discipline: **reclassifying is not the same as
+ * doing.** Every open entry is still counted and printed on every run whatever
+ * it gates, because a number that stops being said out loud is one nobody
+ * closes.
+ *
+ * THE NARROWER GATES ARE REAL ENFORCEMENT ELSEWHERE, which is the whole
+ * difference between this and a waiver. `payout-run` is `payoutRunRefusal()`
+ * refusing to draft; `launch-scope` is `setLaunchScope` refusing to open the
+ * trade; `post-launch` is a dated step in `docs/LAUNCH-RUNBOOK.md`. A value here
+ * that pointed at nothing would be exactly the no-caller sin this repository
+ * records more often than any other.
+ */
+export const GATES = {
+  /** Refuses a LAUNCH=true production build. */
+  launch: "refuses a launch build",
+  /** Refuses one, unless the Nepali locale is hidden. */
+  "launch-unless-english-only": "refuses a launch build unless English-only",
+  /** Refuses the payout run — the product serves customers, it does not pay. */
+  "payout-run": "refuses the payout run",
+  /** Handled by keeping a trade or ward closed in `launch_scope`. */
+  "launch-scope": "stays closed in launch_scope",
+  /** Verified after going live, because only real customers produce it. */
+  "post-launch": "verified in the first week after launch",
+  /** Open, counted, printed, and not a launch condition. */
+  none: "does not gate a launch",
+};
+
+/** The gates that stop a launch build, given what this build serves. */
+export function blocksLaunch(gate, englishOnly) {
+  if (gate === "launch") return true;
+  /*
+   * THE OPTION, AND IT READS THE PRODUCT'S OWN VARIABLE. Unread money, safety
+   * and legal Nepali copy cannot mislead a reader who is never served it — so
+   * hiding the locale clears this one, and `lib/config/locales.ts` is what
+   * actually hides it. Same variable, inlined into the same build, so the gate
+   * cannot forgive copy somebody is still being shown.
+   */
+  if (gate === "launch-unless-english-only") return !englishOnly;
+  return false;
+}
 
 /**
  * One entry is checked against the data rather than taken at its word.
@@ -162,7 +216,7 @@ function stripFences(markdown) {
  * red-under-tsc split this repo already stepped in over `fs.globSync`.
  *
  * @param {string} markdown
- * @returns {{ id: string, status: string | null, claims: string | null, livesIn: string | null, replacedBy: string | null }[]}
+ * @returns {{ id: string, status: string | null, gates: string | null, claims: string | null, livesIn: string | null, replacedBy: string | null }[]}
  */
 export function parseEntries(markdown) {
   const body = stripFences(markdown);
@@ -175,6 +229,7 @@ export function parseEntries(markdown) {
     return {
       id,
       status: field("Status")?.toLowerCase() ?? null,
+      gates: field("Gates")?.toLowerCase() ?? null,
       claims: field("Claims"),
       livesIn: field("Lives in"),
       replacedBy: field("Replaced by"),
@@ -196,11 +251,24 @@ function main() {
   }
 
   const entries = parseEntries(markdown);
+  /*
+   * `Gates:` IS REQUIRED WHILE AN ENTRY IS UNRESOLVED and optional once it is
+   * resolved, because a resolved entry gates nothing by definition. So flipping
+   * one back to `unresolved` fails here until somebody classifies it, which is
+   * the right moment to ask — and an absent gate can never fall through to
+   * `none`, which is rule 6's shape for a gate: an absence is not a permission.
+   */
   const malformed = entries.filter(
     (e) =>
-      !VALID_STATUS.has(e.status) || !e.claims || !e.livesIn || !e.replacedBy,
+      !VALID_STATUS.has(e.status) ||
+      !e.claims ||
+      !e.livesIn ||
+      !e.replacedBy ||
+      (e.status === "unresolved" && !(e.gates in GATES)),
   );
   const unresolved = entries.filter((e) => e.status === "unresolved");
+  const englishOnly = process.env.NEXT_PUBLIC_ENGLISH_ONLY === "true";
+  const blocking = unresolved.filter((e) => blocksLaunch(e.gates, englishOnly));
 
   const invented = inventedCategories();
   const bands = entries.find((e) => e.id === BANDS_ENTRY);
@@ -245,7 +313,17 @@ function main() {
   }
   for (const entry of entries) {
     const mark = entry.status === "resolved" ? "done" : "OPEN";
-    console.log(`  ${mark}  ${entry.id}`);
+    /*
+     * THE GATE IS PRINTED BESIDE EVERY OPEN ENTRY, every run. The whole risk in
+     * classifying is that the ones which stopped holding the build stop being
+     * read, so what each is waiting on is said out loud rather than discoverable
+     * by opening the register.
+     */
+    const gate =
+      entry.status === "unresolved" && entry.gates in GATES
+        ? `  — ${GATES[entry.gates]}`
+        : "";
+    console.log(`  ${mark}  ${entry.id}${gate}`);
   }
 
   /*
@@ -350,6 +428,9 @@ function main() {
         entry.claims ? null : "Claims",
         entry.livesIn ? null : "Lives in",
         entry.replacedBy ? null : "Replaced by",
+        entry.status !== "unresolved" || entry.gates in GATES
+          ? null
+          : `Gates (${Object.keys(GATES).join("|")})`,
       ].filter(Boolean);
       console.error(`  - ${entry.id}: missing ${missing.join(", ")}`);
     }
@@ -369,27 +450,42 @@ function main() {
     process.exit(1);
   }
 
+  /*
+   * BOTH NUMBERS, ALWAYS. "4 of 14 gate a launch" is the sentence that keeps a
+   * reclassification honest: the ten are still here, still open, and the count
+   * does not shrink because they stopped holding the build.
+   */
   if (!launching) {
     console.log(
       unresolved.length === 0
         ? "  All resolved.\n"
-        : `  ${unresolved.length} unresolved — not a build failure until LAUNCH=true and NODE_ENV=production.\n`,
+        : `  ${unresolved.length} unresolved, ${blocking.length} of them gating a launch` +
+            `${englishOnly ? " (English-only: the Nepali read does not gate)" : ""}` +
+            ` — not a build failure until LAUNCH=true and NODE_ENV=production.\n`,
     );
     return;
   }
 
-  if (unresolved.length === 0) {
-    console.log("  All resolved. Clear to launch.\n");
+  if (blocking.length === 0) {
+    console.log(
+      unresolved.length === 0
+        ? "  All resolved. Clear to launch.\n"
+        : `  Clear to launch. ${unresolved.length} entr${
+            unresolved.length === 1 ? "y is" : "ies are"
+          } still open and none of them gates a launch` +
+            `${englishOnly ? ", with the Nepali locale hidden" : ""} — ` +
+            `each is enforced where it belongs, not waived.\n`,
+    );
     return;
   }
 
   console.error(
-    `\nLAUNCH=true, but ${unresolved.length} launch blocker${
-      unresolved.length === 1 ? " is" : "s are"
+    `\nLAUNCH=true, but ${blocking.length} launch blocker${
+      blocking.length === 1 ? " is" : "s are"
     } unresolved:\n`,
   );
-  for (const entry of unresolved) {
-    console.error(`  ${entry.id}`);
+  for (const entry of blocking) {
+    console.error(`  ${entry.id}  (${GATES[entry.gates]})`);
     console.error(`    claims:      ${entry.claims}`);
     console.error(`    replaced by: ${entry.replacedBy}\n`);
   }
@@ -397,7 +493,35 @@ function main() {
     `Each of these is something a visitor would believe and that is not true.\n` +
       `Fix the claim, then set Status: resolved in ${FILE} in the same commit.\n`,
   );
+  /*
+   * WHAT IS OPEN AND NOT GATING, named here too. Somebody reading this failure
+   * is deciding what to do next, and "there are ten more, enforced elsewhere" is
+   * part of that picture — printing only the four would make the register look
+   * shorter than it is at exactly the wrong moment.
+   */
+  const elsewhere = unresolved.filter((e) => !blocking.includes(e));
+  if (elsewhere.length > 0) {
+    console.error(`Open and not gating this build:\n`);
+    for (const entry of elsewhere) {
+      console.error(`  ${entry.id} — ${GATES[entry.gates]}`);
+    }
+    console.error("");
+  }
   process.exit(1);
 }
 
-main();
+/*
+ * ONLY WHEN THIS FILE IS WHAT WAS RUN.
+ *
+ * It was a bare `main()` at module scope, and `GATES`, `blocksLaunch` and
+ * `parseEntries` are all exported for `tests/unit/launch-gates.test.ts` and
+ * `health-state.test.ts` — so importing any of them executed the whole gate.
+ * That printed the blocker report into unrelated test output, and on a
+ * malformed register it called `process.exit(1)` from inside the import, which
+ * vitest reports as "no tests" with the failure attributed to the import rather
+ * than to a case. Found by break-testing the missing-gate guard: the script
+ * refused correctly and the test that should have refused with it died instead.
+ */
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main();
+}

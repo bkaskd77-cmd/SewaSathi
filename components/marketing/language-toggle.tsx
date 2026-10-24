@@ -32,6 +32,23 @@ const LABELS: Record<Locale, { short: string; full: string }> = {
   ne: { short: "ने", full: "नेपाली" },
 };
 
+/**
+ * Is there more than one language to offer?
+ *
+ * EXPORTED SO THE MOUNT DECIDES, not this component. An early return above the
+ * hooks here is what `react-hooks/rules-of-hooks` refuses, and it is right to:
+ * the condition is a build-time constant today and a rule that holds "only
+ * because of that" is one the next reader has to re-derive. The header reads it
+ * once for both of its mounts instead.
+ *
+ * `routing.locales` rather than `englishOnly()` directly, so the toggle can
+ * never offer a locale the router would 404 — one source for "what can this
+ * deployment show".
+ */
+export function canSwitchLanguage(): boolean {
+  return routing.locales.length > 1;
+}
+
 export function LanguageToggle() {
   const active = useLocale() as Locale;
   const router = useRouter();

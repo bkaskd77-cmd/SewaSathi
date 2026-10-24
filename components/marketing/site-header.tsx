@@ -5,7 +5,10 @@ import { useTranslations } from "next-intl";
 import { Menu, X } from "lucide-react";
 
 import { AccountMenu, SignedOutCta } from "@/components/marketing/account-menu";
-import { LanguageToggle } from "@/components/marketing/language-toggle";
+import {
+  canSwitchLanguage,
+  LanguageToggle,
+} from "@/components/marketing/language-toggle";
 import { Wordmark } from "@/components/marketing/wordmark";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -166,9 +169,18 @@ export function SiteHeader({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <div className="hidden sm:block">
-            <LanguageToggle />
-          </div>
+          {/*
+            NO TOGGLE WHEN THERE IS NOTHING TO SWITCH TO. With
+            `NEXT_PUBLIC_ENGLISH_ONLY=true` the router serves one locale and
+            `/ne/...` 404s, so a toggle would advertise the thing that has been
+            removed and land somebody on a missing page. Read once here for both
+            mounts — the component stays unconditional so its hooks do.
+          */}
+          {canSwitchLanguage() ? (
+            <div className="hidden sm:block">
+              <LanguageToggle />
+            </div>
+          ) : null}
           <ThemeToggle />
           <div className="hidden sm:block">
             {signedIn ? (
@@ -238,7 +250,7 @@ export function SiteHeader({
             )}
 
             <div className="mt-3 flex items-center gap-3 sm:hidden">
-              <LanguageToggle />
+              {canSwitchLanguage() ? <LanguageToggle /> : null}
               {signedIn ? (
                 <div className="flex-1">
                   <AccountMenu name={accountName} worksHere={worksHere} isAdmin={isAdmin} />

@@ -8,6 +8,7 @@ import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
 import { areaLabel } from "@/lib/config/areas";
+import { tradeSpanStandings } from "@/lib/config/launch-readiness";
 import { categoryCopy } from "@/lib/config/services";
 import { allAreas } from "@/lib/data/areas";
 import { allCategories } from "@/lib/data/categories";
@@ -97,11 +98,27 @@ export default async function LaunchScopePage() {
     retired: area.retiredAt !== null,
   }));
 
-  const categoryOptions = categories.map((category) => ({
-    value: category.slug,
-    label: categoryCopy(category, locale).name,
-    retired: category.retiredAt !== null,
-  }));
+  /*
+   * WHICH TRADES CANNOT BE OPENED YET, and the box is disabled rather than
+   * missing. `setLaunchScope` refuses one — see `lib/config/launch-readiness.ts`
+   * — so a tickable box that fails on save would be the dead end this product
+   * refuses everywhere else, and a hidden box would silently drop the trade from
+   * the form on the next save: a change nobody made, appearing in the audit row.
+   */
+  const spans = tradeSpanStandings();
+
+  const categoryOptions = categories.map((category) => {
+    const span = spans.get(category.slug);
+    return {
+      value: category.slug,
+      label: categoryCopy(category, locale).name,
+      retired: category.retiredAt !== null,
+      closed:
+        span && !span.openable
+          ? { longestSpan: span.longestSpan, products: span.multiDayProducts }
+          : null,
+    };
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">

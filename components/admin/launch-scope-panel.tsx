@@ -35,10 +35,27 @@ import {
  * reach it.
  */
 
-type Result = { ok: boolean; reason?: string; unknown?: string[] };
+type Result = {
+  ok: boolean;
+  reason?: string;
+  unknown?: string[];
+  closed?: string[];
+};
 type Action = (data: FormData) => Promise<Result>;
 
-export type ScopeOption = { value: string; label: string; retired: boolean };
+export type ScopeOption = {
+  value: string;
+  label: string;
+  retired: boolean;
+  /**
+   * Set when this trade cannot be opened yet, with the evidence.
+   *
+   * NULL IS "OPENABLE", never "we did not look" — the page asks
+   * `tradeSpanStandings()` for every trade, so an absent standing is a trade
+   * with no products at all, which `tradeOpenable` answers true for on purpose.
+   */
+  closed?: { longestSpan: number; products: number } | null;
+};
 
 function Submit({ label, busy }: { label: string; busy: string }) {
   const { pending } = useFormStatus();
@@ -62,12 +79,14 @@ function Checklist({
   open,
   onToggle,
   retiredNote,
+  closedNote,
 }: {
   name: "area" | "category";
   options: ScopeOption[];
   open: readonly string[];
   onToggle: (value: string, next: boolean) => void;
   retiredNote: string;
+  closedNote: (span: { longestSpan: number; products: number }) => string;
 }) {
   return (
     <ul className="mt-2 grid gap-1 sm:grid-cols-2">
@@ -79,8 +98,9 @@ function Checklist({
               name={name}
               value={option.value}
               checked={open.includes(option.value)}
+              disabled={Boolean(option.closed)}
               onChange={(event) => onToggle(option.value, event.target.checked)}
-              className="mt-1 size-4 accent-primary"
+              className="mt-1 size-4 accent-primary disabled:opacity-40"
             />
             <span>
               {option.label}
@@ -94,6 +114,17 @@ function Checklist({
               {option.retired ? (
                 <span className="ml-1 text-caption text-muted-foreground">
                   {retiredNote}
+                </span>
+              ) : null}
+              {/*
+                WHY IT CANNOT BE TICKED, beside the box rather than discovered by
+                tapping it. A disabled control with no reason is the trap
+                `/providers/standards` refuses one layer out: deterrence nobody
+                can read is not deterrence.
+              */}
+              {option.closed ? (
+                <span className="mt-0.5 block text-caption text-warning-ink">
+                  {closedNote(option.closed)}
                 </span>
               ) : null}
             </span>
@@ -180,6 +211,7 @@ export function LaunchScopePanel({
           options={areas}
           open={draft.areaKeys}
           retiredNote={t("retired")}
+          closedNote={() => ""}
           onToggle={(value, next) =>
             setDraft(withKey(draft, "area", value, next))
           }
@@ -194,6 +226,13 @@ export function LaunchScopePanel({
           options={categories}
           open={draft.categorySlugs}
           retiredNote={t("retired")}
+          closedNote={(span) =>
+            t("spanUnmeasured", {
+              days: String(span.longestSpan),
+              count: span.products,
+              n: String(span.products),
+            })
+          }
           onToggle={(value, next) =>
             setDraft(withKey(draft, "category", value, next))
           }
@@ -226,7 +265,9 @@ export function LaunchScopePanel({
           <span className="text-body-sm text-destructive-ink">
             {result.reason === "unknownKey"
               ? t("unknownKey", { keys: (result.unknown ?? []).join(", ") })
-              : t("notSaved")}
+              : result.reason === "spanUnmeasured"
+                ? t("spanRefused", { trades: (result.closed ?? []).join(", ") })
+                : t("notSaved")}
           </span>
         ) : null}
       </div>

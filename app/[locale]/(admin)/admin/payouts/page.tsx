@@ -7,6 +7,7 @@ import { PayoutActions } from "@/components/admin/payout-actions";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
+import { payoutRunRefusal } from "@/lib/config/payout-policy";
 import { formatInstant } from "@/lib/booking";
 import { payoutsForReview, type PayoutForReview } from "@/lib/data/payouts";
 import { formatNpr } from "@/lib/utils/format";
@@ -73,12 +74,30 @@ export default async function PayoutsPage() {
     getMessages(),
   ]);
 
+  /* Pure, no round trip — see `lib/config/payout-policy.ts`. */
+  const refused = payoutRunRefusal();
+
   return (
     <section className="mx-auto w-full max-w-3xl px-4 py-10">
       <header className="animate-rise">
         <h1 className="text-heading-lg font-display">{t("title")}</h1>
         <p className="mt-2 text-body-md text-muted-foreground">{t("lead")}</p>
       </header>
+
+      {/*
+        WHY THERE ARE NO DRAFTS, WHEN THAT IS A REFUSAL RATHER THAN A QUIET WEEK.
+        `payoutRunRefusal()` is null the moment somebody confirms the withholding
+        rate, so this panel disappears on its own; until then the empty state
+        below ("nothing is waiting") would be the most reassuring possible
+        description of a run that declined to draft anything at all. Read here
+        rather than threaded off the last `cron_runs` row, because it is a
+        configuration fact and this screen is where somebody is asking.
+      */}
+      {refused ? (
+        <p className="animate-rise mt-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-body-md">
+          {t(`runRefused.${refused}` as "runRefused.withholding-unconfirmed")}
+        </p>
+      ) : null}
 
       {rows === null ? (
         <p className="animate-rise mt-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-body-md">

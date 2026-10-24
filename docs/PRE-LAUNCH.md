@@ -5,9 +5,18 @@ here comes from a command named beside it, and anything that could not be
 checked from the agent sandbox says so.
 
 `LAUNCH-BLOCKERS.md` is the list and the gate. This file answers a different
-question — **which of those twelve need code, and which need a person, a
+question — **which of those entries need code, and which need a person, a
 credential or a transfer** — because mixing the two is how a list gets read as
 "still a lot of building to do" when almost none of it is.
+
+**And since 2026-10-24 each entry says what it gates**, which changes what this
+report is for. Fourteen are open and **six refuse a launch build**: the SMS
+gateway, the support number, the test-account cleanup, the legal review, the
+Nepali native read (unless the locale is hidden) and
+`payout-notice-undeliverable`, which is `launch` only because nobody has
+classified it. Four moved to gates that bite elsewhere — the payout run, the
+launch scope, a first-week verification — and four do not gate at all. See
+`LAUNCH-BLOCKERS.md § What each entry gates`.
 
 ```
 npm run check:blockers  →  14 unresolved, 11 resolved

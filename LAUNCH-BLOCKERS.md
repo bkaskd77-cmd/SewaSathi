@@ -62,17 +62,84 @@ is the mistake this whole section exists to stop:
 `multi-day-scheduling` all wait on volume — finished jobs we have not had yet.
 Nothing anybody does today moves them.
 
+## What each entry gates
+
+**Not every open entry is a reason not to launch, and until 2026-10-24 every one
+of them was.** `check:blockers` refused a `LAUNCH=true` production build while
+*anything* here was unresolved, which made the flag unreachable: a Play Store
+listing deliberately sequenced after launch, two dev-only dependency migrations
+and a count waiting on customers we have not had yet all held the same veto as
+"nobody can sign in". A gate that cannot pass is a gate somebody eventually
+routes around, and the routing-around is never written down.
+
+So each unresolved entry says what it gates. **The precedent is `BLOCKING_TIERS`
+one system over** — money, safety and legal Nepali strings refuse a launch while
+the staff strings are counted, printed on every run and do not — and the
+discipline that comes with it is the same: **reclassifying is not the same as
+doing.** Nothing here stops being counted or printed because it stopped holding
+the build.
+
+| `Gates:` | What it means |
+| --- | --- |
+| `launch` | Refuses a `LAUNCH=true` production build. Something a customer would believe that is not true, or a door that is open. |
+| `launch-unless-english-only` | Refuses a launch build **unless the Nepali locale is hidden** (`NEXT_PUBLIC_ENGLISH_ONLY=true`). One entry: unread Nepali cannot mislead a reader who is never served it. |
+| `payout-run` | Refuses the **payout run**, not the build. The product can take bookings and finish work; what it may not do is draft a payment. |
+| `launch-scope` | Handled by keeping something **closed in `launch_scope`** — a trade we do not sell yet cannot mislead anybody about itself. |
+| `post-launch` | A verification **after** going live, not a precondition for it. Something only real customers can produce. |
+| `none` | Open, counted, printed, and not a launch condition. |
+
+**The four narrower gates are real enforcement and not relabelling**, which is
+the whole difference between this and a waiver:
+
+- **`withholding-tax-unconfirmed` → the payout run refuses to draft.**
+  `PAYOUT_RUN.withholdingTaxConfirmedAt` is null and `payoutRunRefusal()` is what
+  reads it, so the first Tuesday after launch produces no drafts and says why in
+  `cron_runs` and on `/admin/payouts`. **Zero counts once confirmed** — the rate
+  genuinely may be zero, so what is outstanding is the confirmation and not the
+  number, which is why a `withholdingTaxBps` of 0 could never have been the test.
+  Rule 6 on a money path: unconfirmed-zero and confirmed-zero are different facts.
+- **`sub-band-durations` + `multi-day-scheduling` → the trade stays closed.**
+  `setLaunchScope` refuses to open a trade whose *typical* product needs a span
+  we have not measured, and `/admin/launch-scope` disables the box with the
+  reason beside it. The rule is the **median** authored span, which isolates
+  painting (1, 2, 4, 7 → 2) and leaves electrical (1, 1, 1, 1, 2) and carpentry
+  (1, 1, 1, 2) open: closing the trade the safety floor points at for gas and
+  live wires over one sub-band would be the wrong trade, and "more than half" is
+  a threshold nobody measured. It clears itself when a span moves off `invented`.
+- **`payouts-unbuilt` → a first-week verification.** One confirmed payout
+  reaching one real professional is not something a build can check and not
+  something that can happen before launch: it needs settled work.
+  `docs/LAUNCH-RUNBOOK.md § 10` carries it as a dated step after going live.
+- **`nepali-native-read` → the locale is hidden or the strings are read.** The
+  option exists because the two costs are not comparable: unread money and
+  safety copy in front of a Nepali speaker is the harm, and serving English only
+  is a product that is smaller rather than one that is wrong. The gate reads
+  `NEXT_PUBLIC_ENGLISH_ONLY`, which is the same variable that actually hides the
+  locale, so it cannot forgive copy somebody is still being served.
+
+**`payout-notice-undeliverable` is `launch` because nobody has classified it**,
+and that is deliberate rather than a decision. It is the one remaining build
+item — a recorded history of the contact number, so the payout-destination
+warning can reach the number as it stood *before* a change — and an unclassified
+entry must not fall through to `none`. An absence is not a permission.
+
 ## Entry format
 
-Parsed, not decorative. Keep the four fields and the heading shape.
+Parsed, not decorative. Keep the fields and the heading shape.
 
 ```
 ### BLOCKER: some-id
 - Status: unresolved
+- Gates: launch
 - Claims: what a visitor would believe
 - Lives in: the files
 - Replaced by: what makes it true
 ```
+
+**`Gates:` is required while an entry is unresolved** and optional once it is
+resolved, because a resolved entry gates nothing by definition. Flipping one
+back to `unresolved` therefore fails the guard until somebody classifies it,
+which is the right moment to ask.
 
 ---
 
@@ -88,6 +155,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: sms-gateway-unverified
 - Status: unresolved
+- Gates: launch
 - Claims: "We text you a 6-digit code and you're in." Phone OTP is the ONLY way into this product — there is no email or password path anywhere — so if the gateway is not real, nobody signs in, nobody books, and the failure is total rather than partial.
 - Lives in: Supabase → Authentication → Providers → Phone (an external dashboard, not this repository), reached through `lib/auth/otp.ts`
 - Replaced by: real SMS credentials, proved end to end by `GET /api/health?deep=1` reporting `auth.sms: ok` against a production deployment — not by the dashboard looking correct. It looked correct while every send was failing with Twilio 20003, and the only thing that noticed was a person trying to log in.
@@ -98,6 +166,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: test-account-otps
 - Status: unresolved
+- Gates: launch
 - Claims: nothing to a visitor — this one is a way in rather than a promise on a screen. Seven numbers in `provisioned_accounts` carry standing roles, three of them admin, and six are configured in Supabase as test numbers with a fixed six-digit code. A fixed code is a password that never rotates, and it opens an account that can read every profile, every address and every identity document. Today that is a product with no real customers in it and the exposure is one unshipped database; the day there are real users it is an unrotatable admin credential on a public login form.
 - Lives in: Supabase → Authentication → Providers → Phone → test numbers (an external dashboard, not this repository), and `public.provisioned_accounts`, whose roster is recorded in `scripts/provision-accounts.sql`
 - Replaced by: deleting the four walkthrough numbers (`9800000011`, `9800000012`, `9800000021`, `9800000022`) from both the Supabase test list and `provisioned_accounts`, and deciding one of two things about the two test-number admins (`9800000001`, `9841234567`) — either they keep their fixed codes as the documented break-glass (SECURITY.md § 3), which is a deliberate accepted risk that must be written down as such and the codes rotated, or they lose them and admin recovery moves to a real second factor. Not both by default: leaving them because nobody chose is how this becomes a credential nobody remembers. `9843119897` is not a test number and is unaffected.
@@ -134,6 +203,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: trust-strip-counts
 - Status: unresolved
+- Gates: none
 - Claims: Claimed "1,200+ ID-verified professionals" and "Average rating 4.8 from 10,000+ households". **The invented figures are gone** — the strip now carries four statements that are true on day one and no numbers at all. It stays open because the rows a count would draw on are still fixtures: 28 of the 30 providers are seeded and 26 of them are marked verified.
 - Lives in: `app/[locale]/page.tsx` (`TRUST_ITEMS`), `lib/data/platform.ts`, `lib/config/platform.ts`, `home.trust.*` in both catalogues
 - Replaced by: `platformStats()` reads real counts and each one appears only above a floor — but **the filter matters more than the floor**, and that is why this entry survives its own fix. A floor of 25 would have PASSED on 26 seeded "verified" rows and put "28 ID-verified professionals" on the landing page: a smaller lie, arrived at carefully. So the count requires `application_id is not null` as well, and this blocker is now formally dependent on `seed-providers-and-reviews` — `npm run check:blockers` fails if this one is marked resolved while that one is open, so a green check here can never hide the reason the strip is empty.
@@ -161,6 +231,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: sub-band-durations
 - Status: unresolved
+- Gates: launch-scope
 - Claims: nothing, and that is deliberate. All 36 sub-bands carry a `typicalWorkingMinutes` and a `typicalElapsedDays`, every one of them guessed — nobody in Nepal publishes how long a tap leak takes or how many days a room needs between coats. **No screen prints any of them.** The numbers schedule and stay silent, which is the honest state rather than a bug to route around.
 - Lives in: `lib/data/seed/price-bands.json` (`durationSource` and `spanSource` both `"invented"` on every row), the `category_price_bands` table, and `hasPublishableMinutes` / `hasPublishableSpan` in `lib/provider/measured.ts` — two gates now, because the minutes and the span are promoted on separate evidence and one column answering for both would have granted painting a four-day hold the moment its minutes were researched.
 - Replaced by: durations with real provenance. Two routes and they arrive in this order. **Researched** — ring painters and cleaners and ask how long a room actually takes, then record `durationSource: "researched"` with a `durationCheckedAt` and a note naming who was asked. **Observed** — `actual_working_minutes` accumulating on settled bookings, compared per sub-band against what we estimated, which is the same path `pricingSource` has to `observed` and the reason the professional's own correction is stored separately rather than overwriting ours. Painting is worth doing first: it is the trade whose four-day span the whole two-number model exists for, and it is the one where a customer most needs to be told before they commit. The script checks the seed rather than this status line, so marking it resolved without doing the work fails the build.
@@ -169,6 +240,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: multi-day-scheduling
 - Status: unresolved
+- Gates: launch-scope
 - Claims: nothing, deliberately, and this entry exists so that stays true. Painting's products carry spans of two, four and seven days, and a span is the one duration number that MOVES A CALENDAR: it holds days of a professional's week and days of a customer's home. Every one of those spans is currently a guess. So `spansDays()` refuses them and every job holds its minutes on a single day — exactly what every booking did before duration existed.
 - Lives in: `spansDays` in `lib/booking/duration.ts`, `typicalElapsedDays` in `lib/data/seed/price-bands.json`, and the `booking_days` generation trigger, which produces no rows while the gate is shut.
 - Replaced by: researched **or observed** durations, which is `sub-band-durations` — and `check:blockers` enforces that dependency rather than trusting this line, the same way `trust-strip-counts` is chained to `seed-providers-and-reviews`. **The two duration numbers are gated differently on purpose.** A wrong `typical_working_minutes` reserves 90 minutes where 120 was right: bounded, the same order as the flat two-hour window it replaced, and strictly better than holding the same two hours for a tap washer and a whole-flat repaint — so an invented working figure is allowed to reserve, because a reservation nobody reads makes no claim. A wrong span takes four days of real bookable capacity, invisibly, and nothing on any screen distinguishes it from a measurement. A professional's own correction is evidence and passes the gate whatever our provenance says: they have been to the site, and what is gated is our guess, not their judgement. **And the two gates are two COLUMNS now**, which they were not: both halves read `duration_source` for a phase while this paragraph argued they must not, so the first promotion of a researched minutes figure would have granted painting its four-day hold with nothing observed about spans. `span_source` is the span's own provenance, the duration loop promotes each on its own evidence and its own floor, and `npm run check:duration` fails if either half reads the other's column.
@@ -183,6 +255,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: support-phone-number
 - Status: unresolved
+- Gates: launch
 - Claims: nothing, now. The placeholder is gone and no screen offers a call. What is still missing is the line itself, which is why this stays open — a home-services platform with no way to reach a person is a gap, it is simply no longer a lie.
 - Lives in: `NEXT_PUBLIC_SUPPORT_PHONE` (unset), read once by `lib/config/site.ts`
 - Replaced by: a real number in that one variable. Every screen that would offer a call reads it and renders the call again the moment it is set; `lib/content/pages/contact.ts` is the one place still written as prose and needs its phone section restored by hand in the same commit.
@@ -190,6 +263,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: nepali-native-read
 - Status: unresolved
+- Gates: launch-unless-english-only
 - Claims: that this product speaks Nepali rather than being an English product with Nepali underneath it. Nepali is a first-class path here — every screen ships in both — and the strings were written with care, checked against a list of calques that have already shipped once, and never read by a native speaker. Care is not the same test. The test is "would anyone say this", and only a Nepali speaker can apply it. The strings this blocks on are the ones where a line that merely *means* the right thing is not good enough: a figure somebody is about to hand over in cash, what their guarantee covers, and what they read while frightened.
 - Lives in: `messages/ne.json`, scoped by `scripts/ne-review-scope.mjs` — fifteen namespace rules, each carrying the tier that says what getting it wrong costs. **446 of 1,736 keys, plus four long-form documents** that are not in the catalogue at all: `lib/content/pages/standards.ts` and the three under `lib/content/legal/` are written as `{ en, ne }` prose, so a backlog built from `messages/ne.json` alone reported the enforcement ladder as read when nobody had looked at it. **This entry blocks on 273 of those keys and all four documents, not on all 446.** `BLOCKING_TIERS` is the split: money (225 — the payment and guarantee screens, the professional's own money view, the cancellation dialogue, the activity opt-out), safety (44) and legal (4 keys + 4 documents) refuse a launch build; **staff (173) does not**. One entry over everything could not be satisfied without reviewing admin copy no customer or professional will ever read, which held the money and safety lines behind the staff ones — and the two are not the same risk: an admin misreading a queue label costs a slower queue, in a room with somebody who can ask; a professional misreading the cash-fee line on `provider.money` loses money and trusts us less with nobody there to correct it, and a frightened person misreading a hazard line is the failure `foldNepali` exists for. The staff count is **still printed on every `check:messages` and `check:blockers` run**, because reclassifying is not the same as doing and a number that stops being said out loud is one nobody closes. `npm run ne:review` prints the strings themselves, English beside Nepali, grouped by tier and marked with which block.
 - Replaced by: a Nepali speaker reading each one **in place on the screen**, not in a spreadsheet — register is invisible out of context, and three of the mistakes already caught were right in the dictionary and wrong in the room. Each key they sign off goes into `messages/ne-reviewed.json`; a document goes in by its path, which **had no sign-off path at all** until the split — that file held keys, a document has no key, and all four were listed as waiting for ever. `check:blockers` reads the backlog rather than this status line: marking it resolved while a blocking key or document is unread fails the build on every run, launch or not, the same way a `resolved` band over an `invented` seed does. The scope is derived from namespace rules, so a string added under one of those prefixes after the pass raises the count again on its own — intended behaviour, not a bug to work around.
@@ -197,6 +271,7 @@ Parsed, not decorative. Keep the four fields and the heading shape.
 
 ### BLOCKER: legal-documents-unreviewed
 - Status: unresolved
+- Gates: launch
 - Claims: `/legal/terms`, `/legal/privacy` and `/legal/refunds` are presented as the terms a customer agrees to at sign-in. They are first drafts written by a developer, not by a lawyer, and they have not been reviewed against Nepali consumer, privacy or e-commerce law.
 - Lives in: `lib/content/legal/*.ts`, rendered by `app/[locale]/(app)/legal/[slug]/page.tsx`
 - Replaced by: review and revision by a Nepali lawyer. The pages carry a visible draft notice until then; removing that notice is part of resolving this entry.
@@ -324,6 +399,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: payout-notice-undeliverable
 - Status: unresolved
+- Gates: launch
 - Claims: **that a professional will know if somebody moves their money.** `/provider/payouts` tells them "Changed on {date}. Was that not you? Ring {phone}", and `DESTINATION_COOLDOWN_HOURS` holds any new account for 72 hours expressly so they have time to act on that sentence. `/providers/standards` and the screen both present the wait as a protection.
 - **The protection has no reader.** The notice is written as a `payout.destinationChanged` notification and rendered on a page. The in-app channel has no delivery address, there is no SMS channel, and the page requires a session to open. So the only person who can read "your account was changed" is whoever is holding the session — which, in the one scenario the warning exists for, is the attacker. The cooldown still delays the theft; nothing tells the victim it is happening.
 - Lives in: `lib/notify/channel.ts` (`payout.destinationChanged`, whose comment already records the rule an SMS channel must follow), `app/[locale]/(work)/provider/payouts/page.tsx` (where it renders), `lib/config/payout-policy.ts` (`DESTINATION_COOLDOWN_HOURS`).
@@ -338,6 +414,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: payouts-unbuilt
 - Status: unresolved
+- Gates: post-launch
 - Claims: **that professionals get paid.** `/providers/join` says "Steady work, paid out weekly." and lists "Weekly payouts" as a reason to sign up — in both languages, on the page somebody reads before applying. `/providers/standards` goes further and describes the mechanics: a redo balance "shows on your dashboard as a balance you can watch going down", and on long-guarantee trades "a quarter of your earning arrives 30 days after the rest". Every one of those sentences is about money arriving. **No money has ever arrived, and nothing in this product can make it arrive.**
 - Lives in: `messages/en.json` and `messages/ne.json` (`providers.join.prosTitle`, `providers.join.prosPayouts`), `lib/content/pages/standards.ts` (the `payouts` section and the redo-balance paragraph), and the tables that do not exist — there is no `payouts`, no `payout_destinations`, and no remittance adapter in `lib/payments/`.
 - Replaced by: one confirmed payout reaching one real professional, through the run rather than by hand — a `payouts` row at `confirmed` carrying a real `external_reference`, with the professional's own money view showing it. Not by the admin screen existing, and not by a batch export: the test is that somebody was paid and can see that they were.
@@ -363,6 +440,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: withholding-tax-unconfirmed
 - Status: unresolved
+- Gates: payout-run
 - Claims: nothing on a public page, and that is why this entry is worth writing down rather than trusting a comment. `PAYOUT_RUN.withholdingTaxBps` is **0**, and zero here means "withhold nothing" — a decision, not an absence, because the rate genuinely may be zero for some professionals. What is unconfirmed is whether it is zero for all of them, and nobody with a Nepali accountant's answer has been asked.
 - Lives in: `lib/config/payout-policy.ts` (`PAYOUT_RUN.withholdingTaxBps`), `supabase/migrations/20261001000003_payouts.sql` (`payouts.tax_withheld_rupees`), `lib/config/ledger.ts` (`tax_withheld`, which nothing writes while the rate is 0)
 - Replaced by: a rate confirmed with somebody who files returns in Nepal, and the filing obligation that comes with it understood — whether we withhold, at what rate, for whom, and what we have to remit and when. Then the constant moves and the run starts writing `tax_withheld` rows.
@@ -436,6 +514,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: play-store-unpublished
 - Status: unresolved
+- Gates: none
 - Claims: Nothing on any screen promises an Android app, and that is the point of this entry being here rather than absent. `docs/TWA.md` describes a Play Store build as the packaging decision, `twa/twa-manifest.json` is written, and `/.well-known/assetlinks.json` is a live route — so the next person reading this repository would reasonably conclude an app exists or is about to. It does not, and the two reasons are a US$25 one-time Play Console fee and a listing that needs screenshots of a product nobody has used.
 - Lives in: `twa/twa-manifest.json`, `docs/TWA.md`, `app/.well-known/assetlinks.json/route.ts`, `lib/pwa/twa.ts`
 - Replaced by: a keystore created with `bubblewrap build`, `ANDROID_PACKAGE_NAME` and `ANDROID_CERT_FINGERPRINT` set in Vercel from its SHA-256, and `GET /api/health` reporting `twa.assetlinks` as vouching for that package. Then a Play Console listing. **None of it can be done from here** — Bubblewrap downloads the Android SDK and the keystore must never be in this repository.
@@ -454,6 +533,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: eslint-9-flat-config
 - Status: unresolved
+- Gates: none
 - Claims: nothing on any screen, and this entry exists so that stays a decision rather than drift. `eslint-config-next` is pinned at **14.2.35** in a **Next 16** project, three advisories ride on it (`@next/eslint-plugin-next`, `eslint-config-next`, `glob` — all high, all dev-only), and they are declared in `ACCEPTED` in `scripts/check-advisories.mjs` so they print on every run of the gate.
 - Lives in: `.eslintrc.json`, `package.json` (`eslint@^8`, `eslint-config-next@14.2.35`)
 - Replaced by: `eslint-config-next@16.4.2`, which peers on `eslint >=9` — so this is the **flat-config migration**, not a bump. `.eslintrc.json` carries `no-restricted-imports`, the rule enforcing every module boundary in ARCHITECTURE.md, plus the four `overrides` blocks that exempt `lib/booking`, `lib/auth`, `lib/payments`, `i18n` and `tests`. Porting it means re-proving each one bites, which is what "prove the rule still bites after changing it" already requires. The advisories themselves are a quadratic brace expansion and a `glob` CLI flag nothing in this repository invokes: dev-only, DoS class, not reachable by a customer.
@@ -461,6 +541,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: tailwind-4
 - Status: unresolved
+- Gates: none
 - Claims: nothing on any screen. `tailwindcss@3.4.x` and its build-time watcher chain carry eight advisories (`tailwindcss`, `tailwindcss-animate`, `chokidar`, `braces`, `micromatch`, `fast-glob`, `postcss-nested`, `postcss-selector-parser`) — every one a stack-exhaustion or quadratic-time DoS in a file watcher or CSS parser, reachable only by whoever already controls the source tree. Four have no fix published at any version; they leave with the major. All eight are declared in `ACCEPTED` and printed on every run.
 - Lives in: `package.json` (`tailwindcss@^3.4.1`), `tailwind.config.ts`, `styles/globals.css`, `postcss.config.mjs`
 - Replaced by: Tailwind 4, which moves the configuration into CSS and changes the pipeline. `styles/globals.css` is the single source of truth for every design token in this product — the brand four, the `--*-ink` split that exists because a light hue may be a fill or text and not both, and the `prefers-reduced-motion` block — and every component ships with a 4.5:1 contrast pass riding on those tokens. A migration therefore needs the contrast pass re-run in both themes, plus `npm run check:paint` and the bundle budget, which is a phase rather than a dependency bump.

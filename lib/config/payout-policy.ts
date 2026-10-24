@@ -139,7 +139,50 @@ export const PAYOUT_RUN = {
    * is not what happened: nobody has calculated anything yet.
    */
   withholdingTaxBps: 0,
+
+  /**
+   * When an accountant confirmed that rate, or null if nobody has.
+   *
+   * **ZERO IS NOT AN ANSWER AND THAT IS WHY THIS COLUMN EXISTS.** The rate above
+   * has read 0 since the run was written, meaning "withhold nothing" — and it
+   * reads exactly the same whether an accountant confirmed zero or nobody has
+   * ever looked. Those are opposite facts about a money path, which is rule 6 in
+   * the place it costs most: the first payout run would have drafted real
+   * payments against a withholding nobody had checked, and the only trace would
+   * have been an entry in a register.
+   *
+   * SO IT GATES THE RUN RATHER THAN THE BUILD, which is the launch gating
+   * decision of 2026-10-24: the product can take bookings, dispatch, finish work
+   * and settle, because none of that depends on the answer — what it may not do
+   * is draft a payment. `payoutRunRefusal()` is the rule and
+   * `lib/data/payouts.ts` is its only caller.
+   *
+   * **ZERO COUNTS ONCE CONFIRMED.** The rate genuinely may be zero for some or
+   * all professionals, so arming this is a date here and nothing else — not a
+   * number somebody feels obliged to make non-zero to prove they looked.
+   */
+  withholdingTaxConfirmedAt: null as string | null,
 } as const;
+
+/** Why the payout run will not draft anything, or null if it will. */
+export type PayoutRunRefusal = "withholding-unconfirmed";
+
+/**
+ * May the run draft payments at all?
+ *
+ * PURE AND BESIDE THE CONSTANT IT READS, which is the mistake this file records
+ * four times — `isFresh`, `heldReasonFor` and `whyWaiting` were all first written
+ * inside a `server-only` module and had to be moved so a test could reach them.
+ *
+ * ONE REASON TODAY AND A UNION ANYWAY: a second precondition on drafting is a
+ * value here rather than a boolean somewhere else, which is what stops the next
+ * one being a second `if` in the run with its reasoning in a comment.
+ */
+export function payoutRunRefusal(): PayoutRunRefusal | null {
+  return PAYOUT_RUN.withholdingTaxConfirmedAt === null
+    ? "withholding-unconfirmed"
+    : null;
+}
 
 /**
  * Is today the day the run creates drafts?

@@ -191,6 +191,19 @@ fifteen wards you are ready to serve, and widen later without a deploy. It is
 stopped, with a reason, and this records that we have not started yet — and it
 takes effect on the next page load.
 
+**Painting cannot be ticked, and the box says why.** `setLaunchScope` refuses a
+trade whose *typical* product needs a span we have never measured — painting's
+products are authored at 1, 2, 4 and 7 days, median 2, every one `invented` — so
+opening it would reserve one day of a professional's week for a job we have told
+the customer nothing about. That is `sub-band-durations` and
+`multi-day-scheduling` enforced where they belong rather than holding the whole
+build. **Electrical and carpentry are not closed**, although each carries one
+2-day product: the median way to buy either is same-day, and holding back the
+trade the safety floor points at for gas and live wires over one sub-band would
+be the wrong trade-off. The rule clears itself — a span moving off `invented`,
+researched by hand or promoted by the duration loop, opens the trade with no code
+change.
+
 The screen says what the ticks will do before they are saved. **Either list
 empty means the product takes no bookings at all**, because a booking needs both
 a ward and a trade, so `scopeStanding` calls that `closed` rather than
@@ -254,52 +267,88 @@ readings accumulate.
 
 ---
 
-## 6. The LAUNCH flag, and the decision it is waiting on
+## 6. The LAUNCH flag
+
+**The judgement this step used to be waiting on was made on 2026-10-24**, and it
+is recorded in `LAUNCH-BLOCKERS.md § What each entry gates`. Every unresolved
+entry now says what it gates, so `LAUNCH=true` is reachable without anything
+being waived.
+
+**Five entries refuse a launch build**, and four of them are steps 1, 2 and 3 of
+this runbook: the SMS gateway, the support number, the test-account cleanup, the
+legal review, and the Nepali native read of the money, safety and legal strings.
+The sixth, `payout-notice-undeliverable`, is `launch` **because nobody has
+classified it** — it is the one remaining build item, and an unclassified entry
+must not fall through to "does not gate". That one is a decision still waiting.
+
+**Four moved to narrower gates that bite somewhere real**, which is the whole
+difference between this and a waiver:
+
+| Entry | Gate | What actually refuses |
+| --- | --- | --- |
+| `withholding-tax-unconfirmed` | `payout-run` | `payoutRunRefusal()` — the run drafts nothing until the rate is confirmed |
+| `sub-band-durations` | `launch-scope` | `setLaunchScope` refuses to open painting |
+| `multi-day-scheduling` | `launch-scope` | the same refusal |
+| `payouts-unbuilt` | `post-launch` | step 10 below, in the **first week** after launch |
+
+**Four do not gate at all**: `play-store-unpublished` (deliberately sequenced
+after launch — the PWA installs from the browser today), `eslint-9-flat-config`
+and `tailwind-4` (dev tooling, zero findings in the production tree), and
+`trust-strip-counts` (waiting on rows that launching is what produces). **All
+four stay counted and printed on every run** of `check:blockers`, because
+reclassifying is not the same as doing and a number that stops being said out
+loud is one nobody closes.
 
 **Do.** Set `LAUNCH=true` on Production (`NODE_ENV=production` is already
 Vercel's), then push — rule 2.
 
-**`npm run build` runs `check:blockers` first and it will refuse.** That is the
-gate working: `LAUNCH=true` + `NODE_ENV=production` + any unresolved entry fails
-in a second rather than after a full compile. Fourteen entries are open today.
-
-**So this step is blocked on a judgement nobody has made, and naming it is the
-point of this file.** Several of those fourteen do not gate going live in any
-ordinary sense:
-
-- `play-store-unpublished` — **deliberately sequenced after launch.** The PWA
-  installs from the browser today with the same manifest, worker, offline shell
-  and push; the 404 on `/.well-known/assetlinks.json` is correct while no
-  keystore exists.
-- `eslint-9-flat-config` and `tailwind-4` — dev-tooling migrations. Zero
-  findings in the production tree.
-- `sub-band-durations` and `multi-day-scheduling` — guesses that nothing prints
-  and nothing reserves, per step 5.
-- `trust-strip-counts` — waiting on rows real customers have not produced yet,
-  which launching is what causes.
-
-**The precedent for the split is already in this repository**, one system over:
-`BLOCKING_TIERS` in the Nepali review scope puts money, safety and legal strings
-in the gate and leaves 424 staff strings **counted and printed on every run** but
-not blocking, because an admin misreading a queue label costs a slower queue in a
-room with somebody who can ask, where a professional misreading the cash-fee line
-loses money with nobody there to correct it. The same shape applies here, and the
-same discipline has to come with it: **reclassifying is not the same as doing**, so
-a non-blocking entry stays counted and printed, and a number that stops being said
-out loud is one nobody closes.
-
-**That is the owner's call, not the agent's**, and it wants its own commit with
-the reasoning in it rather than being decided in the middle of a launch.
-
 **Verify.** `LAUNCH=true NODE_ENV=production npm run build` succeeding locally is
-the whole test, and it is the same code Vercel runs.
+the whole test, and it is the same code Vercel runs. The failure names each
+blocking entry with its claim and what replaces it, and lists what is open and
+not gating underneath — so the register never looks shorter than it is at the
+moment somebody is deciding what to do next.
 
 **Roll back.** Unset `LAUNCH` and push. It gates a build, so nothing a customer
 can see changes — which also means it is not an off switch for the product. If
 the product itself has to stop taking bookings, that is step 4's scope narrowed
-to nothing, or an announcement (step 9), and both are screens rather than deploys.
+to nothing, or an announcement (step 9), and both are screens rather than
+deploys.
 
 ---
+
+## 6a. The English-only option
+
+**A launch may go ahead with the Nepali locale hidden**, which is the one
+alternative to reading 402 money, safety and legal strings first. The two costs
+are not comparable: unread cash-fee copy in front of a Nepali speaker is the harm
+`nepali-native-read` exists for, and serving English only is a product that is
+**smaller rather than one that is wrong**.
+
+**Do.** Set `NEXT_PUBLIC_ENGLISH_ONLY=true` on Production and push — a new
+environment variable needs a new build, rule 2.
+
+**What it changes.** `lib/config/locales.ts` is the whole switch.
+`routing.locales` becomes `["en"]`, so `/ne/...` 404s at the router; the language
+toggle does not render, because a toggle would advertise the thing that has been
+removed; and `check:blockers` reads the **same variable**, so the gate cannot
+forgive unread copy somebody is still being served.
+
+**What it does not change, deliberately.** `Locale` stays `"en" | "ne"`,
+`messages/ne.json` stays in the tree, and every `locale === "ne"` branch stays
+correct — this hides the Nepali half, it does not delete it. `stripLocale` keeps
+iterating **every** locale rather than the served ones, which is the dangerous
+half: route guards match the unprefixed path, so a `/ne/account` that stopped
+stripping to `/account` would stop matching `PROTECTED_ROUTES` and the middleware
+would wave it through.
+
+**Verify.** `LAUNCH=true NODE_ENV=production NEXT_PUBLIC_ENGLISH_ONLY=true npm run build`
+passes where the same command without it refuses, and the blocker output says
+"English-only: the Nepali read does not gate". On the deployment, `/ne` must 404
+and no toggle appears.
+
+**Roll back.** Unset it and push. Nepali returns on the next build — and
+`nepali-native-read` gates a launch again from that moment, which is the honest
+coupling rather than a flag somebody can forget.
 
 ## 7. The first professionals
 
@@ -422,6 +471,47 @@ Both body columns are NOT NULL with a non-blank check, which is rule 5 enforced
 by the schema in the one place a missing translation is invisible. A null
 `ends_at` means "until somebody takes it down", and the screen says it in those
 words.
+
+---
+
+## 10. The first week: the payout run
+
+**`payouts-unbuilt` is gated `post-launch` and this is the step**, because it is
+the one thing a build cannot check and cannot happen before launch: it needs
+settled work. The test has never changed and is not "the screen exists" — **one
+confirmed payout reaching one real professional through the run**, with a real
+`external_reference`, visible on their own money screen.
+
+**Before the first Tuesday, confirm the withholding rate.** The run refuses to
+draft anything while `PAYOUT_RUN.withholdingTaxConfirmedAt` is null, and
+`/admin/payouts` says so at the top rather than showing an empty queue that reads
+as "nothing owed". **Zero is a valid answer** — the rate genuinely may be zero —
+so what is needed is somebody who files returns in Nepal confirming it, and then
+the date in that constant. Until then every settlement accrues correctly in
+`provider_ledger`; nothing is lost and nothing is paid.
+
+**Then, on the first Tuesday:**
+
+1. `cron.runs` on the detailed `/api/health` payload shows
+   `/api/payments/reconcile` ran. The run's summary carries `refused`, so a
+   refusal is distinguishable in `cron_runs` from a quiet week — three facts that
+   must not collapse: `ranFor: null` is "not the run day", `drafted: 0` is
+   "nothing owed", and `refused` is "it declined".
+2. `/admin/payouts` lists a draft. Check the statement: `earnings` and
+   `commission` are what this run put in, `net` is the whole position, and the
+   difference is printed as **carried** rather than hidden — a figure somebody
+   approves has to be checkable.
+3. Approve, send the transfer from the bank's own screen, and record what came
+   back. Approve, mark-sent and mark-failed each need a fifteen-minute `amr`
+   proof; `markConfirmed` asks for no code at all, because it records an answer
+   that came from outside and moves nothing.
+4. The professional's `/provider/payouts` shows the balance **going down**, which
+   is what `/providers/standards` promises and what `owedRupees` got wrong four
+   ways before `provider_balance` became the one money read.
+
+**Roll back.** There is none for a transfer that has reached a rail —
+`markPayoutFailed` records that it did not arrive, it does not bring money back.
+See *What cannot be rolled back* below.
 
 ---
 

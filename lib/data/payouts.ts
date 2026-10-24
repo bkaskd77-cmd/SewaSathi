@@ -5,6 +5,8 @@ import {
   isFresh,
   isPayoutRunDay,
   payoutPeriod,
+  payoutRunRefusal,
+  type PayoutRunRefusal,
 } from "@/lib/config/payout-policy";
 import { currentDestination } from "@/lib/data/payout-destinations";
 import { describeError } from "@/lib/data/source";
@@ -63,6 +65,20 @@ export type PayoutRun = {
    * a reader of `cron_runs` must be able to tell a quiet Tuesday from a Wednesday.
    */
   ranFor: { start: string; end: string } | null;
+  /**
+   * Why the run drafted nothing on a day it was supposed to, or null.
+   *
+   * A THIRD FACT THAT MUST NOT COLLAPSE INTO THE OTHER TWO. `ranFor: null` is
+   * "not the run day" and `ranFor` set with `drafted: 0` is "a quiet Tuesday,
+   * nothing owed" — and a run that REFUSED to draft is neither. Folding it into
+   * the quiet case would make the first payout run after launch, which draws no
+   * money because nobody has confirmed the withholding rate, read in `cron_runs`
+   * exactly like a week in which no work settled.
+   *
+   * `payoutRunRefusal()` is the rule. The run still reports its period, because
+   * it did run — what it did not do is draft.
+   */
+  refused: PayoutRunRefusal | null;
   /** Professionals examined. */
   considered: number;
   /** Drafts created. A second run in the same week creates none. */
@@ -107,6 +123,7 @@ export type PayoutRun = {
 
 const NOT_TODAY: PayoutRun = {
   ranFor: null,
+  refused: null,
   considered: 0,
   drafted: 0,
   held: 0,
@@ -204,6 +221,27 @@ export async function runPayouts(
   const limit = options.limit ?? RUN_LIMIT;
   const { start, end } = payoutPeriod(now);
   const ranFor = { start: start.toISOString(), end: end.toISOString() };
+
+  /*
+   * NOTHING IS DRAFTED UNTIL THE WITHHOLDING RATE IS CONFIRMED, and this is the
+   * launch gating decision of 2026-10-24 rather than a new caution.
+   * `withholding-tax-unconfirmed` used to refuse a `LAUNCH=true` build, which
+   * meant the whole product waited on an accountant; it gates the run instead,
+   * because taking bookings, dispatching, finishing work and settling cash all
+   * work perfectly without the answer and only a PAYMENT depends on it.
+   *
+   * BEFORE THE READ, not after: a refusal that queried the bookings first would
+   * cost a round trip to decide nothing, and worse, would read as a run that
+   * looked at the work and found none.
+   */
+  const refused = payoutRunRefusal();
+  if (refused) {
+    console.warn(
+      `[payouts] refusing to draft for ${ranFor.start} — ${refused}. ` +
+        `PAYOUT_RUN.withholdingTaxConfirmedAt is null; see LAUNCH-BLOCKERS.md.`,
+    );
+    return { ...NOT_TODAY, ranFor, refused };
+  }
 
   try {
     const admin = createAdminClient();
@@ -472,6 +510,9 @@ export async function runPayouts(
 
     return {
       ranFor,
+      /* It ran and it drafted — `payoutRunRefusal()` was asked above and said
+         nothing, so this is null rather than a value that got lost. */
+      refused: null,
       considered,
       drafted,
       held,
