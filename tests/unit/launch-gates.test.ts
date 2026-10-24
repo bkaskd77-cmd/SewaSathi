@@ -12,6 +12,11 @@ import {
   tradeSpanStandings,
 } from "@/lib/config/launch-readiness";
 import { PAYOUT_RUN, payoutRunRefusal } from "@/lib/config/payout-policy";
+import {
+  confirmationIsSoleControl,
+  destinationReadiness,
+  heldReasonFor,
+} from "@/lib/payments/client";
 import { ALL_LOCALES, englishOnly, servedLocales } from "@/lib/config/locales";
 import { isLocale, routing, stripLocale } from "@/i18n/routing";
 
@@ -100,9 +105,7 @@ describe("every open blocker says what it gates", () => {
     /*
      * THE DECISION ITSELF, pinned. These five were chosen deliberately on
      * 2026-10-24; moving one to `none` is a product decision and should cost a
-     * failing test rather than passing as a tidy-up. `payout-notice-undeliverable`
-     * is the sixth and is `launch` because NOBODY HAS CLASSIFIED IT — kept here
-     * so that stays visible rather than becoming the status quo by silence.
+     * failing test rather than passing as a tidy-up.
      */
     const byId = new Map(entries.map((e) => [e.id, e.gates]));
     expect(byId.get("sms-gateway-unverified")).toBe("launch");
@@ -110,8 +113,16 @@ describe("every open blocker says what it gates", () => {
     expect(byId.get("support-phone-number")).toBe("launch");
     expect(byId.get("legal-documents-unreviewed")).toBe("launch");
     expect(byId.get("nepali-native-read")).toBe("launch-unless-english-only");
-    expect(byId.get("payout-notice-undeliverable")).toBe("launch");
 
+    /*
+     * `payout-notice-undeliverable` HELD `launch` BY DEFAULT AND NOW GATES THE
+     * RUN, decided 2026-10-24: it protects where money goes, money moves only at
+     * the payout run, and accounts without push already need admin confirmation
+     * after a destination change. Pinned here because it is the one entry whose
+     * classification was once "nobody has answered", and a silent move back to
+     * `launch` would hide that somebody did.
+     */
+    expect(byId.get("payout-notice-undeliverable")).toBe("payout-run");
     expect(byId.get("withholding-tax-unconfirmed")).toBe("payout-run");
     expect(byId.get("sub-band-durations")).toBe("launch-scope");
     expect(byId.get("multi-day-scheduling")).toBe("launch-scope");
@@ -148,6 +159,162 @@ describe("the narrower gates are enforcement and not relabelling", () => {
     const page = code("app/[locale]/(admin)/admin/payouts/page.tsx");
     expect(page).toContain("payoutRunRefusal()");
     expect(page).toContain("runRefused.");
+  });
+
+  /* ------------------------------------------------------------------
+   * payout-notice-undeliverable → payout-run
+   *
+   * THE HOLD WAS ALREADY STRUCTURAL; THE CLEARANCE WAS NOT. These cases assert
+   * both halves, because the gate's claim is that money cannot reach a
+   * destination nobody could be warned about — and half of that was true
+   * before this entry was reclassified. Asserting only the new half would let
+   * somebody delete `unwitnessed` from `destinationReadiness` and still pass.
+   * ------------------------------------------------------------------ */
+
+  it("holds a payout to a destination whose change notice reached nobody", () => {
+    const changed = {
+      retiredAt: null,
+      usableFrom: new Date("2026-01-01T00:00:00Z"),
+      firstPayoutConfirmedAt: null,
+      replacedAnother: true,
+      noticeDevices: 0,
+    };
+    const readiness = destinationReadiness(changed, new Date("2026-02-01T00:00:00Z"));
+    expect(readiness).toEqual({ ok: false, reason: "unwitnessed" });
+
+    /* And the run turns that into a hold rather than a payment. */
+    expect(heldReasonFor(5_000, { readiness })).toBe("unwitnessed");
+  });
+
+  it("outranks cooling, so no date is named over a window nobody is inside", () => {
+    /*
+     * BOTH APPLY AND ONLY ONE IS HONEST. Reporting "cooling until Thursday"
+     * on a change nobody was told about names a date as though an objection
+     * window were running — the `server.region` mistake where it costs
+     * somebody's earnings rather than a 503.
+     */
+    const readiness = destinationReadiness(
+      {
+        retiredAt: null,
+        usableFrom: new Date("2026-02-05T00:00:00Z"),
+        firstPayoutConfirmedAt: null,
+        replacedAnother: true,
+        noticeDevices: null,
+      },
+      new Date("2026-02-01T00:00:00Z"),
+    );
+    expect(readiness).toEqual({ ok: false, reason: "unwitnessed" });
+  });
+
+  it("asks for words only where the confirmation is the whole control", () => {
+    /*
+     * THE ASYMMETRY IS THE RULE. A notice that reached a device means the
+     * professional was told and said nothing for 72 hours — the silence is the
+     * record and a demanded sentence there is how people learn to type anything
+     * into the box that matters. Null is "not recorded" and behaves as
+     * unreached: rule 6, in the direction that costs a typed sentence.
+     */
+    expect(
+      confirmationIsSoleControl({ replacedAnother: true, noticeDevices: 0 }),
+    ).toBe(true);
+    expect(
+      confirmationIsSoleControl({ replacedAnother: true, noticeDevices: null }),
+    ).toBe(true);
+    expect(
+      confirmationIsSoleControl({ replacedAnother: true, noticeDevices: 2 }),
+    ).toBe(false);
+    /* A first destination redirects nobody, so there was nothing to object to. */
+    expect(
+      confirmationIsSoleControl({ replacedAnother: false, noticeDevices: 0 }),
+    ).toBe(false);
+  });
+
+  it("has the writer refuse a sole-control clearance with no reason", () => {
+    /*
+     * THE WIRING, NOT THE FUNCTION — `labelCategory`'s lesson, and the one that
+     * matters most here: `confirmFirstPayout` is the ONLY thing that clears an
+     * `unwitnessed` hold, so a rule it does not ask is a rule that stops
+     * nothing. Read out of the source because the behaviour needs a Supabase
+     * client with no seam.
+     */
+    const writer = code("lib/data/payout-destinations.ts");
+    expect(writer).toContain("confirmationIsSoleControl(");
+    /*
+     * THE RETURN, NOT THE TYPE. Written first as
+     * `toContain('reason: "reasonRequired"')`, which matched the
+     * `ConfirmResult` union near the top of the file — so deleting the refusal
+     * outright left this case GREEN, and the ordering assertion below compared
+     * the type's position against the write and passed trivially. Found by
+     * break-testing rather than by reading. The guard is the refusal
+     * EXPRESSION, which only the statement has.
+     */
+    const refusal = '{ ok: false, reason: "reasonRequired" }';
+    expect(writer).toContain(refusal);
+    /* Judged BEFORE the stamp is written, not after. */
+    expect(writer.indexOf(refusal)).toBeLessThan(
+      writer.indexOf("first_payout_confirmed_at: new Date()"),
+    );
+    /* And the clearance is recorded with which kind it was. */
+    expect(writer).toContain("recordDestinationConfirmation(");
+    expect(writer).toContain("soleControl,");
+  });
+
+  it("does not let the browser say whether a reason is required", () => {
+    /*
+     * `stateBand`'s SPLIT, on the control that decides whether somebody else's
+     * bank account gets paid: what a person TYPED crosses the wire, because the
+     * record has to hold what they said; whether words are REQUIRED is read
+     * server-side. A posted `soleControl` would waive the only check there is.
+     */
+    const action = code(
+      "app/[locale]/(admin)/admin/payout-destinations/actions.ts",
+    );
+    expect(action).toContain('formData.get("reason")');
+    expect(action).not.toContain('formData.get("soleControl")');
+  });
+
+  it("says on the screen why this row needs words, above the box", () => {
+    /* A required field with no reason given is a threshold found by tripping
+       it — the trap `/providers/standards` refuses one layer out. */
+    const panel = code("components/admin/confirm-destination.tsx");
+    expect(panel).toContain('t("soleControl")');
+    expect(panel).toContain('name="reason"');
+    const page = code("app/[locale]/(admin)/admin/payout-destinations/page.tsx");
+    expect(page).toContain("confirmationIsSoleControl({");
+  });
+
+  it("records the confirmation as its own audit kind, carrying the reading", () => {
+    /*
+     * `payout.confirmed` IS A DIFFERENT ACT and is deliberately absent — it
+     * records a rail's answer about money already sent. This one releases the
+     * hold on a CHANGED account and is the account-takeover control itself, so
+     * the log has to carry WHICH kind of confirmation it was. The destination
+     * row could only ever say who and when.
+     */
+    const audit = readFileSync("lib/audit/index.ts", "utf8");
+    expect(audit).toContain('"payoutDestination.confirmed"');
+    const stripped = code("lib/audit/index.ts");
+    expect(stripped).toContain("recordDestinationConfirmation");
+    expect(stripped).toContain("soleControl");
+    /* Never an account number: `payoutDestination.viewed` stays the only kind
+       that means anybody saw digits. */
+    expect(stripped).not.toContain("accountRef");
+  });
+
+  it("refuses the whole run for withholding and deliberately not for this", () => {
+    /*
+     * THE SHAPE DIFFERENCE, PINNED, because the sibling gate's enforcement is a
+     * whole-run refusal and the next reader's reflex will be to add a second
+     * `PayoutRunRefusal` value here. The withholding rate applies to every
+     * payout, so nobody can be paid correctly until it is confirmed. This entry
+     * has nothing to say about a professional who never changed their
+     * destination — refusing the run would stop paying people to guard against
+     * a risk they are not carrying, and would be a wall, since nothing can
+     * close the entry until a contact-number history exists.
+     */
+    expect(payoutRunRefusal()).toBe("withholding-unconfirmed");
+    const policy = code("lib/config/payout-policy.ts");
+    expect(policy).not.toContain("destination");
   });
 
   it("closes exactly the trade whose typical product needs an unmeasured span", () => {

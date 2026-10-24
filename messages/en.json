@@ -2520,8 +2520,12 @@
         "alreadyConfirmed": "Somebody has already confirmed this one.",
         "notFound": "That account is no longer there.",
         "notSignedIn": "Sign in again to do that.",
-        "generic": "That did not go through. Try again."
-      }
+        "generic": "That did not go through. Try again.",
+        "reasonRequired": "Say how you reached the professional before confirming this one."
+      },
+      "soleControl": "Nobody could be told this account changed — no device was subscribed when it was recorded. This confirmation is the only check there is, so say how you reached them.",
+      "reasonLabel": "How you reached them",
+      "reasonPlaceholder": "Rang the number we hold, spoke to them, they confirmed the new account"
     },
     "payouts": {
       "title": "Payouts",

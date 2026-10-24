@@ -1,6 +1,9 @@
 import "server-only";
 
-import { recordDestinationAccess } from "@/lib/audit";
+import {
+  recordDestinationAccess,
+  recordDestinationConfirmation,
+} from "@/lib/audit";
 import { isFresh } from "@/lib/config/payout-policy";
 import { unreadable, type Readable } from "@/lib/data/readable";
 import { pushTargetsFor } from "@/lib/data/push";
@@ -8,6 +11,7 @@ import { describeError } from "@/lib/data/source";
 import { hasSupabaseConfig } from "@/lib/env";
 import { notify } from "@/lib/notify";
 import {
+  confirmationIsSoleControl,
   destinationReadiness,
   destinationUsableFrom,
   maskAccountRef,
@@ -365,12 +369,28 @@ export async function destinationsNeedingAttention(
 
     return {
       ok: true,
-      rows: rows.map((row) => ({
-        ...toMasked(row),
-        providerId: row.provider_id,
-        displayName: row.providers?.display_name ?? "—",
-        replacedAnother: replaced.has(row.provider_id),
-      })),
+      rows: rows.map((row) => {
+        const masked = toMasked(row);
+        return {
+          ...masked,
+          providerId: row.provider_id,
+          displayName: row.providers?.display_name ?? "—",
+          /*
+           * EITHER READING, ORed, SO THE SCREEN AND THE WRITER CANNOT DISAGREE.
+           * `toMasked` derives this from the two stamps and this read counts
+           * retired rows, and they are not quite the same question — the stamps
+           * say a cooldown was applied, the retired row says an account was
+           * actually taken away. They now decide one thing together:
+           * `confirmationIsSoleControl` gates whether the confirm form demands
+           * a reason, and `confirmFirstPayout` refuses without one — so a row
+           * where the screen said "first ever" and the writer said "replaced"
+           * would hide the box and then refuse the save, which is the dead end
+           * this product refuses everywhere else. ORing is also the safe
+           * direction: being wrong costs a typed sentence.
+           */
+          replacedAnother: masked.replacedAnother || replaced.has(row.provider_id),
+        };
+      }),
     };
   } catch (thrown) {
     console.error(`[payout-destinations] watch threw — ${describeError(thrown)}`);
@@ -677,8 +697,17 @@ export async function revealDestination(input: {
 
 export type ConfirmResult =
   | { ok: true }
-  /** The trigger refused it: somebody already confirmed this destination. */
-  | { ok: false; reason: "alreadyConfirmed" | "notFound" | "generic" };
+  /**
+   * Refused, and `reasonRequired` is the one that is a product rule rather than
+   * a failure: the change reached no device, so this yes is the only control
+   * there is and it may not be given without saying how the professional was
+   * reached. The others are the trigger refusing a second confirmation, a row
+   * that is not there, and a read or write that did not answer.
+   */
+  | {
+      ok: false;
+      reason: "reasonRequired" | "alreadyConfirmed" | "notFound" | "generic";
+    };
 
 /**
  * A person looked at the first payout to this destination and said yes.
@@ -696,11 +725,92 @@ export type ConfirmResult =
 export async function confirmFirstPayout(input: {
   destinationId: string;
   adminId: string;
+  /**
+   * How the professional was reached, in the admin's own words.
+   *
+   * REQUIRED ON THE SOLE-CONTROL PATH AND DELIBERATELY NOT ON THE OTHER. Where
+   * a notice reached a device, the 72 hours ran and the silence is the record;
+   * demanding a sentence there as well is how people learn to type anything
+   * into the boxes that matter — `markPayoutConfirmed`'s own reasoning for
+   * asking no code at all.
+   */
+  reason?: string | null;
 }): Promise<ConfirmResult> {
   if (!hasSupabaseConfig()) return { ok: false, reason: "generic" };
 
+  const typedReason = (input.reason ?? "").trim();
+
   try {
-    const { data, error } = await createAdminClient()
+    const admin = createAdminClient();
+
+    /*
+     * WHAT KIND OF CONFIRMATION THIS IS, READ BEFORE IT IS GIVEN.
+     *
+     * NOT A CHECK-THEN-WRITE ON "already confirmed" — that race is still the
+     * trigger's to settle, and this read deliberately does not look at
+     * `first_payout_confirmed_at` to decide anything. It answers one question
+     * the update cannot: did the change notice reach a device, which is what
+     * decides whether this yes is a second chance or the only check there was.
+     *
+     * `LAUNCH-BLOCKERS.md § payout-notice-undeliverable` is the open entry and
+     * its gate is `payout-run`: money moves at the run, the run refuses an
+     * `unwitnessed` destination through `heldReasonFor`, and the only thing that
+     * clears it is this function.
+     */
+    const { data: row, error: readError } = await admin
+      .from("payout_destinations")
+      .select("id, provider_id, created_at, usable_from, notice_devices")
+      .eq("id", input.destinationId)
+      .maybeSingle();
+
+    if (readError) {
+      console.error(
+        `[payout-destinations] confirm read — ${describeError(readError)}`,
+      );
+      return { ok: false, reason: "generic" };
+    }
+    if (!row) return { ok: false, reason: "notFound" };
+
+    /*
+     * DID THIS REPLACE ANOTHER — BOTH READINGS, ORed, which is what
+     * `destinationsNeedingAttention` renders the form from. The stamps say a
+     * cooldown was applied (`toMasked`'s derivation, and its comment is the
+     * reason); a retired row says an account was actually taken away. Reading
+     * only one here would let the screen hide the reason box on a row this
+     * function then refuses, which is a dead end rather than a control.
+     *
+     * A FAILED COUNT READS AS "there is history", the same direction
+     * `changeDestination` takes it: being wrong this way costs a typed
+     * sentence, where the other way clears the only check there was with no
+     * record of how.
+     */
+    const { count: retiredCount, error: historyError } = await admin
+      .from("payout_destinations")
+      .select("id", { count: "exact", head: true })
+      .eq("provider_id", row.provider_id as string)
+      .not("retired_at", "is", null);
+
+    if (historyError) {
+      console.error(
+        `[payout-destinations] confirm history — ${describeError(historyError)}`,
+      );
+    }
+
+    const noticeDevices = (row.notice_devices as number | null) ?? null;
+    const soleControl = confirmationIsSoleControl({
+      replacedAnother:
+        new Date(row.usable_from as string).getTime() >
+          new Date(row.created_at as string).getTime() ||
+        retiredCount === null ||
+        retiredCount > 0,
+      noticeDevices,
+    });
+
+    if (soleControl && typedReason.length === 0) {
+      return { ok: false, reason: "reasonRequired" };
+    }
+
+    const { data, error } = await admin
       .from("payout_destinations")
       .update({
         first_payout_confirmed_at: new Date().toISOString(),
@@ -721,6 +831,24 @@ export async function confirmFirstPayout(input: {
     }
 
     if (!data) return { ok: false, reason: "notFound" };
+
+    /*
+     * RECORDED AFTER THE WRITE, which is the opposite ordering to
+     * `trip_compensation` and right for the opposite reason: there a ledger row
+     * had to precede the claim because a missing payment is worse than a
+     * recorded one that did not happen. Here the stamp IS the act, `lib/audit`
+     * never throws, and a row claiming a confirmation the trigger refused would
+     * be the manufactured record this log exists to prevent.
+     */
+    await recordDestinationConfirmation({
+      adminId: input.adminId,
+      providerId: row.provider_id as string,
+      destinationId: input.destinationId,
+      soleControl,
+      noticeDevices,
+      reason: soleControl ? typedReason : null,
+    });
+
     return { ok: true };
   } catch (thrown) {
     console.error(

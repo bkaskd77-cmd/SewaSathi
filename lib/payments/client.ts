@@ -71,6 +71,7 @@ export {
  * `lib/payments/destination.ts` exists to prevent.
  */
 export {
+  confirmationIsSoleControl,
   destinationReadiness,
   destinationUsableFrom,
   heldReasonFor,

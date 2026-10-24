@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { ConfirmDestination } from "@/components/admin/confirm-destination";
+import { confirmationIsSoleControl } from "@/lib/payments/client";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -192,6 +193,16 @@ async function Row({
       {confirmable ? (
         <ConfirmDestination
           destinationId={row.id}
+          /*
+           * WHETHER THIS YES IS THE ONLY CHECK THERE IS, asked of the one rule
+           * rather than re-derived here. `confirmFirstPayout` asks the same
+           * function server-side and refuses without words, so the box the
+           * screen shows and the sentence the writer demands cannot drift.
+           */
+          soleControl={confirmationIsSoleControl({
+            replacedAnother: row.replacedAnother,
+            noticeDevices: row.noticeDevices,
+          })}
           action={confirmDestinationAction}
         />
       ) : null}

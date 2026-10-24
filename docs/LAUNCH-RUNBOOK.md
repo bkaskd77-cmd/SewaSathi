@@ -277,19 +277,27 @@ being waived.
 **Five entries refuse a launch build**, and four of them are steps 1, 2 and 3 of
 this runbook: the SMS gateway, the support number, the test-account cleanup, the
 legal review, and the Nepali native read of the money, safety and legal strings.
-The sixth, `payout-notice-undeliverable`, is `launch` **because nobody has
-classified it** — it is the one remaining build item, and an unclassified entry
-must not fall through to "does not gate". That one is a decision still waiting.
+Nothing else holds the flag, and no entry is unclassified.
 
-**Four moved to narrower gates that bite somewhere real**, which is the whole
+**Five moved to narrower gates that bite somewhere real**, which is the whole
 difference between this and a waiver:
 
 | Entry | Gate | What actually refuses |
 | --- | --- | --- |
 | `withholding-tax-unconfirmed` | `payout-run` | `payoutRunRefusal()` — the run drafts nothing until the rate is confirmed |
+| `payout-notice-undeliverable` | `payout-run` | `heldReasonFor` holds an `unwitnessed` destination, and `confirmFirstPayout` refuses to clear it without a recorded reason |
 | `sub-band-durations` | `launch-scope` | `setLaunchScope` refuses to open painting |
 | `multi-day-scheduling` | `launch-scope` | the same refusal |
 | `payouts-unbuilt` | `post-launch` | step 10 below, in the **first week** after launch |
+
+**`payout-notice-undeliverable` was the one entry holding `launch` by default
+rather than by choice, and it was answered on 2026-10-24**: it protects where
+money goes, money moves only at the payout run, and accounts without push
+already need admin confirmation after a destination change. It is a gate on the
+run rather than a refusal OF the run, deliberately — the entry has nothing to
+say about a professional who never changed their destination, and refusing to
+draft for everybody would stop paying people to guard against a risk they are
+not carrying.
 
 **Four do not gate at all**: `play-store-unpublished` (deliberately sequenced
 after launch — the PWA installs from the browser today), `eslint-9-flat-config`
@@ -489,6 +497,20 @@ as "nothing owed". **Zero is a valid answer** — the rate genuinely may be zero
 so what is needed is somebody who files returns in Nepal confirming it, and then
 the date in that constant. Until then every settlement accrues correctly in
 `provider_ledger`; nothing is lost and nothing is paid.
+
+**And the second precondition is `payout-notice-undeliverable`, also gated
+`payout-run`.** It does not refuse the run; it refuses to let one kind of
+destination be cleared quietly. A professional whose payout account REPLACED an
+earlier one, where no push device was subscribed when the change was recorded,
+is held at `unwitnessed` — which outranks `cooling`, because naming a date as
+though an objection window were running is a lie about a protection nobody is
+inside. Clearing it needs a person on `/admin/payout-destinations`, and on that
+path the form asks **how they reached the professional**: the change notice
+reached nobody, so the phone call is the only evidence there will ever be that a
+human checked, and the number we hold is one an account takeover would also have
+changed. The sentence is recorded as `payoutDestination.confirmed` with the
+device count the gate judged. Where a notice DID reach a device, no words are
+asked — the 72 hours ran and the silence is the record.
 
 **Then, on the first Tuesday:**
 

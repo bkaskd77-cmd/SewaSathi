@@ -56,7 +56,8 @@ is the mistake this whole section exists to stop:
 - `payouts-unbuilt` — the code is built; what is missing is one real payout
   reaching one real professional, which is money leaving an account.
 - `payout-notice-undeliverable` — blocked behind the gateway rather than on its
-  own, so it clears with that one.
+  own, so it clears with that one. It no longer holds a launch build: it gates
+  the payout run, where the money actually moves.
 
 **Neither mine nor theirs:** `trust-strip-counts`, `sub-band-durations` and
 `multi-day-scheduling` all wait on volume — finished jobs we have not had yet.
@@ -117,11 +118,45 @@ the whole difference between this and a waiver:
   `NEXT_PUBLIC_ENGLISH_ONLY`, which is the same variable that actually hides the
   locale, so it cannot forgive copy somebody is still being served.
 
-**`payout-notice-undeliverable` is `launch` because nobody has classified it**,
-and that is deliberate rather than a decision. It is the one remaining build
-item — a recorded history of the contact number, so the payout-destination
-warning can reach the number as it stood *before* a change — and an unclassified
-entry must not fall through to `none`. An absence is not a permission.
+**`payout-notice-undeliverable` → `payout-run`, decided 2026-10-24, and the
+reason is the owner's: it protects where money goes, money moves only at the
+payout run, and accounts without push already need admin confirmation after a
+destination change.** It held `launch` by default rather than by choice until
+then, and the point of writing the reason down is that all three clauses are
+checkable — the third one was checked before this was moved, and it is true:
+`first_payout_confirmed_at` is null on every new row, `destinationReadiness`
+answers `unwitnessed` where no device could be told, that reason OUTRANKS
+`cooling`, and `heldReasonFor` refuses to draft a payable payout until a person
+clears it.
+
+**A WHOLE-RUN REFUSAL WOULD BE THE WRONG SHAPE, which is worth stating because
+the sibling gate has one.** `withholding-tax-unconfirmed` makes
+`payoutRunRefusal()` draft nothing for anybody, and that is right there: the
+rate applies to every payout, so nobody can be paid correctly until it is
+confirmed. Here the entry has nothing to say about a professional who never
+changed their destination, or who changed it with a device subscribed — and
+refusing the whole run would stop paying them to guard against a risk they are
+not carrying. It would also be a wall rather than a gate, since nothing can
+close this entry until a contact-number history exists.
+
+**So the gate bites where the hold is CLEARED, and that is where the gap
+actually was.** The hold is already structural. What was not is that
+`confirmFirstPayout` took a destination id and an admin id and nothing else —
+so a clearance where the professional had a push notice and 72 hours of silence
+and one where the warning reached nobody were **the same write**, and the
+destination row recorded who and when but never which. That is the asymmetry
+this entry identified and only half-closed: `notice_devices` gave the SCREEN a
+way to tell them apart and left the WRITE unable to. `confirmationIsSoleControl`
+is the one rule, the form asks for words on that path only, the writer refuses
+without them, and `payoutDestination.confirmed` records which kind it was with
+the device count the gate judged. `security_events.proved_at`'s lesson, one
+control over: a log that says who decided and not what they were looking at
+leaves the gate to be taken on trust.
+
+**Words on one path only, deliberately.** Where a notice reached a device the
+silence IS the record, and demanding a sentence there as well is how people
+learn to type anything into the box that matters — `markPayoutConfirmed`'s own
+reason for asking no code at all.
 
 ## Entry format
 
@@ -399,7 +434,7 @@ Until then the incentive is the four true things on the payment screen
 
 ### BLOCKER: payout-notice-undeliverable
 - Status: unresolved
-- Gates: launch
+- Gates: payout-run
 - Claims: **that a professional will know if somebody moves their money.** `/provider/payouts` tells them "Changed on {date}. Was that not you? Ring {phone}", and `DESTINATION_COOLDOWN_HOURS` holds any new account for 72 hours expressly so they have time to act on that sentence. `/providers/standards` and the screen both present the wait as a protection.
 - **The protection has no reader.** The notice is written as a `payout.destinationChanged` notification and rendered on a page. The in-app channel has no delivery address, there is no SMS channel, and the page requires a session to open. So the only person who can read "your account was changed" is whoever is holding the session — which, in the one scenario the warning exists for, is the attacker. The cooldown still delays the theft; nothing tells the victim it is happening.
 - Lives in: `lib/notify/channel.ts` (`payout.destinationChanged`, whose comment already records the rule an SMS channel must follow), `app/[locale]/(work)/provider/payouts/page.tsx` (where it renders), `lib/config/payout-policy.ts` (`DESTINATION_COOLDOWN_HOURS`).

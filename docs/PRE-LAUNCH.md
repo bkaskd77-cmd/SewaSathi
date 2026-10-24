@@ -10,13 +10,12 @@ credential or a transfer** — because mixing the two is how a list gets read as
 "still a lot of building to do" when almost none of it is.
 
 **And since 2026-10-24 each entry says what it gates**, which changes what this
-report is for. Fourteen are open and **six refuse a launch build**: the SMS
-gateway, the support number, the test-account cleanup, the legal review, the
-Nepali native read (unless the locale is hidden) and
-`payout-notice-undeliverable`, which is `launch` only because nobody has
-classified it. Four moved to gates that bite elsewhere — the payout run, the
-launch scope, a first-week verification — and four do not gate at all. See
-`LAUNCH-BLOCKERS.md § What each entry gates`.
+report is for. Fourteen are open and **five refuse a launch build**: the SMS
+gateway, the support number, the test-account cleanup, the legal review and the
+Nepali native read (unless the locale is hidden). Five moved to gates that bite
+elsewhere — two at the payout run, two at the launch scope, one as a first-week
+verification — and four do not gate at all. See `LAUNCH-BLOCKERS.md § What each
+entry gates`.
 
 ```
 npm run check:blockers  →  14 unresolved, 11 resolved
@@ -64,7 +63,12 @@ a keystore, and real customers producing rows.
 ## Item 1, in full — the only remaining build
 
 `payout-notice-undeliverable` is the entry, and it is the one that stops payouts
-going live. The promise is on `/provider/payouts`: *"Changed on {date}. Was that
+going live. **It does not hold a launch build.** Classified `payout-run` on
+2026-10-24: it protects where money goes, money moves only at the payout run,
+and a destination change already needs a person before anything is paid. What
+changed with it is that the person's yes now has to say HOW they reached the
+professional wherever the change notice reached no device — see
+`confirmationIsSoleControl` and `payoutDestination.confirmed`. The promise is on `/provider/payouts`: *"Changed on {date}. Was that
 not you? Ring {phone}"*, and `DESTINATION_COOLDOWN_HOURS` holds any new account
 for 72 hours expressly so somebody has time to act on that sentence.
 

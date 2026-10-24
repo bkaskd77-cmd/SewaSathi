@@ -98,6 +98,29 @@ export type SecurityEventKind =
    */
   | "payoutDestination.viewed"
   /**
+   * A person confirmed the first payout to a destination.
+   *
+   * SEPARATE FROM `payout.confirmed`, WHICH IS A DIFFERENT ACT ENTIRELY. That
+   * one records a rail's answer about money already sent and is deliberately
+   * absent for that reason; this one releases the hold on a CHANGED account and
+   * is the account-takeover control itself.
+   *
+   * `detail.soleControl` IS THE WHOLE REASON THIS KIND EXISTS. A confirmation
+   * where the change notice reached a device is a second chance on top of a
+   * 72-hour window somebody could have objected in; one where it reached nobody
+   * is the only check there was, cleared on a phone call to a number an
+   * attacker may have changed. The destination row keeps WHO and WHEN, and
+   * could never say WHICH — so a reviewer reconstructing a disputed payout had
+   * to take the stronger case on trust. `security_events.proved_at`'s lesson,
+   * one control over.
+   *
+   * `noticeDevices` is the count as recorded at the change, so the reading the
+   * gate judged is the reading the row carries. Null is "not recorded", never
+   * "nobody was reached" — the two are told apart by `soleControl`, which is
+   * what actually decided.
+   */
+  | "payoutDestination.confirmed"
+  /**
    * A stored payout account would not open.
    *
    * THE EVENT FOR SOMETHING THAT CANNOT HAPPEN. A check constraint requires an
@@ -523,5 +546,50 @@ export async function recordDestinationAccess(input: {
     subjectType: "provider",
     subjectId: input.providerId,
     detail: { destinationId: input.destinationId, reason: input.reason },
+  });
+}
+
+/**
+ * A person confirmed the first payout to a destination.
+ *
+ * ITS OWN FUNCTION, LIKE `recordDestinationAccess`, SO IT CANNOT BE QUIETLY
+ * SKIPPED. The destination row already carries who confirmed and when, written
+ * by the update itself — what no column could carry is WHICH KIND of
+ * confirmation it was, and that is the fact a disputed payout turns on.
+ *
+ * `soleControl` IS NOT DERIVED HERE. The caller read `notice_devices` and the
+ * stamps and judged it with `confirmationIsSoleControl`; recomputing it from a
+ * second read is how the log comes to disagree with the gate that acted, which
+ * is `sessionAuthenticatedAt`'s own reason for being cached per request.
+ *
+ * NO ACCOUNT NUMBER AND NO PHONE NUMBER. `payoutDestination.viewed` stays the
+ * only kind that means anybody saw digits, and a number typed into `reason`
+ * would make this log a second copy of the thing it protects — so the sentence
+ * is the admin's own words about how they reached somebody, which is what a
+ * reviewer needs, and nothing is extracted from it.
+ */
+export async function recordDestinationConfirmation(input: {
+  adminId: string;
+  providerId: string;
+  destinationId: string;
+  /** Was this yes the only check there was? */
+  soleControl: boolean;
+  /** Devices the change notice could reach, as recorded. Null is "not recorded". */
+  noticeDevices: number | null;
+  /** How the professional was reached. Required on the sole-control path only. */
+  reason: string | null;
+}): Promise<void> {
+  await recordSecurityEvent({
+    kind: "payoutDestination.confirmed",
+    actorId: input.adminId,
+    actorRole: "admin",
+    subjectType: "provider",
+    subjectId: input.providerId,
+    detail: {
+      destinationId: input.destinationId,
+      soleControl: input.soleControl,
+      noticeDevices: input.noticeDevices,
+      reason: input.reason,
+    },
   });
 }

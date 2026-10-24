@@ -101,6 +101,40 @@ export function noticeCouldReachSomebody(noticeDevices: number | null): boolean 
 }
 
 /**
+ * Is a person's confirmation the ONLY control standing between a changed
+ * destination and somebody's money?
+ *
+ * TWO CONFIRMATIONS LOOK IDENTICAL ON SCREEN AND ARE NOT THE SAME ACT, which is
+ * the asymmetry `notice_devices` was recorded to expose and which the WRITE
+ * could not see. Where a notice reached a device, the professional was told,
+ * had `DESTINATION_COOLDOWN_HOURS` to object and said nothing — the admin's yes
+ * is a second chance on top of a protection that ran. Where it reached nobody,
+ * nothing ran: the yes is the whole control.
+ *
+ * AND THE COMPENSATING CONTROL IS A PHONE CALL TO A NUMBER THE ATTACKER MAY
+ * OWN. `/admin/payout-destinations` offers "ring the professional on the number
+ * we hold", and an account takeover changes that number too — nothing in this
+ * schema records what it was before. So on this path the call is the only
+ * evidence there will ever be that a human checked, which is why the act has to
+ * leave a record rather than a stamp. `LAUNCH-BLOCKERS.md §
+ * payout-notice-undeliverable` is the open entry, and this is where its
+ * `payout-run` gate bites.
+ *
+ * IT COMPOSES `noticeCouldReachSomebody` RATHER THAN RE-DERIVING IT, so null
+ * keeps behaving as unreached in both places — rule 6, in the direction that
+ * costs a recorded sentence rather than somebody's earnings.
+ */
+export function confirmationIsSoleControl(destination: {
+  replacedAnother: boolean;
+  noticeDevices: number | null;
+}): boolean {
+  return (
+    destination.replacedAnother &&
+    !noticeCouldReachSomebody(destination.noticeDevices)
+  );
+}
+
+/**
  * May this destination receive the payout being prepared?
  *
  * THREE REFUSALS AND THEY ARE NOT THE SAME FACT, which is why this returns a

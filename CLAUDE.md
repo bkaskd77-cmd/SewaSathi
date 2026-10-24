@@ -947,11 +947,49 @@ every `locale === "ne"` branch. And route guards match the unprefixed path, so a
 the router, never become a way past the middleware. The default is OFF, so CI,
 the paint check and the booking walk keep exercising both languages: a switch
 that changed the default would quietly stop testing the language it is about.
-**`payout-notice-undeliverable` is `launch` because nobody has classified it**,
-and that is deliberate rather than a decision — an unclassified entry must not
-fall through to `none`, which is rule 6's shape for a gate. `Gates:` is required
-while an entry is unresolved and optional once resolved, so flipping one back
-fails the guard until somebody answers.
+**AN UNCLASSIFIED ENTRY MUST NOT FALL THROUGH TO `none`**, which is rule 6's
+shape for a gate. `Gates:` is required while an entry is unresolved and optional
+once resolved, so flipping one back fails the guard until somebody answers.
+`payout-notice-undeliverable` was the one entry holding `launch` by default
+rather than by choice, and it is **`payout-run` now**: it protects where money
+goes, money moves only at the payout run, and accounts without push already need
+admin confirmation after a destination change. **All three clauses were checked
+before the move and the third is true** — `destinationReadiness` answers
+`unwitnessed` where no device could be told, that reason OUTRANKS `cooling`, and
+`heldReasonFor` refuses to draft a payable payout until a person clears it.
+**A WHOLE-RUN REFUSAL WOULD BE THE WRONG SHAPE and the sibling gate has one**,
+so the difference is written down: the withholding rate applies to every payout,
+where this entry has nothing to say about a professional who never changed their
+destination — refusing the run would stop paying people to guard against a risk
+they are not carrying, and would be a wall, since nothing closes the entry until
+a contact-number history exists. `payout-policy.ts` is asserted to name no
+destination rule for that reason.
+**SO THE GATE BITES WHERE THE HOLD IS CLEARED, AND THAT IS WHERE THE GAP WAS.**
+The hold was already structural; `confirmFirstPayout` took a destination id and
+an admin id and nothing else — so a clearance where the professional had a push
+notice and 72 hours of silence and one where the warning reached nobody were
+**the same write**, with the row recording who and when and never which. That is
+the asymmetry the entry itself identified and only half-closed: `notice_devices`
+gave the SCREEN a way to tell them apart and left the WRITE unable to.
+`confirmationIsSoleControl` is the one rule, asked by the form and again by the
+writer so the box shown and the sentence demanded cannot drift — a row where
+they disagreed would hide the box and then refuse the save, which is why
+`replacedAnother` is now the OR of its two readings rather than two derivations
+answering one question. **Words on the sole-control path only**: where a notice
+landed, the silence is the record, and a sentence demanded everywhere is how
+people learn to type anything into the box that matters.
+`payoutDestination.confirmed` records which kind it was with the device count
+the gate judged — `security_events.proved_at`'s lesson, since a log that says
+who decided and not what they were looking at leaves the gate to be taken on
+trust. It is **separate from `payout.confirmed`**, which is deliberately absent
+and is a different act: that one records a rail's answer about money already
+sent.
+**AND THE FIRST VERSION OF ITS OWN GUARD WAS BLIND.** The case asserting the
+refusal read `toContain('reason: "reasonRequired"')`, which matches the
+`ConfirmResult` union near the top of the file — so deleting the refusal outright
+left it green, and the ordering assertion beside it compared the TYPE's position
+against the write and passed trivially. Found by break-testing, not by reading.
+The guard is the refusal expression now, which only the statement has.
 **And importing that script used to RUN it.** `main()` sat at module scope while
 `GATES`, `blocksLaunch` and `parseEntries` are exported for two test files, so an
 import printed the whole blocker report into unrelated output and, on a malformed

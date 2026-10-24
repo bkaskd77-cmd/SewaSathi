@@ -571,6 +571,35 @@ describe("the one path that opens the envelope", () => {
 });
 
 describe("confirming the first payout to a new destination", () => {
+  /*
+   * THE READ BEFORE THE WRITE IS NOT A CHECK-THEN-WRITE, which is why the
+   * ordering of these answers matters. `confirmFirstPayout` asks three things of
+   * `payout_destinations` in order: the row (for `notice_devices` and the two
+   * stamps), how many of this provider's destinations are retired, and then the
+   * update. It deliberately does not read `first_payout_confirmed_at` to decide
+   * anything — a second confirmation is still the trigger's to refuse.
+   */
+
+  /** A change somebody could be told about: it replaced another, push reached 2. */
+  const WITNESSED = {
+    data: {
+      id: "d",
+      provider_id: KRISHNA_LISTING,
+      created_at: "2026-01-01T00:00:00Z",
+      usable_from: "2026-01-04T00:00:00Z",
+      notice_devices: 2,
+    },
+    error: null,
+  };
+
+  /** The same change with nobody to tell. This is the sole-control path. */
+  const UNWITNESSED = {
+    data: { ...WITNESSED.data, notice_devices: 0 },
+    error: null,
+  };
+
+  const NO_HISTORY = { data: null, error: null, count: 0 };
+
   it("reads the trigger's refusal as its own outcome", async () => {
     /*
      * The trigger is what makes it one name and one moment. This maps its
@@ -579,6 +608,8 @@ describe("confirming the first payout to a new destination", () => {
      */
     answers = {
       payout_destinations: [
+        WITNESSED,
+        NO_HISTORY,
         { data: null, error: { message: "the first-payout confirmation is already recorded" } },
       ],
     };
@@ -590,7 +621,9 @@ describe("confirming the first payout to a new destination", () => {
   });
 
   it("records who confirmed it, not just that somebody did", async () => {
-    answers = { payout_destinations: [{ data: { id: "d" }, error: null }] };
+    answers = {
+      payout_destinations: [WITNESSED, NO_HISTORY, { data: { id: "d" }, error: null }],
+    };
     const { confirmFirstPayout } = await import("@/lib/data/payout-destinations");
 
     expect(await confirmFirstPayout({ destinationId: "d", adminId: ADMIN })).toEqual({
@@ -600,6 +633,104 @@ describe("confirming the first payout to a new destination", () => {
     const write = of("payout_destinations").find((o) => o.op === "update")!;
     expect(write.payload!.first_payout_confirmed_by).toBe(ADMIN);
     expect(write.payload!.first_payout_confirmed_at).toBeTruthy();
+  });
+
+  it("asks no words where the notice reached a device", async () => {
+    /*
+     * THE HALF THAT MUST NOT BE TIGHTENED. The professional was told and had
+     * `DESTINATION_COOLDOWN_HOURS` to object; the silence IS the record.
+     * Demanding a sentence here as well is how people learn to type anything
+     * into the box that matters — `markPayoutConfirmed`'s reason for asking no
+     * code at all.
+     */
+    answers = {
+      payout_destinations: [WITNESSED, NO_HISTORY, { data: { id: "d" }, error: null }],
+    };
+    const { confirmFirstPayout } = await import("@/lib/data/payout-destinations");
+
+    expect(
+      await confirmFirstPayout({ destinationId: "d", adminId: ADMIN, reason: "" }),
+    ).toEqual({ ok: true });
+  });
+
+  it("refuses to clear an unwitnessed change with no words, and writes nothing", async () => {
+    /*
+     * `LAUNCH-BLOCKERS.md § payout-notice-undeliverable`, gated `payout-run`.
+     * Nobody could be told this account changed, so this yes is not a second
+     * chance on top of an objection window — it is the whole protection, given
+     * on a phone call to a number an account takeover would also have changed.
+     * NOTHING IS WRITTEN, asserted by counting the ops: a refusal after a
+     * partial write would leave the stamp on with no record of how.
+     */
+    answers = { payout_destinations: [UNWITNESSED, NO_HISTORY] };
+    const { confirmFirstPayout } = await import("@/lib/data/payout-destinations");
+
+    expect(
+      await confirmFirstPayout({ destinationId: "d", adminId: ADMIN, reason: "   " }),
+    ).toEqual({ ok: false, reason: "reasonRequired" });
+
+    expect(of("payout_destinations").filter((o) => o.op === "update")).toEqual([]);
+    expect(of("security_events")).toEqual([]);
+  });
+
+  it("records WHICH kind of confirmation it was, with no account number", async () => {
+    /*
+     * The destination row carries who and when and could never say which. A
+     * reviewer reconstructing a disputed payout had to take the stronger case on
+     * trust — `security_events.proved_at`'s lesson, one control over. The device
+     * count is the reading the gate judged, so the row cannot disagree with it.
+     */
+    answers = {
+      payout_destinations: [UNWITNESSED, NO_HISTORY, { data: { id: "d" }, error: null }],
+    };
+    const { confirmFirstPayout } = await import("@/lib/data/payout-destinations");
+
+    expect(
+      await confirmFirstPayout({
+        destinationId: "d",
+        adminId: ADMIN,
+        reason: "rang the number we hold, spoke to them",
+      }),
+    ).toEqual({ ok: true });
+
+    const logged = of("security_events").find((o) => o.op === "insert")!;
+    const payload = JSON.stringify(logged.payload);
+    expect(payload).toContain("payoutDestination.confirmed");
+    expect(payload).toContain('"soleControl":true');
+    expect(payload).toContain('"noticeDevices":0');
+    expect(payload).toContain("rang the number we hold");
+    expect(payload).not.toContain(ACCOUNT);
+  });
+
+  it("treats a failed history count as history, which costs a sentence", async () => {
+    /*
+     * RULE 6 IN THE DIRECTION THAT COSTS LITTLE. A count that did not answer
+     * must not read as "this is their first account" — that would waive the only
+     * check there is on a database blip. Being wrong this way asks for a typed
+     * sentence; being wrong the other way clears the hold with no record of how.
+     * The row here has equal stamps, so the count is the only thing saying this
+     * replaced anything.
+     */
+    answers = {
+      payout_destinations: [
+        {
+          data: {
+            id: "d",
+            provider_id: KRISHNA_LISTING,
+            created_at: "2026-01-01T00:00:00Z",
+            usable_from: "2026-01-01T00:00:00Z",
+            notice_devices: 0,
+          },
+          error: null,
+        },
+        { data: null, error: { message: "counting failed" }, count: null },
+      ],
+    };
+    const { confirmFirstPayout } = await import("@/lib/data/payout-destinations");
+
+    expect(
+      await confirmFirstPayout({ destinationId: "d", adminId: ADMIN }),
+    ).toEqual({ ok: false, reason: "reasonRequired" });
   });
 });
 
