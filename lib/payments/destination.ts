@@ -135,6 +135,42 @@ export function confirmationIsSoleControl(destination: {
 }
 
 /**
+ * What the number we hold is, relative to the account's own.
+ *
+ * THREE ANSWERS BECAUSE TWO WOULD HIDE THE ONE THAT MATTERS.
+ *
+ * `matched` — at the instant the destination changed, `profiles.phone` still
+ * equalled `auth.users.phone`. Nobody had moved the account's sign-in number, so
+ * the line an admin rings is the professional's own.
+ *
+ * `changed` — they differed. `handle_new_user` copies the phone on INSERT and
+ * nothing ever syncs it again, so our copy is the SIGN-UP number and somebody
+ * has since moved the account's. That is the account-takeover signature, and it
+ * is also what an ordinary new phone looks like — **the two are not
+ * distinguishable from here and the screen must not claim they are.** It cuts
+ * both ways and both are worth saying: if the change was not theirs, the number
+ * we hold is exactly the one to ring; if it was, that number may be dead.
+ *
+ * `unrecorded` — null, which is every row written before the column and every
+ * failed read. Rule 6: never `matched`. An admin ringing a dead line believing
+ * somebody checked is the whole failure this reading exists to prevent.
+ *
+ * IT IS NOT A GATE AND MUST NOT BECOME ONE. `destinationReadiness` already
+ * decides whether money waits; this says what a person is looking at when they
+ * clear that wait. Folding it into the readiness would hold a payout over an
+ * ordinary change of phone, which is the "deterrence nobody can read" trap
+ * pointed at the professional instead of the attacker.
+ */
+export type ContactNumberStanding = "matched" | "changed" | "unrecorded";
+
+export function contactNumberStanding(destination: {
+  contactPhoneMatched: boolean | null;
+}): ContactNumberStanding {
+  if (destination.contactPhoneMatched === null) return "unrecorded";
+  return destination.contactPhoneMatched ? "matched" : "changed";
+}
+
+/**
  * May this destination receive the payout being prepared?
  *
  * THREE REFUSALS AND THEY ARE NOT THE SAME FACT, which is why this returns a

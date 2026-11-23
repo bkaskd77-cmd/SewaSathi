@@ -4,7 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 
 import { ConfirmDestination } from "@/components/admin/confirm-destination";
-import { confirmationIsSoleControl } from "@/lib/payments/client";
+import {
+  confirmationIsSoleControl,
+  contactNumberStanding,
+} from "@/lib/payments/client";
 import { redirect } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { adminGate } from "@/lib/auth/admin-gate";
@@ -149,6 +152,9 @@ async function Row({
   confirmable?: boolean;
 }) {
   const t = await getTranslations("admin.payoutDestinations");
+  const contactStanding = contactNumberStanding({
+    contactPhoneMatched: row.contactPhoneMatched,
+  });
 
   return (
     <li className="rounded-lg border border-border p-4">
@@ -189,6 +195,31 @@ async function Row({
           </span>
         ) : null}
       </p>
+
+      {/*
+        WHETHER THE NUMBER WE HOLD IS THE ACCOUNT'S OWN, on the screen that
+        offers to ring it. Replaced rows only: a first destination redirected
+        nobody, so there is nothing to object to and the comparison is noise —
+        `confirmationIsSoleControl`'s own reasoning.
+
+        THREE SENTENCES AND NOT A COLOUR FOR EACH. `changed` is the one worth
+        reading and it is deliberately not written as an accusation: it is the
+        takeover signature AND what an ordinary new phone looks like, and
+        nothing here can tell those apart. `unrecorded` says so rather than
+        staying quiet, because an absent reading and a clean one must not look
+        alike.
+      */}
+      {row.replacedAnother ? (
+        <p
+          className={
+            contactStanding === "changed"
+              ? "mt-2 rounded-md bg-warning/10 px-3 py-2 text-body-sm text-warning-ink"
+              : "mt-2 text-body-sm text-muted-foreground"
+          }
+        >
+          {t(`contact.${contactStanding}`)}
+        </p>
+      ) : null}
 
       {confirmable ? (
         <ConfirmDestination

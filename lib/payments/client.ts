@@ -72,11 +72,13 @@ export {
  */
 export {
   confirmationIsSoleControl,
+  contactNumberStanding,
   destinationReadiness,
   destinationUsableFrom,
   heldReasonFor,
   maskAccountRef,
   whyWaiting,
+  type ContactNumberStanding,
   type DestinationReadiness,
   type PayoutHeldReason,
   type PayoutWait,

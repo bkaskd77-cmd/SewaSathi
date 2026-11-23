@@ -51,11 +51,20 @@
 export const DEPENDENCY_FLOORS = [
   {
     package: "next",
-    minimum: "16.4.1",
+    minimum: "16.4.5",
     advisories: [
       "GHSA-2464-fhr4-w9xw",
       "GHSA-p3m5-59mp-jv5r",
       "GHSA-673q-mjm6-r5xr",
+      // 2026-11-23, the fourth measured feed move: seven moderates fixed
+      // above 16.4.4, three of them reachable here rather than theoretical.
+      "GHSA-mfr8-8qww-v76h",
+      "GHSA-vc7v-qv4w-wrv8",
+      "GHSA-rhh4-g77r-r9qj",
+      "GHSA-vvgp-ww4w-46vf",
+      "GHSA-f3mh-rxg3-f5g2",
+      "GHSA-7qx7-33qx-rqx2",
+      "GHSA-pc58-hwjq-p385",
     ],
     why:
       "Three advisories, two of them critical unauthenticated RCE, all fixed " +
@@ -64,7 +73,24 @@ export const DEPENDENCY_FLOORS = [
       "professionals upload arrival and claim evidence, all of it through " +
       "that path, which is why `lib/security/image.ts` reads magic bytes " +
       "rather than a content type. The Server Actions denial of service is in " +
-      "how every write in this product is made.",
+      "how every write in this product is made.\n\n" +
+      "RAISED TO 16.4.5 ON 2026-11-23, and the seven added advisories are " +
+      "MODERATES THAT WERE DECIDED RATHER THAN ACCEPTED, because of where " +
+      "they sit. Four are cross-user disclosure or cache poisoning in " +
+      "`use cache`, and one names `unstable_cache()` by hand — which is what " +
+      "`lib/data/announcements.ts` and `lib/data/launch-scope.ts` are built " +
+      "on. One is HttpOnly cookie exposure on Edge-runtime routes, and " +
+      "`middleware.ts` is where this product's auth cookies are refreshed " +
+      "and copied onto whichever response is returned. One is an SVG " +
+      "rejection bypass in the image optimiser, the same path the paragraph " +
+      "above is about. A cross-user cache leak in a product holding identity " +
+      "documents, addresses and sealed bank accounts is not a severity to " +
+      "defer on, and 16.4.5 is a patch inside the minor already installed: " +
+      "no engine change, no API change, nothing an accepted entry would have " +
+      "bought. The one that does NOT apply is in the list deliberately — " +
+      "GHSA-pc58-hwjq-p385 is self-hosted-only and this deploys to Vercel — " +
+      "because a floor records which version somebody read, never which " +
+      "subset of it they judged reachable.",
   },
   {
     package: "sharp",

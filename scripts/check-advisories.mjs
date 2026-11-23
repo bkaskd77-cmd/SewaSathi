@@ -129,25 +129,64 @@ const ACCEPTED = {
    * removed rather than kept "just in case", because a stale acceptance is a
    * hole propped open for whatever takes that package's name next.
    */
-  tailwindcss: {
+  /*
+   * THE TAILWIND GROUP IS GONE, AND ITS FOUR ENTRIES WITH IT — the THIRD time
+   * this list has shrunk off an unchanged lockfile, measured 2026-11-23. npm
+   * stopped reporting `tailwindcss`, `tailwindcss-animate`, `postcss-nested`
+   * and `postcss-selector-parser` altogether. The group's own comment recorded
+   * the rule the last time this happened and it is applied again rather than
+   * re-argued: a stale acceptance is a hole propped open for whatever takes
+   * that package's name next. `LAUNCH-BLOCKERS.md § tailwind-4` still holds
+   * the migration; what has left is one feed's opinion about it.
+   */
+
+  /*
+   * THE TYPESCRIPT-ESLINT GROUP, 2026-11-23, and it is the eslint-9 group
+   * above wearing different names: every one arrives under
+   * `eslint-config-next@14` and every one leaves with the same flat-config
+   * migration. `minimatch` is the actual finding — GHSA-g3hv-75wg-m249, a
+   * glob-parts amplification DoS — and the five `@typescript-eslint` packages
+   * are the chain it is reached through. npm's fix is
+   * `eslint-config-next@16.4.6`, which peers on `eslint >= 9`: the exact bump
+   * `eslint-9-flat-config` defers, on the config that carries
+   * `no-restricted-imports` and therefore every module boundary in
+   * ARCHITECTURE.md.
+   *
+   * DEV-ONLY AND UNREACHABLE BY A CUSTOMER: a pattern parser inside the
+   * linter, fed patterns this repository writes itself. Accepted at moderate
+   * in the dev tree alone, so any of them appearing in the PRODUCTION tree, or
+   * going above moderate, fails the gate on the next run — which is the whole
+   * point of pinning an acceptance to one severity in one tree.
+   */
+  minimatch: {
     tree: "dev",
     severity: "moderate",
-    why: "Tailwind 4 migration — LAUNCH-BLOCKERS § tailwind-4. Dev-only, build-time DoS. Reported high until 2026-10-23 and moderate since, off an unchanged lockfile: it now carries only the postcss chain below, the watcher findings having left npm's feed.",
+    why: "Glob-parts amplification DoS (GHSA-g3hv-75wg-m249) in the linter's pattern parser, on patterns this repo writes itself. Arrives under eslint-config-next@14; npm's fix is eslint-config-next@16, which peers on eslint 9 — LAUNCH-BLOCKERS § eslint-9-flat-config. Dev-only.",
   },
-  "tailwindcss-animate": {
+  "@typescript-eslint/eslint-plugin": {
     tree: "dev",
     severity: "moderate",
-    why: "Rides on tailwindcss; leaves with the same migration.",
+    why: "Reaches the minimatch finding above. Same chain, same migration. Dev-only.",
   },
-  "postcss-nested": {
+  "@typescript-eslint/parser": {
     tree: "dev",
     severity: "moderate",
-    why: "Tailwind 3's PostCSS plugin chain.",
+    why: "Same chain, same migration. Dev-only.",
   },
-  "postcss-selector-parser": {
+  "@typescript-eslint/type-utils": {
     tree: "dev",
     severity: "moderate",
-    why: "Same chain. No fix published; it leaves with Tailwind 4.",
+    why: "Same chain, same migration. Dev-only.",
+  },
+  "@typescript-eslint/typescript-estree": {
+    tree: "dev",
+    severity: "moderate",
+    why: "Where minimatch is reached from. Same chain, same migration. Dev-only.",
+  },
+  "@typescript-eslint/utils": {
+    tree: "dev",
+    severity: "moderate",
+    why: "Same chain, same migration. Dev-only.",
   },
 };
 

@@ -60,6 +60,15 @@ export type MaskedDestination = {
    * between a formality and the only control there is.
    */
   noticeDevices: number | null;
+  /**
+   * Did `profiles.phone` still equal `auth.users.phone` when this was recorded?
+   *
+   * NULL IS "NOT RECORDED", never "matched" — see `contactNumberStanding`, which
+   * is the one place that turns this into words. It is what tells an admin
+   * whether the number they are about to ring is the professional's current one
+   * or the one from before somebody moved the account's.
+   */
+  contactPhoneMatched: boolean | null;
   /** Did it replace another? A first destination redirects nobody. */
   replacedAnother: boolean;
   /** Asked once here so no surface forms a second opinion about it. */
@@ -83,6 +92,57 @@ export type MaskedDestination = {
 export type DestinationRead =
   | { ok: true; destination: MaskedDestination | null }
   | { ok: false; destination: null };
+
+/**
+ * Does the number we hold still match the account's own?
+ *
+ * TWO SOURCES THAT DIVERGE SILENTLY, WHICH IS THE WHOLE POINT.
+ * `handle_new_user` copies `auth.users.phone` into `profiles.phone` on INSERT
+ * and nothing in this product ever syncs it again — there is no phone-change
+ * path here at all. So `profiles.phone` is the SIGN-UP number, frozen, and
+ * `auth.users.phone` is whatever the account carries now. A takeover changes the
+ * second through GoTrue and cannot touch the first.
+ *
+ * READ THROUGH THE AUTH ADMIN API, because `auth` is not an exposed schema: a
+ * PostgREST select on `auth.users` answers 404 whatever the key. This is the
+ * service role either way, which is why the function lives in the one module
+ * that already holds it on a money path.
+ *
+ * NULL IS "COULD NOT TELL", AND EVERY FAILURE PATH RETURNS IT — no user, no
+ * phone on either side, a read that errored. Rule 6 in the direction that costs
+ * a sentence on a screen rather than a false reassurance: `contactNumberStanding`
+ * renders null as `unrecorded`, never as matched.
+ *
+ * NUMBERS ARE COMPARED, NEVER RETURNED OR LOGGED. The answer is one boolean; the
+ * digits stay where they already are. A phone number in an error line would put
+ * a contact detail into a log that is read far more widely than the two tables
+ * holding it.
+ */
+async function contactPhoneMatches(profileId: string): Promise<boolean | null> {
+  try {
+    const admin = createAdminClient();
+
+    const [{ data: profile, error: profileError }, authResult] =
+      await Promise.all([
+        admin.from("profiles").select("phone").eq("id", profileId).maybeSingle(),
+        admin.auth.admin.getUserById(profileId),
+      ]);
+
+    if (profileError || !profile) return null;
+    if (authResult.error || !authResult.data?.user) return null;
+
+    const held = profile.phone;
+    const live = authResult.data.user.phone;
+    if (!held || !live) return null;
+
+    return held === live;
+  } catch (thrown) {
+    console.error(
+      `[payout-destinations] contact comparison — ${describeError(thrown)}`,
+    );
+    return null;
+  }
+}
 
 /**
  * `replacedAnother` IS DERIVED FROM `usable_from`, AND THAT IS WORTH STATING
@@ -109,6 +169,7 @@ function toMasked(row: {
   first_payout_confirmed_at: string | null;
   retired_at: string | null;
   notice_devices?: number | null;
+  contact_phone_matched?: boolean | null;
 }): MaskedDestination {
   const usableFrom = new Date(row.usable_from);
   const createdAt = new Date(row.created_at);
@@ -136,6 +197,7 @@ function toMasked(row: {
     usableFrom,
     firstPayoutConfirmedAt,
     noticeDevices: row.notice_devices ?? null,
+    contactPhoneMatched: row.contact_phone_matched ?? null,
     replacedAnother,
     readiness: destinationReadiness({
       retiredAt,
@@ -148,7 +210,7 @@ function toMasked(row: {
 }
 
 const LIVE_COLUMNS =
-  "id, kind, account_ref, account_name, bank_name, created_at, usable_from, first_payout_confirmed_at, retired_at, notice_devices";
+  "id, kind, account_ref, account_name, bank_name, created_at, usable_from, first_payout_confirmed_at, retired_at, notice_devices, contact_phone_matched";
 
 /** The live destination for one listing, masked, with its readiness. */
 export async function currentDestination(
@@ -565,7 +627,24 @@ export async function changeDestination(input: {
      * earnings. `pushTargetsFor` already returns null for a failed read and
      * `[]` for a real zero, so the two are not collapsed here either.
      */
-    const noticeTargets = await pushTargetsFor(input.profileId);
+    /*
+     * AND WHETHER THE NUMBER WE HOLD IS STILL THE ACCOUNT'S, read at the same
+     * instant and for the same reason. `/admin/payout-destinations` offers "ring
+     * the professional on the number we hold", and until now nothing could say
+     * whether that number was their current one or the one from before somebody
+     * moved the account's — which is the difference between the one control
+     * this path has working and an admin ringing a dead line. Reading it after
+     * the write would let an attacker who changes the phone a second later turn
+     * a changed number into a matching one, exactly as with the device count.
+     *
+     * BOTH READS GO IN ONE WAVE. Neither depends on the other and this is a
+     * money path on a Singapore round trip; two awaits in a row is a wave more
+     * than the work needs.
+     */
+    const [noticeTargets, contactPhoneMatched] = await Promise.all([
+      pushTargetsFor(input.profileId),
+      contactPhoneMatches(input.profileId),
+    ]);
     const noticeDevices = noticeTargets === null ? null : noticeTargets.length;
 
     const { data: inserted, error: insertError } = await admin
@@ -578,6 +657,7 @@ export async function changeDestination(input: {
         bank_name: input.bankName?.trim() || null,
         usable_from: destinationUsableFrom(now, { isFirst }).toISOString(),
         notice_devices: noticeDevices,
+        contact_phone_matched: contactPhoneMatched,
       })
       .select(LIVE_COLUMNS)
       .single();

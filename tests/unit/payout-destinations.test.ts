@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -90,7 +92,20 @@ class Fake {
   }
 }
 
-const client = { from: (table: string) => new Fake(table) };
+/*
+ * THE AUTH ADMIN API, modelled because `auth` is not an exposed schema and
+ * `contactPhoneMatches` therefore cannot reach the account's number through
+ * `from()`. Default: a user whose phone matches the seeded profile.
+ */
+let authUser: { data: { user: { phone: string | null } | null }; error: unknown } = {
+  data: { user: { phone: "9779800000011" } },
+  error: null,
+};
+
+const client = {
+  from: (table: string) => new Fake(table),
+  auth: { admin: { getUserById: () => Promise.resolve(authUser) } },
+};
 
 /*
  * `cache()` is React's per-request memo and there is no request here — the same
@@ -138,6 +153,7 @@ async function liveRow(ref = ACCOUNT) {
 beforeEach(() => {
   ops = [];
   answers = {};
+  authUser = { data: { user: { phone: "9779800000011" } }, error: null };
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service";
@@ -567,6 +583,115 @@ describe("the one path that opens the envelope", () => {
       await revealDestination({ destinationId: "nope", adminId: ADMIN, reason: "x" }),
     ).toEqual({ ok: false, reason: "notFound" });
     expect(of("security_events")).toEqual([]);
+  });
+});
+
+describe("the number we hold, compared at the instant the destination changes", () => {
+  /*
+   * WHAT THIS CLOSES. `LAUNCH-BLOCKERS.md § payout-notice-undeliverable` says
+   * closing it needs the SMS gateway AND "a recorded history of the contact
+   * number, which this schema does not have". The second half was half-wrong:
+   * `handle_new_user` copies `auth.users.phone` into `profiles.phone` on INSERT
+   * and nothing ever syncs it again, so the pre-change number the entry asks
+   * for is ALREADY frozen in `profiles.phone`. What was missing is that nobody
+   * could tell "we hold their current number" from "we hold the one from before
+   * somebody moved the account's" — on the screen that offers to ring it.
+   *
+   * FROZEN, NOT A TRIGGER ON `auth.users`. That table is written on every
+   * sign-in, so a fault in a trigger there locks the whole product out. The
+   * reading is taken where `notice_devices` is taken, which also makes it
+   * immune to an attacker moving the phone a second after the redirect.
+   */
+
+  /** The provider lookup, the history count, then the retire and the insert. */
+  function seedChange(insert: { data: unknown; error: unknown }) {
+    answers = {
+      providers: [
+        { data: { id: KRISHNA_LISTING, profile_id: KRISHNA_PROFILE }, error: null },
+      ],
+      payout_destinations: [
+        { data: null, error: null, count: 1 },
+        { data: null, error: null },
+        insert,
+      ],
+      profiles: [{ data: { phone: "9779800000011" }, error: null }],
+      push_subscriptions: [{ data: [], error: null }],
+    };
+  }
+
+  async function change() {
+    const { changeDestination } = await import("@/lib/data/payout-destinations");
+    return changeDestination({
+      profileId: KRISHNA_PROFILE,
+      reauthenticatedAt: new Date(),
+      kind: "esewa",
+      accountRef: ACCOUNT,
+      accountName: "Krishna",
+    });
+  }
+
+  it("records a match when the account still carries the number we hold", async () => {
+    seedChange({ data: { id: "new", kind: "esewa" }, error: null });
+    await change();
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    expect(insert.payload!.contact_phone_matched).toBe(true);
+  });
+
+  it("records a mismatch when the account's number has been moved", async () => {
+    /*
+     * THE CASE THE CONTROL EXISTS FOR. An account takeover changes the phone
+     * through GoTrue and cannot touch `profiles.phone`, so the number we hold
+     * is the real person's — and this is the only thing that says so.
+     */
+    seedChange({ data: { id: "new", kind: "esewa" }, error: null });
+    authUser = { data: { user: { phone: "9779811111111" } }, error: null };
+    await change();
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    expect(insert.payload!.contact_phone_matched).toBe(false);
+  });
+
+  it("records null rather than a match when the comparison cannot be made", async () => {
+    /*
+     * RULE 6, in the direction that costs a sentence on a screen rather than a
+     * false reassurance. Every failure lands here: no auth user, no phone on
+     * either side, a read that errored.
+     */
+    seedChange({ data: { id: "new", kind: "esewa" }, error: null });
+    authUser = { data: { user: null }, error: { message: "no" } };
+    await change();
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    expect(insert.payload!.contact_phone_matched).toBeNull();
+  });
+
+  it("compares the numbers and never writes one anywhere", async () => {
+    /*
+     * The answer is one boolean. A phone number in the row, the log or an error
+     * line would put a contact detail somewhere far more widely read than the
+     * two tables that already hold it.
+     */
+    seedChange({ data: { id: "new", kind: "esewa" }, error: null });
+    authUser = { data: { user: { phone: "9779811111111" } }, error: null };
+    await change();
+
+    const insert = of("payout_destinations").find((o) => o.op === "insert")!;
+    const written = JSON.stringify(insert.payload);
+    expect(written).not.toContain("9779800000011");
+    expect(written).not.toContain("9779811111111");
+  });
+
+  it("reads it BEFORE the row is written, so a later move cannot change it", () => {
+    /*
+     * The ordering, read out of the source — the behaviour above cannot see it,
+     * because the fake answers in whatever order it is asked. Same assertion
+     * `notice_devices` wants and for the same reason.
+     */
+    const writer = readFileSync("lib/data/payout-destinations.ts", "utf8");
+    expect(writer.indexOf("contactPhoneMatches(input.profileId)")).toBeLessThan(
+      writer.indexOf("contact_phone_matched: contactPhoneMatched"),
+    );
   });
 });
 

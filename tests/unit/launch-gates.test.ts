@@ -14,6 +14,7 @@ import {
 import { PAYOUT_RUN, payoutRunRefusal } from "@/lib/config/payout-policy";
 import {
   confirmationIsSoleControl,
+  contactNumberStanding,
   destinationReadiness,
   heldReasonFor,
 } from "@/lib/payments/client";
@@ -299,6 +300,57 @@ describe("the narrower gates are enforcement and not relabelling", () => {
     /* Never an account number: `payoutDestination.viewed` stays the only kind
        that means anybody saw digits. */
     expect(stripped).not.toContain("accountRef");
+  });
+
+  it("says whether the number we hold is still the account's own", () => {
+    /*
+     * THE SECOND HALF OF WHAT CLOSES THE ENTRY, and the entry's premise about
+     * this schema was half-wrong. It asks for "a recorded history of the contact
+     * number, which this schema does not have" — but `handle_new_user` copies
+     * `auth.users.phone` into `profiles.phone` on INSERT and nothing ever syncs
+     * it again, so the PRE-CHANGE number is already frozen there. What was
+     * missing is that nobody could tell "we hold their current number" from "we
+     * hold the one from before somebody moved the account's", on the screen that
+     * offers to ring it.
+     *
+     * NULL IS NEVER `matched` — rule 6, on the reading an admin acts on.
+     */
+    expect(contactNumberStanding({ contactPhoneMatched: true })).toBe("matched");
+    expect(contactNumberStanding({ contactPhoneMatched: false })).toBe("changed");
+    expect(contactNumberStanding({ contactPhoneMatched: null })).toBe(
+      "unrecorded",
+    );
+  });
+
+  it("does not let that reading hold a payout, which would punish a new phone", () => {
+    /*
+     * `destinationReadiness` decides whether money waits; the contact standing
+     * says what a person is looking at when they clear that wait. A changed
+     * phone is the takeover signature AND what an ordinary new handset looks
+     * like, so gating on it would hold somebody's earnings over the second case
+     * to catch the first. Asserted as the readiness ignoring it.
+     */
+    const base = {
+      retiredAt: null,
+      usableFrom: new Date("2026-01-01T00:00:00Z"),
+      firstPayoutConfirmedAt: new Date("2026-01-02T00:00:00Z"),
+      replacedAnother: true,
+      noticeDevices: 3,
+    };
+    expect(destinationReadiness(base, new Date("2026-02-01T00:00:00Z"))).toEqual({
+      ok: true,
+    });
+    const rule = code("lib/payments/destination.ts");
+    const readiness = rule.slice(rule.indexOf("export function destinationReadiness"));
+    expect(readiness).not.toContain("contactPhoneMatched");
+  });
+
+  it("prints the standing on the screen that offers to ring the number", () => {
+    /* A reading nobody can see is the `/admin/enforcement` failure: built,
+       guarded, tested and reachable by nobody. */
+    const page = code("app/[locale]/(admin)/admin/payout-destinations/page.tsx");
+    expect(page).toContain("contactNumberStanding({");
+    expect(page).toContain("contact.");
   });
 
   it("refuses the whole run for withholding and deliberately not for this", () => {

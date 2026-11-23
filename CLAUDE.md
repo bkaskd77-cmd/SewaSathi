@@ -984,6 +984,27 @@ who decided and not what they were looking at leaves the gate to be taken on
 trust. It is **separate from `payout.confirmed`**, which is deliberately absent
 and is a different act: that one records a rail's answer about money already
 sent.
+**AND THE SECOND REQUIREMENT WAS HALF-WRONG ABOUT THE SCHEMA, which is the
+other half of that entry and is built.** It asked for "a recorded history of the
+contact number, which this schema does not have" — and `handle_new_user` copies
+`auth.users.phone` into `profiles.phone` on INSERT and **never syncs it again**;
+there is no phone-change path in this product at all. So our copy is frozen at
+sign-up and a takeover moves `auth.users.phone` through GoTrue without touching
+it: **the pre-change number was already there.** What was missing is that
+"we hold their current number" and "we hold the one from before somebody moved
+it" rendered identically on the screen that offers to ring it.
+`payout_destinations.contact_phone_matched` is the comparison, in the same wave
+as `notice_devices` and before the row is written, so a phone moved a second
+later cannot turn a changed number into a matching one.
+**A COLUMN FROZEN AT THE CHANGE, NOT A TRIGGER ON `auth.users`** — refused
+because that table is written on every sign-in, so a fault in a trigger there is
+the whole product locked out, which is not a blast radius worth a timestamp.
+**IT IS NOT A GATE**: a moved phone is the takeover signature AND an ordinary new
+handset, indistinguishable from here, so gating would hold earnings over the
+second case to catch the first — the readiness is asserted for the ABSENCE of it.
+Three answers, null never `matched`, and the screen states both readings rather
+than accusing anybody. **What is left on that entry is the gateway and nothing
+else.**
 **AND THE FIRST VERSION OF ITS OWN GUARD WAS BLIND.** The case asserting the
 refusal read `toContain('reason: "reasonRequired"')`, which matches the
 `ConfirmResult` union near the top of the file — so deleting the refusal outright

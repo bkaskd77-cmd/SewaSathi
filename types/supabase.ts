@@ -1674,6 +1674,7 @@ export type Database = {
            * than a boolean, and deliberately not named `delivered`: a push
            * service accepting a message is not a person reading it.
            */
+          contact_phone_matched: boolean | null;
           notice_devices: number | null;
           retired_at: string | null;
         };
@@ -1688,12 +1689,14 @@ export type Database = {
           usable_from: string;
           first_payout_confirmed_at?: string | null;
           first_payout_confirmed_by?: string | null;
+          contact_phone_matched?: boolean | null;
           notice_devices?: number | null;
           retired_at?: string | null;
         };
         Update: {
           first_payout_confirmed_at?: string | null;
           first_payout_confirmed_by?: string | null;
+          contact_phone_matched?: boolean | null;
           notice_devices?: number | null;
           retired_at?: string | null;
         };

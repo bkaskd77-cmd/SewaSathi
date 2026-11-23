@@ -643,6 +643,18 @@ the shape was once accepted survives.
 
 ### The one table whose contents are somebody's bank account
 
+**`payout_destinations.contact_phone_matched` stores a COMPARISON, never a
+number.** It is one boolean: at the instant the destination changed, did
+`profiles.phone` still equal `auth.users.phone` for that professional. Both
+numbers already live in this system; this adds no new class of personal data and
+deliberately does not copy either digit string into a third place, nor into any
+log line — the comparison is made in `contactPhoneMatches` and only its answer
+leaves. Null is "could not tell" and must never be read as a match. It exists
+because `/admin/payout-destinations` offers to ring the number we hold and
+nothing could say whether that was the professional's current line or the one
+from before somebody moved the account's; see `LAUNCH-BLOCKERS.md §
+payout-notice-undeliverable`.
+
 `payout_destinations` holds where a professional is paid — an account number or
 a wallet id. It is the only table in this product reached by **no browser at
 all**: `anon` and `authenticated` are `revoke all`'d rather than filtered by a
