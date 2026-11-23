@@ -1,5 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -36,7 +37,21 @@ import { Client } from "pg";
  * test at all.
  */
 
-const PG_BIN = "/usr/lib/postgresql/16/bin";
+/**
+ * One Postgres major, named here and installed by CI — never inherited.
+ *
+ * `.github/workflows/ci.yml` installs this exact major from the PostgreSQL apt
+ * repository, and `tests/unit/ci-postgres.test.ts` compares the two, because
+ * the arrangement that preceded it — "ubuntu-latest ships the server binaries"
+ * — broke the day GitHub moved that pointer to an image without them.
+ *
+ * Production is 17; this is 16. That gap is known and recorded: the one clause
+ * it affects (`revoke maintain`) is verified against production directly.
+ * Moving this to 17 is a change to make on purpose, in its own commit, with
+ * the privilege tests re-read — not something a runner image does for us.
+ */
+export const PG_MAJOR = 16;
+const PG_BIN = `/usr/lib/postgresql/${PG_MAJOR}/bin`;
 
 /**
  * Postgres refuses to run as root, and CI containers usually are.
@@ -288,6 +303,22 @@ alter default privileges in schema public
 const SKIP = new Set<string>();
 
 export async function startPostgres(): Promise<Harness> {
+  /*
+   * A MISSING SERVER SAYS SO, rather than surfacing as `spawnSync ... ENOENT`
+   * from inside `execFileSync` — which is how forty-nine db files failed at
+   * once on a new runner image, each with the same stack trace and none with a
+   * sentence saying what was missing or where it is installed from.
+   */
+  if (!existsSync(bin("initdb"))) {
+    throw new Error(
+      `PostgreSQL ${PG_MAJOR} is not installed: ${bin("initdb")} does not exist. ` +
+        `The database suite needs that exact major — CI installs it in ` +
+        `.github/workflows/ci.yml ("PostgreSQL ${PG_MAJOR} for the database ` +
+        `suite"), and locally it is \`postgresql-${PG_MAJOR}\` from the ` +
+        `PostgreSQL apt repository.`,
+    );
+  }
+
   const root = mkdtempSync(path.join(tmpdir(), "sk-pg-"));
   const dataDir = path.join(root, "data");
   const socketDir = path.join(root, "sock");

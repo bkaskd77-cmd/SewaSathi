@@ -70,11 +70,42 @@ jobs:
       - name: Status transitions
         run: npm run check:transitions
 
+      # THE DATABASE SUITE'S POSTGRES IS INSTALLED, NOT INHERITED.
+      #
+      # This used to say the runner image provides the server binaries, which was
+      # true until GitHub moved `ubuntu-latest` from ubuntu-24.04 to ubuntu-26.04
+      # in November 2026. The new image has no PostgreSQL 16, every file in
+      # tests/db/ failed with `initdb ENOENT`, and the commit that hit it was
+      # the one carrying a next.js security fix — so a runner image nobody here
+      # chose held a security patch out of production. `ubuntu-latest` is a
+      # pointer somebody else can move, which is exactly why this file pins
+      # every action by SHA; the Postgres version gets the same treatment.
+      #
+      # The steps are backup.yml's, which installs its client from the
+      # PostgreSQL apt repository the same way and kept passing on the new
+      # image. The major here must equal `PG_BIN` in tests/support/postgres.ts,
+      # and tests/unit/ci-postgres.test.ts compares the two so a later bump of
+      # one fails a test rather than a CI run.
+      - name: PostgreSQL 16 for the database suite
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-16
+          /usr/lib/postgresql/16/bin/initdb --version
+
       # Unit tests plus the database suite. The db half stands up a throwaway
       # Postgres and applies the real migrations, so RLS isolation between two
-      # customers is asserted against actual policies rather than a mock.
-      # ubuntu-latest ships the server binaries; the harness drops to the
-      # unprivileged `postgres` account because Postgres refuses to run as root.
+      # customers is asserted against actual policies rather than a mock. It
+      # listens on a private unix socket with no TCP port, so the system cluster
+      # the package above may start cannot collide with it; the harness drops
+      # to the unprivileged `postgres` account because Postgres refuses to run
+      # as root.
       - name: Tests
         run: npm run test
 
