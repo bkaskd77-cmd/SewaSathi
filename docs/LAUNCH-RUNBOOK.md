@@ -59,11 +59,36 @@ entered rather than rejected. Every walkthrough so far has run on Supabase test
 numbers, which GoTrue answers itself without calling a provider, which is
 exactly why nothing has ever looked wrong.
 
-**Do.** Contract the gateway (it costs per message and needs a registered
-Nepali sender ID — that is why it is sequenced last among the credentials), then
-Supabase → Authentication → Providers → Phone: enter the real Account SID, auth
-token and sender. Set `SMS_HEALTH_NUMBER` in Vercel to **a real handset you
-hold**.
+**Decided 2026-11-23: a Nepali gateway, not Twilio.** Twilio reaches Nepal as
+an international route, priced per message in dollars; Sparrow SMS and Aakash
+SMS are local aggregators priced in rupees, several times cheaper per code and
+on the same NTC/Ncell routes a Nepali sender ID is registered for. Check the
+current rate card when signing up — this file does not carry a price, because a
+number written here is a number nobody re-measures. **Both adapters are already
+built and tested** (`lib/sms/sparrow.ts`, `lib/sms/aakash.ts`), and
+`lib/auth/otp.ts` does not change: Supabase keeps generating and verifying the
+code, and hands only the SENDING to `/api/sms/send` through its Send SMS Hook.
+Sparrow is the default; Aakash is the same three steps with its own token.
+
+**Do.**
+
+1. **Sign up with Sparrow SMS** and register a sender ID (NTA approval can take
+   days, so start this first). You get an API token and a sender identity.
+2. **Vercel → Settings → Environment Variables, Production:**
+   `SMS_GATEWAY=sparrow`, `SPARROW_SMS_TOKEN=<token>`,
+   `SPARROW_SMS_FROM=<sender identity>`. (Aakash instead:
+   `SMS_GATEWAY=aakash`, `AAKASH_SMS_TOKEN=<token>`.)
+3. **Supabase → Authentication → Hooks → Send SMS hook**: enable it, type
+   HTTPS, URL `https://<production-host>/api/sms/send`, and generate the
+   secret. Put that secret in Vercel as `SEND_SMS_HOOK_SECRET`. The route
+   refuses every unsigned call, so without it nothing is sent.
+4. **Set `SMS_HEALTH_NUMBER`** in Vercel to **a real handset you hold** (it is
+   already set — check it is still yours).
+5. **A new environment variable needs a new build**, never a re-run: ask the
+   agent to redeploy once the variables are in.
+
+The Twilio fields under Providers → Phone stay empty. With the hook enabled
+Supabase sends nothing itself, and the `AC000…` placeholder stops mattering.
 
 **Verify.**
 
