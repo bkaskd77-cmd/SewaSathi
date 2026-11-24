@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
-import { smsGateway } from "@/lib/sms";
+import { otpMessage, smsGateway } from "@/lib/sms";
 
 /**
  * Supabase's Send SMS Hook: the one seam where our gateway replaces theirs.
@@ -118,11 +118,9 @@ export async function POST(request: Request) {
   const gateway = smsGateway();
   const result = await gateway.send({
     to: phone,
-    // Written here rather than in a catalogue: this is read on a lock screen
-    // by somebody with the app open in front of them, in either language, so
-    // it is short, names us, and leads with the digits. The brand word is the
-    // anti-phishing part — a code with no sender is a code for anything.
-    text: `${otp} is your SajiloKaam code. सजिलो काम कोड: ${otp}`,
+    // One credit, code first, our name, and "never share it" in both
+    // languages — `otpMessage` says why each, and its test holds the length.
+    text: otpMessage(otp),
   });
 
   if (!result.ok) {

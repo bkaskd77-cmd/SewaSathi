@@ -100,6 +100,11 @@ export const PROSE_DOCUMENTS = [
     path: "lib/content/legal/refunds.ts",
     why: "The guarantee, the window, and who pays for the return visit.",
   },
+  {
+    tier: "safety",
+    path: "lib/sms/otp-message.ts",
+    why: "The sign-in code SMS, sent to every account and the one Nepali in this product outside both the catalogue and lib/content. Its Nepali line is 'never share this code' — read wrongly or too politely, it fails the one moment it exists for: somebody on the phone asking a customer to read out a real code. It must also stay within 70 characters, so a better wording has to be no longer.",
+  },
 ];
 
 /**

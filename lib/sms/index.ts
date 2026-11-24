@@ -20,6 +20,8 @@ import {
  * old one is dropped.
  */
 
+export { otpMessage } from "./otp-message";
+
 export {
   messageParts,
   toGatewayNumber,
