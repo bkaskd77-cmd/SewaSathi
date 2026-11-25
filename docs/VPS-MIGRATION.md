@@ -25,16 +25,52 @@ Nothing a customer touches needs rewriting.
   what keep a problem in another project's container from becoming ours.
 - **The domain goes through Cloudflare.**
 
+**The first two are reopened by what the server turned out to be — see below.**
+
+## Found on 2026-11-25: the existing server is in Paris
+
+Read on the host itself (`curl ipinfo.io`): **Paris, France**, AS47583 Hostinger.
+The database is in Singapore, about 10,700 km away.
+
+**What that costs, estimated from distance and not yet measured.** A
+Europe–Singapore round trip usually runs 150–170 ms: two to three times the
+80 ms bar `server.region` holds, and most of the way to the incident this
+product already had (`iad1`, ~250 ms, 2–3 seconds per page). A signed-in page
+asks the database 8–12 questions, several in sequence, so expect **roughly a
+second added to every signed-in page**. On top of that every page travels
+Kathmandu–Paris instead of Kathmandu–Singapore, because Cloudflare never caches
+a page (row 8).
+
+**Hostinger's own facts**, from its support pages:
+
+- VPS locations in Asia are **India, Indonesia and Malaysia. There is no
+  Singapore VPS.** Kuala Lumpur is ~300 km from Singapore — effectively next
+  door to the database.
+- A VPS's location is fixed. Moving one is a reinstall that **deletes
+  everything on it** and gives it a new IP, so moving this server would wipe and
+  move the owner's other projects with it.
+
+**Options, recommendation first — the owner's call, because the first costs
+money:**
+
+1. **A small separate VPS in Malaysia, for SajiloKaam only (recommended).** Next
+   to the database; the money keys stop sharing a host with other projects,
+   which removes the cost stated under *Decided*; the other projects are
+   untouched; and it has its own static IP for the SMS whitelist. The smallest
+   plan is enough, because the app is built in CI and the server only runs it.
+2. **Keep Paris** and accept roughly a second per signed-in page. Not
+   recommended: moving the server next to the database was the largest single
+   speed fix this product has ever had.
+3. **Move the existing server to Asia.** Wipes it and changes its IP; only worth
+   it if the other projects also serve this region.
+
 ## Still to decide
 
-1. **Location: Singapore, unless there is a strong reason otherwise.** The
-   database (Supabase) is in Singapore, and a signed-in page asks it 8–12
-   questions, several one after another. Server and database must be close:
-   this product once ran its server in the USA against a Singapore database and
-   every page waited 2–3 seconds before sending a byte. A server in Nepal is
-   much nearer than the USA but still pays a Kathmandu–Singapore round trip on
-   every question; measure it before choosing it (`server.region` on
-   `/api/health` prints the figure).
+1. **Location — Malaysia (Kuala Lumpur) under option 1 above.** The rule it
+   follows: server and database must be close, because a signed-in page asks
+   the database 8–12 questions, several one after another. Measure it once the
+   app runs there (`server.region` on the detailed `/api/health` prints the
+   figure) rather than trusting the map.
 2. **Size.** Build in CI and ship the result, so the server only *runs* the app:
    **2 vCPU, 2–4 GB RAM, 40 GB SSD, Ubuntu 24.04 LTS, a static IPv4.** Building
    on the server instead needs 4 GB, because `next build` is the hungriest thing
@@ -116,10 +152,12 @@ These are the doors:
 
 ## What is needed from the owner
 
-- **The VPS's location** — the one detail the overview page does not show.
-- **Which reverse proxy already runs on the host** (Nginx, Traefik, Caddy,
-  Nginx Proxy Manager…), so our container plugs into it rather than a second one
-  fighting it for ports 80 and 443.
+- **Which option above** (separate Malaysia VPS, keep Paris, or move the
+  server). The location itself is known now: Paris.
+- **Only if we stay on the shared server: which reverse proxy already runs on
+  it** (Nginx, Traefik, Caddy, Nginx Proxy Manager…), so our container plugs
+  into it rather than a second one fighting it for ports 80 and 443. A server of
+  our own needs no answer here — we set up its proxy ourselves.
 - **The domain.** **Never a password or a key** in the chat.
 - **Deploy access**: an SSH key pair made for deploys only — the public half
   added on the server, the private half saved as a GitHub Actions secret. Exact
