@@ -299,10 +299,13 @@ is recorded in `LAUNCH-BLOCKERS.md § What each entry gates`. Every unresolved
 entry now says what it gates, so `LAUNCH=true` is reachable without anything
 being waived.
 
-**Five entries refuse a launch build**, and four of them are steps 1, 2 and 3 of
+**Six entries refuse a launch build**, and four of them are steps 1, 2 and 3 of
 this runbook: the SMS gateway, the support number, the test-account cleanup, the
-legal review, and the Nepali native read of the money, safety and legal strings.
-Nothing else holds the flag, and no entry is unclassified.
+legal review, the Nepali native read of the money, safety and legal strings, and
+— since 2026-11-25 — `vps-migration`: production runs on our own VPS, and
+`docs/VPS-MIGRATION.md` is that move. **Every step in this runbook that says
+"Vercel" moves to the VPS's env file and crontab once it is done.** Nothing else
+holds the flag, and no entry is unclassified.
 
 **Five moved to narrower gates that bite somewhere real**, which is the whole
 difference between this and a waiver:

@@ -898,8 +898,10 @@ comes with it — **reclassifying is not the same as doing** — so every open e
 is still counted and printed on every run whatever it gates, and
 `check:blockers` prints both numbers ("14 unresolved, 6 of them gating a
 launch") because a number that stops being said out loud is one nobody closes.
-**FIVE REFUSE A LAUNCH**: the SMS gateway, the support number, the test-account
-cleanup, the legal review and the Nepali native read.
+**SIX REFUSE A LAUNCH**: the SMS gateway, the support number, the test-account
+cleanup, the legal review, the Nepali native read and — since the owner decided
+on 2026-11-25 that production runs on our own VPS — the move off Vercel
+(`vps-migration`, planned in `docs/VPS-MIGRATION.md`).
 **FOUR MOVED TO GATES THAT BITE SOMEWHERE REAL**, which is the whole difference
 between this and a waiver, and each one is asserted by
 `tests/unit/launch-gates.test.ts` reading the source — a classification whose
